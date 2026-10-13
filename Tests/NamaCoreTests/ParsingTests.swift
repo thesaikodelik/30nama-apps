@@ -44,6 +44,12 @@ final class ParsingTests: XCTestCase {
         // Written properly: the full stop comes last.
         let proper = SubtitleTrack(vtt: vtt(["باشه. فهمیدم!", "خوبه."]))
         XCTAssertEqual(proper.text(at: 0.5), rtl + "باشه. فهمیدم!" + end)
+        // Typed on an Arabic keyboard: the yeh with dots and the Arabic kaf become the Persian letters.
+        let typed = SubtitleTrack(vtt: vtt(["چي اومدي", "كتاب"]))
+        XCTAssertEqual(typed.text(at: 0.5), rtl + "چی اومدی" + end)
+        XCTAssertEqual(typed.text(at: 1.5), rtl + "کتاب" + end)
+        // Arabic itself keeps its own letters.
+        XCTAssertEqual(SubtitleTrack(vtt: vtt(["في كتاب"])).text(at: 0.5), rtl + "في كتاب" + end)
         // Nothing right-to-left in it: left alone.
         XCTAssertEqual(SubtitleTrack(vtt: vtt(["Fine. I get it!"])).text(at: 0.5), "Fine. I get it!")
     }

@@ -31,7 +31,23 @@ struct SubtitleTrack: Equatable {
             let body = SubtitleTrack.clean(lines[(timing + 1)...].joined(separator: "\n"))
             if !body.isEmpty { cues.append(Cue(start: start, end: end, text: body)) }
         }
-        self.init(cues: SubtitleTrack.directed(cues))
+        self.init(cues: SubtitleTrack.directed(SubtitleTrack.persianised(cues)))
+    }
+
+    /// Persian subtitles are often typed on an Arabic keyboard: the Arabic yeh, which carries two
+    /// dots beneath it at the end of a word, and the Arabic kaf, which is drawn differently. A
+    /// Persian reader sees both as mistakes. Where the text is Persian (it uses letters Arabic
+    /// does not have), those two are replaced by their Persian forms.
+    static func persianised(_ cues: [Cue]) -> [Cue] {
+        let persianOnly: Set<Character> = ["پ", "چ", "ژ", "گ"]
+        guard cues.contains(where: { $0.text.contains(where: persianOnly.contains) }) else { return cues }
+        return cues.map { cue in
+            var text = cue.text
+            for (arabic, persian) in [("\u{064A}", "\u{06CC}"), ("\u{0649}", "\u{06CC}"), ("\u{0643}", "\u{06A9}")] {
+                text = text.replacingOccurrences(of: arabic, with: persian)
+            }
+            return Cue(start: cue.start, end: cue.end, text: text)
+        }
     }
 
     /// Fixes the direction each line is laid out in, for a track in a right-to-left script.
