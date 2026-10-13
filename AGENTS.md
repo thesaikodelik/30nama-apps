@@ -6,19 +6,18 @@
 
 ## پروژه چیست
 
-برنامهٔ غیررسمی ۳۰نما برای Apple TV: SwiftUI، tvOS 17 به بالا، بدون وابستگی بیرونی. از روی کلاینت تایزن [msharifi99/30nama-tizenos](https://github.com/msharifi99/30nama-tizenos) نوشته شده و با همان API کار می‌کند. وضعیت کارها در [TASKS.md](TASKS.md) است.
+برنامهٔ غیررسمی ۳۰نما برای Apple TV و مک: SwiftUI، tvOS 17 و macOS 14 به بالا، بدون وابستگی بیرونی. نسخهٔ مک هنوز در دست ساخت است. از روی کلاینت تایزن [msharifi99/30nama-tizenos](https://github.com/msharifi99/30nama-tizenos) نوشته شده و با همان API کار می‌کند. وضعیت کارها در [TASKS.md](TASKS.md) است.
 
 ## ساختار
 
 - `30nama/Core`: مدل‌ها، کلاینت API، تجزیه‌گرها، رشته‌های رابط، ریت‌ها و ادغامشان. هیچ `import` رابط کاربری ندارد، چون همین پوشه پکیج `NamaCore` هم هست و تست‌هایش روی مک اجرا می‌شود.
-- `30nama/App`: نقطهٔ شروع، وضعیت سراسری (`AppModel`)، مسیرها
-- `30nama/UI`: تم، سبک‌های فوکوس، تصویرها، پس‌زمینه
-- `30nama/Screens`: صفحه‌ها
-- `30nama/Player`: پخش‌کننده و زیرنویس
+- `30nama/Shared`: هر چه هر دو برنامه لازم دارند و به رابط وابسته است: وضعیت سراسری (`AppModel`)، انبار iCloud، تم، بارگذاری تصویر، پس‌زمینه و قلم‌ها. این‌جا نام نوع‌های UIKit یا AppKit نیاید؛ `Platform.swift` نام مشترکشان را می‌دهد.
+- `30nama/App`، `30nama/UI`، `30nama/Screens`، `30nama/Player`، `30nama/Resources`: فقط برنامهٔ Apple TV
+- `30nama/Mac`: فقط برنامهٔ مک (رابط با موس و کیبورد، آیکون مک)
 - `Config`: تنظیمات بیلد، `Info.plist`، مجوزها
 - `Tests/NamaCoreTests`: تست‌های `Core`
 
-پروژهٔ Xcode پوشهٔ `30nama` را خودش دنبال می‌کند. فایل تازه را فقط در پوشهٔ درست بگذارید و به `project.pbxproj` دست نزنید.
+پروژه دو target دارد: `30nama` (Apple TV) و `30nama-mac`. Xcode پوشه‌های زیر `30nama` را خودش دنبال می‌کند و هر target فقط پوشه‌های خودش و `Core` و `Shared` را می‌گیرد. فایل تازه را فقط در پوشهٔ درست بگذارید و به `project.pbxproj` دست نزنید.
 
 ## دستورها
 
@@ -27,11 +26,12 @@
 ```
 swift test
 xcodebuild -project 30nama.xcodeproj -scheme 30nama -destination 'platform=tvOS Simulator,name=Apple TV' build
+xcodebuild -project 30nama.xcodeproj -scheme 30nama-mac -destination 'platform=macOS' build
 ```
 
 </div>
 
-`swift test` فقط `Core` را می‌سنجد. هر تغییری در صفحه‌ها را باید روی شبیه‌ساز دید.
+`swift test` فقط `Core` را می‌سنجد. هر تغییری در صفحه‌ها را باید روی شبیه‌ساز یا خود مک دید، و هر تغییری در `Shared` را با ساختن هر دو target.
 
 ## قاعده‌ها
 

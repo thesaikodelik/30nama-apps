@@ -1,4 +1,4 @@
-// Draws the layered tvOS app icon, the Top Shelf images and the in-app logo into the asset catalog.
+// Draws the layered tvOS app icon, the Top Shelf images, the in-app logo and the Mac app icon into the asset catalogs.
 // Run from the project root:  swift Tools/make-icons.swift
 import AppKit
 
@@ -131,4 +131,65 @@ for (scale, height) in [("1x", 208), ("2x", 416)] {
 }
 try! JSONSerialization.data(withJSONObject: ["images": logoImages, "info": info], options: [.prettyPrinted, .sortedKeys])
     .write(to: logoSet.appendingPathComponent("Contents.json"))
-print("Wrote \(catalog.path) and \(logoSet.lastPathComponent)")
+
+// MARK: Mac
+
+// The Mac icon: the cube alone on the same dark plate, in the rounded square macOS expects.
+func macIcon(_ side: Int) -> Data {
+    let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
+        hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let ctx = NSGraphicsContext.current!.cgContext
+    let s = CGFloat(side)
+    // Apple's grid: the plate is 824 of 1024 points wide, with the rest left for its shadow.
+    let plate = CGRect(x: s * 0.0977, y: s * 0.0977, width: s * 0.8046, height: s * 0.8046)
+    let shape = CGPath(roundedRect: plate, cornerWidth: s * 0.181, cornerHeight: s * 0.181, transform: nil)
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -s * 0.012), blur: s * 0.03, color: NSColor.black.withAlphaComponent(0.45).cgColor)
+    ctx.addPath(shape)
+    ctx.setFillColor(bgBottom.cgColor)
+    ctx.fillPath()
+    ctx.restoreGState()
+    ctx.saveGState()
+    ctx.addPath(shape)
+    ctx.clip()
+    NSGradient(starting: bgBottom, ending: bgTop)!.draw(in: plate, angle: 90)
+    let bloom = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [accent.withAlphaComponent(0.5).cgColor, accent.withAlphaComponent(0).cgColor] as CFArray, locations: [0, 1])!
+    ctx.drawRadialGradient(bloom, startCenter: CGPoint(x: plate.midX, y: plate.midY), startRadius: 0, endCenter: CGPoint(x: plate.midX, y: plate.midY), endRadius: plate.width * 0.62, options: [])
+    // Only the cube: the left part of the logo, scaled so it fills the plate comfortably.
+    NSGraphicsContext.current!.imageInterpolation = .high
+    let cubeHeight = plate.height * 0.5
+    let fullWidth = cubeHeight * CGFloat(logo.pixelsWide) / CGFloat(logo.pixelsHigh)
+    let cubeWidth = fullWidth * logoSplit
+    let box = CGRect(x: plate.midX - cubeWidth / 2, y: plate.midY - cubeHeight / 2, width: fullWidth, height: cubeHeight)
+    ctx.clip(to: CGRect(x: box.minX, y: 0, width: cubeWidth, height: s))
+    logo.draw(in: box, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+    ctx.restoreGState()
+    NSGraphicsContext.restoreGraphicsState()
+    return rep.representation(using: .png, properties: [:])!
+}
+
+let macCatalog = root.appendingPathComponent("30nama/Mac/Assets.xcassets")
+let macIconSet = macCatalog.appendingPathComponent("AppIcon.appiconset")
+try! FileManager.default.createDirectory(at: macIconSet, withIntermediateDirectories: true)
+var macImages: [[String: String]] = []
+for points in [16, 32, 128, 256, 512] {
+    for scale in [1, 2] {
+        let file = "icon_\(points)@\(scale)x.png"
+        try! macIcon(points * scale).write(to: macIconSet.appendingPathComponent(file))
+        macImages.append(["filename": file, "idiom": "mac", "scale": "\(scale)x", "size": "\(points)x\(points)"])
+    }
+}
+try! JSONSerialization.data(withJSONObject: ["images": macImages, "info": info], options: [.prettyPrinted, .sortedKeys])
+    .write(to: macIconSet.appendingPathComponent("Contents.json"))
+try! JSONSerialization.data(withJSONObject: ["info": info], options: [.prettyPrinted, .sortedKeys])
+    .write(to: macCatalog.appendingPathComponent("Contents.json"))
+// The Mac app shows the same logo and accent colour; its catalog carries copies of both.
+for shared in ["Logo.imageset", "AccentColor.colorset"] {
+    let to = macCatalog.appendingPathComponent(shared)
+    try? FileManager.default.removeItem(at: to)
+    try! FileManager.default.copyItem(at: catalog.deletingLastPathComponent().appendingPathComponent(shared), to: to)
+}
+print("Wrote \(catalog.path), \(logoSet.lastPathComponent) and \(macCatalog.path)")

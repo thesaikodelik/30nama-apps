@@ -40,6 +40,6 @@ approved by 30nama.
 
 ## Vazirmatn
 
-The fonts in `30nama/Resources/Fonts` are [Vazirmatn](https://github.com/rastikerdar/vazirmatn),
+The fonts in `30nama/Shared/Fonts` are [Vazirmatn](https://github.com/rastikerdar/vazirmatn),
 licensed under the SIL Open Font License 1.1. The licence text is in
-`30nama/Resources/Fonts/Vazirmatn-OFL.txt`.
+`30nama/Shared/Fonts/Vazirmatn-OFL.txt`.

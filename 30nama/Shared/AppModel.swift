@@ -62,12 +62,12 @@ enum SubtitleColor: String, CaseIterable {
         }
     }
 
-    var color: UIColor {
+    var color: PlatformColor {
         switch self {
         case .white: return .white
-        case .yellow: return UIColor(red: 1.0, green: 0.90, blue: 0.30, alpha: 1)
-        case .cyan: return UIColor(red: 0.45, green: 0.93, blue: 1.0, alpha: 1)
-        case .green: return UIColor(red: 0.55, green: 0.95, blue: 0.55, alpha: 1)
+        case .yellow: return PlatformColor(red: 1.0, green: 0.90, blue: 0.30, alpha: 1)
+        case .cyan: return PlatformColor(red: 0.45, green: 0.93, blue: 1.0, alpha: 1)
+        case .green: return PlatformColor(red: 0.55, green: 0.95, blue: 0.55, alpha: 1)
         }
     }
 }

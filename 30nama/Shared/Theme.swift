@@ -33,7 +33,7 @@ extension View {
     /// Translucent surface: Liquid Glass where the system has it, a thin material elsewhere.
     @ViewBuilder
     func glass<S: Shape>(_ shape: S) -> some View {
-        if #available(tvOS 26.0, *) {
+        if #available(tvOS 26.0, macOS 26.0, *) {
             glassEffect(.regular, in: shape)
         } else {
             background(.ultraThinMaterial, in: shape)
@@ -46,8 +46,17 @@ extension Post {
     /// A lively version of the poster's average colour, used for the glow around the title.
     var tint: Color {
         guard let c = poster.blurhash.flatMap(BlurHash.average) else { return Theme.accent }
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(red: c.red, green: c.green, blue: c.blue, alpha: 1).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        // Hue, saturation and brightness worked out by hand, so this needs neither UIKit nor AppKit.
+        let high = max(c.red, c.green, c.blue), low = min(c.red, c.green, c.blue), span = high - low
+        let b = high, s = high > 0 ? span / high : 0
+        var h = 0.0
+        if span > 0 {
+            if high == c.red { h = ((c.green - c.blue) / span).truncatingRemainder(dividingBy: 6) }
+            else if high == c.green { h = (c.blue - c.red) / span + 2 }
+            else { h = (c.red - c.green) / span + 4 }
+            h /= 6
+            if h < 0 { h += 1 }
+        }
         // Greys have no meaningful hue; keep them as a cool white instead of a random colour.
         guard s > 0.1 else { return Color(hue: 0.62, saturation: 0.12, brightness: 0.95) }
         return Color(hue: h, saturation: min(0.95, max(0.55, s * 1.5)), brightness: min(1, max(0.8, b * 1.7)))

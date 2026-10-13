@@ -20,7 +20,7 @@ struct StageView: View {
 
     private struct Backdrop: Equatable {
         let id: Int
-        let image: UIImage
+        let image: PlatformImage
         let blurred: Bool
         static func == (a: Backdrop, b: Backdrop) -> Bool { a.id == b.id }
     }
@@ -81,7 +81,7 @@ struct StageView: View {
 
 /// One backdrop layer with a slow Ken Burns drift.
 private struct DriftingImage: View {
-    let image: UIImage
+    let image: PlatformImage
     let variant: Int
     /// Titles without a wide cover fall back to their poster, blurred into a wash of colour.
     let blurred: Bool
@@ -96,7 +96,7 @@ private struct DriftingImage: View {
         let d = directions[abs(variant) % directions.count]
         Color.clear
             .overlay {
-                Image(uiImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .scaledToFill()
                     .blur(radius: blurred ? 60 : 0)

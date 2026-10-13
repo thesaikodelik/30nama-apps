@@ -8,10 +8,10 @@ import ImageIO
 final class ImagePipeline: @unchecked Sendable {
     static let shared = ImagePipeline()
 
-    private let cache = NSCache<NSString, UIImage>()
+    private let cache = NSCache<NSString, PlatformImage>()
     private let session: URLSession
     private let lock = NSLock()
-    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private var inFlight: [String: Task<PlatformImage?, Never>] = [:]
 
     init() {
         cache.totalCostLimit = 192 * 1024 * 1024
@@ -24,16 +24,16 @@ final class ImagePipeline: @unchecked Sendable {
 
     private func key(_ url: URL, _ maxPixel: Int) -> String { "\(maxPixel)|\(url.absoluteString)" }
 
-    func cached(_ url: URL, maxPixel: Int) -> UIImage? {
+    func cached(_ url: URL, maxPixel: Int) -> PlatformImage? {
         cache.object(forKey: key(url, maxPixel) as NSString)
     }
 
-    func image(_ url: URL, maxPixel: Int) async -> UIImage? {
+    func image(_ url: URL, maxPixel: Int) async -> PlatformImage? {
         let key = key(url, maxPixel)
         if let hit = cache.object(forKey: key as NSString) { return hit }
-        let task = lock.withLock { () -> Task<UIImage?, Never> in
+        let task = lock.withLock { () -> Task<PlatformImage?, Never> in
             if let running = inFlight[key] { return running }
-            let task = Task.detached(priority: .userInitiated) { [session, cache] () -> UIImage? in
+            let task = Task.detached(priority: .userInitiated) { [session, cache] () -> PlatformImage? in
                 guard let (data, response) = try? await session.data(from: url),
                       (response as? HTTPURLResponse)?.statusCode ?? 200 < 400,
                       let image = ImagePipeline.decode(data, maxPixel: maxPixel) else { return nil }
@@ -48,7 +48,7 @@ final class ImagePipeline: @unchecked Sendable {
         return image
     }
 
-    static func decode(_ data: Data, maxPixel: Int) -> UIImage? {
+    static func decode(_ data: Data, maxPixel: Int) -> PlatformImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
         let options = [
@@ -57,15 +57,15 @@ final class ImagePipeline: @unchecked Sendable {
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ] as CFDictionary
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options).map { UIImage(cgImage: $0) }
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options).map { PlatformImage(cgImage: $0) }
     }
 }
 
 /// BlurHash placeholders, decoded once per hash.
 enum BlurPlaceholder {
-    private static let cache = NSCache<NSString, UIImage>()
+    private static let cache = NSCache<NSString, PlatformImage>()
 
-    static func image(_ hash: String?) -> UIImage? {
+    static func image(_ hash: String?) -> PlatformImage? {
         guard let hash else { return nil }
         if let hit = cache.object(forKey: hash as NSString) { return hit }
         let w = 12, h = 18
@@ -77,7 +77,7 @@ enum BlurPlaceholder {
                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
                   provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
         else { return nil }
-        let image = UIImage(cgImage: cg)
+        let image = PlatformImage(cgImage: cg)
         cache.setObject(image, forKey: hash as NSString)
         return image
     }
@@ -90,18 +90,18 @@ struct RemoteImage: View {
     /// Longest side, in pixels, the image is decoded to.
     var maxPixel: Int
 
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
 
     var body: some View {
         Color.clear
             .overlay {
                 if let placeholder = BlurPlaceholder.image(blurhash) {
-                    Image(uiImage: placeholder).resizable().scaledToFill()
+                    Image(platformImage: placeholder).resizable().scaledToFill()
                 }
             }
             .overlay {
                 if let image {
-                    Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
+                    Image(platformImage: image).resizable().scaledToFill().transition(.opacity)
                 }
             }
             .clipped()
@@ -123,6 +123,6 @@ extension Poster {
     /// Variant for a poster drawn `width` points wide on this screen (with headroom for the focus scale).
     @MainActor
     func url(forWidth width: CGFloat) -> URL? {
-        url(pixelWidth: Double(width * UIScreen.main.scale))
+        url(pixelWidth: Double(width * Display.scale))
     }
 }
