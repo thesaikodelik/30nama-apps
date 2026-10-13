@@ -92,6 +92,11 @@ struct MainView: View {
         .overlay(alignment: .top) {
             NavBar().padding(.top, 14).zIndex(2)
         }
+        .overlay(alignment: .bottomTrailing) {
+            if nav.section != .downloads || !nav.opened.isEmpty {
+                DownloadsOrb().padding(24)
+            }
+        }
         .overlay {
             if let post = nav.picking {
                 DownloadPicker(post: post) { nav.picking = nil }
@@ -161,21 +166,25 @@ private struct NavBar: View {
     @Environment(\.loc) private var loc
 
     var body: some View {
+        // The back button has a place of its own beside the bar, kept even while it is hidden,
+        // and an empty place of the same size balances it on the other side. So the bar stays
+        // centred and its items do not shift when the button comes and goes.
         HStack(spacing: 10) {
-            if !nav.opened.isEmpty {
-                Button { nav.back() } label: {
-                    Image(systemName: "chevron.backward")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Theme.text1)
-                        .frame(width: 48, height: 48)
-                        .glass(Circle())
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            Button { nav.back() } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.text1)
+                    .frame(width: 48, height: 48)
+                    .glass(Circle())
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
+            .opacity(nav.opened.isEmpty ? 0 : 1)
+            .scaleEffect(nav.opened.isEmpty ? 0.8 : 1)
+            .allowsHitTesting(!nav.opened.isEmpty)
             HStack(spacing: 2) {
-                ForEach(MacSection.allCases, id: \.self) { section in
+                // Downloads are not a place in the catalogue; they have a marker of their own in the corner.
+                ForEach(MacSection.allCases.filter { $0 != .downloads }, id: \.self) { section in
                     NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty) {
                         nav.go(section)
                     }
@@ -183,6 +192,7 @@ private struct NavBar: View {
             }
             .padding(4)
             .glass(Capsule(style: .continuous))
+            Color.clear.frame(width: 48, height: 48)
         }
         .animation(Theme.focusSpring, value: nav.opened.isEmpty)
     }

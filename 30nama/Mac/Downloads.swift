@@ -751,3 +751,137 @@ private struct RowButton: View {
     }
 }
 
+
+// MARK: - The marker in the corner
+
+/// Downloads at a glance, from any screen: a glass disc in the corner of the window, there only
+/// when something has been downloaded or is on its way. A ring around it fills as the running
+/// downloads come in. A click opens the latest few; from there the full list is one more click.
+struct DownloadsOrb: View {
+    @Environment(Downloads.self) private var downloads
+    @Environment(MacNav.self) private var nav
+    @Environment(\.loc) private var loc
+
+    @State private var open = false
+    @State private var hovering = false
+
+    private var busy: [DownloadItem] { downloads.items.filter { $0.state == .running || $0.state == .paused } }
+
+    /// How far along everything still coming in is, as one figure.
+    private var fraction: Double {
+        let expected = busy.reduce(Int64(0)) { $0 + $1.expected }
+        let received = busy.reduce(Int64(0)) { $0 + $1.received }
+        return expected > 0 ? min(1, Double(received) / Double(expected)) : 0
+    }
+
+    var body: some View {
+        if !downloads.items.isEmpty {
+            VStack(alignment: .trailing, spacing: 12) {
+                if open {
+                    panel.transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .bottomTrailing)))
+                }
+                Button { open.toggle() } label: { disc }
+                    .buttonStyle(.plain)
+                    .onHover { hovering = $0 }
+                    .help(loc(.downloads))
+            }
+            .animation(Theme.focusSpring, value: open)
+            .animation(Theme.focusSpring, value: hovering)
+        }
+    }
+
+    private var disc: some View {
+        ZStack {
+            Circle().fill(Theme.bg1.opacity(0.55))
+            Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 3)
+            if !busy.isEmpty {
+                Circle()
+                    .trim(from: 0, to: max(0.02, fraction))
+                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(1.5)
+                    .animation(.easeOut(duration: 0.5), value: fraction)
+            }
+            Image(systemName: busy.isEmpty ? "arrow.down.to.line" : "arrow.down")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Theme.text1)
+        }
+        .frame(width: 54, height: 54)
+        .glass(Circle())
+        .overlay(alignment: .topTrailing) {
+            if !busy.isEmpty {
+                Text(loc.num(busy.count))
+                    .font(.app(11, .heavy))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(Circle().fill(Theme.accent))
+                    .offset(x: 4, y: -4)
+            }
+        }
+        .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
+        .scaleEffect(hovering ? 1.07 : 1)
+        .contentShape(Circle())
+    }
+
+    private var panel: some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(loc(.downloads)).font(.app(17, .bold)).foregroundStyle(Theme.text1)
+                Spacer(minLength: 0)
+                Button {
+                    open = false
+                    nav.go(.downloads)
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(loc(.allChoices))
+                        Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold))
+                    }
+                }
+                .buttonStyle(GlassButtonStyle(height: 30))
+            }
+            ForEach(downloads.items.prefix(4)) { item in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title).font(.app(14, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
+                        Text(line(item)).font(.app(12)).foregroundStyle(Theme.text3).lineLimit(1)
+                        if item.state == .running || item.state == .paused {
+                            GeometryReader { geo in
+                                Capsule().fill(Color.white.opacity(0.14))
+                                Capsule().fill(item.state == .paused ? Theme.text3 : Theme.accent).frame(width: max(4, geo.size.width * item.fraction))
+                            }
+                            .frame(height: 4)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    switch item.state {
+                    case .running:
+                        RowButton(symbol: "pause.fill", help: loc(.pause)) { downloads.pause(item.id) }
+                    case .paused, .failed:
+                        RowButton(symbol: "arrow.clockwise", help: loc(.resume)) { downloads.resume(item.id) }
+                    case .done:
+                        RowButton(symbol: "play.fill", help: loc(.play), bright: true) {
+                            open = false
+                            downloads.play(item)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(16)
+        .frame(width: 340)
+        .background(shape.fill(Theme.bg1.opacity(0.55)))
+        .glass(shape)
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 14)
+    }
+
+    private func line(_ item: DownloadItem) -> String {
+        var parts: [String] = []
+        if let season = item.season, let episode = item.episode { parts.append(loc.episodeTag(season: season, episode: episode)) }
+        if item.state == .running || item.state == .paused { parts.append(loc.num("\(Int(item.fraction * 100))٪")) }
+        if item.state == .failed { parts.append(loc(.downloadFailed)) }
+        if parts.isEmpty, let quality = item.quality { parts.append(quality) }
+        return parts.joined(separator: " · ")
+    }
+}
