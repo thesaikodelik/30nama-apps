@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A0000000000000000000040 /* MPVKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5A0000000000000000000041 /* MPVKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		5A0000000000000000000001 /* 30nama.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = 30nama.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A0000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -70,6 +74,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A0000000000000000000040 /* MPVKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -170,6 +175,7 @@
 			);
 			name = "30nama-mac";
 			packageProductDependencies = (
+				5A0000000000000000000041 /* MPVKit */,
 			);
 			productName = "30nama-mac";
 			productReference = 5A0000000000000000000031 /* 30nama.app */;
@@ -203,6 +209,9 @@
 			);
 			mainGroup = 5A0000000000000000000004;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5A0000000000000000000042 /* XCRemoteSwiftPackageReference "MPVKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5A0000000000000000000005 /* Products */;
 			projectDirPath = "";
@@ -449,6 +458,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5A0000000000000000000042 /* XCRemoteSwiftPackageReference "MPVKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mpvkit/MPVKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = "1.1.0-n9.0.2";
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5A0000000000000000000041 /* MPVKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A0000000000000000000042 /* XCRemoteSwiftPackageReference "MPVKit" */;
+			productName = MPVKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5A0000000000000000000007 /* Project object */;
 }

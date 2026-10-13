@@ -43,3 +43,29 @@ approved by 30nama.
 The fonts in `30nama/Shared/Fonts` are [Vazirmatn](https://github.com/rastikerdar/vazirmatn),
 licensed under the SIL Open Font License 1.1. The licence text is in
 `30nama/Shared/Fonts/Vazirmatn-OFL.txt`.
+
+## mpv and the libraries it is built on (Mac app only)
+
+The Mac app plays files the system cannot read (Matroska among them) with
+[mpv](https://mpv.io), taken as prebuilt libraries from
+[MPVKit](https://github.com/mpvkit/MPVKit), version 1.1.0-n9.0.2, in its LGPL build (the
+`MPVKit` product, not `MPVKit-GPL`). Xcode fetches them when the `30nama-mac` target is built;
+none of them is stored in this repository.
+
+- mpv and FFmpeg are under the GNU Lesser General Public License, version 2.1 or later. So are
+  GnuTLS and libbluray. Nettle and GMP are under the LGPL version 3 or, at your choice, the GPL
+  version 2.
+- libass, libplacebo, dav1d, FreeType, HarfBuzz, FriBidi, uchardet, Little CMS, LuaJIT, OpenSSL,
+  MoltenVK, shaderc, libdovi and uavs3d come with it under their own permissive licences (ISC,
+  BSD, MIT, FTL, Apache 2.0 and similar).
+
+These libraries are linked into the app. The LGPL asks that whoever receives the app can replace
+them with a changed version: this app's whole source is here under the MIT License, so it can be
+rebuilt against any build of them. Their own sources and licence texts are at the links above and
+in MPVKit's repository.
+
+## Subtitle site
+
+When 30nama has no subtitle of its own for a download, the Mac app reads the public pages of the
+subtitle site 30nama itself links to (subsource.net) to find and fetch one. The app is not
+affiliated with that site, and the subtitles belong to the people who made them.

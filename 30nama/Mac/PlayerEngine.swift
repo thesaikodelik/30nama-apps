@@ -20,7 +20,9 @@ final class PlayerEngine {
 
     let post: Post
     let items: [StreamItem]
-    @ObservationIgnored let player = AVPlayer()
+    /// What is decoding the current file. It changes when the queue moves from a file the
+    /// system can read to one it cannot, or back.
+    private(set) var playback: Playback = SystemPlayback()
     @ObservationIgnored private let app: AppModel
 
     private(set) var index: Int
@@ -50,15 +52,12 @@ final class PlayerEngine {
     @ObservationIgnored private var fileTrack: SubtitleTrack?
     @ObservationIgnored private var subtitleCache: [URL: SubtitleTrack] = [:]
     @ObservationIgnored private var subtitleTask: Task<Void, Never>?
-    @ObservationIgnored private var timeObserver: Any?
-    @ObservationIgnored private var statusObservation: NSKeyValueObservation?
-    @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var heartbeat: Timer?
     /// The last position reported for the current item, so the same one is not sent twice.
     @ObservationIgnored private var reportedTime = 0
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var markedWatched = false
-    @ObservationIgnored private var pip: AVPictureInPictureController?
+    private var system: SystemPlayback? { playback as? SystemPlayback }
     @ObservationIgnored private weak var window: NSWindow?
 
     private var loc: Loc { app.loc }
@@ -79,9 +78,7 @@ final class PlayerEngine {
     // MARK: Lifecycle
 
     func begin() {
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] time in
-            MainActor.assumeIsolated { self?.tick(time.seconds) }
-        }
+        wire()
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.report() }
         }
@@ -98,27 +95,45 @@ final class PlayerEngine {
         if items.indices.contains(index), current.token == PlayerEngine.localToken {
             UserDefaults.standard.set(time, forKey: "position." + current.fileID)
         }
-        if let timeObserver { player.removeTimeObserver(timeObserver) }
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        statusObservation = nil
         heartbeat?.invalidate()
         subtitleTask?.cancel()
-        if pictureInPicture { pip?.stopPictureInPicture() }
         if pinned { window?.level = .normal }
-        player.pause()
-        player.replaceCurrentItem(with: nil)
+        playback.stop()
+    }
+
+    /// Listens to whatever is decoding now.
+    private func wire() {
+        playback.onTick = { [weak self] seconds in self?.tick(seconds) }
+        playback.onEnd = { [weak self] in self?.finished() }
+        playback.onFail = { [weak self] in self?.failed() }
+        // The stream opened with a mix this Mac cannot decode: fall back to the stereo one.
+        system?.onSilent = { [weak self] in
+            guard let self, self.mix != .stereo, let quality = self.quality, quality.stereo != nil else { return }
+            self.selectMix(.stereo)
+        }
+    }
+
+    /// Files the system's decoder reads. Anything else on disk goes to mpv.
+    private static let systemTypes: Set<String> = ["mp4", "m4v", "mov", "m3u8", "mp3", "m4a"]
+
+    /// Makes sure the right decoder is in place for `url`, swapping it if the last file needed the other.
+    private func prepare(for url: URL) {
+        let needsOther = url.isFileURL && !PlayerEngine.systemTypes.contains(url.pathExtension.lowercased())
+        guard needsOther != (playback is MPVPlayback) else { return }
+        playback.stop()
+        playback = needsOther ? MPVPlayback() : SystemPlayback()
+        wire()
+        playback.setVolume(volume)
+        playback.setMuted(muted)
     }
 
     func close() {
         app.closePlayer()
     }
 
-    /// The layer the picture is drawn in, which Picture in Picture needs, and the window it sits in.
-    func attach(layer: AVPlayerLayer, window: NSWindow?) {
-        self.window = window
-        if pip == nil, AVPictureInPictureController.isPictureInPictureSupported() {
-            pip = AVPictureInPictureController(playerLayer: layer)
-        }
+    /// The window the picture sits in, for full screen and for keeping it above the others.
+    func attach(window: NSWindow?) {
+        if let window { self.window = window }
     }
 
     // MARK: Items
@@ -151,27 +166,15 @@ final class PlayerEngine {
 
     private func load(_ quality: Quality, at position: Double?) {
         self.quality = quality
-        let item = AVPlayerItem(url: quality.url(for: mix))
-        statusObservation = item.observe(\.status) { [weak self] item, _ in
-            Task { @MainActor in
-                if item.status == .failed { self?.failed() }
-                if item.status == .readyToPlay { await self?.preferPlayableAudio(on: item) }
-            }
-        }
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.finished() }
-        }
-        player.replaceCurrentItem(with: item)
+        let url = quality.url(for: mix)
+        prepare(for: url)
         time = position ?? 0
         duration = 0
         buffering = true
-        if let position, position > 0 {
-            player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
-        }
-        player.defaultRate = speed
+        playback.load(url, at: position)
+        playback.setSpeed(speed, playing: false)
         playing = true
-        player.play()
+        playback.play()
         offer = nil
         countdown = nil
     }
@@ -190,41 +193,26 @@ final class PlayerEngine {
         close()
     }
 
-    /// The original playlist can default to a track this Mac cannot decode, and then stays silent.
-    /// Pick a playable one, or fall back to the stereo mix.
-    private func preferPlayableAudio(on item: AVPlayerItem) async {
-        guard let group = try? await item.asset.loadMediaSelectionGroup(for: .audible),
-              !group.options.isEmpty, player.currentItem === item else { return }
-        if item.currentMediaSelection.selectedMediaOption(in: group)?.isPlayable == true { return }
-        if let option = group.options.first(where: \.isPlayable) {
-            item.select(option, in: group)
-            return
-        }
-        guard mix != .stereo, let quality, quality.stereo != nil else { return }
-        selectMix(.stereo)
-    }
-
     // MARK: Transport
 
     func toggle() {
         playing.toggle()
-        if playing { player.play() } else { player.pause() }
+        if playing { playback.play() } else { playback.pause() }
     }
 
     func seek(to seconds: Double) {
         let target = max(0, duration > 0 ? min(seconds, duration - 1) : seconds)
         time = target
-        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        playback.seek(to: target)
     }
 
     func skip(_ seconds: Double) {
-        seek(to: player.currentTime().seconds + seconds)
+        seek(to: playback.position + seconds)
     }
 
     func setSpeed(_ value: Float) {
         speed = value
-        player.defaultRate = value
-        if playing { player.rate = value }
+        playback.setSpeed(value, playing: playing)
     }
 
     func stepSpeed(_ direction: Int) {
@@ -234,13 +222,13 @@ final class PlayerEngine {
 
     func setVolume(_ value: Float) {
         volume = min(1, max(0, value))
-        player.volume = volume
+        playback.setVolume(volume)
         if volume > 0, muted { toggleMute() }
     }
 
     func toggleMute() {
         muted.toggle()
-        player.isMuted = muted
+        playback.setMuted(muted)
     }
 
     func selectQuality(_ option: Quality) {
@@ -256,18 +244,18 @@ final class PlayerEngine {
     }
 
     private var currentPosition: Double? {
-        let seconds = player.currentTime().seconds
-        return seconds.isFinite ? seconds : nil
+        let seconds = playback.position
+        return seconds > 0 ? seconds : nil
     }
 
     // MARK: Window
 
     func togglePictureInPicture() {
-        guard let pip else { return }
+        guard let pip = system?.pip else { return }
         if pip.isPictureInPictureActive { pip.stopPictureInPicture() } else { pip.startPictureInPicture() }
     }
 
-    var canPictureInPicture: Bool { pip != nil }
+    var canPictureInPicture: Bool { system?.pip != nil }
 
     /// Keeps the window above the others, for watching while working in something else.
     func togglePinned() {
@@ -300,7 +288,7 @@ final class PlayerEngine {
         guard let offer else { return }
         switch offer {
         case .intro, .recap:
-            guard let skip = current.skipTarget(at: player.currentTime().seconds) else { return }
+            guard let skip = current.skipTarget(at: playback.position) else { return }
             seek(to: skip.to)
         case .next:
             start(index + 1)
@@ -310,10 +298,11 @@ final class PlayerEngine {
     private func tick(_ seconds: Double) {
         guard !closed, seconds.isFinite else { return }
         time = seconds
-        if let length = player.currentItem?.duration.seconds, length.isFinite, length > 0, length != duration { duration = length }
-        let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+        let length = playback.duration
+        if length > 0, length != duration { duration = length }
+        let waiting = playback.waiting
         if waiting != buffering { buffering = waiting }
-        let active = pip?.isPictureInPictureActive ?? false
+        let active = system?.pip?.isPictureInPictureActive ?? false
         if active != pictureInPicture { pictureInPicture = active }
 
         // Into the last tenth: whatever is left is credits, so the file counts as watched.
@@ -347,8 +336,8 @@ final class PlayerEngine {
     /// The position goes up in steps of thirty seconds, which is how the 30nama website reports
     /// it. The server accepts any other position just the same and then does not record it.
     private func report() {
-        guard app.isLoggedIn, items.indices.contains(index), player.currentItem != nil, current.token != PlayerEngine.localToken else { return }
-        let seconds = player.currentTime().seconds
+        guard app.isLoggedIn, items.indices.contains(index), duration > 0, current.token != PlayerEngine.localToken else { return }
+        let seconds = playback.position
         guard seconds.isFinite else { return }
         let position = Int(seconds) / 30 * 30
         guard position > 0, position != reportedTime else { return }

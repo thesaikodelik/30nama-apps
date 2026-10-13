@@ -22,7 +22,7 @@ struct PlayerView: View {
             ZStack {
                 Color.black
                 if let engine {
-                    PlayerSurface(engine: engine)
+                    surface(engine)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { engine.toggleFullScreen() }
                         .onTapGesture {
@@ -74,6 +74,16 @@ struct PlayerView: View {
             hideTask?.cancel()
             engine?.shutdown()
             NSCursor.setHiddenUntilMouseMoves(false)
+        }
+    }
+
+    /// The picture, drawn by whichever decoder the current file needs.
+    @ViewBuilder
+    private func surface(_ engine: PlayerEngine) -> some View {
+        if let mpv = engine.playback as? MPVPlayback {
+            MPVSurface(playback: mpv) { engine.attach(window: $0) }.id("mpv")
+        } else if let system = engine.playback as? SystemPlayback {
+            SystemSurface(playback: system) { engine.attach(window: $0) }.id(ObjectIdentifier(system))
         }
     }
 
@@ -300,56 +310,6 @@ struct PlayerView: View {
                 .pickerStyle(.inline)
             }
         }
-    }
-}
-
-// MARK: - Picture
-
-/// The layer the video is drawn into. SwiftUI's own `VideoPlayer` brings the system's controls with it.
-private struct PlayerSurface: NSViewRepresentable {
-    let engine: PlayerEngine
-
-    func makeNSView(context: Context) -> SurfaceView {
-        let view = SurfaceView()
-        view.playerLayer.player = engine.player
-        view.onWindow = { [weak view, weak engine] window in
-            guard let view else { return }
-            engine?.attach(layer: view.playerLayer, window: window)
-        }
-        return view
-    }
-
-    func updateNSView(_ view: SurfaceView, context: Context) {}
-}
-
-private final class SurfaceView: NSView {
-    let playerLayer = AVPlayerLayer()
-    var onWindow: ((NSWindow?) -> Void)?
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        wantsLayer = true
-        let root = CALayer()
-        root.backgroundColor = NSColor.black.cgColor
-        layer = root
-        playerLayer.videoGravity = .resizeAspect
-        root.addSublayer(playerLayer)
-    }
-
-    required init?(coder: NSCoder) { fatalError("not used") }
-
-    override func layout() {
-        super.layout()
-        // No implicit animation, or the picture lags behind the window while it is resized.
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        playerLayer.frame = bounds
-        CATransaction.commit()
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        onWindow?(window)
     }
 }
 

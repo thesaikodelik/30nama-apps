@@ -28,7 +28,7 @@ enum S: String, CaseIterable {
     case exportRatings, exportDone, openIn
     case markWatched, markUnwatched, upcoming, allChoices, minScore, decade
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
-    case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload, cannotPlayHere
+    case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
@@ -159,7 +159,6 @@ struct Loc: Equatable {
         .showInFinder: "Show in Finder", .noDownloads: "Nothing downloaded yet", .allEpisodes: "All episodes",
         .pause: "Pause", .remove: "Remove", .open: "Open", .downloadFailed: "Download failed",
         .downloadStarted: "Download started", .downloadDone: "Download finished", .noDownload: "No download for this title",
-        .cannotPlayHere: "The built-in player cannot read this file",
         .fileQuality: "Quality", .saveTo: "Saves to", .perEpisode: "per episode", .wholeSeason: "Download the whole season",
         .getSubtitle: "Get Persian subtitles", .subtitleSaved: "Subtitles saved beside the file",
         .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
@@ -225,7 +224,6 @@ struct Loc: Equatable {
         .showInFinder: "نمایش در Finder", .noDownloads: "هنوز چیزی دانلود نشده است", .allEpisodes: "همهٔ قسمت‌ها",
         .pause: "توقف", .remove: "برداشتن از فهرست", .open: "باز کردن", .downloadFailed: "دانلود ناموفق بود",
         .downloadStarted: "دانلود شروع شد", .downloadDone: "دانلود تمام شد", .noDownload: "برای این عنوان دانلودی نیست",
-        .cannotPlayHere: "پخش‌کنندهٔ داخلی این نوع فایل را نمی‌خواند",
         .fileQuality: "کیفیت", .saveTo: "ذخیره در", .perEpisode: "هر قسمت", .wholeSeason: "دانلود کل فصل",
         .getSubtitle: "دریافت زیرنویس فارسی", .subtitleSaved: "زیرنویس کنار فایل ذخیره شد",
         .subtitleMissing: "زیرنویس هماهنگی پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
@@ -291,7 +289,6 @@ struct Loc: Equatable {
         .showInFinder: "إظهار في Finder", .noDownloads: "لا توجد تنزيلات بعد", .allEpisodes: "كل الحلقات",
         .pause: "إيقاف مؤقت", .remove: "إزالة", .open: "فتح", .downloadFailed: "فشل التنزيل",
         .downloadStarted: "بدأ التنزيل", .downloadDone: "اكتمل التنزيل", .noDownload: "لا يوجد تنزيل لهذا العنوان",
-        .cannotPlayHere: "المشغّل المدمج لا يقرأ هذا الملف",
         .fileQuality: "الجودة", .saveTo: "الحفظ في", .perEpisode: "لكل حلقة", .wholeSeason: "تنزيل الموسم كاملًا",
         .getSubtitle: "جلب الترجمة الفارسية", .subtitleSaved: "حُفظت الترجمة بجانب الملف",
         .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",

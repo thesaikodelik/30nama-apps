@@ -1,5 +1,4 @@
 import SwiftUI
-import AVFoundation
 
 /// One download, as the list shows it and as it is remembered between launches.
 struct DownloadItem: Identifiable, Codable, Equatable {
@@ -234,22 +233,11 @@ final class Downloads {
     // MARK: Playing what was downloaded
 
     /// Plays a finished file in the app's own player, with the other downloaded episodes of the
-    /// same series queued after it. The system's decoder does not read every container (Matroska
-    /// among them); such a file goes to another player on this Mac instead.
+    /// same series queued after it. The player picks the decoder: the system's for what it reads,
+    /// mpv for the rest (Matroska, which is most of what 30nama offers).
     func play(_ item: DownloadItem) {
         guard let app, let path = item.path, FileManager.default.fileExists(atPath: path) else { return }
-        let file = URL(fileURLWithPath: path)
-        Task {
-            let playable = (try? await AVURLAsset(url: file).load(.isPlayable)) ?? false
-            guard playable else {
-                if let other = players(for: item).first {
-                    app.showToast("\(app.loc(.cannotPlayHere)) · \(other.name)")
-                    open(item, with: other)
-                } else {
-                    app.showToast(app.loc(.cannotPlayHere))
-                }
-                return
-            }
+        do {
             let queue = item.shelf == .movies ? [item] : items
                 .filter { $0.group == item.group && $0.state == .done && $0.path != nil }
                 .sorted { ($0.season ?? 0, Episode.number($0.episode) ?? 0) < ($1.season ?? 0, Episode.number($1.episode) ?? 0) }
