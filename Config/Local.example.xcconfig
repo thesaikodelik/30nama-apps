@@ -2,3 +2,6 @@
 
 // Your Apple developer team, needed to run on a real Apple TV.
 DEVELOPMENT_TEAM =
+
+// Another team cannot register app.30nama.tv. Set your own id here.
+// PRODUCT_BUNDLE_IDENTIFIER = dev.example.30nama

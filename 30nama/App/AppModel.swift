@@ -13,6 +13,8 @@ struct Settings: Equatable {
     var subtitleColor = SubtitleColor.white
     var subtitleBackground = SubtitleBackground.none
     var autoplayNext = true
+    /// Stereo by default: the original mix is often silent on the Apple TV's own speakers.
+    var audioMix: AudioMix = .stereo
     /// Use the adaptive stream instead of the highest fixed rendition.
     var preferAdaptive = false
     var reduceMotion = false
@@ -28,6 +30,7 @@ struct Settings: Equatable {
         if let v = d.string(forKey: "subColor").flatMap(SubtitleColor.init(rawValue:)) { s.subtitleColor = v }
         if let v = d.string(forKey: "subBackground").flatMap(SubtitleBackground.init(rawValue:)) { s.subtitleBackground = v }
         if let v = d.object(forKey: "autoplay") as? Bool { s.autoplayNext = v }
+        if let v = d.string(forKey: "audioMix").flatMap(AudioMix.init(rawValue:)) { s.audioMix = v }
         s.preferAdaptive = d.bool(forKey: "adaptive")
         s.reduceMotion = d.bool(forKey: "calm")
         return s
@@ -41,6 +44,7 @@ struct Settings: Equatable {
         d.set(subtitleColor.rawValue, forKey: "subColor")
         d.set(subtitleBackground.rawValue, forKey: "subBackground")
         d.set(autoplayNext, forKey: "autoplay")
+        d.set(audioMix.rawValue, forKey: "audioMix")
         d.set(preferAdaptive, forKey: "adaptive")
         d.set(reduceMotion, forKey: "calm")
     }

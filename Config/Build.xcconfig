@@ -1,4 +1,6 @@
 // Build settings that differ per machine. Real values go in Local.xcconfig, which is git-ignored:
 // copy Local.example.xcconfig to Local.xcconfig and fill it in.
+// The bundle id lives here, not on the target, so Local.xcconfig can replace it.
 DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = app.30nama.tv
 #include? "Local.xcconfig"

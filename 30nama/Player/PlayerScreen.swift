@@ -36,6 +36,10 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     private var index: Int
     private var resume: ContinueWatching?
     private var quality: Quality?
+    /// Which of the server's mixes is open. Stereo is what the TV speakers can play.
+    private var mix: AudioMix
+    /// True once this item's audio track has been checked, so the time observer stops asking.
+    private var audioSettled = false
     private weak var controller: AVPlayerViewController?
 
     private var timeObserver: Any?
@@ -80,6 +84,7 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         index = min(max(0, request.index), max(0, request.items.count - 1))
         resume = request.resume
         self.app = app
+        mix = app.settings.audioMix
         subtitleLanguage = app.settings.defaultSubtitle
     }
 
@@ -92,7 +97,14 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         self.controller = controller
         installSubtitleLabel(in: controller)
         installPrompt(in: controller)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        // The category alone does not open the route, so a playing picture stays silent.
+        // External playback is for sending video off this TV; left on, it can take the audio with it.
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .moviePlayback)
+        try? session.setActive(true)
+        player.allowsExternalPlayback = false
+        player.isMuted = false
+        player.volume = 1
 
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time.seconds) }
@@ -150,12 +162,15 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
 
     private func load(_ quality: Quality, at position: Double?) {
         self.quality = quality
-        let item = AVPlayerItem(url: quality.url)
+        audioSettled = false
+        let item = AVPlayerItem(url: quality.url(for: mix))
         item.externalMetadata = metadata()
 
         statusObservation = item.observe(\.status) { [weak self] item, _ in
-            guard item.status == .failed else { return }
-            Task { @MainActor in self?.failed() }
+            Task { @MainActor in
+                if item.status == .failed { self?.failed() }
+                if item.status == .readyToPlay { self?.preferPlayableAudio(on: item) }
+            }
         }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
@@ -215,8 +230,33 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         Task { _ = try? await api.call("observer", params) }
     }
 
+    /// The original playlist often defaults to a track this TV cannot decode, and then stays silent
+    /// instead of moving to a playable one. Pick a playable track once the playlist has listed them.
+    private func preferPlayableAudio(on item: AVPlayerItem) {
+        guard player.currentItem === item, !audioSettled else { return }
+        guard let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible) else { return }
+        guard !group.options.isEmpty else { return }
+        let selected = item.currentMediaSelection.selectedMediaOption(in: group)
+        if selected?.isPlayable == true {
+            audioSettled = true
+            return
+        }
+        if let option = group.options.first(where: \.isPlayable) {
+            item.select(option, in: group)
+            audioSettled = true
+            return
+        }
+        audioSettled = true
+        guard mix != .stereo, let quality, let stereo = quality.stereo, stereo != quality.url(for: mix) else { return }
+        mix = .stereo
+        app.update { $0.audioMix = .stereo }
+        let position = player.currentTime().seconds
+        load(quality, at: position.isFinite ? position : nil)
+    }
+
     private func tick(_ time: Double) {
         guard !closed, time.isFinite else { return }
+        if let item = player.currentItem { preferPlayableAudio(on: item) }
         let cue = track.text(at: time)
         if cue != shownCue { showCue(cue) }
 
@@ -315,6 +355,20 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
                 UIAction(title: name, state: code == active ? .on : .off) { [weak self] _ in
                     self?.selectSubtitle(code, remember: true)
                     self?.refreshMenus()
+                }
+            }))
+        }
+
+        let mixes = quality?.mixes ?? []
+        if mixes.count > 1, let quality {
+            menus.append(UIMenu(title: loc(.audio), image: UIImage(systemName: "speaker.wave.2"), children: mixes.map { option in
+                let title = loc(option == .stereo ? .audioStereo : option == .surround ? .audioSurround : .audioOriginal)
+                return UIAction(title: title, state: option == mix ? .on : .off) { [weak self] _ in
+                    guard let self, option != self.mix else { return }
+                    self.mix = option
+                    self.app.update { $0.audioMix = option }
+                    let position = self.player.currentTime().seconds
+                    self.load(quality, at: position.isFinite ? position : nil)
                 }
             }))
         }

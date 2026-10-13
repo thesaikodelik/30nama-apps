@@ -124,6 +124,12 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(item.qualities.map(\.label), ["خودکار", "720p", "1080p"])
         XCTAssertEqual(item.quality(preferAdaptive: false)?.url.lastPathComponent, "1080.m3u8")
         XCTAssertEqual(item.quality(preferAdaptive: true)?.url.lastPathComponent, "auto.m3u8")
+        let full = item.qualities.first { $0.label == "1080p" }
+        XCTAssertEqual(full?.stereo?.lastPathComponent, "1080-2ch.m3u8")
+        XCTAssertEqual(full?.surround?.lastPathComponent, "1080-6ch.m3u8")
+        XCTAssertEqual(full?.url(for: .stereo).lastPathComponent, "1080-2ch.m3u8")
+        XCTAssertEqual(full?.url(for: .original).lastPathComponent, "1080.m3u8")
+        XCTAssertEqual(full?.mixes, [.stereo, .surround, .original])
         XCTAssertEqual(item.introStart, 403)
         XCTAssertEqual(item.introEnd, 413)
         XCTAssertNil(item.recapEnd)

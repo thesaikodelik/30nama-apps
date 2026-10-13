@@ -277,15 +277,44 @@ struct ContinueWatching: Hashable {
     var remainingMinutes: Int? { duration > 0 && time > 0 ? max(1, Int(((duration - time) / 60).rounded())) : nil }
 }
 
+/// Which audio mix to open. The original file is often a codec the Apple TV cannot play through
+/// its own speakers (DTS, TrueHD); the server publishes stereo and 5.1 playlists beside it.
+enum AudioMix: String {
+    case original, stereo, surround
+}
+
 /// One selectable rendition of a stream.
 struct Quality: Hashable {
     var label: String
+    /// The original playlist (`default`), or the only URL the entry has.
     var url: URL
+    /// Stereo downmix, when the server offers one apart from `url`.
+    var stereo: URL? = nil
+    /// 5.1 downmix, when the server offers one apart from `url`.
+    var surround: URL? = nil
     /// Vertical resolution parsed from the label ("1080p" -> 1080); 0 for the adaptive entry.
     var height: Int
     var isAuto: Bool
 
-    /// `m3u8` is either one URL or a list of `{label, default}` entries where "Auto" is the adaptive master.
+    /// The playlist for `mix`, falling back to the original when that mix was not published.
+    func url(for mix: AudioMix) -> URL {
+        switch mix {
+        case .stereo: return stereo ?? url
+        case .surround: return surround ?? url
+        case .original: return url
+        }
+    }
+
+    /// Mixes worth showing. Original is always there; the others only when they are a different file.
+    var mixes: [AudioMix] {
+        var list: [AudioMix] = []
+        if stereo != nil { list.append(.stereo) }
+        if surround != nil { list.append(.surround) }
+        list.append(.original)
+        return list
+    }
+
+    /// `m3u8` is either one URL or a list of `{label, default, 2ch, 6ch}` entries where "Auto" is the adaptive master.
     static func parse(_ m: JSON) -> [Quality] {
         if case .array(let entries) = m {
             return entries.compactMap { e in
@@ -293,10 +322,20 @@ struct Quality: Hashable {
                 let label = e["label"].text ?? "Auto"
                 let isAuto = ["auto", "خودکار"].contains(label.lowercased())
                 let height = Int(label.filter(\.isNumber)) ?? 0
-                return Quality(label: label, url: url, height: isAuto ? 0 : height, isAuto: isAuto || height == 0)
+                return Quality(
+                    label: label, url: url,
+                    stereo: channelURL(e, "2ch"), surround: channelURL(e, "6ch"),
+                    height: isAuto ? 0 : height, isAuto: isAuto || height == 0
+                )
             }
         }
         return entryURL(m).map { [Quality(label: "Auto", url: $0, height: 0, isAuto: true)] } ?? []
+    }
+
+    /// A sibling playlist (`2ch`, `6ch`). Missing keys stay nil so they are not mistaken for the original.
+    private static func channelURL(_ e: JSON, _ key: String) -> URL? {
+        guard case .object = e else { return nil }
+        return entryURL(e[key])
     }
 
     private static func entryURL(_ e: JSON) -> URL? {
@@ -304,7 +343,8 @@ struct Quality: Hashable {
         case .string: return e.url
         case .array(let a): return a.first.flatMap(entryURL)
         case .object:
-            for key in ["default", "file", "url", "src", "link", "m3u8", "path", "source", "6ch", "2ch"] {
+            // Stereo before 5.1: a device that cannot decode the original still gets sound.
+            for key in ["default", "file", "url", "src", "link", "m3u8", "path", "source", "2ch", "6ch"] {
                 if let u = entryURL(e[key]) { return u }
             }
             return nil

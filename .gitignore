@@ -3,4 +3,7 @@
 DerivedData/
 xcuserdata/
 *.xcuserstate
+.swiftpm/
+30nama.xcodeproj/xcshareddata/xcodecloud/
+# Team id and bundle id for this Mac. Copy Config/Local.example.xcconfig.
 Config/Local.xcconfig
