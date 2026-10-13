@@ -2,6 +2,22 @@ import XCTest
 @testable import NamaCore
 
 final class ParsingTests: XCTestCase {
+    func testPersianSubtitlesKeepTheDirectionTheyWereWrittenFor() {
+        func vtt(_ lines: [String]) -> String {
+            "WEBVTT\n\n" + lines.enumerated().map { "00:00:0\($0).000 --> 00:00:0\($0).900\n\($1)" }.joined(separator: "\n\n")
+        }
+        let ltr = "\u{2066}", rtl = "\u{2067}", end = "\u{2069}"
+        // Typed for a left-to-right player: the full stop comes first. The question mark is no evidence.
+        let old = SubtitleTrack(vtt: vtt(["!باشه.فهمیدم", ".هی.بیا برقص\nچیه.ازدواج کردی؟", "خوبه"]))
+        XCTAssertEqual(old.text(at: 0.5), ltr + "!باشه.فهمیدم" + end)
+        XCTAssertEqual(old.text(at: 1.5), ltr + ".هی.بیا برقص" + end + "\n" + ltr + "چیه.ازدواج کردی؟" + end, "each line on its own")
+        // Written properly: the full stop comes last.
+        let proper = SubtitleTrack(vtt: vtt(["باشه. فهمیدم!", "خوبه."]))
+        XCTAssertEqual(proper.text(at: 0.5), rtl + "باشه. فهمیدم!" + end)
+        // Nothing right-to-left in it: left alone.
+        XCTAssertEqual(SubtitleTrack(vtt: vtt(["Fine. I get it!"])).text(at: 0.5), "Fine. I get it!")
+    }
+
     func testJSONAccessorsAreLenient() throws {
         let j = try JSON.parse(Data(#"{"n":"42","f":7.5,"t":true,"s":" hi ","z":null,"a":[1,"2"],"big":1234567}"#.utf8))
         XCTAssertEqual(j["n"].int, 42)
@@ -24,7 +40,7 @@ final class ParsingTests: XCTestCase {
         XCTAssertEqual(track.cues.count, 3)
         XCTAssertEqual(track.cues[0], Cue(start: 1, end: 3.5, text: "Hello & welcome\nsecond line"))
         XCTAssertEqual(track.cues[1].start, 62.25)
-        XCTAssertEqual(track.cues[1].text, "سلام دنیا")
+        XCTAssertEqual(track.cues[1].text, "\u{2067}سلام دنیا\u{2069}", "a right-to-left line is held in its direction; the others are untouched")
         XCTAssertEqual(track.cues[2].start, 3600)
     }
 
