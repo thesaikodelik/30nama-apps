@@ -95,13 +95,14 @@ struct DetailsView: View {
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
                     .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
                 // The user's own stars sit with the poster: they are about the title, not one of the things to do with it.
-                VStack(spacing: 4) {
-                    Text(loc(.yourRating)).font(.app(13, .medium)).foregroundStyle(Theme.text3)
-                    StarRater(value: app.ratings.stars(for: post.id)) { app.rate(post, stars: $0) }
+                HStack(spacing: 8) {
+                    Text(loc(.yourRating)).font(.app(13, .semibold)).foregroundStyle(Theme.text2).lineLimit(1).fixedSize()
+                    Spacer(minLength: 0)
+                    StarRater(value: app.ratings.stars(for: post.id), size: 17) { app.rate(post, stars: $0) }
                 }
-                .frame(width: 240)
-                .padding(.vertical, 10)
-                .glass(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 16)
+                .frame(width: 240, height: 46)
+                .glass(Capsule(style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 14) {
@@ -249,6 +250,8 @@ struct DetailsView: View {
 /// Five stars that take half steps: the left half of a star is the half, the right half the whole.
 struct StarRater: View {
     let value: Double?
+    /// The size of one star's glyph.
+    var size: CGFloat = 20
     /// Called with the new rating, or nil when the current one is clicked again to clear it.
     let set: (Double?) -> Void
 
@@ -259,9 +262,9 @@ struct StarRater: View {
         HStack(spacing: 2) {
             ForEach(1...5, id: \.self) { n in
                 Image(systemName: shown >= Double(n) ? "star.fill" : shown >= Double(n) - 0.5 ? "star.leadinghalf.filled" : "star")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(shown >= Double(n) - 0.5 ? Color(hex: 0xF5C518) : Theme.text3)
-                    .frame(width: 28, height: 34)
+                    .frame(width: size * 1.35, height: 34)
                     .overlay {
                         HStack(spacing: 0) {
                             half(Double(n) - 0.5)

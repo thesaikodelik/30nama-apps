@@ -273,6 +273,10 @@ struct PlayerView: View {
                 if let name = engine.subtitleFileName {
                     Text(name).tag(PlayerEngine.fileSubtitle)
                 }
+                // The subtitle tracks the file itself carries.
+                ForEach(engine.tracks.filter(\.subtitle)) { track in
+                    Text(track.name).tag(PlayerEngine.inFile + String(track.id))
+                }
             }
             .pickerStyle(.inline)
             Button(loc(.subtitleFile)) { engine.chooseSubtitleFile() }
@@ -281,6 +285,15 @@ struct PlayerView: View {
                 Button("+0.25s  (H)") { engine.nudgeSubtitles(0.25) }
                 Button("−0.25s  (G)") { engine.nudgeSubtitles(-0.25) }
                 Button(loc(.reset)) { engine.nudgeSubtitles(0) }
+            }
+        }
+        let sounds = engine.tracks.filter { !$0.subtitle }
+        if sounds.count > 1 {
+            MenuButton(symbol: "waveform", help: loc(.audio)) {
+                Picker(loc(.audio), selection: Binding(get: { engine.audioTrack ?? sounds[0].id }, set: { engine.selectAudioTrack($0) })) {
+                    ForEach(sounds) { track in Text(track.name).tag(track.id) }
+                }
+                .pickerStyle(.inline)
             }
         }
         if let quality = engine.quality, quality.mixes.count > 1 {

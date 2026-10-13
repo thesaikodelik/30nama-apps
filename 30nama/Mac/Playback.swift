@@ -189,6 +189,16 @@ final class MPVPlayback: Playback {
     var onEnd: (() -> Void)?
     var onFail: (() -> Void)?
 
+    /// A sound or subtitle track inside the file.
+    struct Track: Identifiable, Hashable {
+        let id: Int
+        let subtitle: Bool
+        let name: String
+    }
+
+    /// Called when a file has opened, with the tracks it carries.
+    var onTracks: (([Track]) -> Void)?
+
     let layer = MetalLayer()
     private var mpv: OpaquePointer?
     private var clock: Timer?
@@ -298,6 +308,12 @@ final class MPVPlayback: Playback {
                 }
                 continue
             }
+            if event.event_id == MPV_EVENT_FILE_LOADED {
+                // Asked from here, not from the main thread: see `Link`.
+                let tracks = MPVPlayback.tracks(of: handle)
+                Task { @MainActor [weak self] in self?.onTracks?(tracks) }
+                continue
+            }
             guard event.event_id == MPV_EVENT_END_FILE, let data = event.data else { continue }
             let reason = data.assumingMemoryBound(to: mpv_event_end_file.self).pointee.reason
             Task { @MainActor [weak self] in
@@ -306,6 +322,31 @@ final class MPVPlayback: Playback {
             }
         }
     }
+
+    /// The sound and subtitle tracks of the open file, named for a menu.
+    private nonisolated static func tracks(of handle: OpaquePointer) -> [Track] {
+        func text(_ name: String) -> String? {
+            guard let raw = mpv_get_property_string(handle, name) else { return nil }
+            defer { mpv_free(raw) }
+            let value = String(cString: raw)
+            return value.isEmpty ? nil : value
+        }
+        var count: Int64 = 0
+        mpv_get_property(handle, "track-list/count", MPV_FORMAT_INT64, &count)
+        return (0..<Int(count)).compactMap { index in
+            let base = "track-list/\(index)/"
+            guard let kind = text(base + "type"), kind == "audio" || kind == "sub", let id = text(base + "id").flatMap(Int.init) else { return nil }
+            let language = text(base + "lang").map { Locale.current.localizedString(forLanguageCode: $0) ?? $0 }
+            let parts = [language, text(base + "title"), text(base + "codec")?.uppercased()].compactMap { $0 }
+            return Track(id: id, subtitle: kind == "sub", name: parts.isEmpty ? "\(id)" : parts.joined(separator: " · "))
+        }
+    }
+
+    /// Plays the sound track with this id.
+    func selectAudio(_ id: Int) { set("aid", String(id)) }
+
+    /// Has mpv draw one of the file's own subtitle tracks, or none when the app draws its own.
+    func selectSubtitle(_ id: Int?) { set("sid", id.map(String.init) ?? "no") }
 
     private func set(_ name: String, _ value: String) {
         command(["set", name, value])

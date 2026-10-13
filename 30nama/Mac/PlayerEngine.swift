@@ -46,6 +46,12 @@ final class PlayerEngine {
     private(set) var subtitleFileName: String?
     private(set) var pictureInPicture = false
     private(set) var pinned = false
+    /// The sound and subtitle tracks inside the file, when mpv is playing it. A stream has none to choose from here.
+    private(set) var tracks: [MPVPlayback.Track] = []
+    private(set) var audioTrack: Int?
+
+    /// The subtitle choice for a track inside the file: this, followed by the track's id.
+    static let inFile = "infile:"
 
     @ObservationIgnored private var resume: ContinueWatching?
     @ObservationIgnored private var track = SubtitleTrack()
@@ -106,6 +112,10 @@ final class PlayerEngine {
         playback.onTick = { [weak self] seconds in self?.tick(seconds) }
         playback.onEnd = { [weak self] in self?.finished() }
         playback.onFail = { [weak self] in self?.failed() }
+        (playback as? MPVPlayback)?.onTracks = { [weak self] found in
+            self?.tracks = found
+            self?.audioTrack = found.first { !$0.subtitle }?.id
+        }
         // The stream opened with a mix this Mac cannot decode: fall back to the stereo one.
         system?.onSilent = { [weak self] in
             guard let self, self.mix != .stereo, let quality = self.quality, quality.stereo != nil else { return }
@@ -154,7 +164,8 @@ final class PlayerEngine {
         // A file belongs to the episode it was picked for.
         fileTrack = nil
         subtitleFileName = nil
-        selectSubtitle(subtitleLanguage == PlayerEngine.fileSubtitle ? app.settings.defaultSubtitle : subtitleLanguage, remember: false)
+        let kept = subtitleLanguage == PlayerEngine.fileSubtitle || subtitleLanguage.hasPrefix(PlayerEngine.inFile)
+        selectSubtitle(kept ? app.settings.defaultSubtitle : subtitleLanguage, remember: false)
     }
 
     private func resumePosition() -> Double? {
@@ -168,6 +179,8 @@ final class PlayerEngine {
         self.quality = quality
         let url = quality.url(for: mix)
         prepare(for: url)
+        tracks = []
+        audioTrack = nil
         time = position ?? 0
         duration = 0
         buffering = true
@@ -360,12 +373,21 @@ final class PlayerEngine {
     /// Languages the stream offers, in the order they are listed.
     var subtitleLanguages: [String] { ["fa", "en"].filter { current.subtitles[$0] != nil } }
 
+    func selectAudioTrack(_ id: Int) {
+        audioTrack = id
+        (playback as? MPVPlayback)?.selectAudio(id)
+    }
+
     func selectSubtitle(_ language: String, remember: Bool) {
         subtitleLanguage = language
-        if remember, language != PlayerEngine.fileSubtitle { app.update { $0.defaultSubtitle = language } }
+        let inFile = language.hasPrefix(PlayerEngine.inFile)
+        if remember, language != PlayerEngine.fileSubtitle, !inFile { app.update { $0.defaultSubtitle = language } }
         subtitleTask?.cancel()
         track = SubtitleTrack()
         cue = ""
+        // A track inside the file is drawn by mpv, in its own styling; anything else by the app.
+        (playback as? MPVPlayback)?.selectSubtitle(inFile ? Int(language.dropFirst(PlayerEngine.inFile.count)) : nil)
+        if inFile { return }
         if language == PlayerEngine.fileSubtitle {
             track = fileTrack ?? SubtitleTrack()
             return
