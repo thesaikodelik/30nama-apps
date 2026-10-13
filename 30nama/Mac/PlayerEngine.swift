@@ -13,6 +13,9 @@ final class PlayerEngine {
 
     /// The subtitle choice that is neither a language nor "off": a file the user picked.
     static let fileSubtitle = "file"
+    /// The token of an item that is a file on this Mac, not a stream. 30nama is told nothing
+    /// about it; where it was left is remembered here instead.
+    static let localToken = "local"
     static let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
     let post: Post
@@ -92,6 +95,9 @@ final class PlayerEngine {
         guard !closed else { return }
         closed = true
         report()
+        if items.indices.contains(index), current.token == PlayerEngine.localToken {
+            UserDefaults.standard.set(time, forKey: "position." + current.fileID)
+        }
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         statusObservation = nil
@@ -341,7 +347,7 @@ final class PlayerEngine {
     /// The position goes up in steps of thirty seconds, which is how the 30nama website reports
     /// it. The server accepts any other position just the same and then does not record it.
     private func report() {
-        guard app.isLoggedIn, items.indices.contains(index), player.currentItem != nil else { return }
+        guard app.isLoggedIn, items.indices.contains(index), player.currentItem != nil, current.token != PlayerEngine.localToken else { return }
         let seconds = player.currentTime().seconds
         guard seconds.isFinite else { return }
         let position = Int(seconds) / 30 * 30
