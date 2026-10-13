@@ -90,6 +90,8 @@ final class Downloads {
     }
 
     private(set) var items: [DownloadItem] = []
+    /// Goes up each time a download is started, so the marker in the corner can show it happening.
+    private(set) var started = 0
 
     @ObservationIgnored private var session: URLSession!
     @ObservationIgnored private var tasks: [String: URLSessionDownloadTask] = [:]
@@ -172,6 +174,7 @@ final class Downloads {
         item.subtitlePage = post.subtitlePages.first { $0.persian && ($0.season == nil || $0.season == file.season) }?.link
         items.removeAll { $0.fileName == file.fileName }
         items.insert(item, at: 0)
+        started += 1
         begin(item)
         // 30nama's own subtitle when it has one; otherwise the one on the subtitle site that fits this copy.
         if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) } else { findSubtitle(item.id, quietly: true) }
@@ -380,6 +383,36 @@ final class Downloads {
             }
             if !quietly, let app { app.showToast(app.loc(saved ? .subtitleSaved : .subtitleMissing)) }
         }
+    }
+
+    /// Fetches only the Persian subtitles of these files, for someone who already has the films:
+    /// 30nama's own where it has them, else the ones on the subtitle site that fit each copy.
+    /// They are saved in the download folder under the films' names. Returns how many were found.
+    func subtitlesOnly(_ files: [DownloadFile], of post: Post) async -> Int {
+        var saved = 0
+        for file in files {
+            let target = subtitleTarget(file)
+            if let own = file.subtitle, let (data, _) = try? await URLSession.shared.data(from: own),
+               let text = SubtitleSite.text(data), text.contains("-->"),
+               (try? text.write(to: target, atomically: true, encoding: .utf8)) != nil {
+                saved += 1
+            } else if let page = post.subtitlePages.first(where: { $0.persian && ($0.season == nil || $0.season == file.season) })?.link,
+                      await SubtitleFetcher.fetch(page: page, fileName: file.fileName, season: file.season,
+                                                  episode: Episode.number(file.episode), to: target) {
+                saved += 1
+            }
+        }
+        if let app { app.showToast(saved > 0 ? app.loc(.subtitleSaved) : app.loc(.subtitleMissing)) }
+        return saved
+    }
+
+    /// Whether this file's Persian subtitles are already in the download folder.
+    func hasSubtitle(_ file: DownloadFile) -> Bool {
+        FileManager.default.fileExists(atPath: subtitleTarget(file).path)
+    }
+
+    private func subtitleTarget(_ file: DownloadFile) -> URL {
+        folder.appendingPathComponent(URL(fileURLWithPath: file.fileName).deletingPathExtension().lastPathComponent + ".fa.srt")
     }
 
     /// Persian subtitles are small, so they are simply fetched and put next to the film under its name.
@@ -787,6 +820,14 @@ struct DownloadsOrb: View {
             }
             .animation(Theme.focusSpring, value: open)
             .animation(Theme.focusSpring, value: hovering)
+            // A download has just been started: show it, so there is no doubt that it has, and
+            // then step back out of the way.
+            .task(id: downloads.started) {
+                guard downloads.started > 0 else { return }
+                open = true
+                try? await Task.sleep(for: .seconds(6))
+                if !Task.isCancelled, !hovering { open = false }
+            }
         }
     }
 

@@ -94,15 +94,6 @@ struct DetailsView: View {
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
                     .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
-                // The user's own stars sit with the poster: they are about the title, not one of the things to do with it.
-                HStack(spacing: 8) {
-                    Text(loc(.yourRating)).font(.app(13, .semibold)).foregroundStyle(Theme.text2).lineLimit(1).fixedSize()
-                    Spacer(minLength: 0)
-                    StarRater(value: app.ratings.stars(for: post.id), size: 17) { app.rate(post, stars: $0) }
-                }
-                .padding(.horizontal, 16)
-                .frame(width: 240, height: 46)
-                .glass(Capsule(style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: 14) {
@@ -154,6 +145,15 @@ struct DetailsView: View {
                     }
                 }
                 .padding(.top, 10)
+                // The user's own stars, in one bar under the things to do with the title.
+                HStack(spacing: 12) {
+                    Text(loc(.yourRating)).font(.app(14, .semibold)).foregroundStyle(Theme.text2).lineLimit(1)
+                    StarRater(value: app.ratings.stars(for: post.id), size: 18) { app.rate(post, stars: $0) }
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 46)
+                .glass(Capsule(style: .continuous))
+                .fixedSize()
             }
             Spacer(minLength: 0)
         }

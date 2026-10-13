@@ -124,9 +124,10 @@ struct DownloadPicker: View {
             Spacer(minLength: 0)
             if let chosen = chosenPack {
                 let left = chosen.files.filter { !downloads.has($0) }
+                SubtitleButton(wide: true, had: false) { await downloads.subtitlesOnly(chosen.files, of: post) > 0 }
+                    .id(chosen.id)
                 Button {
                     for file in left { downloads.start(file, of: post) }
-                    app.showToast(loc(.downloadStarted))
                     close()
                 } label: {
                     Label("\(loc(.wholeSeason)) · \(loc.num(left.count)) \(loc(.episode))", systemImage: "arrow.down.to.line")
@@ -163,9 +164,10 @@ struct DownloadPicker: View {
                     heading(lines > 0 ? "\(lines)p" : loc(.fileQuality), lines >= 2160 ? "4K" : nil)
                     ForEach(groups[lines] ?? []) { file in
                         FileRow(title: file.quality, detail: [file.encoder].compactMap { $0 }, tags: file.tags, size: file.size,
-                                subtitled: file.subtitle != nil, shortfall: nil, state: downloads.has(file) ? .listed : .ready) {
+                                subtitled: file.subtitle != nil, shortfall: nil, state: downloads.has(file) ? .listed : .ready,
+                                hasSubtitle: downloads.hasSubtitle(file),
+                                subtitleOnly: { await downloads.subtitlesOnly([file], of: post) > 0 }) {
                             downloads.start(file, of: post)
-                            app.showToast(loc(.downloadStarted))
                             close()
                         }
                     }
@@ -232,7 +234,6 @@ struct DownloadPicker: View {
                                     listed: file.map(downloads.has) ?? false) {
                             guard let file else { return }
                             downloads.start(file, of: post)
-                            app.showToast(loc(.downloadStarted))
                         }
                         .help(file == nil ? loc(.notInPack) : "")
                     }
@@ -282,6 +283,57 @@ private struct Choice: View {
 
 /// A file or a pack of files as one wide row: what it is on one side, how big on the other.
 /// For a film the row is the download button; for a series it chooses the quality.
+/// Fetches Persian subtitles without the film, and says on its own face how that went.
+private struct SubtitleButton: View {
+    enum Phase { case idle, working, saved, missing }
+
+    /// The long wording, for the foot of the pane; a row has room only for the short one.
+    let wide: Bool
+    /// The subtitles are in the folder already.
+    let had: Bool
+    let fetch: () async -> Bool
+
+    @Environment(\.loc) private var loc
+    @State private var phase = Phase.idle
+    @State private var hovering = false
+
+    private var done: Bool { phase == .saved || (phase == .idle && had) }
+
+    var body: some View {
+        Button {
+            guard phase != .working else { return }
+            phase = .working
+            Task { phase = await fetch() ? .saved : .missing }
+        } label: {
+            HStack(spacing: wide ? 8 : 5) {
+                ZStack {
+                    if phase == .working {
+                        ProgressView().controlSize(.small).scaleEffect(wide ? 0.8 : 0.6)
+                    } else {
+                        Image(systemName: done ? "checkmark" : phase == .missing ? "xmark" : "captions.bubble")
+                            .font(.system(size: wide ? 14 : 12, weight: .bold))
+                            .foregroundStyle(done ? Theme.good : Theme.text1)
+                    }
+                }
+                .frame(width: wide ? 18 : 15, height: wide ? 18 : 15)
+                Text(phase == .missing ? loc(.subtitleMissing) : wide ? loc(.getSubtitle) : loc(.subtitles))
+                    .font(.app(wide ? 16 : 12, wide ? .semibold : .bold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Theme.text1)
+            .padding(.horizontal, wide ? 22 : 12)
+            .frame(height: wide ? 46 : 32)
+            .background(Capsule().fill(Color.white.opacity(hovering ? 0.2 : 0.12)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(loc(.getSubtitle))
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: phase)
+    }
+}
+
 private struct FileRow: View {
     enum Mark { case ready, listed, choice, chosen }
 
@@ -293,6 +345,9 @@ private struct FileRow: View {
     /// "Incomplete · 2 of 10 episodes", for a pack that lacks some.
     let shortfall: String?
     let state: Mark
+    var hasSubtitle = false
+    /// Fetches just the subtitles for this file. A film's row offers it; a pack's does not.
+    var subtitleOnly: (() async -> Bool)? = nil
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -300,7 +355,8 @@ private struct FileRow: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        Button(action: action) {
+        HStack(spacing: 0) {
+          Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: symbol)
                     .font(.system(size: 19, weight: .semibold))
@@ -344,12 +400,17 @@ private struct FileRow: View {
             }
             .padding(.horizontal, 16)
             .frame(minHeight: 58)
-            .background(shape.fill(Color.white.opacity(state == .chosen ? 0.16 : hovering ? 0.12 : 0.06)))
-            .overlay { shape.strokeBorder(state == .chosen ? Color.white.opacity(0.55) : Color.white.opacity(0.06), lineWidth: state == .chosen ? 1.5 : 1) }
-            .contentShape(shape)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .disabled(state == .listed)
+          if let subtitleOnly {
+              // Its own button, apart from the row's: the film is not wanted, only its subtitles.
+              SubtitleButton(wide: false, had: hasSubtitle, fetch: subtitleOnly).padding(.trailing, 14)
+          }
         }
-        .buttonStyle(.plain)
-        .disabled(state == .listed)
+        .background(shape.fill(Color.white.opacity(state == .chosen ? 0.16 : hovering ? 0.12 : 0.06)))
+        .overlay { shape.strokeBorder(state == .chosen ? Color.white.opacity(0.55) : Color.white.opacity(0.06), lineWidth: state == .chosen ? 1.5 : 1) }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.14), value: hovering)
     }
