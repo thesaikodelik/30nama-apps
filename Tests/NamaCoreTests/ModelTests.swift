@@ -7,6 +7,24 @@ func fixture(_ name: String) throws -> JSON {
 }
 
 final class ModelTests: XCTestCase {
+    func testBackdropsAreTheBestLiveActionTitlesWithAWidePicture() {
+        func entry(_ id: Int, imdb: Double, type: String = "movie", genre: String = "drama", cover: Bool = true) -> [String: Any] {
+            var image: [String: Any] = ["poster": ["webp": ["large": "https://example.com/\(id).webp"]]]
+            if cover { image["cover"] = ["webp": "https://example.com/\(id)-wide.webp"] }
+            return ["id": id, "title": ["english": "Title \(id)"], "options": ["title_type": type],
+                    "genre": [["name": genre.capitalized, "slug": genre]], "score": ["imdb": ["score": imdb]], "image": image]
+        }
+        let feed = HomeFeed(JSON([
+            "hero_header": ["posts": [entry(1, imdb: 8.5, type: "anime")]],
+            "movies": ["posts": [entry(2, imdb: 7.1), entry(3, imdb: 9.0), entry(4, imdb: 9.5, cover: false), entry(5, imdb: 8.8, genre: "animation")]],
+            "series": ["posts": [entry(6, imdb: 8.2), entry(3, imdb: 9.0)]],
+        ] as [String: Any]))
+        XCTAssertEqual(feed.backdrops().map(\.id), [3, 6, 2], "best first; no anime, no animation, nothing without a wide picture, nothing twice")
+        XCTAssertEqual(feed.backdrops(limit: 2).map(\.id), [3, 6])
+        let cartoons = HomeFeed(JSON(["hero_header": ["posts": [entry(1, imdb: 8.5, type: "anime")]]] as [String: Any]))
+        XCTAssertEqual(cartoons.backdrops().map(\.id), [1], "with nothing else to show, animation is better than a blank screen")
+    }
+
     func testHomeFeedFromLiveResponse() throws {
         let feed = HomeFeed(try fixture("home_stream")["result"])
         XCTAssertEqual(feed.heroes.count, 3)

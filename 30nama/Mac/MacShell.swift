@@ -102,6 +102,10 @@ struct MainView: View {
         if let name = DebugLaunch.section, let section = MacSection.allCases.first(where: { "\($0)" == name }) {
             nav.go(section)
         }
+        if DebugLaunch.open == "continue" {
+            if let post = await app.continueWatching().first { nav.open(post) }
+            return
+        }
         guard let target = DebugLaunch.open, let feed = try? await app.home() else { return }
         let pool = feed.heroes + feed.sections.flatMap(\.posts)
         if let post = target == "first" ? pool.first : pool.first(where: { String($0.id) == target }) { nav.open(post) }

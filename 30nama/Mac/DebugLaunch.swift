@@ -5,7 +5,8 @@ import Foundation
 /// the way there. Not compiled into release builds.
 ///
 /// - `NAMA_SECTION=movies` opens that section (the names of `MacSection`).
-/// - `NAMA_OPEN=first` opens the first featured title; `NAMA_OPEN=<post id>` one from the home feed.
+/// - `NAMA_OPEN=first` opens the first featured title, `NAMA_OPEN=continue` the title last watched,
+///   and `NAMA_OPEN=<post id>` one from the home feed.
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
 enum DebugLaunch {

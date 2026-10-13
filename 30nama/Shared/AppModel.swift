@@ -132,12 +132,61 @@ enum SessionStore {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
     }
 
-    static func save(_ user: User) {
+    #if os(macOS)
+    /// A Mac build signed to run locally is a different app, as far as the keychain can tell,
+    /// every time it is built, and the keychain would ask for the login password after each
+    /// update. Only a build signed by a team uses it; the others keep the token in a file that
+    /// nobody but the user can read.
+    private static let keychainFits: Bool = {
+        var code: SecCode?
+        var fixed: SecStaticCode?
+        var info: CFDictionary?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
+              SecCodeCopyStaticCode(code, [], &fixed) == errSecSuccess, let fixed,
+              SecCodeCopySigningInformation(fixed, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let signing = info as? [String: Any] else { return false }
+        return signing[kSecCodeInfoTeamIdentifier as String] != nil
+    }()
+
+    private static var file: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(service, isDirectory: true).appendingPathComponent("session")
+    }
+
+    private static func writeFile(_ token: String) -> Bool {
+        let manager = FileManager.default
+        try? manager.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return manager.createFile(atPath: file.path, contents: Data(token.utf8), attributes: [.posixPermissions: 0o600])
+    }
+    #else
+    private static let keychainFits = true
+    #endif
+
+    private static func keep(_ token: String) -> Bool {
+        #if os(macOS)
+        if !keychainFits { return writeFile(token) }
+        #endif
         SecItemDelete(query as CFDictionary)
         var add = query
-        add[kSecValueData as String] = Data(user.token.utf8)
+        add[kSecValueData as String] = Data(token.utf8)
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        let stored = SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
+    private static func kept() -> String? {
+        #if os(macOS)
+        if !keychainFits { return (try? Data(contentsOf: file)).flatMap { String(data: $0, encoding: .utf8) } }
+        #endif
+        var read = query
+        read[kSecReturnData as String] = true
+        read[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(read as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func save(_ user: User) {
+        let stored = keep(user.token)
         let d = UserDefaults.standard
         // Without Keychain access (unsigned development builds) fall back to the defaults store.
         d.set(stored ? nil : user.token, forKey: "session.token")
@@ -147,22 +196,19 @@ enum SessionStore {
 
     static func load() -> User? {
         let d = UserDefaults.standard
-        var read = query
-        read[kSecReturnData as String] = true
-        read[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: CFTypeRef?
-        var token: String?
-        if SecItemCopyMatching(read as CFDictionary, &out) == errSecSuccess, let data = out as? Data {
-            token = String(data: data, encoding: .utf8)
-        }
-        guard let token = token ?? d.string(forKey: "session.token"), !token.isEmpty else { return nil }
+        guard let token = kept() ?? d.string(forKey: "session.token"), !token.isEmpty else { return nil }
         let p = d.dictionary(forKey: "session.profile") as? [String: String] ?? [:]
         return User(JSON(["user_session": token, "user_id": p["id"], "user_name": p["name"], "user_type": p["type"], "user_expire": p["expiry"],
                           "user_expire_local": p["expiryLocal"], "user_avatar": p["avatar"]].compactMapValues { $0 }))
     }
 
     static func clear() {
+        #if os(macOS)
+        try? FileManager.default.removeItem(at: file)
+        if keychainFits { SecItemDelete(query as CFDictionary) }
+        #else
         SecItemDelete(query as CFDictionary)
+        #endif
         UserDefaults.standard.removeObject(forKey: "session.token")
         UserDefaults.standard.removeObject(forKey: "session.profile")
     }

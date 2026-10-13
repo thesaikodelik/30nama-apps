@@ -29,7 +29,8 @@ struct LoginView: View {
             .padding(.horizontal, 80)
         }
         .task {
-            backdrop = (try? await app.home())?.heroes.first { $0.cover != nil }
+            // A different one of the best-regarded titles each time the screen comes up.
+            backdrop = (try? await app.home())?.backdrops().randomElement()
         }
         .task(id: attempt) { await runCode() }
     }

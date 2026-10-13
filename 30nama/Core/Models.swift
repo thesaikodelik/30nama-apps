@@ -505,6 +505,18 @@ struct HomeFeed {
 
     var isEmpty: Bool { heroes.isEmpty && sections.isEmpty }
     func posts(_ key: String) -> [Post] { sections.first { $0.key == key }?.posts ?? [] }
+
+    /// Titles fit to stand behind a screen that has none of its own, such as sign-in: the
+    /// best-regarded live-action films and series that have a wide picture. Animation is left
+    /// out, since a cartoon still sets the wrong tone for the whole app. When nothing qualifies,
+    /// anything with a wide picture will do.
+    func backdrops(limit: Int = 10) -> [Post] {
+        var seen = Set<Int>()
+        let wide = (sections.flatMap(\.posts) + heroes).filter { $0.cover != nil && seen.insert($0.id).inserted }
+        let fit = wide.filter { $0.kind != .anime && !$0.genres.contains { $0.slug == "animation" } }
+        let ranked = (fit.isEmpty ? wide : fit).sorted { ($0.imdbScore ?? 0) > ($1.imdbScore ?? 0) }
+        return Array(ranked.prefix(limit))
+    }
 }
 
 struct PostPage {
