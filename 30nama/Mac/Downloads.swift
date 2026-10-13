@@ -858,9 +858,9 @@ struct DownloadsDisc: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Glass whether or not its page is open; there it is only a little brighter, with a rim.
-                Circle().fill(Color.white.opacity(selected ? 0.16 : hovering ? 0.12 : 0))
-                if selected, busy.isEmpty { Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1.5) }
+                // Made as the bar beside it is: the same glass, and inside it the same white pill
+                // when its page is the open one.
+                Circle().fill(selected ? Color.white : Color.white.opacity(hovering ? 0.12 : 0)).padding(4)
                 if !busy.isEmpty {
                     Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 3)
                     Circle()
@@ -872,7 +872,7 @@ struct DownloadsDisc: View {
                 }
                 Image(systemName: busy.isEmpty ? "arrow.down.to.line" : "arrow.down")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Theme.text1.opacity(selected || hovering ? 1 : 0.78))
+                    .foregroundStyle(selected ? Theme.focusInk : Theme.text1.opacity(hovering ? 1 : 0.78))
             }
             .frame(width: 48, height: 48)
             .glass(Circle())
