@@ -169,14 +169,17 @@ struct LoginView: View {
 }
 
 private struct PulsingDot: View {
+    @Environment(\.lively) private var lively
     @State private var on = false
 
     var body: some View {
         Circle()
             .fill(Theme.accent)
             .frame(width: 9, height: 9)
-            .opacity(on ? 1 : 0.3)
+            .opacity(on || !lively ? 1 : 0.3)
             .onAppear {
+                // A pulse never ends, so a Mac that is sparing itself gets a steady dot.
+                guard lively else { return }
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { on = true }
             }
     }
