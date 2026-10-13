@@ -58,7 +58,14 @@ struct DownloadPicker: View {
                 Text(post.title(loc.lang)).font(.app(24, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
                 Text(loc.kindLine(post)).font(.app(13)).foregroundStyle(Theme.text3)
             }
-            Spacer(minLength: 0)
+            // Room for the close button, which sits in the corner and not in this row.
+            Spacer(minLength: 40)
+        }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 20)
+        // In the corner, as far from the top as from the side: centred on the row's height it
+        // floated half-way down a tall header.
+        .overlay(alignment: .topTrailing) {
             Button(action: close) {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .bold))
@@ -68,9 +75,8 @@ struct DownloadPicker: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .padding(18)
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 20)
     }
 
     @ViewBuilder
