@@ -116,51 +116,66 @@ struct DetailsView: View {
                     .lineSpacing(6)
                     .frame(maxWidth: 700, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 14) {
-                    Button { play() } label: {
-                        HStack(spacing: 8) {
-                            if streamPending {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "play.fill")
-                            }
-                            Text(playLabel)
-                        }
+                // Everything to do with the title in one row: play it, take it, rate it, keep it.
+                // A window too narrow for the row gets the user's own part on a second one.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 14) {
+                        actions
+                        mine
                     }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(streamPending)
-                    if app.isLoggedIn {
-                        Button { nav.picking = post } label: {
-                            Label(loc(.download), systemImage: "arrow.down.to.line")
-                        }
-                        .buttonStyle(GlassButtonStyle())
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 14) { actions }
+                        HStack(spacing: 14) { mine }
                     }
                 }
                 .padding(.top, 10)
-                // Under the things to do with the title, what the user makes of it: their own
-                // stars in one bar, and beside it the lists they keep it on.
-                HStack(spacing: 14) {
-                    HStack(spacing: 12) {
-                        Text(loc(.yourRating)).font(.app(14, .semibold)).foregroundStyle(Theme.text2).lineLimit(1)
-                        StarRater(value: app.ratings.stars(for: post.id), size: 18) { app.rate(post, stars: $0) }
-                    }
-                    .padding(.horizontal, 18)
-                    .frame(height: 46)
-                    // The same surface as the buttons around it.
-                    .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
-                    .glass(Capsule(style: .continuous))
-                    .fixedSize()
-                    if app.isLoggedIn {
-                        ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
-                            Task { await app.toggleList(post, "watchlist") }
-                        }
-                        ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
-                            Task { await app.toggleList(post, "favorite") }
-                        }
-                    }
-                }
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        Button { play() } label: {
+            HStack(spacing: 8) {
+                if streamPending {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "play.fill")
+                }
+                Text(playLabel)
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .disabled(streamPending)
+        if app.isLoggedIn {
+            Button { nav.picking = post } label: {
+                Label(loc(.download), systemImage: "arrow.down.to.line")
+            }
+            .buttonStyle(GlassButtonStyle())
+        }
+    }
+
+    /// What the user makes of the title: their own stars in one bar, and the lists they keep it on.
+    @ViewBuilder
+    private var mine: some View {
+        HStack(spacing: 12) {
+            Text(loc(.yourRating)).font(.app(14, .semibold)).foregroundStyle(Theme.text2).lineLimit(1)
+            StarRater(value: app.ratings.stars(for: post.id), size: 18) { app.rate(post, stars: $0) }
+        }
+        .padding(.horizontal, 18)
+        .frame(height: 46)
+        // The same surface as the buttons around it.
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
+        .glass(Capsule(style: .continuous))
+        .fixedSize()
+        if app.isLoggedIn {
+            ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
+                Task { await app.toggleList(post, "watchlist") }
+            }
+            ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
+                Task { await app.toggleList(post, "favorite") }
+            }
         }
     }
 
