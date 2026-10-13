@@ -327,7 +327,15 @@ struct Shelf<Card: View>: View {
     @State private var position: Post.ID?
     @State private var hovering = false
 
+    /// Each title once. A list drawn from several of the home feed's sections can name a title
+    /// twice, and a row given the same id twice draws the second one as an empty space.
+    private var shown: [Post] {
+        var seen = Set<Int>()
+        return posts.filter { seen.insert($0.id).inserted }
+    }
+
     var body: some View {
+        let posts = shown
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.app(20, .bold))
@@ -344,16 +352,15 @@ struct Shelf<Card: View>: View {
             .scrollIndicators(.hidden)
             .scrollClipDisabled()
             .scrollPosition(id: $position, anchor: .leading)
-            .overlay(alignment: .leading) { arrow(-1) }
-            .overlay(alignment: .trailing) { arrow(1) }
+            .overlay(alignment: .leading) { arrow(-1, posts) }
+            .overlay(alignment: .trailing) { arrow(1, posts) }
         }
         .onHover { hovering = $0 }
     }
 
-    private var index: Int { posts.firstIndex { $0.id == position } ?? 0 }
-
     @ViewBuilder
-    private func arrow(_ direction: Int) -> some View {
+    private func arrow(_ direction: Int, _ posts: [Post]) -> some View {
+        let index = posts.firstIndex { $0.id == position } ?? 0
         let target = min(max(0, index + direction * step), max(0, posts.count - 1))
         if hovering, target != index {
             Button {

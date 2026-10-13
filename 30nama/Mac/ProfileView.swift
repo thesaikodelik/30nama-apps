@@ -237,7 +237,9 @@ struct ProfileView: View {
 
     private func refresh() async {
         guard let feed = try? await app.home() else { return }
-        let pool = feed.sections.flatMap(\.posts)
+        // The same title can sit in two sections of the feed; it is wanted once.
+        var seen = Set<Int>()
+        let pool = feed.sections.flatMap(\.posts).filter { seen.insert($0.id).inserted }
         if app.ratings.isEmpty {
             // Nothing to go on yet: offer the best-regarded titles to kick things off.
             starters = Array(pool.filter { !$0.comingSoon && $0.imdbScore != nil }
