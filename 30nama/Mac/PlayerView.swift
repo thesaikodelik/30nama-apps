@@ -163,7 +163,9 @@ struct PlayerView: View {
                     .padding(.vertical, size * 0.22)
                     .background {
                         if style.blurStrength > 0 {
-                            shape.fill(.ultraThinMaterial).opacity(0.4 + 0.6 * style.blurStrength)
+                            // Never faded: a material that is made translucent stops blurring at all.
+                            // The lighter plate is a thinner material instead.
+                            shape.fill(style.blurStrength < 1 ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
                         } else if style.plateOpacity > 0 {
                             shape.fill(Color.black.opacity(style.plateOpacity))
                         }

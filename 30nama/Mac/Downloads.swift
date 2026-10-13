@@ -90,9 +90,6 @@ final class Downloads {
     }
 
     private(set) var items: [DownloadItem] = []
-    /// Goes up each time a download is started, so the marker in the corner can show it happening.
-    private(set) var started = 0
-
     @ObservationIgnored private var session: URLSession!
     @ObservationIgnored private var tasks: [String: URLSessionDownloadTask] = [:]
     @ObservationIgnored private var resumeData: [String: Data] = [:]
@@ -174,7 +171,6 @@ final class Downloads {
         item.subtitlePage = post.subtitlePages.first { $0.persian && ($0.season == nil || $0.season == file.season) }?.link
         items.removeAll { $0.fileName == file.fileName }
         items.insert(item, at: 0)
-        started += 1
         begin(item)
         // 30nama's own subtitle when it has one; otherwise the one on the subtitle site that fits this copy.
         if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) } else { findSubtitle(item.id, quietly: true) }
@@ -213,13 +209,21 @@ final class Downloads {
     }
 
     /// Stops a transfer and forgets it, or just forgets one that has ended. A finished file stays where it is.
-    func remove(_ id: String) {
+    /// Takes a download off the list. A finished file stays where it is unless `trashing` says
+    /// it should go too; then it and its subtitles are moved to the Trash, where they can be had back.
+    func remove(_ id: String, trashing: Bool = false) {
         tasks[id]?.cancel()
         tasks[id] = nil
         resumeData[id] = nil
-        // Subtitles fetched for a film that never arrived would only be litter in the folder.
-        if let item = items.first(where: { $0.id == id }), item.state != .done, let subtitle = item.subtitlePath {
-            try? FileManager.default.removeItem(atPath: subtitle)
+        if let item = items.first(where: { $0.id == id }) {
+            if item.state != .done, let subtitle = item.subtitlePath {
+                // Subtitles fetched for a film that never arrived would only be litter in the folder.
+                try? FileManager.default.removeItem(atPath: subtitle)
+            } else if item.state == .done, trashing {
+                for path in [item.path, item.subtitlePath].compactMap({ $0 }) where FileManager.default.fileExists(atPath: path) {
+                    try? FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
+                }
+            }
         }
         items.removeAll { $0.id == id }
         save()
@@ -662,6 +666,8 @@ private struct DownloadRow: View {
 
     @Environment(Downloads.self) private var downloads
     @Environment(\.loc) private var loc
+    /// The row is asking what removing should mean: off the list only, or the file as well.
+    @State private var asking = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -688,6 +694,14 @@ private struct DownloadRow: View {
             Spacer(minLength: 8)
             Text(status).font(.app(13, .medium)).foregroundStyle(item.state == .failed ? Theme.accent : Theme.text2).lineLimit(1)
                 .environment(\.layoutDirection, .leftToRight)
+            if asking {
+                HStack(spacing: 6) {
+                    RowChoice(title: loc(.removeFromList)) { downloads.remove(item.id) }
+                    RowChoice(title: loc(.moveToTrash), symbol: "trash") { downloads.remove(item.id, trashing: true) }
+                    RowButton(symbol: "arrow.uturn.backward", help: loc(.cancel)) { asking = false }
+                }
+                .transition(.opacity)
+            } else {
             HStack(spacing: 4) {
                 switch item.state {
                 case .running:
@@ -720,9 +734,19 @@ private struct DownloadRow: View {
                     RowButton(symbol: "play.fill", help: loc(.play), bright: true) { downloads.play(item) }
                     RowButton(symbol: "folder", help: loc(.showInFinder)) { downloads.reveal(item) }
                 }
-                RowButton(symbol: "xmark", help: loc(.remove)) { downloads.remove(item.id) }
+                RowButton(symbol: "xmark", help: loc(.remove)) {
+                    // Only a file that is there raises the question; anything else just leaves the list.
+                    if item.state == .done, let path = item.path, FileManager.default.fileExists(atPath: path) {
+                        asking = true
+                    } else {
+                        downloads.remove(item.id)
+                    }
+                }
+            }
+            .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.16), value: asking)
         .padding(.horizontal, 18)
         .frame(minHeight: style == .title ? 84 : 62)
         .background {
@@ -759,6 +783,31 @@ private struct DownloadRow: View {
     }
 }
 
+/// One of the answers a row offers when it asks, spelled out.
+private struct RowChoice: View {
+    let title: String
+    var symbol: String? = nil
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let symbol { Image(systemName: symbol).font(.system(size: 12, weight: .bold)) }
+                Text(title).font(.app(13, .semibold)).lineLimit(1)
+            }
+            .foregroundStyle(Theme.text1)
+            .padding(.horizontal, 14)
+            .frame(height: 34)
+            .background(Capsule().fill(Color.white.opacity(hovering ? 0.22 : 0.1)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
 private struct RowButton: View {
     let symbol: String
     let help: String
@@ -785,17 +834,16 @@ private struct RowButton: View {
 }
 
 
-// MARK: - The marker in the corner
+// MARK: - The disc beside the bar
 
-/// Downloads at a glance, from any screen: a glass disc in the corner of the window, there only
-/// when something has been downloaded or is on its way. A ring around it fills as the running
-/// downloads come in. A click opens the latest few; from there the full list is one more click.
-struct DownloadsOrb: View {
+/// Downloads from any screen: a glass disc beside the bar at the top of the window. A ring around
+/// it fills as the running downloads come in, and a click opens the list.
+struct DownloadsDisc: View {
+    let selected: Bool
+    let action: () -> Void
+
     @Environment(Downloads.self) private var downloads
-    @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
-
-    @State private var open = false
     @State private var hovering = false
 
     private var busy: [DownloadItem] { downloads.items.filter { $0.state == .running || $0.state == .paused } }
@@ -808,121 +856,40 @@ struct DownloadsOrb: View {
     }
 
     var body: some View {
-        if !downloads.items.isEmpty {
-            VStack(alignment: .trailing, spacing: 12) {
-                if open {
-                    panel.transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .bottomTrailing)))
+        Button(action: action) {
+            ZStack {
+                Circle().fill(selected ? Color.white : Color.white.opacity(hovering ? 0.12 : 0))
+                if !busy.isEmpty {
+                    Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 3)
+                    Circle()
+                        .trim(from: 0, to: max(0.02, fraction))
+                        .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .padding(1.5)
+                        .animation(.easeOut(duration: 0.5), value: fraction)
                 }
-                Button { open.toggle() } label: { disc }
-                    .buttonStyle(.plain)
-                    .onHover { hovering = $0 }
-                    .help(loc(.downloads))
+                Image(systemName: busy.isEmpty ? "arrow.down.to.line" : "arrow.down")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(selected ? Theme.focusInk : Theme.text1.opacity(hovering ? 1 : 0.78))
             }
-            .animation(Theme.focusSpring, value: open)
-            .animation(Theme.focusSpring, value: hovering)
-            // A download has just been started: show it, so there is no doubt that it has, and
-            // then step back out of the way.
-            .task(id: downloads.started) {
-                guard downloads.started > 0 else { return }
-                open = true
-                try? await Task.sleep(for: .seconds(6))
-                if !Task.isCancelled, !hovering { open = false }
-            }
-        }
-    }
-
-    private var disc: some View {
-        ZStack {
-            Circle().fill(Theme.bg1.opacity(0.55))
-            Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 3)
-            if !busy.isEmpty {
-                Circle()
-                    .trim(from: 0, to: max(0.02, fraction))
-                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(1.5)
-                    .animation(.easeOut(duration: 0.5), value: fraction)
-            }
-            Image(systemName: busy.isEmpty ? "arrow.down.to.line" : "arrow.down")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Theme.text1)
-        }
-        .frame(width: 54, height: 54)
-        .glass(Circle())
-        .overlay(alignment: .topTrailing) {
-            if !busy.isEmpty {
-                Text(loc.num(busy.count))
-                    .font(.app(11, .heavy))
-                    .foregroundStyle(.white)
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(Circle().fill(Theme.accent))
-                    .offset(x: 4, y: -4)
-            }
-        }
-        .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
-        .scaleEffect(hovering ? 1.07 : 1)
-        .contentShape(Circle())
-    }
-
-    private var panel: some View {
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(loc(.downloads)).font(.app(17, .bold)).foregroundStyle(Theme.text1)
-                Spacer(minLength: 0)
-                Button {
-                    open = false
-                    nav.go(.downloads)
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(loc(.allChoices))
-                        Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold))
-                    }
+            .frame(width: 48, height: 48)
+            .glass(Circle())
+            .overlay(alignment: .topTrailing) {
+                if !busy.isEmpty {
+                    Text(loc.num(busy.count))
+                        .font(.app(11, .heavy))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 19, minHeight: 19)
+                        .background(Circle().fill(Theme.accent))
+                        .offset(x: 3, y: -3)
                 }
-                .buttonStyle(GlassButtonStyle(height: 30))
             }
-            ForEach(downloads.items.prefix(4)) { item in
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title).font(.app(14, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
-                        Text(line(item)).font(.app(12)).foregroundStyle(Theme.text3).lineLimit(1)
-                        if item.state == .running || item.state == .paused {
-                            GeometryReader { geo in
-                                Capsule().fill(Color.white.opacity(0.14))
-                                Capsule().fill(item.state == .paused ? Theme.text3 : Theme.accent).frame(width: max(4, geo.size.width * item.fraction))
-                            }
-                            .frame(height: 4)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    switch item.state {
-                    case .running:
-                        RowButton(symbol: "pause.fill", help: loc(.pause)) { downloads.pause(item.id) }
-                    case .paused, .failed:
-                        RowButton(symbol: "arrow.clockwise", help: loc(.resume)) { downloads.resume(item.id) }
-                    case .done:
-                        RowButton(symbol: "play.fill", help: loc(.play), bright: true) {
-                            open = false
-                            downloads.play(item)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-            }
+            .contentShape(Circle())
         }
-        .padding(16)
-        .frame(width: 340)
-        .background(shape.fill(Theme.bg1.opacity(0.55)))
-        .glass(shape)
-        .shadow(color: .black.opacity(0.5), radius: 30, y: 14)
-    }
-
-    private func line(_ item: DownloadItem) -> String {
-        var parts: [String] = []
-        if let season = item.season, let episode = item.episode { parts.append(loc.episodeTag(season: season, episode: episode)) }
-        if item.state == .running || item.state == .paused { parts.append(loc.num("\(Int(item.fraction * 100))٪")) }
-        if item.state == .failed { parts.append(loc(.downloadFailed)) }
-        if parts.isEmpty, let quality = item.quality { parts.append(quality) }
-        return parts.joined(separator: " · ")
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.16), value: hovering)
+        .animation(Theme.focusSpring, value: selected)
+        .help(loc(.downloads))
     }
 }

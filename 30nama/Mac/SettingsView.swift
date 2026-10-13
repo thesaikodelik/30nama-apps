@@ -183,7 +183,7 @@ struct SettingsView: View {
             .padding(.vertical, 5)
             .background {
                 if style.blurStrength > 0 {
-                    plate.fill(.ultraThinMaterial).opacity(0.4 + 0.6 * style.blurStrength)
+                    plate.fill(style.blurStrength < 1 ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
                 } else {
                     plate.fill(Color.black.opacity(style.plateOpacity))
                 }

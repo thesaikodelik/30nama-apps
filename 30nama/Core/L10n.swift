@@ -30,7 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
-    case incomplete, notInPack, ofTotal
+    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -164,6 +164,7 @@ struct Loc: Equatable {
         .getSubtitle: "Get Persian subtitles", .subtitleSaved: "Subtitles saved beside the file",
         .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
         .incomplete: "Incomplete", .notInPack: "Not available in this quality", .ofTotal: "of",
+        .removeFromList: "Remove from list", .moveToTrash: "Remove from list and delete file",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -217,19 +218,20 @@ struct Loc: Equatable {
         .subtitles: "زیرنویس", .english: "انگلیسی", .persian: "فارسی",
         .audio: "صدا", .audioStereo: "استریو", .audioSurround: "۵.۱", .audioOriginal: "اصلی",
         .speed: "سرعت پخش", .subtitleTiming: "زمان‌بندی زیرنویس", .subtitleFile: "فایل زیرنویس…",
-        .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
+        .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی سایر پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
         .effects: "جلوه‌های حرکتی", .effectsAuto: "خودکار", .effectsFull: "کامل", .effectsLight: "سبک",
-        .exportRatings: "خروجی گرفتن از امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
-        .markWatched: "علامت «دیده‌شده»", .markUnwatched: "برداشتن علامت «دیده‌شده»", .upcoming: "قسمت‌های تازه در راه",
+        .exportRatings: "خروجی امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
+        .markWatched: "علامت‌گذاری به‌عنوان دیده‌شده", .markUnwatched: "علامت‌گذاری به‌عنوان دیده‌نشده", .upcoming: "قسمت‌های آینده",
         .allChoices: "همه", .minScore: "IMDb", .decade: "سال",
         .downloads: "دانلودها", .download: "دانلود", .downloadFolder: "پوشهٔ دانلود", .choose: "انتخاب…",
-        .showInFinder: "نمایش در Finder", .noDownloads: "هنوز چیزی دانلود نشده است", .allEpisodes: "همهٔ قسمت‌ها",
-        .pause: "توقف", .remove: "برداشتن از فهرست", .open: "باز کردن", .downloadFailed: "دانلود ناموفق بود",
-        .downloadStarted: "دانلود شروع شد", .downloadDone: "دانلود تمام شد", .noDownload: "برای این عنوان دانلودی نیست",
+        .showInFinder: "نمایش در Finder", .noDownloads: "هنوز فایلی دانلود نشده است", .allEpisodes: "همهٔ قسمت‌ها",
+        .pause: "توقف", .remove: "حذف", .open: "باز کردن", .downloadFailed: "دانلود ناموفق بود",
+        .downloadStarted: "دانلود شروع شد", .downloadDone: "دانلود تمام شد", .noDownload: "این عنوان فایل دانلودی ندارد",
         .fileQuality: "کیفیت", .saveTo: "ذخیره در", .perEpisode: "هر قسمت", .wholeSeason: "دانلود کل فصل",
         .getSubtitle: "دریافت زیرنویس فارسی", .subtitleSaved: "زیرنویس کنار فایل ذخیره شد",
-        .subtitleMissing: "زیرنویس هماهنگی پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
+        .subtitleMissing: "زیرنویس هماهنگ پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
         .incomplete: "ناقص", .notInPack: "در این کیفیت موجود نیست", .ofTotal: "از",
+        .removeFromList: "حذف از فهرست", .moveToTrash: "حذف از فهرست و فایل",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -296,6 +298,7 @@ struct Loc: Equatable {
         .getSubtitle: "جلب الترجمة الفارسية", .subtitleSaved: "حُفظت الترجمة بجانب الملف",
         .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",
         .incomplete: "غير مكتمل", .notInPack: "غير متوفرة بهذه الجودة", .ofTotal: "من",
+        .removeFromList: "إزالة من القائمة", .moveToTrash: "إزالة من القائمة وحذف الملف",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

@@ -48,6 +48,9 @@ final class ParsingTests: XCTestCase {
         let typed = SubtitleTrack(vtt: vtt(["چي اومدي", "كتاب"]))
         XCTAssertEqual(typed.text(at: 0.5), rtl + "چی اومدی" + end)
         XCTAssertEqual(typed.text(at: 1.5), rtl + "کتاب" + end)
+        // The same before a zero-width non-joiner, which clings to the letter in front of it.
+        let joined = SubtitleTrack(vtt: vtt(["\u{0645}\u{064A}\u{200C}\u{062F}\u{0648}\u{0646}\u{064A} \u{0686}\u{064A}"]))
+        XCTAssertEqual(joined.text(at: 0.5), rtl + "\u{0645}\u{06CC}\u{200C}\u{062F}\u{0648}\u{0646}\u{06CC} \u{0686}\u{06CC}" + end)
         // Arabic itself keeps its own letters.
         XCTAssertEqual(SubtitleTrack(vtt: vtt(["في كتاب"])).text(at: 0.5), rtl + "في كتاب" + end)
         // Nothing right-to-left in it: left alone.

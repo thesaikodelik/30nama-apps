@@ -92,11 +92,6 @@ struct MainView: View {
         .overlay(alignment: .top) {
             NavBar().padding(.top, 14).zIndex(2)
         }
-        .overlay(alignment: .bottomTrailing) {
-            if nav.section != .downloads || !nav.opened.isEmpty {
-                DownloadsOrb().padding(24)
-            }
-        }
         .overlay {
             if let post = nav.picking {
                 DownloadPicker(post: post) { nav.picking = nil }
@@ -167,7 +162,7 @@ private struct NavBar: View {
 
     var body: some View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
-        // and an empty place of the same size balances it on the other side. So the bar stays
+        // and the downloads disc of the same size balances it on the other side. So the bar stays
         // centred and its items do not shift when the button comes and goes.
         HStack(spacing: 10) {
             Button { nav.back() } label: {
@@ -183,7 +178,7 @@ private struct NavBar: View {
             .scaleEffect(nav.opened.isEmpty ? 0.8 : 1)
             .allowsHitTesting(!nav.opened.isEmpty)
             HStack(spacing: 2) {
-                // Downloads are not a place in the catalogue; they have a marker of their own in the corner.
+                // Downloads are not a place in the catalogue; they have a disc of their own beside the bar.
                 ForEach(MacSection.allCases.filter { $0 != .downloads }, id: \.self) { section in
                     NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty) {
                         nav.go(section)
@@ -192,7 +187,7 @@ private struct NavBar: View {
             }
             .padding(4)
             .glass(Capsule(style: .continuous))
-            Color.clear.frame(width: 48, height: 48)
+            DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
         }
         .animation(Theme.focusSpring, value: nav.opened.isEmpty)
     }
@@ -204,7 +199,6 @@ private struct NavItem: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
-    @Environment(Downloads.self) private var downloads
     @State private var hovering = false
 
     var body: some View {
@@ -212,12 +206,6 @@ private struct NavItem: View {
             HStack(spacing: 7) {
                 if section.iconOnly || section == .profile {
                     Image(systemName: section.symbol).font(.system(size: 16, weight: .semibold))
-                        .overlay(alignment: .topTrailing) {
-                            // Something is coming down: a dot on the downloads glyph says so from any screen.
-                            if section == .downloads, downloads.running > 0 {
-                                Circle().fill(Theme.accent).frame(width: 7, height: 7).offset(x: 3, y: -3)
-                            }
-                        }
                 }
                 if !section.iconOnly {
                     Text(loc(section.title)).font(.app(15.5, .semibold))

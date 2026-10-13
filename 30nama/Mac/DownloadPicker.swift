@@ -128,6 +128,7 @@ struct DownloadPicker: View {
                     .id(chosen.id)
                 Button {
                     for file in left { downloads.start(file, of: post) }
+                    app.showToast(loc(.downloadStarted))
                     close()
                 } label: {
                     Label("\(loc(.wholeSeason)) · \(loc.num(left.count)) \(loc(.episode))", systemImage: "arrow.down.to.line")
@@ -168,6 +169,7 @@ struct DownloadPicker: View {
                                 hasSubtitle: downloads.hasSubtitle(file),
                                 subtitleOnly: { await downloads.subtitlesOnly([file], of: post) > 0 }) {
                             downloads.start(file, of: post)
+                            app.showToast(loc(.downloadStarted))
                             close()
                         }
                     }
@@ -234,6 +236,7 @@ struct DownloadPicker: View {
                                     listed: file.map(downloads.has) ?? false) {
                             guard let file else { return }
                             downloads.start(file, of: post)
+                            app.showToast(loc(.downloadStarted))
                         }
                         .help(file == nil ? loc(.notInPack) : "")
                     }

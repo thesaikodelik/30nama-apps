@@ -39,14 +39,15 @@ struct SubtitleTrack: Equatable {
     /// Persian reader sees both as mistakes. Where the text is Persian (it uses letters Arabic
     /// does not have), those two are replaced by their Persian forms.
     static func persianised(_ cues: [Cue]) -> [Cue] {
-        let persianOnly: Set<Character> = ["پ", "چ", "ژ", "گ"]
-        guard cues.contains(where: { $0.text.contains(where: persianOnly.contains) }) else { return cues }
+        // Letter by letter, as code points: a yeh followed by a zero-width non-joiner ("می‌دونی")
+        // counts as one character with it, and a search for the bare letter passes it by.
+        let persianOnly: Set<Unicode.Scalar> = ["پ", "چ", "ژ", "گ"]
+        guard cues.contains(where: { $0.text.unicodeScalars.contains(where: persianOnly.contains) }) else { return cues }
+        let swaps: [Unicode.Scalar: Unicode.Scalar] = ["\u{064A}": "\u{06CC}", "\u{0649}": "\u{06CC}", "\u{0643}": "\u{06A9}"]
         return cues.map { cue in
-            var text = cue.text
-            for (arabic, persian) in [("\u{064A}", "\u{06CC}"), ("\u{0649}", "\u{06CC}"), ("\u{0643}", "\u{06A9}")] {
-                text = text.replacingOccurrences(of: arabic, with: persian)
-            }
-            return Cue(start: cue.start, end: cue.end, text: text)
+            var scalars = String.UnicodeScalarView()
+            for scalar in cue.text.unicodeScalars { scalars.append(swaps[scalar] ?? scalar) }
+            return Cue(start: cue.start, end: cue.end, text: String(scalars))
         }
     }
 

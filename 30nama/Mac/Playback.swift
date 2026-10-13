@@ -268,6 +268,10 @@ final class MPVPlayback: Playback {
 
         for name in ["time-pos", "duration"] { mpv_observe_property(handle, 0, name, MPV_FORMAT_DOUBLE) }
         for name in ["paused-for-cache", "seeking"] { mpv_observe_property(handle, 0, name, MPV_FORMAT_FLAG) }
+        #if DEBUG
+        // Says in the log whether the graphics chip is decoding; when it is not, the processor is, and runs hot.
+        mpv_observe_property(handle, 0, "hwdec-current", MPV_FORMAT_STRING)
+        #endif
 
         link.handle = handle
         link.wake = { [weak self, events, link] in
@@ -301,6 +305,11 @@ final class MPVPlayback: Playback {
             if event.event_id == MPV_EVENT_PROPERTY_CHANGE, let data = event.data {
                 let property = data.assumingMemoryBound(to: mpv_event_property.self).pointee
                 let name = String(cString: property.name)
+                #if DEBUG
+                if property.format == MPV_FORMAT_STRING, let value = property.data?.assumingMemoryBound(to: UnsafePointer<CChar>?.self).pointee {
+                    print("mpv \(name) = \(String(cString: value))")
+                }
+                #endif
                 if property.format == MPV_FORMAT_DOUBLE, let value = property.data {
                     link[name] = value.assumingMemoryBound(to: Double.self).pointee
                 } else if property.format == MPV_FORMAT_FLAG, let value = property.data {
