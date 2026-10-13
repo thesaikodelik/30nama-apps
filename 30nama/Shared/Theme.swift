@@ -108,11 +108,22 @@ private struct CalmKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct LivelyKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
     /// Interface strings in the chosen language.
     var loc: Loc {
         get { self[LocKey.self] }
         set { self[LocKey.self] = newValue }
+    }
+
+    /// Motion that never ends is allowed: the backdrop may drift for as long as it is on screen.
+    /// False on a Mac that cannot afford to redraw its window all day.
+    var lively: Bool {
+        get { self[LivelyKey.self] }
+        set { self[LivelyKey.self] = newValue }
     }
 
     /// "Reduce motion" setting: no backdrop drift, no hero rotation.

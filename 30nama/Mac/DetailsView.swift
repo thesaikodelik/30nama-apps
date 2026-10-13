@@ -160,14 +160,7 @@ struct DetailsView: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(stream.seasons, id: \.self) { number in
-                                Button("\(loc(.season)) \(loc.num(number))") { season = number }
-                                    .buttonStyle(.plain)
-                                    .font(.app(13, .semibold))
-                                    .foregroundStyle(season == number ? Theme.focusInk : Theme.text1)
-                                    .padding(.horizontal, 13)
-                                    .frame(height: 30)
-                                    .background(Capsule(style: .continuous).fill(season == number ? Color.white : Color.white.opacity(0.12)))
-                                    .contentShape(Capsule(style: .continuous))
+                                PillChoice(title: "\(loc(.season)) \(loc.num(number))", selected: season == number) { season = number }
                             }
                         }
                     }

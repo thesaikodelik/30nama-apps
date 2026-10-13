@@ -20,6 +20,17 @@ extension Image {
 enum Display {
     @MainActor static var scale: CGFloat { NSScreen.main?.backingScaleFactor ?? 2 }
 }
+
+enum Machine {
+    /// Apple silicon draws the app's ambient motion without effort; an Intel Mac runs hot doing it.
+    static let isFast: Bool = {
+        #if arch(arm64)
+        return true
+        #else
+        return false
+        #endif
+    }()
+}
 #else
 import UIKit
 

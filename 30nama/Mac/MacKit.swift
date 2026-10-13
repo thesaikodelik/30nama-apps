@@ -69,6 +69,30 @@ struct Hovered<Content: View>: View {
     }
 }
 
+/// A small capsule that is one choice among a few: a season, a sort order.
+struct PillChoice: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.app(13, .semibold))
+                .foregroundStyle(selected ? Theme.focusInk : Theme.text1)
+                .padding(.horizontal, 13)
+                .frame(height: 30)
+                .background(Capsule(style: .continuous).fill(selected ? Color.white : Color.white.opacity(hovering ? 0.2 : 0.1)))
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
+    }
+}
+
 // MARK: - Facts about a title
 
 struct Chip<Content: View>: View {
@@ -150,6 +174,7 @@ struct PosterCard: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
+    @Environment(\.lively) private var lively
     @State private var hovering = false
 
     var body: some View {
@@ -157,13 +182,15 @@ struct PosterCard: View {
         Button(action: action) {
             RemoteImage(url: post.poster.url(forWidth: width * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(width * 1.5 * Display.scale))
                 .frame(width: width, height: width * 1.5)
+                // A poster that has not arrived yet is still a tile, not a hole in the row.
+                .background(Theme.surface2)
                 .overlay(alignment: .bottom) { caption }
                 .overlay(alignment: .topLeading) { badge }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
-                // Only the card under the pointer casts a shadow: a row of resting shadows is the
-                // dearest thing to draw while a shelf scrolls.
-                .shadow(color: post.tint.opacity(hovering ? 0.55 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
+                // A row of resting shadows is the dearest thing to draw while a shelf scrolls, so a
+                // slow Mac gets a shadow only under the pointer.
+                .shadow(color: hovering ? post.tint.opacity(0.55) : .black.opacity(lively ? 0.4 : 0), radius: hovering ? 24 : lively ? 8 : 0, y: hovering ? 14 : lively ? 4 : 0)
                 .scaleEffect(hovering ? 1.07 : 1)
                 .contentShape(shape)
         }

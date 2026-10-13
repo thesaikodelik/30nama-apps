@@ -545,13 +545,7 @@ private struct EpisodePanel: View {
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(seasons, id: \.self) { number in
-                                Button("\(loc(.season)) \(loc.num(number))") { season = number }
-                                    .buttonStyle(.plain)
-                                    .font(.app(13, .semibold))
-                                    .foregroundStyle(season == number ? Theme.focusInk : Theme.text1)
-                                    .padding(.horizontal, 12)
-                                    .frame(height: 28)
-                                    .background(Capsule(style: .continuous).fill(season == number ? Color.white : Color.white.opacity(0.12)))
+                                PillChoice(title: "\(loc(.season)) \(loc.num(number))", selected: season == number) { season = number }
                             }
                         }
                     }

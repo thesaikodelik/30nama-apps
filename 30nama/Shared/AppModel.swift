@@ -15,6 +15,8 @@ struct Settings: Equatable {
     var autoplayNext = true
     /// Stereo by default: the original mix is often silent on the Apple TV's own speakers.
     var audioMix: AudioMix = .stereo
+    /// Mac only: how much the app moves when nobody is touching it.
+    var effects = Effects.auto
     /// Use the adaptive stream instead of the highest fixed rendition.
     var preferAdaptive = false
     var reduceMotion = false
@@ -31,6 +33,7 @@ struct Settings: Equatable {
         if let v = d.string(forKey: "subBackground").flatMap(SubtitleBackground.init(rawValue:)) { s.subtitleBackground = v }
         if let v = d.object(forKey: "autoplay") as? Bool { s.autoplayNext = v }
         if let v = d.string(forKey: "audioMix").flatMap(AudioMix.init(rawValue:)) { s.audioMix = v }
+        if let v = d.string(forKey: "effects").flatMap(Effects.init(rawValue:)) { s.effects = v }
         s.preferAdaptive = d.bool(forKey: "adaptive")
         s.reduceMotion = d.bool(forKey: "calm")
         return s
@@ -45,6 +48,7 @@ struct Settings: Equatable {
         d.set(subtitleBackground.rawValue, forKey: "subBackground")
         d.set(autoplayNext, forKey: "autoplay")
         d.set(audioMix.rawValue, forKey: "audioMix")
+        d.set(effects.rawValue, forKey: "effects")
         d.set(preferAdaptive, forKey: "adaptive")
         d.set(reduceMotion, forKey: "calm")
     }
@@ -68,6 +72,20 @@ enum SubtitleColor: String, CaseIterable {
         case .yellow: return PlatformColor(red: 1.0, green: 0.90, blue: 0.30, alpha: 1)
         case .cyan: return PlatformColor(red: 0.45, green: 0.93, blue: 1.0, alpha: 1)
         case .green: return PlatformColor(red: 0.55, green: 0.95, blue: 0.55, alpha: 1)
+        }
+    }
+}
+
+/// How much ambient motion the Mac app shows: the drifting backdrop and the like. Automatic gives
+/// a fast Mac all of it and spares a slow one, where the same motion means heat and fan noise.
+enum Effects: String, CaseIterable {
+    case auto, full, light
+
+    var label: S {
+        switch self {
+        case .auto: return .effectsAuto
+        case .full: return .effectsFull
+        case .light: return .effectsLight
         }
     }
 }

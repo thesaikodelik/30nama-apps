@@ -28,8 +28,16 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The Mac itself has asked for less: Reduce Motion is on, or it is saving power.
-    private var systemCalm: Bool { reduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled }
+    /// Whether ambient motion may run without end. The user can say; left to itself the app gives
+    /// it to a Mac that can afford it, and never while the Mac is saving power.
+    private var lively: Bool {
+        guard !reduceMotion else { return false }
+        switch app.settings.effects {
+        case .full: return true
+        case .light: return false
+        case .auto: return Machine.isFast && !ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -69,7 +77,8 @@ struct RootView: View {
         }
         .environment(\.layoutDirection, app.settings.lang.isRTL ? .rightToLeft : .leftToRight)
         .environment(\.loc, app.loc)
-        .environment(\.calm, app.settings.reduceMotion || systemCalm)
+        .environment(\.calm, reduceMotion)
+        .environment(\.lively, lively)
         .preferredColorScheme(.dark)
         .ignoresSafeArea()
         .task { await app.boot() }

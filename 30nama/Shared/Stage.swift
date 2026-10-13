@@ -79,16 +79,12 @@ struct StageView: View {
     }
 }
 
-/// One backdrop layer. On the Apple TV it keeps a slow Ken Burns drift; on a Mac it eases into
-/// place once and then holds still, because a picture that never stops moving has the whole
-/// window redrawn sixty times a second for as long as the app is open, and a laptop pays for
-/// that in heat and battery.
+/// One backdrop layer. Where motion is affordable it keeps a slow Ken Burns drift. Elsewhere it
+/// eases into place once and then holds still, because a picture that never stops moving has the
+/// whole window redrawn sixty times a second for as long as the app is open, and a slow laptop
+/// pays for that in heat and battery.
 private struct DriftingImage: View {
-    #if os(macOS)
-    private static let perpetual = false
-    #else
-    private static let perpetual = true
-    #endif
+    @Environment(\.lively) private var perpetual
 
     let image: PlatformImage
     let variant: Int
@@ -109,13 +105,13 @@ private struct DriftingImage: View {
                     .resizable()
                     .scaledToFill()
                     .blur(radius: blurred ? 60 : 0)
-                    .scaleEffect(still ? 1.0 : DriftingImage.perpetual ? (drifted ? 1.12 : 1.04) : (drifted ? 1.0 : 1.05))
-                    .offset(still || !DriftingImage.perpetual ? .zero : (drifted ? d : .zero))
+                    .scaleEffect(still ? 1.0 : perpetual ? (drifted ? 1.12 : 1.04) : (drifted ? 1.0 : 1.05))
+                    .offset(still || !perpetual ? .zero : (drifted ? d : .zero))
             }
             .clipped()
             .onAppear {
                 guard !still else { return }
-                if DriftingImage.perpetual {
+                if perpetual {
                     withAnimation(.linear(duration: 24).repeatForever(autoreverses: true)) { drifted = true }
                 } else {
                     withAnimation(.easeOut(duration: 1.8)) { drifted = true }

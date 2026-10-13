@@ -33,16 +33,26 @@ enum MacSection: Hashable, CaseIterable {
     var iconOnly: Bool { self == .search || self == .settings }
 }
 
-/// Where the user is: a section, and the titles opened on top of it.
+/// Something opened on top of a section.
+enum MacRoute: Hashable {
+    case title(Post)
+    case catalog(slug: String, title: String)
+}
+
+/// Where the user is: a section, and what has been opened on top of it.
 @MainActor
 @Observable
 final class MacNav {
     var section = MacSection.home
-    private(set) var opened: [Post] = []
+    private(set) var opened: [MacRoute] = []
 
     func open(_ post: Post) {
-        guard opened.last?.id != post.id else { return }
-        opened.append(post)
+        open(.title(post))
+    }
+
+    func open(_ route: MacRoute) {
+        guard opened.last != route else { return }
+        opened.append(route)
     }
 
     func back() {
@@ -62,17 +72,23 @@ struct MainView: View {
     var body: some View {
         ZStack {
             page
-            if let post = nav.opened.last {
-                DetailsView(preview: post)
-                    .id(post.id)
-                    .transition(.opacity.combined(with: .scale(scale: 1.02)))
-                    .zIndex(1)
+            if let route = nav.opened.last {
+                Group {
+                    switch route {
+                    case .title(let post): DetailsView(preview: post)
+                    case .catalog(let slug, let title): CatalogView(slug: slug, title: title)
+                    }
+                }
+                .id(route)
+                .transition(.opacity.combined(with: .scale(scale: 1.02)))
+                .zIndex(1)
             }
         }
+        .background { shortcuts }
         .overlay(alignment: .top) {
             NavBar().padding(.top, 14).zIndex(2)
         }
-        .animation(.easeOut(duration: 0.28), value: nav.opened.last?.id)
+        .animation(.easeOut(duration: 0.28), value: nav.opened.last)
         .environment(nav)
         // Esc steps back out of a title, as it closes anything else on a Mac.
         .onExitCommand { nav.back() }
@@ -95,9 +111,30 @@ struct MainView: View {
     @ViewBuilder
     private var page: some View {
         switch nav.section {
+        case .profile: ProfileView()
         case .home: HomeView()
-        default: ComingSoon(section: nav.section)
+        case .movies: CatalogView(slug: "movies", title: app.loc(.movies))
+        case .series: CatalogView(slug: "series", title: app.loc(.series))
+        case .anime: CatalogView(slug: "anime", title: app.loc(.anime))
+        case .browse: BrowseView()
+        case .search: SearchView()
+        case .settings: SettingsView()
         }
+    }
+
+    /// The keyboard's way around: ⌘1 to ⌘8 for the sections, ⌘F to search, ⌘[ to step back.
+    private var shortcuts: some View {
+        Group {
+            ForEach(Array(MacSection.allCases.enumerated()), id: \.offset) { index, section in
+                Button("") { nav.go(section) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+            }
+            Button("") { nav.go(.search) }.keyboardShortcut("f", modifiers: .command)
+            Button("") { nav.back() }.keyboardShortcut("[", modifiers: .command)
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
     }
 }
 
@@ -165,22 +202,5 @@ private struct NavItem: View {
         .animation(.easeOut(duration: 0.16), value: hovering)
         .animation(Theme.focusSpring, value: selected)
         .help(loc(section.title))
-    }
-}
-
-/// Stands in for a section that has not been built for the Mac yet.
-private struct ComingSoon: View {
-    let section: MacSection
-    @Environment(\.loc) private var loc
-
-    var body: some View {
-        ZStack {
-            AmbientBackground()
-            VStack(spacing: 14) {
-                Image(systemName: section.symbol).font(.system(size: 46, weight: .light)).foregroundStyle(Theme.text3)
-                Text(loc(section.title)).font(.app(30, .bold)).foregroundStyle(Theme.text1)
-                Text(loc(.soon)).font(.app(15, .medium)).foregroundStyle(Theme.text3)
-            }
-        }
     }
 }
