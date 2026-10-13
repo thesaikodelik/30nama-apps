@@ -7,3 +7,5 @@ xcuserdata/
 30nama.xcodeproj/xcshareddata/xcodecloud/
 # Team id and bundle id for this Mac. Copy Config/Local.example.xcconfig.
 Config/Local.xcconfig
+# Reference material kept beside the code; never part of the repo.
+tmp/
