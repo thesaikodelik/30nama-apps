@@ -161,7 +161,9 @@ struct PosterCard: View {
                 .overlay(alignment: .topLeading) { badge }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
-                .shadow(color: hovering ? post.tint.opacity(0.55) : .black.opacity(0.4), radius: hovering ? 24 : 8, y: hovering ? 14 : 4)
+                // Only the card under the pointer casts a shadow: a row of resting shadows is the
+                // dearest thing to draw while a shelf scrolls.
+                .shadow(color: post.tint.opacity(hovering ? 0.55 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
                 .scaleEffect(hovering ? 1.07 : 1)
                 .contentShape(shape)
         }
@@ -252,7 +254,7 @@ struct ContinueCard: View {
                 }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
-                .shadow(color: hovering ? post.tint.opacity(0.5) : .black.opacity(0.4), radius: hovering ? 24 : 8, y: hovering ? 14 : 4)
+                .shadow(color: post.tint.opacity(hovering ? 0.5 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
                 .scaleEffect(hovering ? 1.04 : 1)
                 .contentShape(shape)
         }

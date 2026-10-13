@@ -6,6 +6,7 @@ struct HomeView: View {
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
     @Environment(\.calm) private var calm
+    @Environment(\.controlActiveState) private var windowState
 
     @State private var feed: HomeFeed?
     @State private var continuing: [Post] = []
@@ -42,7 +43,7 @@ struct HomeView: View {
         .task(id: app.watchVersion) {
             if feed != nil { continuing = await app.continueWatching() }
         }
-        .task(id: "\(hero)|\(paused)|\(nav.opened.isEmpty)|\(feed == nil)") { await rotate() }
+        .task(id: "\(hero)|\(resting)|\(feed == nil)") { await rotate() }
     }
 
     // MARK: Billboard
@@ -116,10 +117,16 @@ struct HomeView: View {
         .animation(Theme.focusSpring, value: hero)
     }
 
-    /// Moves the billboard on after a while, unless the user is reading it or has asked for calm.
+    /// The billboard has no audience: something covers it, the window is not the one in use, or
+    /// the user is reading it. It costs nothing while it rests.
+    private var resting: Bool {
+        calm || paused || !nav.opened.isEmpty || app.playback != nil || windowState != .key
+    }
+
+    /// Moves the billboard on after a while.
     private func rotate() async {
-        guard !calm, !paused, nav.opened.isEmpty, let count = feed?.heroes.count, count > 1 else { return }
-        try? await Task.sleep(for: .seconds(9))
+        guard !resting, let count = feed?.heroes.count, count > 1 else { return }
+        try? await Task.sleep(for: .seconds(12))
         guard !Task.isCancelled else { return }
         withAnimation(.easeInOut(duration: 0.55)) { hero = (hero + 1) % count }
     }

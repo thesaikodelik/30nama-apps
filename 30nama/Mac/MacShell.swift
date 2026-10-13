@@ -76,7 +76,21 @@ struct MainView: View {
         .environment(nav)
         // Esc steps back out of a title, as it closes anything else on a Mac.
         .onExitCommand { nav.back() }
+        #if DEBUG
+        .task { await debugLaunch() }
+        #endif
     }
+
+    #if DEBUG
+    private func debugLaunch() async {
+        if let name = DebugLaunch.section, let section = MacSection.allCases.first(where: { "\($0)" == name }) {
+            nav.go(section)
+        }
+        guard let target = DebugLaunch.open, let feed = try? await app.home() else { return }
+        let pool = feed.heroes + feed.sections.flatMap(\.posts)
+        if let post = target == "first" ? pool.first : pool.first(where: { String($0.id) == target }) { nav.open(post) }
+    }
+    #endif
 
     @ViewBuilder
     private var page: some View {

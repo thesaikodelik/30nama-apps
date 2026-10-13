@@ -23,6 +23,7 @@ enum S: String, CaseIterable {
     case version, unofficial, apiHost
     case skipIntro, skipRecap, nextEpisode, subtitles, english, persian
     case audio, audioStereo, audioSurround, audioOriginal
+    case speed, subtitleTiming, subtitleFile, pictureInPicture, alwaysOnTop, fullScreen, reset
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -142,6 +143,8 @@ struct Loc: Equatable {
         .skipIntro: "Skip Intro", .skipRecap: "Skip Recap", .nextEpisode: "Next Episode",
         .subtitles: "Subtitles", .english: "English", .persian: "Persian",
         .audio: "Audio", .audioStereo: "Stereo", .audioSurround: "5.1", .audioOriginal: "Original",
+        .speed: "Speed", .subtitleTiming: "Subtitle timing", .subtitleFile: "Subtitle file…",
+        .pictureInPicture: "Picture in Picture", .alwaysOnTop: "Always on top", .fullScreen: "Full screen", .reset: "Reset",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -194,6 +197,8 @@ struct Loc: Equatable {
         .skipIntro: "رد کردن تیتراژ", .skipRecap: "رد کردن خلاصه", .nextEpisode: "قسمت بعد",
         .subtitles: "زیرنویس", .english: "انگلیسی", .persian: "فارسی",
         .audio: "صدا", .audioStereo: "استریو", .audioSurround: "۵.۱", .audioOriginal: "اصلی",
+        .speed: "سرعت پخش", .subtitleTiming: "زمان‌بندی زیرنویس", .subtitleFile: "فایل زیرنویس…",
+        .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -246,6 +251,8 @@ struct Loc: Equatable {
         .skipIntro: "تخطّي المقدمة", .skipRecap: "تخطّي الملخص", .nextEpisode: "الحلقة التالية",
         .subtitles: "الترجمة", .english: "الإنجليزية", .persian: "الفارسية",
         .audio: "الصوت", .audioStereo: "ستيريو", .audioSurround: "5.1", .audioOriginal: "الأصلي",
+        .speed: "سرعة التشغيل", .subtitleTiming: "توقيت الترجمة", .subtitleFile: "ملف ترجمة…",
+        .pictureInPicture: "صورة داخل صورة", .alwaysOnTop: "دائمًا في المقدمة", .fullScreen: "ملء الشاشة", .reset: "إعادة الضبط",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

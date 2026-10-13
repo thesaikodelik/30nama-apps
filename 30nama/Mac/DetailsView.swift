@@ -9,6 +9,12 @@ struct DetailsView: View {
     @Environment(\.loc) private var loc
 
     @State private var loaded: Post?
+    @State private var stream: StreamResult?
+    /// The stream is being asked for; the play button waits on it.
+    @State private var streamPending = false
+    /// Why 30nama would not hand over the stream, in its own words.
+    @State private var refusal: String?
+    @State private var season = 1
 
     private var post: Post { loaded ?? preview }
 
@@ -19,6 +25,7 @@ struct DetailsView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 40) {
                     header
+                    if post.isSeries, let stream, stream.items.count > 1 { episodes(stream) }
                     if !post.cast.isEmpty { cast }
                     facts
                 }
@@ -31,7 +38,48 @@ struct DetailsView: View {
         }
         .task {
             loaded = (try? await app.api.get("single", ["post_id": String(preview.id)])).flatMap { Post($0) }
+            await loadStream(quietly: false)
+            #if DEBUG
+            if DebugLaunch.play { play() }
+            #endif
         }
+        .task(id: app.watchVersion) {
+            // Back from the player: where to resume has moved.
+            if stream != nil { await loadStream(quietly: true) }
+        }
+    }
+
+    // MARK: Stream
+
+    /// Stream files need a subscription; guests only get them for free titles.
+    private func loadStream(quietly: Bool) async {
+        var result: StreamResult?
+        #if DEBUG
+        if DemoStream.isEnabled { result = DemoStream.result(for: post) }
+        #endif
+        if result == nil {
+            guard app.isLoggedIn || post.freeStream else { return }
+            if !quietly { streamPending = true }
+            let envelope = try? await app.api.call("stream", ["post_id": String(post.id), "free_stream": app.isLoggedIn ? "0" : "1"])
+            if let envelope, envelope.success { result = StreamResult(envelope.result) }
+            refusal = envelope?.success == false ? envelope?.message : nil
+        }
+        if let result {
+            stream = result
+            if !quietly, result.items.indices.contains(result.startIndex) { season = result.items[result.startIndex].season }
+        } else if !quietly {
+            stream = nil
+        }
+        streamPending = false
+    }
+
+    /// Plays the item at `index`, or the one to resume.
+    private func play(at index: Int? = nil) {
+        guard let stream, !stream.items.isEmpty else {
+            app.showToast(post.comingSoon ? loc(.comingSoonNote) : app.isLoggedIn ? (refusal ?? loc(.noStream)) : loc(.loginToWatch))
+            return
+        }
+        app.play(PlaybackRequest(post: post, items: stream.items, index: index ?? stream.startIndex, resume: stream.resume))
     }
 
     // MARK: Header
@@ -66,10 +114,18 @@ struct DetailsView: View {
                     .frame(maxWidth: 700, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 14) {
-                    Button { app.showToast(loc(.soon)) } label: {
-                        Label(loc(post.resume != nil ? .resume : .play), systemImage: "play.fill")
+                    Button { play() } label: {
+                        HStack(spacing: 8) {
+                            if streamPending {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "play.fill")
+                            }
+                            Text(playLabel)
+                        }
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .disabled(streamPending)
                     HStack(spacing: 12) {
                         Text(loc(.yourRating)).font(.app(15, .medium)).foregroundStyle(Theme.text2)
                         StarRater(value: app.ratings.stars(for: post.id)) { app.rate(post, stars: $0) }
@@ -81,6 +137,48 @@ struct DetailsView: View {
                 .padding(.top, 10)
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    /// "Resume · S2 · E5" for a series left part-way, plain "Play" otherwise.
+    private var playLabel: String {
+        guard let resume = stream?.resume ?? post.resume else { return loc(.play) }
+        if post.isSeries, let stream, stream.items.indices.contains(stream.startIndex) {
+            let item = stream.items[stream.startIndex]
+            return "\(loc(.resume)) · \(loc.episodeTag(season: item.season, episode: item.episodeRaw ?? "\(item.episodeNumber)"))"
+        }
+        return resume.time > 5 ? loc(.resume) : loc(.play)
+    }
+
+    // MARK: Episodes
+
+    private func episodes(_ stream: StreamResult) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                Text(loc(.episodes)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
+                if stream.seasons.count > 1 {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(stream.seasons, id: \.self) { number in
+                                Button("\(loc(.season)) \(loc.num(number))") { season = number }
+                                    .buttonStyle(.plain)
+                                    .font(.app(13, .semibold))
+                                    .foregroundStyle(season == number ? Theme.focusInk : Theme.text1)
+                                    .padding(.horizontal, 13)
+                                    .frame(height: 30)
+                                    .background(Capsule(style: .continuous).fill(season == number ? Color.white : Color.white.opacity(0.12)))
+                                    .contentShape(Capsule(style: .continuous))
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 12)], alignment: .leading, spacing: 12) {
+                ForEach(Array(stream.items.enumerated()).filter { $0.element.season == season }, id: \.element.id) { index, item in
+                    EpisodeTile(item: item, resume: stream.resume?.fileID == item.fileID ? stream.resume : nil) { play(at: index) }
+                }
+            }
         }
     }
 
@@ -165,5 +263,62 @@ struct StarRater: View {
             .contentShape(Rectangle())
             .onHover { if $0 { preview = stars } }
             .onTapGesture { set(value == stars ? nil : stars) }
+    }
+}
+
+/// One episode on the title page: its number, name and length, and how far in the user is.
+private struct EpisodeTile: View {
+    let item: StreamItem
+    let resume: ContinueWatching?
+    let action: () -> Void
+
+    @Environment(\.loc) private var loc
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Text(loc.num(item.episodeRaw ?? "\(item.episodeNumber)"))
+                        .font(.app(20, .heavy))
+                        .foregroundStyle(resume != nil ? Theme.accent : Theme.text2)
+                        .opacity(hovering ? 0 : 1)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .opacity(hovering ? 1 : 0)
+                }
+                .frame(width: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title(loc.lang) ?? "\(loc(.episode)) \(loc.num(item.episodeNumber))")
+                        .font(.app(15, .semibold))
+                        .foregroundStyle(Theme.text1)
+                        .lineLimit(1)
+                    if let minutes = item.durationMinutes {
+                        Text("\(loc.num(minutes)) \(loc(.min))").font(.app(12)).foregroundStyle(Theme.text3)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 62)
+            .background(shape.fill(Color.white.opacity(hovering ? 0.16 : 0.07)))
+            .overlay(alignment: .bottomLeading) {
+                if let resume, resume.progress > 0 {
+                    GeometryReader { geo in
+                        Capsule().fill(Theme.accent).frame(width: max(8, (geo.size.width - 24) * resume.progress), height: 3)
+                            .padding(.horizontal, 12)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                            .padding(.bottom, 5)
+                    }
+                }
+            }
+            .clipShape(shape)
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
     }
 }

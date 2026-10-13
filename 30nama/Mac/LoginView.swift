@@ -115,9 +115,11 @@ struct LoginView: View {
             .animation(.easeOut(duration: 0.26), value: status)
 
             HStack(spacing: 10) {
-                PulsingDot()
+                // Present only while it has something to say: a dot that pulses unseen still costs.
+                if status == .waiting, qr != nil { PulsingDot() }
                 Text(loc(.waiting)).font(.app(15, .medium)).foregroundStyle(Theme.text2)
             }
+            .frame(height: 20)
             .opacity(status == .waiting && qr != nil ? 1 : 0)
         }
     }

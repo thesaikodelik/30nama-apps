@@ -79,8 +79,17 @@ struct StageView: View {
     }
 }
 
-/// One backdrop layer with a slow Ken Burns drift.
+/// One backdrop layer. On the Apple TV it keeps a slow Ken Burns drift; on a Mac it eases into
+/// place once and then holds still, because a picture that never stops moving has the whole
+/// window redrawn sixty times a second for as long as the app is open, and a laptop pays for
+/// that in heat and battery.
 private struct DriftingImage: View {
+    #if os(macOS)
+    private static let perpetual = false
+    #else
+    private static let perpetual = true
+    #endif
+
     let image: PlatformImage
     let variant: Int
     /// Titles without a wide cover fall back to their poster, blurred into a wash of colour.
@@ -100,13 +109,17 @@ private struct DriftingImage: View {
                     .resizable()
                     .scaledToFill()
                     .blur(radius: blurred ? 60 : 0)
-                    .scaleEffect(still ? 1.0 : (drifted ? 1.12 : 1.04))
-                    .offset(still ? .zero : (drifted ? d : .zero))
+                    .scaleEffect(still ? 1.0 : DriftingImage.perpetual ? (drifted ? 1.12 : 1.04) : (drifted ? 1.0 : 1.05))
+                    .offset(still || !DriftingImage.perpetual ? .zero : (drifted ? d : .zero))
             }
             .clipped()
             .onAppear {
                 guard !still else { return }
-                withAnimation(.linear(duration: 24).repeatForever(autoreverses: true)) { drifted = true }
+                if DriftingImage.perpetual {
+                    withAnimation(.linear(duration: 24).repeatForever(autoreverses: true)) { drifted = true }
+                } else {
+                    withAnimation(.easeOut(duration: 1.8)) { drifted = true }
+                }
             }
     }
 }

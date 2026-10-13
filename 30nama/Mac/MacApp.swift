@@ -26,6 +26,10 @@ struct NamaMacApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The Mac itself has asked for less: Reduce Motion is on, or it is saving power.
+    private var systemCalm: Bool { reduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled }
 
     var body: some View {
         ZStack {
@@ -42,6 +46,12 @@ struct RootView: View {
             case .main:
                 MainView()
             }
+            if let request = app.playback {
+                PlayerView(request: request)
+                    .id(request.id)
+                    .transition(.opacity)
+                    .zIndex(5)
+            }
         }
         .overlay(alignment: .bottom) {
             if let toast = app.toast {
@@ -52,9 +62,14 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.4), value: app.phase)
         .animation(.easeOut(duration: 0.24), value: app.toast)
+        .animation(.easeOut(duration: 0.3), value: app.playback?.id)
+        .onChange(of: app.playback?.id) { old, new in
+            // The player has gone: what was watched may have changed "continue watching".
+            if old != nil, new == nil { app.playerDidClose() }
+        }
         .environment(\.layoutDirection, app.settings.lang.isRTL ? .rightToLeft : .leftToRight)
         .environment(\.loc, app.loc)
-        .environment(\.calm, app.settings.reduceMotion)
+        .environment(\.calm, app.settings.reduceMotion || systemCalm)
         .preferredColorScheme(.dark)
         .ignoresSafeArea()
         .task { await app.boot() }
