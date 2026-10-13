@@ -28,12 +28,15 @@ struct DownloadPicker: View {
             VStack(spacing: 0) {
                 header
                 Divider().overlay(Color.white.opacity(0.1))
-                content
+                // Whatever is showing fills the pane, so the pane is one size and its header in
+                // one place from the moment it opens: a shorter body used to be centred in it,
+                // and the header slid as the list came in.
+                content.frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider().overlay(Color.white.opacity(0.1))
                 footer
             }
             .frame(width: 900)
-            .frame(maxHeight: 680)
+            .frame(maxHeight: 680, alignment: .top)
             .background(.ultraThinMaterial, in: shape)
             .background(shape.fill(Theme.bg1.opacity(0.55)))
             .overlay { shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.3), .white.opacity(0.06)], startPoint: .top, endPoint: .bottom), lineWidth: 1) }
@@ -107,12 +110,11 @@ struct DownloadPicker: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .frame(height: 440)
             }
         } else if let message {
             note(message)
         } else {
-            ProgressView().controlSize(.large).frame(maxWidth: .infinity).frame(height: 260)
+            ProgressView().controlSize(.large)
         }
     }
 
@@ -150,7 +152,6 @@ struct DownloadPicker: View {
 
     private func note(_ text: String) -> some View {
         Text(text).font(.app(16, .medium)).foregroundStyle(Theme.text2)
-            .frame(maxWidth: .infinity).frame(height: 260)
     }
 
     private func heading(_ text: String, _ aside: String? = nil) -> some View {
