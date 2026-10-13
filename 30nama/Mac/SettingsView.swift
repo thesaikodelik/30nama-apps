@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Account, language, playback and subtitle choices, with what the app is and is not beside them.
 struct SettingsView: View {
@@ -76,6 +77,11 @@ struct SettingsView: View {
                 fact(loc(.account), loc(.guestAccount))
             }
             fact(loc(.cloudRatings), loc(cloudLabel))
+            if !app.ratings.isEmpty {
+                row(loc(.yourRating)) {
+                    Button(loc(.exportRatings)) { exportRatings() }.buttonStyle(GlassButtonStyle(height: 34))
+                }
+            }
             row("") {
                 if app.user != nil {
                     Button(loc(.signOut)) { confirmingSignOut = true }.buttonStyle(GlassButtonStyle(height: 34))
@@ -164,6 +170,20 @@ struct SettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+    }
+
+    /// Saves the ratings as a CSV wherever the user says. Letterboxd's importer reads the file as it is.
+    private func exportRatings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "30nama-ratings.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try app.ratings.csv().write(to: url, atomically: true, encoding: .utf8)
+            app.showToast(loc(.exportDone))
+        } catch {
+            app.showToast(loc(.error))
+        }
     }
 
     private var cloudLabel: S {

@@ -33,6 +33,23 @@ final class RatingsTests: XCTestCase {
         XCTAssertNil(RatingBook().average)
     }
 
+    func testExportsACSVLetterboxdCanRead() {
+        var book = RatingBook()
+        book.rate(post(1, ["drama"]), stars: 4, date: at(1_000))
+        book.rate(post(2, ["comedy"]), stars: 2.5, date: at(2_000))
+        var awkward = post(3, ["crime"])
+        awkward.titleEnglish = "Me, Myself & \"I\" 2020"
+        book.rate(awkward, stars: 5, date: at(3_000))
+        XCTAssertEqual(book.csv(), """
+        Title,Year,Rating
+        "Me, Myself & ""I\""",2020,5.0
+        Title 2,2020,2.5
+        Title 1,2020,4.0
+
+        """, "newest first, the year taken off the title, commas and quotes escaped")
+        XCTAssertEqual(RatingBook().csv(), "Title,Year,Rating\n")
+    }
+
     func testSurvivesEncoding() throws {
         var book = RatingBook()
         book.rate(post(1, ["drama", "crime"]), stars: 4, date: Date(timeIntervalSince1970: 1_000))

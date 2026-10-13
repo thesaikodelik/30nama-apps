@@ -206,3 +206,20 @@ struct RatingBook: Equatable {
             .map(\.0)
     }
 }
+
+extension RatingBook {
+    /// The ratings as a CSV that Letterboxd's importer reads: title, year and stars, newest first.
+    /// The app cannot send ratings to 30nama, so this is how they leave it.
+    func csv() -> String {
+        func field(_ text: String) -> String {
+            guard text.contains(where: { ",\"\n".contains($0) }) else { return text }
+            return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        var lines = ["Title,Year,Rating"]
+        for rating in newestFirst {
+            guard let title = rating.post?.cleanEnglishTitle ?? rating.titleEnglish ?? rating.titleLocal else { continue }
+            lines.append([field(title), rating.year.map(String.init) ?? "", String(rating.stars)].joined(separator: ","))
+        }
+        return lines.joined(separator: "\n") + "\n"
+    }
+}

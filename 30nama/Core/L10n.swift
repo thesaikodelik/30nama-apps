@@ -25,6 +25,7 @@ enum S: String, CaseIterable {
     case audio, audioStereo, audioSurround, audioOriginal
     case speed, subtitleTiming, subtitleFile, pictureInPicture, alwaysOnTop, fullScreen, reset
     case effects, effectsAuto, effectsFull, effectsLight
+    case exportRatings, exportDone, openIn
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -147,6 +148,7 @@ struct Loc: Equatable {
         .speed: "Speed", .subtitleTiming: "Subtitle timing", .subtitleFile: "Subtitle file…",
         .pictureInPicture: "Picture in Picture", .alwaysOnTop: "Always on top", .fullScreen: "Full screen", .reset: "Reset",
         .effects: "Motion effects", .effectsAuto: "Automatic", .effectsFull: "Full", .effectsLight: "Light",
+        .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -202,6 +204,7 @@ struct Loc: Equatable {
         .speed: "سرعت پخش", .subtitleTiming: "زمان‌بندی زیرنویس", .subtitleFile: "فایل زیرنویس…",
         .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
         .effects: "جلوه‌های حرکتی", .effectsAuto: "خودکار", .effectsFull: "کامل", .effectsLight: "سبک",
+        .exportRatings: "خروجی گرفتن از امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -257,6 +260,7 @@ struct Loc: Equatable {
         .speed: "سرعة التشغيل", .subtitleTiming: "توقيت الترجمة", .subtitleFile: "ملف ترجمة…",
         .pictureInPicture: "صورة داخل صورة", .alwaysOnTop: "دائمًا في المقدمة", .fullScreen: "ملء الشاشة", .reset: "إعادة الضبط",
         .effects: "تأثيرات الحركة", .effectsAuto: "تلقائي", .effectsFull: "كاملة", .effectsLight: "خفيفة",
+        .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

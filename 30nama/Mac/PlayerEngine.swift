@@ -271,6 +271,21 @@ final class PlayerEngine {
         window?.toggleFullScreen(nil)
     }
 
+    // MARK: Other players
+
+    /// Players on this Mac that take a stream address, for a file whose sound the system's own
+    /// decoder cannot play.
+    static let otherPlayers: [(name: String, app: URL)] = [("IINA", "com.colliderli.iina"), ("VLC", "org.videolan.vlc")].compactMap { name, id in
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { (name, $0) }
+    }
+
+    /// Hands the stream over and pauses here. What is watched there is not reported to 30nama.
+    func open(in other: URL) {
+        guard let quality else { return }
+        if playing { toggle() }
+        NSWorkspace.shared.open([quality.url(for: mix)], withApplicationAt: other, configuration: NSWorkspace.OpenConfiguration())
+    }
+
     // MARK: Offers
 
     func acceptOffer() {

@@ -283,6 +283,13 @@ struct PlayerView: View {
                 .pickerStyle(.inline)
             }
         }
+        if !PlayerEngine.otherPlayers.isEmpty {
+            MenuButton(symbol: "arrow.up.forward.app", help: loc(.openIn)) {
+                ForEach(PlayerEngine.otherPlayers, id: \.name) { other in
+                    Button("\(loc(.openIn)) \(other.name)") { engine.open(in: other.app) }
+                }
+            }
+        }
         if engine.current.qualities.count > 1 {
             MenuButton(symbol: "sparkles.tv", help: loc(.quality)) {
                 Picker(loc(.quality), selection: Binding(get: { engine.quality }, set: { if let quality = $0 { engine.selectQuality(quality) } })) {
