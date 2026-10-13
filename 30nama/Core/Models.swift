@@ -112,6 +112,8 @@ struct Post: Identifiable, Hashable {
 
     /// Only present on list entries of the "continue watching" feed and on `single`.
     var resume: ContinueWatching?
+    /// The pages of the subtitle site 30nama sends people to: one per language, and per season of a series.
+    var subtitlePages: [SubtitlePage] = []
 
     static func == (a: Post, b: Post) -> Bool { a.id == b.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -168,6 +170,11 @@ struct Post: Identifiable, Hashable {
         airStatus = j["air"]["air_status"].text
         nextEpisodeCaption = j["air"]["next_episode_caption"].text
         nextEpisodeDate = (j["air"]["next_episode_date"]["g"].text, j["air"]["next_episode_date"]["j"].text)
+        subtitlePages = j["subtitle"].array.compactMap { entry in
+            guard let link = entry["link"].url else { return nil }
+            // The language is written out in Persian; the address says it in a form that does not change.
+            return SubtitlePage(link: link, persian: link.path.contains("farsi") || link.path.contains("persian"), season: entry["season"].int)
+        }
         resume = ContinueWatching(j["continue_watching"])
     }
 
@@ -559,6 +566,103 @@ struct Menu {
     init(_ j: JSON) {
         categories = j["categories"].array.compactMap(MenuEntry.init)
         genres = j["genres"].array.compactMap(MenuEntry.init)
+    }
+}
+
+// MARK: - Subtitles from the subtitle site
+
+/// A page on the subtitle site that lists the subtitles for one film, or one season, in one language.
+struct SubtitlePage: Hashable, Codable {
+    var link: URL
+    var persian: Bool
+    var season: Int?
+}
+
+/// Reads the subtitle site 30nama links to, so a subtitle can be fetched without visiting it.
+/// The site has no interface for programs; this reads its pages, and will need mending if they change.
+enum SubtitleSite {
+    /// One subtitle on a listing: where its own page is, and the releases it was timed for.
+    struct Entry: Equatable {
+        var path: String
+        var releases: [String]
+    }
+
+    /// The subtitles a listing page offers. One subtitle is listed once for every release it fits.
+    static func entries(in html: String) -> [Entry] {
+        guard let pattern = try? NSRegularExpression(pattern: #"href="(/subtitle/[^"]+/\d+)"[^>]*>([^<]*)</a>"#) else { return [] }
+        var order: [String] = []
+        var found: [String: [String]] = [:]
+        let whole = NSRange(html.startIndex..., in: html)
+        for match in pattern.matches(in: html, range: whole) {
+            guard let path = Range(match.range(at: 1), in: html), let label = Range(match.range(at: 2), in: html) else { continue }
+            // "Farsi/Persian — Some.Film.2020.1080p.WEB-DL": the release is what follows the dash.
+            let text = String(html[label])
+            let release = (text.range(of: "— ").map { String(text[$0.upperBound...]) } ?? text).trimmingCharacters(in: .whitespaces)
+            let key = String(html[path])
+            if found[key] == nil { order.append(key) }
+            if !release.isEmpty, found[key]?.contains(release) != true { found[key, default: []].append(release) }
+        }
+        return order.map { Entry(path: $0, releases: found[$0] ?? []) }
+    }
+
+    /// The address a subtitle's own page offers its file at.
+    static func download(in html: String) -> URL? {
+        guard let range = html.range(of: #"https://api\.subsource\.net/v1/subtitle/download/[A-Za-z0-9]+"#, options: .regularExpression) else { return nil }
+        return URL(string: String(html[range]))
+    }
+
+    /// The words of a file or release name that say what it is a copy of: "bluray", "1080p", "s01e02".
+    static func words(_ name: String) -> Set<String> {
+        let lowered = name.lowercased().replacingOccurrences(of: "web-dl", with: "webdl").replacingOccurrences(of: "blu-ray", with: "bluray")
+        return Set(lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+    }
+
+    /// The subtitle most likely to be in time with `fileName`: for an episode it must be for that
+    /// episode or for its whole season, and beyond that the more of the copy's own marks it
+    /// shares (source, resolution, who released it), the better.
+    static func best(for fileName: String, season: Int?, episode: Int?, among entries: [Entry]) -> Entry? {
+        let wanted = words(fileName)
+        let sources: Set<String> = ["bluray", "brrip", "bdrip", "webdl", "web", "webrip", "hdtv", "dvdrip", "hdrip"]
+        var best: (entry: Entry, score: Int)?
+        for entry in entries {
+            var top = Int.min
+            for release in entry.releases {
+                let has = words(release)
+                var score = 0
+                if let season, let episode {
+                    let tag = String(format: "s%02de%02d", season, episode)
+                    let other = has.contains { $0.range(of: #"^s\d{1,2}e\d{1,3}$"#, options: .regularExpression) != nil }
+                    if has.contains(tag) { score += 100 } else if other { continue } else { score += 20 }
+                }
+                // The source matters most: a subtitle timed for a broadcast runs off against a disc.
+                score += wanted.intersection(has).intersection(sources).count * 30
+                score += wanted.intersection(has).subtracting(sources).count
+                top = max(top, score)
+            }
+            if entry.releases.isEmpty { top = 0 }
+            if top > (best?.score ?? Int.min) { best = (entry, top) }
+        }
+        return best?.entry
+    }
+
+    /// Of the subtitle files in an archive, the one for this episode; for a film, the only or first one.
+    static func pick(from names: [String], season: Int?, episode: Int?) -> String? {
+        let subtitles = names.filter { $0.lowercased().hasSuffix(".srt") }.sorted()
+        guard let season, let episode else { return subtitles.first }
+        let tags = [String(format: "s%02de%02d", season, episode), String(format: "%dx%02d", season, episode), String(format: "e%02d", episode)]
+        for tag in tags {
+            if let match = subtitles.first(where: { $0.lowercased().contains(tag) }) { return match }
+        }
+        return subtitles.count == 1 ? subtitles.first : nil
+    }
+
+    /// Subtitle text whatever it was saved as. Persian files are often in the Arabic Windows code page.
+    static func text(_ data: Data) -> String? {
+        let arabic = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.windowsArabic.rawValue)))
+        if let text = String(data: data, encoding: .utf8) { return text }
+        // Any even run of bytes passes for UTF-16, so that is only believed when the file says so itself.
+        if data.starts(with: [0xFF, 0xFE]) || data.starts(with: [0xFE, 0xFF]), let text = String(data: data, encoding: .utf16) { return text }
+        return String(data: data, encoding: arabic)
     }
 }
 

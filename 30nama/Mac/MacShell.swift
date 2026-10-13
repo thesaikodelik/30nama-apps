@@ -47,6 +47,8 @@ enum MacRoute: Hashable {
 final class MacNav {
     var section = MacSection.home
     private(set) var opened: [MacRoute] = []
+    /// The title a download is being chosen for, when that pane is up.
+    var picking: Post?
 
     func open(_ post: Post) {
         open(.title(post))
@@ -58,7 +60,7 @@ final class MacNav {
     }
 
     func back() {
-        if !opened.isEmpty { opened.removeLast() }
+        if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
     }
 
     func go(_ section: MacSection) {
@@ -90,6 +92,14 @@ struct MainView: View {
         .overlay(alignment: .top) {
             NavBar().padding(.top, 14).zIndex(2)
         }
+        .overlay {
+            if let post = nav.picking {
+                DownloadPicker(post: post) { nav.picking = nil }
+                    .id(post.id)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: nav.picking?.id)
         .animation(.easeOut(duration: 0.28), value: nav.opened.last)
         .environment(nav)
         // Esc steps back out of a title, as it closes anything else on a Mac.

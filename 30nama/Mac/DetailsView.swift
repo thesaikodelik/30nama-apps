@@ -15,7 +15,7 @@ struct DetailsView: View {
     /// Why 30nama would not hand over the stream, in its own words.
     @State private var refusal: String?
     @State private var season = 1
-    @State private var choosingDownload = false
+    @Environment(MacNav.self) private var nav
 
     private var post: Post { loaded ?? preview }
 
@@ -43,9 +43,6 @@ struct DetailsView: View {
             #if DEBUG
             if DebugLaunch.play { play() }
             #endif
-        }
-        .sheet(isPresented: $choosingDownload) {
-            DownloadPicker(post: post)
         }
         .task(id: app.watchVersion) {
             // Back from the player: where to resume has moved.
@@ -145,7 +142,7 @@ struct DetailsView: View {
                             Task { await app.toggleList(post, "favorite") }
                         }
                         ListToggle(symbol: "arrow.down.to.line", on: false, help: loc(.download), fills: false) {
-                            choosingDownload = true
+                            nav.picking = post
                         }
                     }
                 }

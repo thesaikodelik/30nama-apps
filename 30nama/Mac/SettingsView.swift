@@ -120,7 +120,7 @@ struct SettingsView: View {
     private var storage: some View {
         group(loc(.downloads)) {
             row(loc(.downloadFolder)) {
-                Text((downloads.folder.path as NSString).abbreviatingWithTildeInPath)
+                Text("\u{200E}" + (downloads.folder.path as NSString).abbreviatingWithTildeInPath)
                     .font(.app(13)).foregroundStyle(Theme.text3).lineLimit(1).truncationMode(.middle)
                     .environment(\.layoutDirection, .leftToRight)
                 Button(loc(.choose)) { chooseFolder() }.buttonStyle(GlassButtonStyle(height: 30))

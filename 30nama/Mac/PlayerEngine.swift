@@ -391,7 +391,7 @@ final class PlayerEngine {
                 if !Task.isCancelled, let self { self.app.showToast(self.loc(.subFailed)) }
                 return
             }
-            let parsed = await Task.detached { SubtitleTrack(vtt: String(decoding: data, as: UTF8.self)) }.value
+            let parsed = await Task.detached { SubtitleTrack(vtt: SubtitleSite.text(data) ?? String(decoding: data, as: UTF8.self)) }.value
             guard !Task.isCancelled, let self else { return }
             self.subtitleCache[url] = parsed
             if self.subtitleLanguage == language, self.current.subtitles[language] == url { self.track = parsed }
@@ -416,8 +416,7 @@ final class PlayerEngine {
     /// SubRip or WebVTT. Persian files are often not UTF-8, so the Arabic Windows code page is tried next.
     func loadSubtitleFile(_ url: URL) {
         guard ["srt", "vtt"].contains(url.pathExtension.lowercased()), let data = try? Data(contentsOf: url) else { return }
-        let arabic = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.windowsArabic.rawValue)))
-        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) ?? String(data: data, encoding: arabic) else {
+        guard let text = SubtitleSite.text(data) else {
             app.showToast(loc(.subFailed))
             return
         }

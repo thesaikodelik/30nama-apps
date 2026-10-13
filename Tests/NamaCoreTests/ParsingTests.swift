@@ -2,6 +2,36 @@ import XCTest
 @testable import NamaCore
 
 final class ParsingTests: XCTestCase {
+    func testSubtitleSiteListingAndChoice() {
+        let listing = """
+        <nav><ul>
+        <li><a href="/subtitle/some-show/farsi_persian/101">Farsi/Persian — Some.Show.S01E02.1080p.WEB-DL.x264-GRP</a></li>
+        <li><a href="/subtitle/some-show/farsi_persian/102">Farsi/Persian — Some.Show.S01E02.1080p.BluRay.x265-ABC</a></li>
+        <li><a href="/subtitle/some-show/farsi_persian/102">Farsi/Persian — Some.Show.S01E02.720p.BluRay.x264-XYZ</a></li>
+        <li><a href="/subtitle/some-show/farsi_persian/103">Farsi/Persian — Some.Show.S01E03.1080p.BluRay.x265-ABC</a></li>
+        <li><a href="/subtitle/some-show/farsi_persian/104">Farsi/Persian — Some.Show.Season.1.Complete.BluRay</a></li>
+        </ul></nav>
+        """
+        let entries = SubtitleSite.entries(in: listing)
+        XCTAssertEqual(entries.map(\.path).map { $0.suffix(3) }, ["101", "102", "103", "104"])
+        XCTAssertEqual(entries[1].releases.count, 2, "a subtitle listed for two releases is one entry")
+        XCTAssertEqual(SubtitleSite.best(for: "Some_Show_S01E02_1080p_BluRay_30nama.mkv", season: 1, episode: 2, among: entries)?.path.suffix(3), "102",
+                       "the right episode, and of those the one cut from the same source")
+        XCTAssertEqual(SubtitleSite.best(for: "Some.Show.S01E02.720p.WEB-DL.mkv", season: 1, episode: 2, among: entries)?.path.suffix(3), "101")
+        XCTAssertEqual(SubtitleSite.best(for: "Some.Show.S01E09.BluRay.mkv", season: 1, episode: 9, among: entries)?.path.suffix(3), "104",
+                       "no subtitle for the episode itself: the season's pack is the next best")
+        XCTAssertNil(SubtitleSite.best(for: "x.mkv", season: nil, episode: nil, among: []))
+
+        XCTAssertEqual(SubtitleSite.download(in: #"x "download_url":"https://api.subsource.net/v1/subtitle/download/abc123DEF" y"#)?.lastPathComponent, "abc123DEF")
+        XCTAssertNil(SubtitleSite.download(in: "nothing here"))
+
+        let pack = ["readme.txt", "Some.Show.S01E01.srt", "Some.Show.S01E02.srt", "Some.Show.S01E10.srt"]
+        XCTAssertEqual(SubtitleSite.pick(from: pack, season: 1, episode: 2), "Some.Show.S01E02.srt")
+        XCTAssertNil(SubtitleSite.pick(from: pack, season: 1, episode: 7), "better none than the wrong episode")
+        XCTAssertEqual(SubtitleSite.pick(from: ["Film.2020.srt", "notes.nfo"], season: nil, episode: nil), "Film.2020.srt")
+        XCTAssertEqual(SubtitleSite.text(Data([0xD3, 0xE1, 0xC7, 0xE3])), "سلام", "the Arabic Windows code page is read when the bytes are not UTF-8")
+    }
+
     func testPersianSubtitlesKeepTheDirectionTheyWereWrittenFor() {
         func vtt(_ lines: [String]) -> String {
             "WEBVTT\n\n" + lines.enumerated().map { "00:00:0\($0).000 --> 00:00:0\($0).900\n\($1)" }.joined(separator: "\n\n")

@@ -35,6 +35,8 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var blurhash: String?
     /// Persian subtitles saved beside the file.
     var subtitlePath: String?
+    /// The page of the subtitle site that lists Persian subtitles for this film or season.
+    var subtitlePage: URL?
     var added: Date?
 
     var fraction: Double { expected > 0 ? min(1, Double(received) / Double(expected)) : 0 }
@@ -168,10 +170,12 @@ final class Downloads {
         item.poster = post.poster.big ?? post.poster.large ?? post.poster.medium
         item.blurhash = post.poster.blurhash
         item.added = Date()
+        item.subtitlePage = post.subtitlePages.first { $0.persian && ($0.season == nil || $0.season == file.season) }?.link
         items.removeAll { $0.fileName == file.fileName }
         items.insert(item, at: 0)
         begin(item)
-        if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) }
+        // 30nama's own subtitle when it has one; otherwise the one on the subtitle site that fits this copy.
+        if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) } else { findSubtitle(item.id, quietly: true) }
         save()
     }
 
@@ -365,6 +369,31 @@ final class Downloads {
         return candidate
     }
 
+    /// The downloads a subtitle is being looked for right now.
+    private(set) var seeking: Set<String> = []
+
+    /// Looks on the subtitle site for a subtitle in time with this copy and saves it beside the
+    /// file under the file's name, so that any player picks it up by itself.
+    func findSubtitle(_ id: String, quietly: Bool = false) {
+        guard let item = items.first(where: { $0.id == id }), let page = item.subtitlePage, !seeking.contains(id) else {
+            if !quietly, let app { app.showToast(app.loc(.subtitleMissing)) }
+            return
+        }
+        seeking.insert(id)
+        let target = (item.path.map { URL(fileURLWithPath: $0).deletingLastPathComponent() } ?? folder)
+            .appendingPathComponent(URL(fileURLWithPath: item.fileName).deletingPathExtension().lastPathComponent + ".fa.srt")
+        Task {
+            let saved = await SubtitleFetcher.fetch(page: page, fileName: item.fileName, season: item.season,
+                                                    episode: Episode.number(item.episode), to: target)
+            seeking.remove(id)
+            if saved {
+                change(id) { $0.subtitlePath = target.path }
+                save()
+            }
+            if !quietly, let app { app.showToast(app.loc(saved ? .subtitleSaved : .subtitleMissing)) }
+        }
+    }
+
     /// Persian subtitles are small, so they are simply fetched and put next to the film under its name.
     private func fetchSubtitle(_ address: URL, for item: DownloadItem) {
         let folder = folder, id = item.id, fileName = item.fileName
@@ -472,15 +501,33 @@ struct DownloadsView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             Text(loc(.downloads)).font(.app(34, .bold)).foregroundStyle(Theme.text1)
-            HStack(spacing: 8) {
+            HStack(spacing: 2) {
                 ForEach(DownloadItem.Shelf.allCases, id: \.self) { part in
                     let count = downloads.items.filter { $0.shelf == part }.count
-                    PillChoice(title: count > 0 ? "\(loc(title(part))) · \(loc.num(count))" : loc(title(part)), selected: shelf == part) {
-                        chosen = part
+                    Button { chosen = part } label: {
+                        HStack(spacing: 7) {
+                            Text(loc(title(part))).font(.app(15.5, .semibold))
+                            if count > 0 {
+                                Text(loc.num(count))
+                                    .font(.app(12, .bold))
+                                    .padding(.horizontal, 7)
+                                    .frame(height: 20)
+                                    .background(Capsule().fill(shelf == part ? Color.black.opacity(0.12) : Color.white.opacity(0.14)))
+                            }
+                        }
+                        .foregroundStyle(shelf == part ? Theme.focusInk : Theme.text1.opacity(0.8))
+                        .padding(.horizontal, 18)
+                        .frame(height: 40)
+                        .background(Capsule(style: .continuous).fill(shelf == part ? Color.white : Color.clear))
+                        .contentShape(Capsule(style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.leading, 8)
+            .padding(4)
+            .glass(Capsule(style: .continuous))
+            .padding(.leading, 10)
+            .animation(Theme.focusSpring, value: shelf)
             Spacer(minLength: 0)
             Button { NSWorkspace.shared.open(downloads.folder) } label: {
                 Label(downloads.folder.lastPathComponent, systemImage: "folder")
@@ -627,15 +674,29 @@ private struct DownloadRow: View {
                 case .paused, .failed:
                     RowButton(symbol: "arrow.clockwise", help: loc(.resume)) { downloads.resume(item.id) }
                 case .done:
-                    RowButton(symbol: "play.fill", help: loc(.play), bright: true) { downloads.play(item) }
-                    // The players on this Mac that take the file, by their own icons.
+                    // The players on this Mac that take the file, by their own icons, as round as the buttons beside them.
                     ForEach(downloads.players(for: item)) { player in
                         Button { downloads.open(item, with: player) } label: {
-                            Image(nsImage: player.icon).resizable().frame(width: 26, height: 26).frame(width: 34, height: 34).contentShape(Rectangle())
+                            Image(nsImage: player.icon)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .frame(width: 34, height: 34)
+                                .clipShape(Circle())
+                                .overlay { Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
                         .help("\(loc(.openIn)) \(player.name)")
                     }
+                    if item.subtitlePath != nil {
+                        RowButton(symbol: "captions.bubble.fill", help: loc(.withSubtitle), tint: Theme.good) {}
+                    } else if downloads.seeking.contains(item.id) {
+                        ProgressView().controlSize(.small).frame(width: 34, height: 34)
+                    } else if item.subtitlePage != nil {
+                        RowButton(symbol: "captions.bubble", help: loc(.getSubtitle)) { downloads.findSubtitle(item.id) }
+                    }
+                    RowButton(symbol: "play.fill", help: loc(.play), bright: true) { downloads.play(item) }
                     RowButton(symbol: "folder", help: loc(.showInFinder)) { downloads.reveal(item) }
                 }
                 RowButton(symbol: "xmark", help: loc(.remove)) { downloads.remove(item.id) }
@@ -682,6 +743,7 @@ private struct RowButton: View {
     let help: String
     /// The row's main action: white, like the play button elsewhere.
     var bright = false
+    var tint: Color? = nil
     let action: () -> Void
 
     @State private var hovering = false
@@ -690,7 +752,7 @@ private struct RowButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(bright ? Theme.focusInk : Theme.text1)
+                .foregroundStyle(bright ? Theme.focusInk : tint ?? Theme.text1)
                 .frame(width: 34, height: 34)
                 .background(Circle().fill(bright ? Color.white.opacity(hovering ? 1 : 0.92) : Color.white.opacity(hovering ? 0.2 : 0.08)))
                 .contentShape(Circle())
@@ -701,157 +763,3 @@ private struct RowButton: View {
     }
 }
 
-// MARK: - Choosing what to download
-
-/// The files 30nama offers for one title. A film lists its qualities; a series its seasons, the
-/// qualities each comes in, and the episodes.
-struct DownloadPicker: View {
-    let post: Post
-
-    @Environment(AppModel.self) private var app
-    @Environment(Downloads.self) private var downloads
-    @Environment(\.loc) private var loc
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var options: DownloadOptions?
-    @State private var message: String?
-    @State private var season = 1
-    @State private var pack: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(loc(.download)).font(.app(14, .semibold)).foregroundStyle(Theme.text3)
-                    Text(post.title(loc.lang)).font(.app(22, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.text1)
-                        .frame(width: 30, height: 30).background(Circle().fill(Color.white.opacity(0.12))).contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-            }
-            if let options {
-                if options.isEmpty {
-                    note(loc(.noDownload))
-                } else if options.packs.isEmpty {
-                    list(options.files) { $0.summary }
-                } else {
-                    series(options)
-                }
-            } else if let message {
-                note(message)
-            } else {
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .padding(22)
-        .frame(width: 640, height: 580)
-        .background(Theme.bg1)
-        .environment(\.layoutDirection, loc.lang.isRTL ? .rightToLeft : .leftToRight)
-        .preferredColorScheme(.dark)
-        .task { await load() }
-    }
-
-    private func note(_ text: String) -> some View {
-        Text(text).font(.app(16, .medium)).foregroundStyle(Theme.text2)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func series(_ options: DownloadOptions) -> some View {
-        let packs = options.packs.filter { $0.season == season }
-        let chosen = packs.first { $0.id == pack } ?? packs.first
-        return VStack(alignment: .leading, spacing: 12) {
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(options.seasons, id: \.self) { number in
-                        PillChoice(title: "\(loc(.season)) \(loc.num(number))", selected: season == number) {
-                            season = number
-                            pack = nil
-                        }
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(packs) { option in
-                        PillChoice(title: option.summary, selected: option.id == chosen?.id) { pack = option.id }
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
-            if let chosen {
-                HStack {
-                    Spacer(minLength: 0)
-                    Button {
-                        for file in chosen.files { downloads.start(file, of: post) }
-                        app.showToast(loc(.downloadStarted))
-                        dismiss()
-                    } label: {
-                        Label("\(loc(.allEpisodes)) (\(loc.num(chosen.files.count)))", systemImage: "arrow.down.to.line")
-                    }
-                    .buttonStyle(GlassButtonStyle(height: 34))
-                }
-                list(chosen.files) { file in
-                    "\(loc(.episode)) \(loc.num(file.episode ?? ""))"
-                }
-            }
-        }
-    }
-
-    private func list(_ files: [DownloadFile], label: @escaping (DownloadFile) -> String) -> some View {
-        ScrollView(.vertical) {
-            LazyVStack(spacing: 6) {
-                ForEach(files) { file in
-                    HStack(spacing: 10) {
-                        Text(label(file)).font(.app(14, .semibold)).foregroundStyle(Theme.text1).lineLimit(1)
-                        ForEach(file.tags.prefix(3), id: \.self) { tag in
-                            Text(tag).font(.app(11, .bold)).foregroundStyle(Theme.text2)
-                                .padding(.horizontal, 7).frame(height: 20)
-                                .background(Capsule().fill(Color.white.opacity(0.1)))
-                        }
-                        if file.subtitle != nil {
-                            Image(systemName: "captions.bubble.fill").font(.system(size: 11)).foregroundStyle(Theme.good).help(loc(.persianSub))
-                        }
-                        Spacer(minLength: 0)
-                        let listed = downloads.has(file)
-                        Button {
-                            downloads.start(file, of: post)
-                            app.showToast(loc(.downloadStarted))
-                        } label: {
-                            Image(systemName: listed ? "checkmark" : "arrow.down.to.line")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(listed ? Theme.good : Theme.text1)
-                                .frame(width: 34, height: 34)
-                                .background(Circle().fill(Color.white.opacity(0.1)))
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(listed)
-                        .help(loc(.download))
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 46)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.05)))
-                }
-            }
-        }
-    }
-
-    private func load() async {
-        guard let answer = try? await app.api.call("download", ["post_id": String(post.id), "free_download": app.isLoggedIn ? "0" : "1"]) else {
-            message = "\(loc(.error)). \(loc(.tryAgain))"
-            return
-        }
-        guard answer.success else {
-            message = answer.message ?? loc(.noDownload)
-            return
-        }
-        let found = DownloadOptions(answer.result)
-        season = found.seasons.first ?? 1
-        options = found
-    }
-}

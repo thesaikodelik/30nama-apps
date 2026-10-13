@@ -29,6 +29,7 @@ enum S: String, CaseIterable {
     case markWatched, markUnwatched, upcoming, allChoices, minScore, decade
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload, cannotPlayHere
+    case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -159,6 +160,9 @@ struct Loc: Equatable {
         .pause: "Pause", .remove: "Remove", .open: "Open", .downloadFailed: "Download failed",
         .downloadStarted: "Download started", .downloadDone: "Download finished", .noDownload: "No download for this title",
         .cannotPlayHere: "The built-in player cannot read this file",
+        .fileQuality: "Quality", .saveTo: "Saves to", .perEpisode: "per episode", .wholeSeason: "Download the whole season",
+        .getSubtitle: "Get Persian subtitles", .subtitleSaved: "Subtitles saved beside the file",
+        .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -222,6 +226,9 @@ struct Loc: Equatable {
         .pause: "توقف", .remove: "برداشتن از فهرست", .open: "باز کردن", .downloadFailed: "دانلود ناموفق بود",
         .downloadStarted: "دانلود شروع شد", .downloadDone: "دانلود تمام شد", .noDownload: "برای این عنوان دانلودی نیست",
         .cannotPlayHere: "پخش‌کنندهٔ داخلی این نوع فایل را نمی‌خواند",
+        .fileQuality: "کیفیت", .saveTo: "ذخیره در", .perEpisode: "هر قسمت", .wholeSeason: "دانلود کل فصل",
+        .getSubtitle: "دریافت زیرنویس فارسی", .subtitleSaved: "زیرنویس کنار فایل ذخیره شد",
+        .subtitleMissing: "زیرنویس هماهنگی پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -285,6 +292,9 @@ struct Loc: Equatable {
         .pause: "إيقاف مؤقت", .remove: "إزالة", .open: "فتح", .downloadFailed: "فشل التنزيل",
         .downloadStarted: "بدأ التنزيل", .downloadDone: "اكتمل التنزيل", .noDownload: "لا يوجد تنزيل لهذا العنوان",
         .cannotPlayHere: "المشغّل المدمج لا يقرأ هذا الملف",
+        .fileQuality: "الجودة", .saveTo: "الحفظ في", .perEpisode: "لكل حلقة", .wholeSeason: "تنزيل الموسم كاملًا",
+        .getSubtitle: "جلب الترجمة الفارسية", .subtitleSaved: "حُفظت الترجمة بجانب الملف",
+        .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",
