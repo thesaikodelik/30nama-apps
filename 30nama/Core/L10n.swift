@@ -27,6 +27,8 @@ enum S: String, CaseIterable {
     case effects, effectsAuto, effectsFull, effectsLight
     case exportRatings, exportDone, openIn
     case markWatched, markUnwatched, upcoming, allChoices, minScore, decade
+    case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
+    case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -152,6 +154,10 @@ struct Loc: Equatable {
         .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in",
         .markWatched: "Mark as watched", .markUnwatched: "Mark as not watched", .upcoming: "New episodes on the way",
         .allChoices: "All", .minScore: "IMDb", .decade: "Years",
+        .downloads: "Downloads", .download: "Download", .downloadFolder: "Download folder", .choose: "Choose…",
+        .showInFinder: "Show in Finder", .noDownloads: "Nothing downloaded yet", .allEpisodes: "All episodes",
+        .pause: "Pause", .remove: "Remove", .open: "Open", .downloadFailed: "Download failed",
+        .downloadStarted: "Download started", .downloadDone: "Download finished", .noDownload: "No download for this title",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -210,6 +216,10 @@ struct Loc: Equatable {
         .exportRatings: "خروجی گرفتن از امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
         .markWatched: "علامت «دیده‌شده»", .markUnwatched: "برداشتن علامت «دیده‌شده»", .upcoming: "قسمت‌های تازه در راه",
         .allChoices: "همه", .minScore: "IMDb", .decade: "سال",
+        .downloads: "دانلودها", .download: "دانلود", .downloadFolder: "پوشهٔ دانلود", .choose: "انتخاب…",
+        .showInFinder: "نمایش در Finder", .noDownloads: "هنوز چیزی دانلود نشده است", .allEpisodes: "همهٔ قسمت‌ها",
+        .pause: "توقف", .remove: "برداشتن از فهرست", .open: "باز کردن", .downloadFailed: "دانلود ناموفق بود",
+        .downloadStarted: "دانلود شروع شد", .downloadDone: "دانلود تمام شد", .noDownload: "برای این عنوان دانلودی نیست",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -268,6 +278,10 @@ struct Loc: Equatable {
         .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في",
         .markWatched: "وضع علامة «تمت المشاهدة»", .markUnwatched: "إزالة علامة «تمت المشاهدة»", .upcoming: "حلقات جديدة قادمة",
         .allChoices: "الكل", .minScore: "IMDb", .decade: "السنوات",
+        .downloads: "التنزيلات", .download: "تنزيل", .downloadFolder: "مجلد التنزيل", .choose: "اختيار…",
+        .showInFinder: "إظهار في Finder", .noDownloads: "لا توجد تنزيلات بعد", .allEpisodes: "كل الحلقات",
+        .pause: "إيقاف مؤقت", .remove: "إزالة", .open: "فتح", .downloadFailed: "فشل التنزيل",
+        .downloadStarted: "بدأ التنزيل", .downloadDone: "اكتمل التنزيل", .noDownload: "لا يوجد تنزيل لهذا العنوان",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

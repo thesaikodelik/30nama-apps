@@ -562,6 +562,88 @@ struct Menu {
     }
 }
 
+// MARK: - Downloads
+
+/// One file 30nama offers for download: a film in one quality, or one episode of a series.
+struct DownloadFile: Identifiable, Hashable {
+    var id: String
+    var url: URL
+    var quality: String
+    /// The size as the server words it, "781 MB".
+    var size: String?
+    var encoder: String?
+    var tags: [String] = []
+    var season: Int?
+    var episode: String?
+    /// Persian subtitles for this file, when 30nama has them.
+    var subtitle: URL?
+
+    /// The name to save under: the one in the address, which carries the right extension.
+    var fileName: String {
+        let name = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+        return name.isEmpty || name == "/" ? "\(id).mkv" : name
+    }
+
+    /// "x265 BluRay 1080p · 30nama · 781 MB"
+    var summary: String {
+        [quality, encoder, size].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+/// What can be downloaded for a title. A film is a flat list of files, one per quality. A series
+/// comes as packs, a season in one quality, each holding its episodes.
+struct DownloadOptions {
+    struct Pack: Identifiable, Hashable {
+        var id: String
+        var season: Int
+        var quality: String
+        /// The size of one episode, as the server words it.
+        var size: String?
+        var encoder: String?
+        var files: [DownloadFile]
+
+        var summary: String {
+            [quality, encoder, size].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+    }
+
+    var files: [DownloadFile] = []
+    var packs: [Pack] = []
+
+    var seasons: [Int] { Array(Set(packs.map(\.season))).sorted() }
+    var isEmpty: Bool { files.isEmpty && packs.isEmpty }
+
+    init(_ j: JSON) {
+        let root = j["download"]
+        func tags(_ entry: JSON) -> [String] { entry["tags"].array.compactMap(\.text) }
+        if case .array(let entries) = root {
+            files = entries.compactMap { entry in
+                guard let url = entry["dl"].url else { return nil }
+                return DownloadFile(id: entry["id"].string ?? url.absoluteString, url: url, quality: entry["quality"].text ?? "",
+                                    size: entry["size"].text, encoder: entry["encoder"].text, tags: tags(entry),
+                                    subtitle: entry["persian_subtitle"].url)
+            }
+        } else {
+            for (_, group) in root.object ?? [:] {
+                for entry in group.array {
+                    let season = entry["season_int"].int ?? entry["season"].int ?? 1
+                    let quality = entry["quality"].text ?? ""
+                    let links: [DownloadFile] = entry["link"].array.compactMap { link in
+                        guard let url = link["dl"].url else { return nil }
+                        return DownloadFile(id: link["id"].string ?? url.absoluteString, url: url, quality: quality,
+                                            size: entry["size"].text, encoder: entry["encoder"].text, tags: tags(entry),
+                                            season: season, episode: link["episode"].string, subtitle: link["persian_subtitle"].url)
+                    }
+                    guard !links.isEmpty else { continue }
+                    packs.append(Pack(id: entry["id"].string ?? "\(season)-\(quality)-\(packs.count)", season: season, quality: quality,
+                                      size: entry["size"].text, encoder: entry["encoder"].text, files: links))
+                }
+            }
+            packs.sort { ($0.season, $0.quality) < ($1.season, $1.quality) }
+        }
+    }
+}
+
 // MARK: - Narrowing a catalogue
 
 /// The choices 30nama's advanced search offers, as the server lists them.

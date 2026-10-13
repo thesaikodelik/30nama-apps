@@ -23,6 +23,7 @@ struct SettingsView: View {
                         }
                         playback
                         subtitles
+                        storage
                         group(loc(.display)) {
                             row(loc(.effects)) {
                                 picker(Effects.allCases, selection: app.settings.effects, name: { loc($0.label) }) { value in
@@ -112,6 +113,32 @@ struct SettingsView: View {
                 toggle(app.settings.autoplayNext) { value in app.update { $0.autoplayNext = value } }
             }
         }
+    }
+
+    @Environment(Downloads.self) private var downloads
+
+    private var storage: some View {
+        group(loc(.downloads)) {
+            row(loc(.downloadFolder)) {
+                Text((downloads.folder.path as NSString).abbreviatingWithTildeInPath)
+                    .font(.app(13)).foregroundStyle(Theme.text3).lineLimit(1).truncationMode(.middle)
+                    .environment(\.layoutDirection, .leftToRight)
+                Button(loc(.choose)) { chooseFolder() }.buttonStyle(GlassButtonStyle(height: 30))
+                if app.settings.downloadFolder != nil {
+                    Button(loc(.reset)) { app.update { $0.downloadFolder = nil } }.buttonStyle(GlassButtonStyle(height: 30))
+                }
+            }
+        }
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = downloads.folder
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        app.update { $0.downloadFolder = url.path }
     }
 
     private var subtitles: some View {

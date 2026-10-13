@@ -15,6 +15,7 @@ struct DetailsView: View {
     /// Why 30nama would not hand over the stream, in its own words.
     @State private var refusal: String?
     @State private var season = 1
+    @State private var choosingDownload = false
 
     private var post: Post { loaded ?? preview }
 
@@ -42,6 +43,9 @@ struct DetailsView: View {
             #if DEBUG
             if DebugLaunch.play { play() }
             #endif
+        }
+        .sheet(isPresented: $choosingDownload) {
+            DownloadPicker(post: post)
         }
         .task(id: app.watchVersion) {
             // Back from the player: where to resume has moved.
@@ -139,6 +143,9 @@ struct DetailsView: View {
                         }
                         ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
                             Task { await app.toggleList(post, "favorite") }
+                        }
+                        ListToggle(symbol: "arrow.down.to.line", on: false, help: loc(.download), fills: false) {
+                            choosingDownload = true
                         }
                     }
                 }
@@ -338,13 +345,15 @@ private struct ListToggle: View {
     let symbol: String
     let on: Bool
     let help: String
+    /// The glyph has a filled form to switch to. A plain action button has none.
+    var fills = true
     let action: () -> Void
 
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: on ? symbol + ".fill" : symbol)
+            Image(systemName: on && fills ? symbol + ".fill" : symbol)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(on ? Theme.accent : Theme.text1)
                 .frame(width: 46, height: 46)

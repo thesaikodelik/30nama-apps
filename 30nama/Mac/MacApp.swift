@@ -2,9 +2,13 @@ import SwiftUI
 
 @main
 struct NamaMacApp: App {
-    @State private var app = AppModel()
+    @State private var app: AppModel
+    @State private var downloads: Downloads
 
     init() {
+        let model = AppModel()
+        _app = State(initialValue: model)
+        _downloads = State(initialValue: Downloads(app: model))
         AppFont.register()
         #if DEBUG
         DebugLaunch.probeIfAsked()
@@ -15,6 +19,7 @@ struct NamaMacApp: App {
         WindowGroup {
             RootView()
                 .environment(app)
+                .environment(downloads)
                 .frame(minWidth: 1120, minHeight: 720)
         }
         .windowStyle(.hiddenTitleBar)

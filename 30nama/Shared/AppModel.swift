@@ -17,6 +17,8 @@ struct Settings: Equatable {
     var audioMix: AudioMix = .stereo
     /// Mac only: how much the app moves when nobody is touching it.
     var effects = Effects.auto
+    /// Mac only: where downloads are put. Nil is the user's Downloads folder.
+    var downloadFolder: String?
     /// Use the adaptive stream instead of the highest fixed rendition.
     var preferAdaptive = false
     var reduceMotion = false
@@ -34,6 +36,7 @@ struct Settings: Equatable {
         if let v = d.object(forKey: "autoplay") as? Bool { s.autoplayNext = v }
         if let v = d.string(forKey: "audioMix").flatMap(AudioMix.init(rawValue:)) { s.audioMix = v }
         if let v = d.string(forKey: "effects").flatMap(Effects.init(rawValue:)) { s.effects = v }
+        s.downloadFolder = d.string(forKey: "downloadFolder")
         s.preferAdaptive = d.bool(forKey: "adaptive")
         s.reduceMotion = d.bool(forKey: "calm")
         return s
@@ -49,6 +52,7 @@ struct Settings: Equatable {
         d.set(autoplayNext, forKey: "autoplay")
         d.set(audioMix.rawValue, forKey: "audioMix")
         d.set(effects.rawValue, forKey: "effects")
+        d.set(downloadFolder, forKey: "downloadFolder")
         d.set(preferAdaptive, forKey: "adaptive")
         d.set(reduceMotion, forKey: "calm")
     }

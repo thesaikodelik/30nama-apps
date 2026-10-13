@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum MacSection: Hashable, CaseIterable {
-    case profile, home, movies, series, anime, browse, search, settings
+    case profile, home, movies, series, anime, browse, search, downloads, settings
 
     var symbol: String {
         switch self {
@@ -12,6 +12,7 @@ enum MacSection: Hashable, CaseIterable {
         case .anime: return "sparkles"
         case .browse: return "square.grid.2x2"
         case .search: return "magnifyingglass"
+        case .downloads: return "arrow.down.circle"
         case .settings: return "gearshape"
         }
     }
@@ -25,12 +26,13 @@ enum MacSection: Hashable, CaseIterable {
         case .anime: return .anime
         case .browse: return .browse
         case .search: return .search
+        case .downloads: return .downloads
         case .settings: return .settings
         }
     }
 
-    /// Search and settings are known by their glyphs alone; the rest carry their names.
-    var iconOnly: Bool { self == .search || self == .settings }
+    /// Search, downloads and settings are known by their glyphs alone; the rest carry their names.
+    var iconOnly: Bool { self == .search || self == .downloads || self == .settings }
 }
 
 /// Something opened on top of a section.
@@ -122,11 +124,12 @@ struct MainView: View {
         case .anime: CatalogView(slug: "anime", title: app.loc(.anime))
         case .browse: BrowseView()
         case .search: SearchView()
+        case .downloads: DownloadsView()
         case .settings: SettingsView()
         }
     }
 
-    /// The keyboard's way around: ⌘1 to ⌘8 for the sections, ⌘F to search, ⌘[ to step back.
+    /// The keyboard's way around: ⌘1 to ⌘9 for the sections, ⌘F to search, ⌘[ to step back.
     private var shortcuts: some View {
         Group {
             ForEach(Array(MacSection.allCases.enumerated()), id: \.offset) { index, section in
@@ -181,6 +184,7 @@ private struct NavItem: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
+    @Environment(Downloads.self) private var downloads
     @State private var hovering = false
 
     var body: some View {
@@ -188,6 +192,12 @@ private struct NavItem: View {
             HStack(spacing: 7) {
                 if section.iconOnly || section == .profile {
                     Image(systemName: section.symbol).font(.system(size: 16, weight: .semibold))
+                        .overlay(alignment: .topTrailing) {
+                            // Something is coming down: a dot on the downloads glyph says so from any screen.
+                            if section == .downloads, downloads.running > 0 {
+                                Circle().fill(Theme.accent).frame(width: 7, height: 7).offset(x: 3, y: -3)
+                            }
+                        }
                 }
                 if !section.iconOnly {
                     Text(loc(section.title)).font(.app(15.5, .semibold))

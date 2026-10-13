@@ -7,6 +7,40 @@ func fixture(_ name: String) throws -> JSON {
 }
 
 final class ModelTests: XCTestCase {
+    func testDownloadOptionsForAFilmAndForASeries() throws {
+        let film = DownloadOptions(try JSON.parse(Data(#"""
+        {"download":[
+          {"dl":"https://example.com/files/Some.Film.2020.1080p.x265.mkv","encoder":"30nama","id":239523688524,"quality":"x265 BluRay 1080p",
+           "size":"2.1 GB","tags":["x265"],"persian_subtitle":"https://example.com/sub/1","source":null},
+          {"dl":null,"quality":"broken"}
+        ]}
+        """#.utf8)))
+        XCTAssertEqual(film.files.count, 1, "an entry without an address is not an offer")
+        XCTAssertTrue(film.packs.isEmpty)
+        XCTAssertEqual(film.files[0].fileName, "Some.Film.2020.1080p.x265.mkv")
+        XCTAssertEqual(film.files[0].summary, "x265 BluRay 1080p · 30nama · 2.1 GB")
+        XCTAssertNotNil(film.files[0].subtitle)
+
+        let series = DownloadOptions(try JSON.parse(Data(#"""
+        {"download":{
+          "s2":[{"id":8590,"season":2,"season_int":2,"quality":"x265 BluRay 1080p","size":"333 MB","encoder":"30nama","tags":["x265"],
+                 "link":[{"dl":"https://example.com/s2/Show.S02E01.mkv","episode":1,"id":1,"persian_subtitle":null},
+                         {"dl":"https://example.com/s2/Show.S02E02.mkv","episode":2,"id":2,"persian_subtitle":null}]}],
+          "s1":[{"id":8589,"season":1,"season_int":1,"quality":"WEB-DL 720p","size":"200 MB","encoder":"30nama","tags":[],
+                 "link":[{"dl":"https://example.com/s1/Show%20S01E00%20Special.mkv","episode":"Special","id":3,"persian_subtitle":"https://example.com/sub/3"}]},
+                {"id":1,"season":1,"season_int":1,"quality":"empty","link":[]}]
+        }}
+        """#.utf8)))
+        XCTAssertTrue(series.files.isEmpty)
+        XCTAssertEqual(series.seasons, [1, 2])
+        XCTAssertEqual(series.packs.map(\.quality), ["WEB-DL 720p", "x265 BluRay 1080p"], "by season; a pack with no files is dropped")
+        XCTAssertEqual(series.packs[1].files.map(\.episode), ["1", "2"])
+        XCTAssertEqual(series.packs[0].files[0].episode, "Special")
+        XCTAssertEqual(series.packs[0].files[0].fileName, "Show S01E00 Special.mkv", "percent escapes are undone")
+        XCTAssertEqual(series.packs[1].files[0].season, 2)
+        XCTAssertTrue(DownloadOptions(JSON(["download": NSNull()] as [String: Any])).isEmpty)
+    }
+
     func testFilterBuildsTheParametersAdvancedSearchTakes() throws {
         let options = FilterOptions(try JSON.parse(Data(#"""
         {"genre":[{"name":"Drama","value":"drama"},{"name":"All","value":""}],
