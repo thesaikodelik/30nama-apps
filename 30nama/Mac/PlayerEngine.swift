@@ -54,6 +54,7 @@ final class PlayerEngine {
     /// The last position reported for the current item, so the same one is not sent twice.
     @ObservationIgnored private var reportedTime = 0
     @ObservationIgnored private var closed = false
+    @ObservationIgnored private var markedWatched = false
     @ObservationIgnored private var pip: AVPictureInPictureController?
     @ObservationIgnored private weak var window: NSWindow?
 
@@ -122,6 +123,7 @@ final class PlayerEngine {
         report()
         index = i
         reportedTime = 0
+        markedWatched = false
         guard let quality = current.quality(preferAdaptive: app.settings.preferAdaptive) else {
             app.showToast(loc(.noStream))
             return close()
@@ -307,6 +309,12 @@ final class PlayerEngine {
         if waiting != buffering { buffering = waiting }
         let active = pip?.isPictureInPictureActive ?? false
         if active != pictureInPicture { pictureInPicture = active }
+
+        // Into the last tenth: whatever is left is credits, so the file counts as watched.
+        if !markedWatched, duration > 60, seconds / duration > 0.9 {
+            markedWatched = true
+            app.setWatched(current.fileID, true)
+        }
 
         let text = track.text(at: seconds - subtitleOffset)
         if text != cue { cue = text }

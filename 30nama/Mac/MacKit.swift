@@ -171,6 +171,8 @@ struct PosterCard: View {
     var width: CGFloat = Mac.posterWidth
     /// A star rating to pin on the corner, as on the profile's own shelf.
     var stars: Double? = nil
+    /// A line that stays on the card whether or not the pointer is on it: the day an episode is due.
+    var note: String? = nil
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -185,6 +187,18 @@ struct PosterCard: View {
                 // A poster that has not arrived yet is still a tile, not a hole in the row.
                 .background(Theme.surface2)
                 .overlay(alignment: .bottom) { caption }
+                .overlay(alignment: .bottom) {
+                    if let note, !hovering {
+                        Text(note)
+                            .font(.app(11, .bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, minHeight: 26)
+                            .background(Color.black.opacity(0.72))
+                    }
+                }
                 .overlay(alignment: .topLeading) { badge }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }

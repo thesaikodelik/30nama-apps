@@ -562,6 +562,95 @@ struct Menu {
     }
 }
 
+// MARK: - Narrowing a catalogue
+
+/// The choices 30nama's advanced search offers, as the server lists them.
+struct FilterOptions {
+    struct Choice: Hashable, Identifiable {
+        var name: String
+        var value: String
+        var id: String { value }
+    }
+
+    var genres: [Choice]
+    var countries: [Choice]
+    /// Lowest IMDb score to accept.
+    var scores: [Choice]
+    /// First year of each decade there are titles for, newest first.
+    var decades: [Int]
+
+    init(_ j: JSON) {
+        func choices(_ key: String) -> [Choice] {
+            j[key].array.compactMap { entry in
+                guard let name = entry["name"].text, let value = entry["value"].string, !value.isEmpty else { return nil }
+                return Choice(name: name, value: value)
+            }
+        }
+        genres = choices("genre")
+        countries = choices("country")
+        // "Under 5.0" is sent as a negative number; only the floors are offered.
+        scores = choices("imdb_rate").filter { (Double($0.value) ?? 0) > 0 }
+        let newest = (j["max_year"].int ?? 2020) / 10 * 10
+        let oldest = max(1950, (j["min_year"].int ?? 1950) / 10 * 10)
+        decades = Array(stride(from: newest, through: oldest, by: -10))
+    }
+}
+
+/// What the user has narrowed a catalogue down to.
+struct Filter: Equatable {
+    var genre: String?
+    var country: String?
+    var score: String?
+    /// First year of the decade: 2010 stands for 2010 to 2019.
+    var decade: Int?
+
+    var isEmpty: Bool { genre == nil && country == nil && score == nil && decade == nil }
+
+    /// The `parameters` value `advanced_search` takes: a JSON object of the chosen fields.
+    /// - Parameter type: "movie", "series" or "anime", to stay inside one catalogue.
+    func parameters(type: String?) -> String {
+        var fields: [String: Any] = ["stream": "true"]
+        if let type { fields["type"] = type }
+        if let genre { fields["genre"] = genre }
+        if let country { fields["country"] = country }
+        if let score, let floor = Double(score) { fields["imdb_rate"] = floor }
+        if let decade {
+            fields["min_year"] = decade
+            fields["max_year"] = decade + 9
+        }
+        let data = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
+        return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+}
+
+extension Post {
+    /// The day the next episode is due, when the server names one. It writes the day out,
+    /// "16 October 2026 Friday"; a plain "2026-10-16" is understood too.
+    var nextEpisodeDay: Date? {
+        guard let raw = nextEpisodeDate.gregorian else { return nil }
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian)
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(identifier: "UTC")
+        format.dateFormat = "d MMMM yyyy"
+        if let day = format.date(from: raw.split(separator: " ").prefix(3).joined(separator: " ")) { return day }
+        format.dateFormat = "yyyy-MM-dd"
+        return format.date(from: String(raw.prefix(10)))
+    }
+
+    /// The series among `posts` with an episode still to come, soonest first.
+    static func upcoming(_ posts: [Post], now: Date = Date()) -> [Post] {
+        let today = now.addingTimeInterval(-86400)
+        var seen = Set<Int>()
+        return posts
+            .filter { seen.insert($0.id).inserted }
+            .compactMap { post in post.nextEpisodeDay.map { (post, $0) } }
+            .filter { $0.1 > today }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+    }
+}
+
 // MARK: - Account
 
 struct User: Equatable {

@@ -6,6 +6,9 @@ struct NamaMacApp: App {
 
     init() {
         AppFont.register()
+        #if DEBUG
+        DebugLaunch.probeIfAsked()
+        #endif
     }
 
     var body: some Scene {

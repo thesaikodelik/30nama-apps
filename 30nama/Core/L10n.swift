@@ -26,6 +26,7 @@ enum S: String, CaseIterable {
     case speed, subtitleTiming, subtitleFile, pictureInPicture, alwaysOnTop, fullScreen, reset
     case effects, effectsAuto, effectsFull, effectsLight
     case exportRatings, exportDone, openIn
+    case markWatched, markUnwatched, upcoming, allChoices, minScore, decade
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -149,6 +150,8 @@ struct Loc: Equatable {
         .pictureInPicture: "Picture in Picture", .alwaysOnTop: "Always on top", .fullScreen: "Full screen", .reset: "Reset",
         .effects: "Motion effects", .effectsAuto: "Automatic", .effectsFull: "Full", .effectsLight: "Light",
         .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in",
+        .markWatched: "Mark as watched", .markUnwatched: "Mark as not watched", .upcoming: "New episodes on the way",
+        .allChoices: "All", .minScore: "IMDb", .decade: "Years",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -205,6 +208,8 @@ struct Loc: Equatable {
         .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
         .effects: "جلوه‌های حرکتی", .effectsAuto: "خودکار", .effectsFull: "کامل", .effectsLight: "سبک",
         .exportRatings: "خروجی گرفتن از امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
+        .markWatched: "علامت «دیده‌شده»", .markUnwatched: "برداشتن علامت «دیده‌شده»", .upcoming: "قسمت‌های تازه در راه",
+        .allChoices: "همه", .minScore: "IMDb", .decade: "سال",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -261,6 +266,8 @@ struct Loc: Equatable {
         .pictureInPicture: "صورة داخل صورة", .alwaysOnTop: "دائمًا في المقدمة", .fullScreen: "ملء الشاشة", .reset: "إعادة الضبط",
         .effects: "تأثيرات الحركة", .effectsAuto: "تلقائي", .effectsFull: "كاملة", .effectsLight: "خفيفة",
         .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في",
+        .markWatched: "وضع علامة «تمت المشاهدة»", .markUnwatched: "إزالة علامة «تمت المشاهدة»", .upcoming: "حلقات جديدة قادمة",
+        .allChoices: "الكل", .minScore: "IMDb", .decade: "السنوات",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

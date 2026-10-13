@@ -16,6 +16,12 @@ struct CatalogView: View {
     @State private var sort = Sort.newest
     @State private var loading = false
     @State private var failed = false
+    @State private var filter = Filter()
+    @State private var options: FilterOptions?
+
+    /// The catalogues that can be narrowed: the search behind the filters has to be told which
+    /// kind of title to stay with, and a genre's own page has no such kind.
+    private var type: String? { ["movies": "movie", "series": "series", "anime": "anime"][slug] }
 
     enum Sort: String, CaseIterable {
         case newest = "date", popular = "favorite", updated = "update"
@@ -37,6 +43,7 @@ struct CatalogView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 26) {
                     header
+                    if type != nil, let options { filters(options) }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
                         ForEach(posts) { post in
                             PosterCard(post: post) { nav.open(post) }
@@ -54,12 +61,37 @@ struct CatalogView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .task(id: "\(sort.rawValue)|\(app.contentVersion)") {
+        .task(id: "\(sort.rawValue)|\(app.contentVersion)|\(filter.parameters(type: type))") {
             posts = []
             page = 0
             pages = 1
+            total = nil
             loading = false
             await loadNext()
+        }
+        .task(id: app.contentVersion) {
+            if type != nil { options = try? await app.filterOptions() }
+        }
+    }
+
+    /// Genre, country, lowest score and decade. With any of them set, the wall is filled by
+    /// 30nama's advanced search instead of the plain archive.
+    private func filters(_ options: FilterOptions) -> some View {
+        HStack(spacing: 8) {
+            FilterMenu(title: loc(.genres), choices: options.genres, selection: $filter.genre)
+            FilterMenu(title: loc(.country), choices: options.countries, selection: $filter.country)
+            FilterMenu(title: loc(.minScore), choices: options.scores, selection: $filter.score)
+            FilterMenu(title: loc(.decade),
+                       choices: options.decades.map { FilterOptions.Choice(name: loc.num("\($0)–\($0 + 9)"), value: "\($0)") },
+                       selection: Binding(get: { filter.decade.map(String.init) }, set: { filter.decade = $0.flatMap(Int.init) }))
+            if !filter.isEmpty {
+                Button { filter = Filter() } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(Theme.text3)
+                }
+                .buttonStyle(.plain)
+                .help(loc(.reset))
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -98,12 +130,18 @@ struct CatalogView: View {
         // A sort change restarts the list; a response for the old order must not touch it.
         let requested = sort
         defer { if requested == sort { loading = false } }
+        let narrowed = filter
         do {
-            let result = try await app.api.get("archive", [
-                "slugs": slug, "streamonly": "1", "page": String(page + 1),
-                "orderby": requested.rawValue, "order": "desc",
-            ])
-            guard requested == sort, !Task.isCancelled else { return }
+            let result = narrowed.isEmpty
+                ? try await app.api.get("archive", [
+                    "slugs": slug, "streamonly": "1", "page": String(page + 1),
+                    "orderby": requested.rawValue, "order": "desc",
+                ])
+                : try await app.api.get("advanced_search", [
+                    "parameters": narrowed.parameters(type: type), "page": String(page + 1),
+                    "orderby": requested.rawValue, "order": "DESC",
+                ])
+            guard requested == sort, narrowed == filter, !Task.isCancelled else { return }
             let next = PostPage(result)
             let known = Set(posts.map(\.id))
             posts += next.posts.filter { !known.contains($0.id) }
@@ -113,6 +151,45 @@ struct CatalogView: View {
         } catch {
             if requested == sort, !Task.isCancelled { failed = true }
         }
+    }
+}
+
+/// One filter: a pill that names the choice made, and opens the list of choices.
+private struct FilterMenu: View {
+    let title: String
+    let choices: [FilterOptions.Choice]
+    @Binding var selection: String?
+
+    @Environment(\.loc) private var loc
+    @State private var hovering = false
+
+    private var chosen: FilterOptions.Choice? { choices.first { $0.value == selection } }
+
+    var body: some View {
+        SwiftUI.Menu {
+            Picker(title, selection: $selection) {
+                Text(loc(.allChoices)).tag(String?.none)
+                ForEach(choices) { choice in
+                    Text(choice.name).tag(Optional(choice.value))
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 6) {
+                Text(chosen.map { "\(title): \($0.name)" } ?? title).font(.app(13, .semibold))
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).opacity(0.6)
+            }
+            .foregroundStyle(chosen != nil ? Theme.focusInk : Theme.text1)
+            .padding(.horizontal, 13)
+            .frame(height: 30)
+            .background(Capsule(style: .continuous).fill(chosen != nil ? Color.white : Color.white.opacity(hovering ? 0.2 : 0.1)))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { hovering = $0 }
     }
 }
 

@@ -7,6 +7,39 @@ func fixture(_ name: String) throws -> JSON {
 }
 
 final class ModelTests: XCTestCase {
+    func testFilterBuildsTheParametersAdvancedSearchTakes() throws {
+        let options = FilterOptions(try JSON.parse(Data(#"""
+        {"genre":[{"name":"Drama","value":"drama"},{"name":"All","value":""}],
+         "country":[{"name":"United States","value":"US"}],
+         "imdb_rate":[{"name":"Above 8.5","value":8.5},{"name":"Above 8.0","value":8},{"name":"Under 5.0","value":-5}],
+         "min_year":1890,"max_year":2026}
+        """#.utf8)))
+        XCTAssertEqual(options.genres.map(\.value), ["drama"], "the server's own All entry is not a choice")
+        XCTAssertEqual(options.scores.map(\.value), ["8.5", "8"], "only floors")
+        XCTAssertEqual(options.decades.first, 2020)
+        XCTAssertEqual(options.decades.last, 1950)
+
+        XCTAssertTrue(Filter().isEmpty)
+        let filter = Filter(genre: "drama", country: "US", score: "8.5", decade: 2010)
+        XCTAssertFalse(filter.isEmpty)
+        XCTAssertEqual(filter.parameters(type: "movie"),
+                       #"{"country":"US","genre":"drama","imdb_rate":8.5,"max_year":2019,"min_year":2010,"stream":"true","type":"movie"}"#)
+        XCTAssertEqual(Filter(score: "8").parameters(type: nil), #"{"imdb_rate":8,"stream":"true"}"#)
+    }
+
+    func testUpcomingEpisodesAreSortedSoonestFirst() {
+        func series(_ id: Int, next: String?) -> Post {
+            var air: [String: Any] = ["air_status": "Returning"]
+            if let next { air["next_episode_date"] = ["g": next, "j": "۱۴۰۵-۰۱-۰۱"] }
+            return Post(JSON(["id": id, "title": ["english": "Show \(id)"], "options": ["is_series": true], "air": air] as [String: Any]))!
+        }
+        let now = ISO8601DateFormatter().date(from: "2026-10-13T12:00:00Z")!
+        // The server writes the day out; the plain form is accepted as well.
+        let posts = [series(1, next: "2 November 2026 Monday"), series(2, next: nil), series(3, next: "13 October 2026 Tuesday"),
+                     series(4, next: "1 September 2026 Tuesday"), series(5, next: "2026-10-20"), series(3, next: "13 October 2026 Tuesday")]
+        XCTAssertEqual(Post.upcoming(posts, now: now).map(\.id), [3, 5, 1], "today counts, the past and the undated do not, nothing twice")
+    }
+
     func testBackdropsAreTheBestLiveActionTitlesWithAWidePicture() {
         func entry(_ id: Int, imdb: Double, type: String = "movie", genre: String = "drama", cover: Bool = true) -> [String: Any] {
             var image: [String: Any] = ["poster": ["webp": ["large": "https://example.com/\(id).webp"]]]

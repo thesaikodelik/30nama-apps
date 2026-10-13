@@ -152,9 +152,9 @@ private struct NavBar: View {
             if !nav.opened.isEmpty {
                 Button { nav.back() } label: {
                     Image(systemName: "chevron.backward")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Theme.text1)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .glass(Circle())
                         .contentShape(Circle())
                 }
@@ -187,15 +187,15 @@ private struct NavItem: View {
         Button(action: action) {
             HStack(spacing: 7) {
                 if section.iconOnly || section == .profile {
-                    Image(systemName: section.symbol).font(.system(size: 14, weight: .semibold))
+                    Image(systemName: section.symbol).font(.system(size: 16, weight: .semibold))
                 }
                 if !section.iconOnly {
-                    Text(loc(section.title)).font(.app(14, .semibold))
+                    Text(loc(section.title)).font(.app(15.5, .semibold))
                 }
             }
             .foregroundStyle(selected ? Theme.focusInk : Theme.text1.opacity(hovering ? 1 : 0.78))
-            .padding(.horizontal, section.iconOnly ? 11 : 15)
-            .frame(height: 36)
+            .padding(.horizontal, section.iconOnly ? 13 : 17)
+            .frame(height: 40)
             .background {
                 Capsule(style: .continuous).fill(selected ? Color.white : Color.white.opacity(hovering ? 0.12 : 0))
             }

@@ -133,6 +133,14 @@ struct DetailsView: View {
                     .padding(.horizontal, 18)
                     .frame(height: 46)
                     .glass(Capsule(style: .continuous))
+                    if app.isLoggedIn {
+                        ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
+                            Task { await app.toggleList(post, "watchlist") }
+                        }
+                        ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
+                            Task { await app.toggleList(post, "favorite") }
+                        }
+                    }
                 }
                 .padding(.top, 10)
             }
@@ -169,7 +177,12 @@ struct DetailsView: View {
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 12)], alignment: .leading, spacing: 12) {
                 ForEach(Array(stream.items.enumerated()).filter { $0.element.season == season }, id: \.element.id) { index, item in
-                    EpisodeTile(item: item, resume: stream.resume?.fileID == item.fileID ? stream.resume : nil) { play(at: index) }
+                    EpisodeTile(item: item, resume: stream.resume?.fileID == item.fileID ? stream.resume : nil,
+                                watched: app.watched.contains(item.fileID)) { play(at: index) }
+                        .contextMenu {
+                            let done = app.watched.contains(item.fileID)
+                            Button(loc(done ? .markUnwatched : .markWatched)) { app.setWatched(item.fileID, !done) }
+                        }
                 }
             }
         }
@@ -263,6 +276,7 @@ struct StarRater: View {
 private struct EpisodeTile: View {
     let item: StreamItem
     let resume: ContinueWatching?
+    var watched = false
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -293,6 +307,9 @@ private struct EpisodeTile: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if watched {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.good)
+                }
             }
             .padding(.horizontal, 12)
             .frame(height: 62)
@@ -313,5 +330,33 @@ private struct EpisodeTile: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.14), value: hovering)
+    }
+}
+
+/// A round button that keeps a title on one of the user's 30nama lists: filled in when it is there.
+private struct ListToggle: View {
+    let symbol: String
+    let on: Bool
+    let help: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: on ? symbol + ".fill" : symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(on ? Theme.accent : Theme.text1)
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(Color.white.opacity(hovering ? 0.2 : 0.1)))
+                .glass(Circle())
+                .contentShape(Circle())
+                .scaleEffect(hovering ? 1.06 : 1)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(Theme.focusSpring, value: hovering)
+        .animation(Theme.focusSpring, value: on)
+        .help(help)
     }
 }

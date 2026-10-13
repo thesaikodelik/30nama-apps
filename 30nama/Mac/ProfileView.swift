@@ -13,6 +13,8 @@ struct ProfileView: View {
     @State private var favorites: [Post] = []
     /// The full size of each list; the shelves only show the latest additions.
     @State private var listSizes: [String: Int] = [:]
+    /// Series the user follows that have an episode on the way, soonest first.
+    @State private var upcoming: [Post] = []
 
     private static let gold = Color(hex: 0xF5C518)
     private let columns = [GridItem(.adaptive(minimum: Mac.posterWidth, maximum: Mac.posterWidth + 40), spacing: 20)]
@@ -34,6 +36,11 @@ struct ProfileView: View {
                         if app.ratings.isEmpty { emptyState }
                     }
                     .padding(.horizontal, Mac.edge)
+                    if !upcoming.isEmpty {
+                        Shelf(title: loc(.upcoming), posts: upcoming) { post in
+                            PosterCard(post: post, note: loc.lang == .fa ? post.nextEpisodeDate.jalali : post.nextEpisodeDate.gregorian) { nav.open(post) }
+                        }
+                    }
                     if !picks.isEmpty { shelf(loc(.forYou), picks) }
                     if !watchlist.isEmpty { shelf(loc(.watchlist), watchlist) }
                     if !favorites.isEmpty { shelf(loc(.favorites), favorites) }
@@ -49,7 +56,7 @@ struct ProfileView: View {
             .scrollIndicators(.hidden)
         }
         .task(id: app.ratings) { await refresh() }
-        .task(id: app.user?.id) { await loadLists() }
+        .task(id: "\(app.user?.id ?? "")|\(app.listVersion)") { await loadLists() }
     }
 
     // MARK: Header
@@ -247,5 +254,6 @@ struct ProfileView: View {
         async let liked = app.myList("favorite")
         async let sizes = app.myListSizes()
         (watchlist, favorites, listSizes) = await (watch, liked, sizes)
+        upcoming = await app.upcoming()
     }
 }

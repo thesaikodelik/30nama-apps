@@ -252,6 +252,14 @@ final class AppModel {
 
     @ObservationIgnored private var homeCache: (feed: HomeFeed, at: Date, lang: Lang)?
     @ObservationIgnored private var menuCache: (menu: Menu, lang: Lang)?
+    @ObservationIgnored private var filterCache: (options: FilterOptions, lang: Lang)?
+    /// The ids of the titles in each of the user's 30nama lists ("watchlist", "favorite", "notify").
+    private(set) var lists: [String: Set<Int>] = [:]
+    /// Bumped when a title was put on a list or taken off one.
+    private(set) var listVersion = 0
+    /// Files watched to the end on this device. The server keeps where each title was left, but
+    /// not which episodes are done.
+    private(set) var watched = Set(UserDefaults.standard.stringArray(forKey: "watched") ?? [])
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private let cloudRatings = CloudRatings()
     @ObservationIgnored private var cloudTask: Task<Void, Never>?
@@ -280,6 +288,7 @@ final class AppModel {
             user = saved
             await api.setToken(saved.token)
             Task { await refreshProfile() }
+            Task { await refreshLists() }
         }
         phase = (user != nil || settings.guest) ? .main : .login
         syncRatings()
@@ -308,6 +317,7 @@ final class AppModel {
         contentVersion += 1
         showToast([loc(.welcome), signedIn.name].compactMap { $0 }.joined(separator: " "))
         phase = .main
+        await refreshLists()
     }
 
     func continueAsGuest() {
@@ -336,6 +346,7 @@ final class AppModel {
 
     private func clearSession() {
         user = nil
+        lists = [:]
         SessionStore.clear()
         update { $0.guest = false }
         homeCache = nil
@@ -400,6 +411,71 @@ final class AppModel {
     func myListSizes() async -> [String: Int] {
         guard isLoggedIn, let result = try? await api.get("user_mylist") else { return [:] }
         return (result.object ?? [:]).mapValues { $0["post"].array.count }
+    }
+
+    // MARK: Lists
+
+    /// Reads which titles are on the user's lists, so a title page can show where it stands.
+    func refreshLists() async {
+        guard isLoggedIn, let result = try? await api.get("user_mylist") else { return }
+        lists = (result.object ?? [:]).mapValues { Set($0["post"].array.compactMap(\.int)) }
+    }
+
+    func isListed(_ post: Post, _ group: String) -> Bool {
+        lists[group]?.contains(post.id) ?? false
+    }
+
+    /// Puts a title on one of the user's lists, or takes it off. The server has one action for
+    /// both: it adds what is missing and removes what is there.
+    func toggleList(_ post: Post, _ group: String) async {
+        guard isLoggedIn else { return }
+        let was = isListed(post, group)
+        func set(_ on: Bool) {
+            if on { lists[group, default: []].insert(post.id) } else { lists[group]?.remove(post.id) }
+        }
+        // Answer at once; put it back if the server says no.
+        set(!was)
+        let done = (try? await api.call("user_list", ["action": "add", "group": group, "post_id": String(post.id)]))?.success ?? false
+        if done {
+            listVersion += 1
+        } else {
+            set(was)
+            showToast(loc(.error))
+        }
+    }
+
+    /// Series on the user's watchlist or notify list with an episode still to come, soonest first.
+    func upcoming() async -> [Post] {
+        guard isLoggedIn else { return [] }
+        var posts: [Post] = []
+        for group in ["watchlist", "notify"] {
+            var page = 1, pages = 1
+            // A handful of pages is every list a person keeps; more would only hammer the server.
+            while page <= pages, page <= 4 {
+                guard let result = try? await api.get("user_list", ["action": "list", "group": group, "page": String(page), "orderby": "add_list", "order": "DESC"], background: true) else { break }
+                let next = PostPage(result)
+                posts += next.posts
+                pages = next.pages
+                page += 1
+            }
+        }
+        return Post.upcoming(posts)
+    }
+
+    /// The choices for narrowing a catalogue, as the server offers them in the current language.
+    func filterOptions() async throws -> FilterOptions {
+        if let c = filterCache, c.lang == settings.lang { return c.options }
+        let options = FilterOptions(try await api.get("advanced_search_parameters"))
+        filterCache = (options, settings.lang)
+        return options
+    }
+
+    // MARK: Watched
+
+    func setWatched(_ fileID: String, _ on: Bool) {
+        guard !fileID.isEmpty, watched.contains(fileID) != on else { return }
+        if on { watched.insert(fileID) } else { watched.remove(fileID) }
+        UserDefaults.standard.set(Array(watched), forKey: "watched")
     }
 
     func menu() async throws -> Menu {
