@@ -325,11 +325,14 @@ private struct FileRow: View {
                             .background(Capsule().fill(Color.white.opacity(0.1)))
                         }
                         if let shortfall {
-                            Text(shortfall)
-                                .font(.app(11, .bold))
-                                .foregroundStyle(Color(hex: 0xF5C518))
-                                .padding(.horizontal, 7).frame(height: 19)
-                                .background(Capsule().strokeBorder(Color(hex: 0xF5C518).opacity(0.5), lineWidth: 1))
+                            // In the app's own greys, like the labels beside it; the mark in front sets it apart.
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.circle").font(.system(size: 9, weight: .bold))
+                                Text(shortfall).font(.app(11, .bold))
+                            }
+                            .foregroundStyle(Theme.text2)
+                            .padding(.horizontal, 7).frame(height: 19)
+                            .background(Capsule().fill(Color.white.opacity(0.1)))
                         }
                     }
                 }
