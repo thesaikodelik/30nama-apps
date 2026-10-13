@@ -163,7 +163,7 @@ struct DownloadPicker: View {
                     heading(lines > 0 ? "\(lines)p" : loc(.fileQuality), lines >= 2160 ? "4K" : nil)
                     ForEach(groups[lines] ?? []) { file in
                         FileRow(title: file.quality, detail: [file.encoder].compactMap { $0 }, tags: file.tags, size: file.size,
-                                subtitled: file.subtitle != nil, state: downloads.has(file) ? .listed : .ready) {
+                                subtitled: file.subtitle != nil, shortfall: nil, state: downloads.has(file) ? .listed : .ready) {
                             downloads.start(file, of: post)
                             app.showToast(loc(.downloadStarted))
                             close()
@@ -202,9 +202,12 @@ struct DownloadPicker: View {
         }
         VStack(alignment: .leading, spacing: 8) {
             heading(loc(.fileQuality), loc(.perEpisode))
+            let whole = options.episodes(inSeason: season).count
             ForEach(options.packs.filter { $0.season == season }) { option in
                 FileRow(title: option.quality, detail: [option.encoder].compactMap { $0 }, tags: option.files.first?.tags ?? [], size: option.size,
                         subtitled: option.files.contains { $0.subtitle != nil },
+                        // A pack that lacks episodes says so, and how many it does have.
+                        shortfall: option.files.count < whole ? "\(loc(.incomplete)) · \(loc.num(option.files.count)) \(loc(.ofTotal)) \(loc.num(whole)) \(loc(.episode))" : nil,
                         state: option.id == chosenPack?.id ? .chosen : .choice) {
                     pack = option.id
                 }
@@ -215,15 +218,23 @@ struct DownloadPicker: View {
     /// The episodes of the chosen season in the chosen quality: click one to fetch just that one.
     @ViewBuilder
     private var episodes: some View {
-        if let chosen = chosenPack {
+        if let chosen = chosenPack, let options {
+            let all = options.episodes(inSeason: chosen.season)
             VStack(alignment: .leading, spacing: 10) {
-                heading(loc(.episodes), "\(loc.num(chosen.files.count))")
+                heading(loc(.episodes), chosen.files.count < all.count
+                    ? "\(loc.num(chosen.files.count)) \(loc(.ofTotal)) \(loc.num(all.count))" : loc.num(all.count))
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
-                    ForEach(chosen.files) { file in
-                        EpisodeChip(title: "\(loc(.episode)) \(loc.num(file.episode ?? ""))", listed: downloads.has(file)) {
+                    // Every episode of the season keeps its place. One this quality does not have
+                    // is shown switched off, not left out: a gap reads as a fault in the list.
+                    ForEach(all, id: \.self) { episode in
+                        let file = chosen.files.first { $0.episode == episode }
+                        EpisodeChip(title: "\(loc(.episode)) \(loc.num(episode))", available: file != nil,
+                                    listed: file.map(downloads.has) ?? false) {
+                            guard let file else { return }
                             downloads.start(file, of: post)
                             app.showToast(loc(.downloadStarted))
                         }
+                        .help(file == nil ? loc(.notInPack) : "")
                     }
                 }
             }
@@ -279,6 +290,8 @@ private struct FileRow: View {
     let tags: [String]
     let size: String?
     let subtitled: Bool
+    /// "Incomplete · 2 of 10 episodes", for a pack that lacks some.
+    let shortfall: String?
     let state: Mark
     let action: () -> Void
 
@@ -303,9 +316,20 @@ private struct FileRow: View {
                                 .background(Capsule().fill(Color.white.opacity(0.1)))
                         }
                         if subtitled {
-                            Label(loc(.withSubtitle), systemImage: "captions.bubble.fill")
+                            HStack(spacing: 4) {
+                                Image(systemName: "captions.bubble").font(.system(size: 9, weight: .bold))
+                                Text(loc(.persianSub)).font(.app(11, .bold))
+                            }
+                            .foregroundStyle(Theme.text2)
+                            .padding(.horizontal, 7).frame(height: 19)
+                            .background(Capsule().fill(Color.white.opacity(0.1)))
+                        }
+                        if let shortfall {
+                            Text(shortfall)
                                 .font(.app(11, .bold))
-                                .foregroundStyle(Theme.good)
+                                .foregroundStyle(Color(hex: 0xF5C518))
+                                .padding(.horizontal, 7).frame(height: 19)
+                                .background(Capsule().strokeBorder(Color(hex: 0xF5C518).opacity(0.5), lineWidth: 1))
                         }
                     }
                 }
@@ -340,6 +364,8 @@ private struct FileRow: View {
 /// One episode: click to fetch it. Once it is in the list it wears a tick and takes no more clicks.
 private struct EpisodeChip: View {
     let title: String
+    /// The chosen quality has this episode.
+    var available = true
     let listed: Bool
     let action: () -> Void
 
@@ -349,18 +375,20 @@ private struct EpisodeChip: View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         Button(action: action) {
             HStack(spacing: 7) {
-                Image(systemName: listed ? "checkmark" : "arrow.down.to.line")
+                Image(systemName: !available ? "minus" : listed ? "checkmark" : "arrow.down.to.line")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(listed ? Theme.good : Theme.text2)
                 Text(title).font(.app(13, .semibold)).foregroundStyle(listed ? Theme.text3 : Theme.text1).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 40)
-            .background(shape.fill(Color.white.opacity(listed ? 0.04 : hovering ? 0.2 : 0.09)))
+            .background(shape.fill(Color.white.opacity(!available ? 0.03 : listed ? 0.04 : hovering ? 0.2 : 0.09)))
+            .overlay { if !available { shape.strokeBorder(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 3])) } }
+            .opacity(available ? 1 : 0.38)
             .contentShape(shape)
         }
         .buttonStyle(.plain)
-        .disabled(listed)
+        .disabled(listed || !available)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.14), value: hovering)
     }

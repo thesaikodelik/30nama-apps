@@ -30,6 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
+    case incomplete, notInPack, ofTotal
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -162,6 +163,7 @@ struct Loc: Equatable {
         .fileQuality: "Quality", .saveTo: "Saves to", .perEpisode: "per episode", .wholeSeason: "Download the whole season",
         .getSubtitle: "Get Persian subtitles", .subtitleSaved: "Subtitles saved beside the file",
         .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
+        .incomplete: "Incomplete", .notInPack: "Not available in this quality", .ofTotal: "of",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -227,6 +229,7 @@ struct Loc: Equatable {
         .fileQuality: "کیفیت", .saveTo: "ذخیره در", .perEpisode: "هر قسمت", .wholeSeason: "دانلود کل فصل",
         .getSubtitle: "دریافت زیرنویس فارسی", .subtitleSaved: "زیرنویس کنار فایل ذخیره شد",
         .subtitleMissing: "زیرنویس هماهنگی پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
+        .incomplete: "ناقص", .notInPack: "در این کیفیت موجود نیست", .ofTotal: "از",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -292,6 +295,7 @@ struct Loc: Equatable {
         .fileQuality: "الجودة", .saveTo: "الحفظ في", .perEpisode: "لكل حلقة", .wholeSeason: "تنزيل الموسم كاملًا",
         .getSubtitle: "جلب الترجمة الفارسية", .subtitleSaved: "حُفظت الترجمة بجانب الملف",
         .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",
+        .incomplete: "غير مكتمل", .notInPack: "غير متوفرة بهذه الجودة", .ofTotal: "من",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

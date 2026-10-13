@@ -39,6 +39,22 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(series.packs[0].files[0].fileName, "Show S01E00 Special.mkv", "percent escapes are undone")
         XCTAssertEqual(series.packs[1].files[0].season, 2)
         XCTAssertTrue(DownloadOptions(JSON(["download": NSNull()] as [String: Any])).isEmpty)
+
+        // The server's ids run to eighteen digits; read as numbers, neighbours come out the same.
+        let long = DownloadOptions(try JSON.parse(Data(#"""
+        {"download":{"s1":[
+          {"id":1,"season_int":1,"quality":"1080p","link":[
+            {"dl":"https://example.com/a/Show.S01E01.mkv","episode":1,"id":278294959021668101},
+            {"dl":"https://example.com/a/Show.S01E02.mkv","episode":2,"id":278294959021668102},
+            {"dl":"https://example.com/a/Show.S01E03.mkv","episode":3,"id":278294959021668103}]},
+          {"id":2,"season_int":1,"quality":"720p","link":[
+            {"dl":"https://example.com/b/Show.S01E01.mkv","episode":1,"id":278294959021668201},
+            {"dl":"https://example.com/b/Show.S01E10.mkv","episode":10,"id":278294959021668210}]}
+        ]}}
+        """#.utf8)))
+        XCTAssertEqual(Set(long.packs[0].files.map(\.id)).count, 3, "every file keeps an id of its own")
+        XCTAssertEqual(long.episodes(inSeason: 1), ["1", "2", "3", "10"], "what the season has across all packs, in number order")
+        XCTAssertEqual(long.packs.first { $0.quality == "720p" }?.files.count, 2, "this pack lacks two of the four")
     }
 
     func testFilterBuildsTheParametersAdvancedSearchTakes() throws {

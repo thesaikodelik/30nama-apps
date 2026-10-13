@@ -88,11 +88,21 @@ struct DetailsView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 40) {
             let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-            RemoteImage(url: post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(360 * Display.scale))
-                .frame(width: 240, height: 360)
-                .clipShape(shape)
-                .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
-                .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
+            VStack(spacing: 14) {
+                RemoteImage(url: post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(360 * Display.scale))
+                    .frame(width: 240, height: 360)
+                    .clipShape(shape)
+                    .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
+                    .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
+                // The user's own stars sit with the poster: they are about the title, not one of the things to do with it.
+                VStack(spacing: 4) {
+                    Text(loc(.yourRating)).font(.app(13, .medium)).foregroundStyle(Theme.text3)
+                    StarRater(value: app.ratings.stars(for: post.id)) { app.rate(post, stars: $0) }
+                }
+                .frame(width: 240)
+                .padding(.vertical, 10)
+                .glass(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
 
             VStack(alignment: .leading, spacing: 14) {
                 Text(loc.kindLine(post))
@@ -127,22 +137,18 @@ struct DetailsView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(streamPending)
-                    HStack(spacing: 12) {
-                        Text(loc(.yourRating)).font(.app(15, .medium)).foregroundStyle(Theme.text2)
-                        StarRater(value: app.ratings.stars(for: post.id)) { app.rate(post, stars: $0) }
+                    if app.isLoggedIn {
+                        Button { nav.picking = post } label: {
+                            Label(loc(.download), systemImage: "arrow.down.to.line")
+                        }
+                        .buttonStyle(GlassButtonStyle())
                     }
-                    .padding(.horizontal, 18)
-                    .frame(height: 46)
-                    .glass(Capsule(style: .continuous))
                     if app.isLoggedIn {
                         ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
                             Task { await app.toggleList(post, "watchlist") }
                         }
                         ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
                             Task { await app.toggleList(post, "favorite") }
-                        }
-                        ListToggle(symbol: "arrow.down.to.line", on: false, help: loc(.download), fills: false) {
-                            nav.picking = post
                         }
                     }
                 }

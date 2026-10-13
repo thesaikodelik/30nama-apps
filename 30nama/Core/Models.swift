@@ -717,13 +717,28 @@ struct DownloadOptions {
     var seasons: [Int] { Array(Set(packs.map(\.season))).sorted() }
     var isEmpty: Bool { files.isEmpty && packs.isEmpty }
 
+    /// The server numbers its files with eighteen digits, more than a number here keeps apart:
+    /// several episodes came out with one id and all but one vanished from the list. What a
+    /// file is of, and the name in its address, tell every file from every other.
+    static func identity(_ url: URL, _ season: Int?, _ episode: String?) -> String {
+        "\(season ?? 0)|\(episode ?? "")|\(url.lastPathComponent)"
+    }
+
+    /// Every episode any pack of the season has, in order. A pack that lacks some of them is incomplete.
+    func episodes(inSeason season: Int) -> [String] {
+        var seen = Set<String>()
+        return packs.filter { $0.season == season }.flatMap(\.files).compactMap(\.episode)
+            .filter { seen.insert($0).inserted }
+            .sorted { (Episode.number($0) ?? Int.max, $0) < (Episode.number($1) ?? Int.max, $1) }
+    }
+
     init(_ j: JSON) {
         let root = j["download"]
         func tags(_ entry: JSON) -> [String] { entry["tags"].array.compactMap(\.text) }
         if case .array(let entries) = root {
             files = entries.compactMap { entry in
                 guard let url = entry["dl"].url else { return nil }
-                return DownloadFile(id: entry["id"].string ?? url.absoluteString, url: url, quality: entry["quality"].text ?? "",
+                return DownloadFile(id: DownloadOptions.identity(url, nil, nil), url: url, quality: entry["quality"].text ?? "",
                                     size: entry["size"].text, encoder: entry["encoder"].text, tags: tags(entry),
                                     subtitle: entry["persian_subtitle"].url)
             }
@@ -734,12 +749,12 @@ struct DownloadOptions {
                     let quality = entry["quality"].text ?? ""
                     let links: [DownloadFile] = entry["link"].array.compactMap { link in
                         guard let url = link["dl"].url else { return nil }
-                        return DownloadFile(id: link["id"].string ?? url.absoluteString, url: url, quality: quality,
+                        return DownloadFile(id: DownloadOptions.identity(url, season, link["episode"].string), url: url, quality: quality,
                                             size: entry["size"].text, encoder: entry["encoder"].text, tags: tags(entry),
                                             season: season, episode: link["episode"].string, subtitle: link["persian_subtitle"].url)
                     }
                     guard !links.isEmpty else { continue }
-                    packs.append(Pack(id: entry["id"].string ?? "\(season)-\(quality)-\(packs.count)", season: season, quality: quality,
+                    packs.append(Pack(id: "\(season)-\(quality)-\(entry["encoder"].text ?? "")-\(packs.count)", season: season, quality: quality,
                                       size: entry["size"].text, encoder: entry["encoder"].text, files: links))
                 }
             }
