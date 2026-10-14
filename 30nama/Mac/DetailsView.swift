@@ -17,6 +17,8 @@ struct DetailsView: View {
     @State private var refusal: String?
     @State private var season = 1
     /// The film itself, silently, behind the page once the user has lingered on it.
+    /// The colour the page is lit in, from the title's scene.
+    @State private var sceneTint: Color?
     @State private var teaser: URL?
     @State private var teaserShowing = false
     @Environment(\.calm) private var calm
@@ -29,7 +31,7 @@ struct DetailsView: View {
     var body: some View {
         ZStack {
             Theme.bg0
-            StageView(post: post, dim: 0.3, settle: .zero)
+            StageView(post: post, dim: 0.3, settle: .zero, tint: sceneTint)
             if let teaser {
                 TeaserVideo(url: teaser) { teaserShowing = true }
                     .overlay { teaserScrims }
@@ -52,7 +54,8 @@ struct DetailsView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .environment(\.hue, post.tint)
+        .environment(\.hue, sceneTint ?? post.tint)
+        .task(id: post.id) { sceneTint = await SceneTint.shared.colour(for: post) }
         .task {
             loaded = (try? await app.api.get("single", ["post_id": String(preview.id)])).flatMap { Post($0) }
             await loadStream(quietly: false)
@@ -170,7 +173,7 @@ struct DetailsView: View {
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
                     .tilting(shape, degrees: 7)
-                    .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
+                    .shadow(color: (sceneTint ?? post.tint).opacity(0.4), radius: 40, y: 18)
                     // Held back, frame and all, while the clicked card's poster is still flying to this spot.
                     .opacity(nav.flight?.post.id == post.id ? 0 : 1)
             }

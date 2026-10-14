@@ -61,7 +61,7 @@ struct PlayerView: View {
             }
         }
         .ignoresSafeArea()
-        .environment(\.hue, request.post.tint)
+        .environment(\.hue, SceneTint.shared.known(for: request.post))
         .focusable()
         .focusEffectDisabled()
         .focused($focused)

@@ -8,6 +8,11 @@ typealias PlatformImage = NSImage
 typealias PlatformColor = NSColor
 
 extension NSImage {
+    /// The picture as Core Graphics has it.
+    var picture: CGImage? { cgImage(forProposedRect: nil, context: nil, hints: nil) }
+}
+
+extension NSImage {
     convenience init(cgImage: CGImage) {
         self.init(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
     }
@@ -36,6 +41,11 @@ import UIKit
 
 typealias PlatformImage = UIImage
 typealias PlatformColor = UIColor
+
+extension UIImage {
+    /// The picture as Core Graphics has it.
+    var picture: CGImage? { cgImage }
+}
 
 extension Image {
     init(platformImage: PlatformImage) { self.init(uiImage: platformImage) }

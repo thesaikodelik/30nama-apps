@@ -27,6 +27,12 @@ struct HomeView: View {
     /// How long each featured title is shown.
     private static let turnLength = 12.0
 
+    /// Each featured title's colour, taken from its scene.
+    @State private var tints: [Int: Color] = [:]
+
+    /// The colour the billboard and everything about it is lit in.
+    private var light: Color? { featured.map { tints[$0.id] ?? $0.tint } }
+
     private var featured: Post? {
         guard let heroes = feed?.heroes, !heroes.isEmpty else { return nil }
         return heroes[min(hero, heroes.count - 1)]
@@ -35,7 +41,7 @@ struct HomeView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                StageView(post: featured)
+                StageView(post: featured, tint: light)
                 if let feed {
                     ScrollView(.vertical) {
                         // Lazy, so the billboard is told when it scrolls out of sight and back.
@@ -59,7 +65,15 @@ struct HomeView: View {
             if feed != nil { continuing = await app.continueWatching() }
         }
         .task(id: "\(hero)|\(resting)|\(feed == nil)") { await rotate() }
-        .environment(\.hue, featured?.tint)
+        .environment(\.hue, light)
+        .task(id: featured?.id) {
+            // This title's colour, and the next one's ahead of its turn: that fetches its picture
+            // early too, so the billboard has it ready when it moves on.
+            guard let heroes = feed?.heroes, !heroes.isEmpty else { return }
+            for post in [heroes[min(hero, heroes.count - 1)], heroes[(hero + 1) % heroes.count]] where tints[post.id] == nil {
+                tints[post.id] = await SceneTint.shared.colour(for: post)
+            }
+        }
     }
 
     // MARK: Billboard
@@ -70,7 +84,7 @@ struct HomeView: View {
             if let post = featured {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 9) {
-                        Capsule().fill(post.tint).frame(width: 4, height: 16)
+                        Capsule().fill(light ?? post.tint).frame(width: 4, height: 16)
                         Text("\(loc(.featured)) · \(loc.kindLine(post))")
                             .font(.app(14, .semibold))
                             .foregroundStyle(Theme.text2)
@@ -130,7 +144,7 @@ struct HomeView: View {
                         .frame(width: index == hero ? 44 : 12, height: 4)
                         .overlay(alignment: .leading) {
                             // With motion reduced nothing moves on, so the segment is simply lit.
-                            Capsule().fill(featured?.tint ?? .white)
+                            Capsule().fill(light ?? .white)
                                 .frame(width: index == hero ? (calm ? 44 : max(4, 44 * turn)) : 0, height: 4)
                         }
                         .padding(.vertical, 8)

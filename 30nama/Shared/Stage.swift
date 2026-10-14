@@ -13,6 +13,8 @@ struct StageView: View {
     var settle: Duration = .milliseconds(350)
     /// Paints the dark corner under the text with the title's own colour.
     var glow = true
+    /// That colour, when the page has worked out a better one than the poster's.
+    var tint: Color? = nil
 
     @Environment(\.layoutDirection) private var direction
     @Environment(\.calm) private var calm
@@ -55,10 +57,11 @@ struct StageView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
             // Ambient light: the scrimmed corner is not plain black but glows in the title's colour.
             if glow, let post {
-                RadialGradient(colors: [post.tint.opacity(0.34), post.tint.opacity(0.10), .clear],
+                RadialGradient(colors: [(tint ?? post.tint).opacity(0.34), (tint ?? post.tint).opacity(0.10), .clear],
                                center: rtl ? .bottomTrailing : .bottomLeading, startRadius: 0, endRadius: 1150)
                     .blendMode(.plusLighter)
                     .animation(.easeInOut(duration: 1.0), value: post.id)
+                    .animation(.easeInOut(duration: 1.0), value: tint)
             }
             Color.black.opacity(dim)
         }

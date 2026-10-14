@@ -45,7 +45,7 @@ struct DownloadPicker: View {
             .padding(.top, 60)
             .padding(.bottom, 30)
         }
-        .environment(\.hue, post.tint)
+        .environment(\.hue, SceneTint.shared.known(for: post))
         .task { await load() }
     }
 
