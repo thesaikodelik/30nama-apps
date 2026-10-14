@@ -45,6 +45,7 @@ struct DownloadPicker: View {
             .padding(.top, 60)
             .padding(.bottom, 30)
         }
+        .environment(\.hue, post.tint)
         .task { await load() }
     }
 
@@ -57,7 +58,7 @@ struct DownloadPicker: View {
                 .background(Theme.surface2)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(loc(.download)).font(.app(13, .semibold)).foregroundStyle(Theme.accent)
+                Text(loc(.download)).font(.app(13, .semibold)).foregroundStyle(post.tint)
                 Text(post.title(loc.lang)).font(.app(24, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
                 Text(loc.kindLine(post)).font(.app(13)).foregroundStyle(Theme.text3)
             }
@@ -361,6 +362,7 @@ private struct FileRow: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
+    @Environment(\.hue) private var hue
     @State private var hovering = false
 
     var body: some View {
@@ -370,7 +372,7 @@ private struct FileRow: View {
             HStack(spacing: 14) {
                 Image(systemName: symbol)
                     .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(state == .listed ? Theme.good : state == .chosen ? Theme.accent : Theme.text2)
+                    .foregroundStyle(state == .listed ? Theme.good : state == .chosen ? (hue ?? Theme.accent) : Theme.text2)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.app(15, .bold)).foregroundStyle(Theme.text1).lineLimit(1)

@@ -37,6 +37,7 @@ struct DetailsView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .environment(\.hue, post.tint)
         .task {
             loaded = (try? await app.api.get("single", ["post_id": String(preview.id)])).flatMap { Post($0) }
             await loadStream(quietly: false)
@@ -168,6 +169,7 @@ struct DetailsView: View {
         // The same surface as the buttons around it.
         .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
         .glass(Capsule(style: .continuous))
+        .hueRim(Capsule(style: .continuous))
         .fixedSize()
         if app.isLoggedIn {
             ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
@@ -275,6 +277,7 @@ struct StarRater: View {
     /// Called with the new rating, or nil when the current one is clicked again to clear it.
     let set: (Double?) -> Void
 
+    @Environment(\.hue) private var hue
     @State private var preview: Double?
 
     var body: some View {
@@ -283,7 +286,7 @@ struct StarRater: View {
             ForEach(1...5, id: \.self) { n in
                 Image(systemName: shown >= Double(n) ? "star.fill" : shown >= Double(n) - 0.5 ? "star.leadinghalf.filled" : "star")
                     .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(shown >= Double(n) - 0.5 ? Color(hex: 0xF5C518) : Theme.text3)
+                    .foregroundStyle(shown >= Double(n) - 0.5 ? (hue ?? Color(hex: 0xF5C518)) : Theme.text3)
                     .frame(width: size * 1.35, height: 34)
                     .overlay {
                         HStack(spacing: 0) {
@@ -313,6 +316,7 @@ private struct EpisodeTile: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
+    @Environment(\.hue) private var hue
     @State private var hovering = false
 
     var body: some View {
@@ -322,7 +326,7 @@ private struct EpisodeTile: View {
                 ZStack {
                     Text(loc.num(item.episodeRaw ?? "\(item.episodeNumber)"))
                         .font(.app(20, .heavy))
-                        .foregroundStyle(resume != nil ? Theme.accent : Theme.text2)
+                        .foregroundStyle(resume != nil ? (hue ?? Theme.accent) : Theme.text2)
                         .opacity(hovering ? 0 : 1)
                     Image(systemName: "play.fill")
                         .font(.system(size: 16, weight: .bold))
@@ -350,7 +354,7 @@ private struct EpisodeTile: View {
             .overlay(alignment: .bottomLeading) {
                 if let resume, resume.progress > 0 {
                     GeometryReader { geo in
-                        Capsule().fill(Theme.accent).frame(width: max(8, (geo.size.width - 24) * resume.progress), height: 3)
+                        Capsule().fill(hue ?? Theme.accent).frame(width: max(8, (geo.size.width - 24) * resume.progress), height: 3)
                             .padding(.horizontal, 12)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                             .padding(.bottom, 5)
@@ -375,16 +379,18 @@ private struct ListToggle: View {
     var fills = true
     let action: () -> Void
 
+    @Environment(\.hue) private var hue
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: on && fills ? symbol + ".fill" : symbol)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(on ? Theme.accent : Theme.text1)
+                .foregroundStyle(on ? (hue ?? Theme.accent) : Theme.text1)
                 .frame(width: 46, height: 46)
                 .background(Circle().fill(Color.white.opacity(hovering ? 0.2 : 0.1)))
                 .glass(Circle())
+                .hueRim(Circle())
                 .contentShape(Circle())
                 .scaleEffect(hovering ? 1.06 : 1)
         }

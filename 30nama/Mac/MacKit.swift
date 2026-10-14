@@ -24,19 +24,68 @@ struct PrimaryButtonStyle: ButtonStyle {
     var tint: Color = .white
 
     func makeBody(configuration: Configuration) -> some View {
-        Hovered { hovering in
-            configuration.label
-                .font(.app(16, .bold))
-                .foregroundStyle(tint == .white ? Theme.focusInk : .white)
-                .padding(.horizontal, 26)
-                .frame(height: 46)
-                .background(Capsule(style: .continuous).fill(tint))
-                .shadow(color: tint.opacity(hovering ? 0.45 : 0.2), radius: hovering ? 20 : 10, y: 6)
-                .scaleEffect(configuration.isPressed ? 0.96 : hovering ? 1.04 : 1)
-                .animation(Theme.focusSpring, value: hovering)
-                .animation(Theme.focusSpring, value: configuration.isPressed)
+        Face(configuration: configuration, tint: tint)
+    }
+
+    private struct Face: View {
+        let configuration: Configuration
+        let tint: Color
+
+        @Environment(\.hue) private var hue
+
+        var body: some View {
+            // The light the button throws is the colour of the title it is about.
+            let glow = hue ?? tint
+            Hovered { hovering in
+                configuration.label
+                    .font(.app(16, .bold))
+                    .foregroundStyle(tint == .white ? Theme.focusInk : .white)
+                    .padding(.horizontal, 26)
+                    .frame(height: 46)
+                    .background(Capsule(style: .continuous).fill(tint))
+                    .shadow(color: glow.opacity(hue == nil ? (hovering ? 0.45 : 0.2) : (hovering ? 0.75 : 0.45)), radius: hovering ? 22 : 13, y: 6)
+                    .scaleEffect(configuration.isPressed ? 0.96 : hovering ? 1.04 : 1)
+                    .animation(Theme.focusSpring, value: hovering)
+                    .animation(Theme.focusSpring, value: configuration.isPressed)
+            }
         }
     }
+}
+
+// MARK: - The colour of the title on stage
+
+private struct HueKey: EnvironmentKey {
+    static let defaultValue: Color? = nil
+}
+
+extension EnvironmentValues {
+    /// The colour of the title this part of the window is about, taken from its poster. The
+    /// things that would be the app's red take it instead, and glass gets a rim of it, so each
+    /// title's page is lit in its own colour. Nil where no one title is on stage.
+    var hue: Color? {
+        get { self[HueKey.self] }
+        set { self[HueKey.self] = newValue }
+    }
+}
+
+private struct HueRim<S: InsettableShape>: ViewModifier {
+    let shape: S
+
+    @Environment(\.hue) private var hue
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if let hue {
+                shape.strokeBorder(LinearGradient(colors: [hue.opacity(0.6), hue.opacity(0.1)], startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+extension View {
+    /// A rim in the colour of the title on stage, brightest at the top, for a pane of glass.
+    func hueRim<S: InsettableShape>(_ shape: S) -> some View { modifier(HueRim(shape: shape)) }
 }
 
 /// Everything else: a pane of glass that brightens under the pointer.
@@ -52,6 +101,7 @@ struct GlassButtonStyle: ButtonStyle {
                 .frame(height: height)
                 .background(Capsule(style: .continuous).fill(Color.white.opacity(hovering ? 0.2 : 0.1)))
                 .glass(Capsule(style: .continuous))
+                .hueRim(Capsule(style: .continuous))
                 .scaleEffect(configuration.isPressed ? 0.96 : hovering ? 1.03 : 1)
                 .animation(Theme.focusSpring, value: hovering)
                 .animation(Theme.focusSpring, value: configuration.isPressed)

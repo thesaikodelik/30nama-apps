@@ -20,6 +20,11 @@ protocol Playback: AnyObject {
     var duration: Double { get }
     /// Playing was asked for but the picture is waiting on data.
     var waiting: Bool { get }
+    /// Width over height of the picture as it is shown; zero until that is known.
+    var aspect: Double { get }
+
+    /// The colours along the edges of the frame on screen now, or nil when they cannot be had.
+    func edges() -> PictureEdges?
 
     func load(_ url: URL, at position: Double?)
     func play()
@@ -30,6 +35,46 @@ protocol Playback: AnyObject {
     func setMuted(_ muted: Bool)
     /// Stops for good and lets go of everything.
     func stop()
+}
+
+/// The colours along the four edges of a frame, a few to a side, for the light the player throws
+/// into the black around the picture.
+struct PictureEdges: Equatable {
+    struct Shade: Equatable {
+        var red, green, blue: Double
+    }
+
+    var top: [Shade]
+    var bottom: [Shade]
+    var left: [Shade]
+    var right: [Shade]
+
+    /// Reads them off a small BGRA copy of the frame.
+    init?(_ buffer: CVPixelBuffer) {
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer), stride = CVPixelBufferGetBytesPerRow(buffer)
+        guard width >= 8, height >= 6, let base = CVPixelBufferGetBaseAddress(buffer)?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        func mean(_ xs: Range<Int>, _ ys: Range<Int>) -> Shade {
+            var sum = (0.0, 0.0, 0.0)
+            for y in ys {
+                for x in xs {
+                    let pixel = base + y * stride + x * 4
+                    sum.0 += Double(pixel[2]); sum.1 += Double(pixel[1]); sum.2 += Double(pixel[0])
+                }
+            }
+            let count = Double(max(1, xs.count * ys.count)) * 255
+            return Shade(red: sum.0 / count, green: sum.1 / count, blue: sum.2 / count)
+        }
+        func parts(_ length: Int, _ count: Int) -> [Range<Int>] {
+            (0..<count).map { ($0 * length / count)..<max($0 * length / count + 1, ($0 + 1) * length / count) }
+        }
+        let rim = max(1, height / 6), flank = max(1, width / 8)
+        top = parts(width, 8).map { mean($0, 0..<rim) }
+        bottom = parts(width, 8).map { mean($0, (height - rim)..<height) }
+        left = parts(height, 5).map { mean(0..<flank, $0) }
+        right = parts(height, 5).map { mean((width - flank)..<width, $0) }
+    }
 }
 
 // MARK: - The system's decoder
@@ -47,6 +92,8 @@ final class SystemPlayback: Playback {
     private var statusObservation: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
     private(set) var pip: AVPictureInPictureController?
+    /// Hands out a thumbnail-sized copy of the frame on screen, to read its edge colours from.
+    private var output: AVPlayerItemVideoOutput?
 
     init() {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 4), queue: .main) { [weak self] time in
@@ -69,8 +116,24 @@ final class SystemPlayback: Playback {
 
     var waiting: Bool { player.timeControlStatus == .waitingToPlayAtSpecifiedRate }
 
+    var aspect: Double {
+        guard let size = player.currentItem?.presentationSize, size.height > 0 else { return 0 }
+        return size.width / size.height
+    }
+
+    func edges() -> PictureEdges? {
+        guard let output, let buffer = output.copyPixelBuffer(forItemTime: player.currentTime(), itemTimeForDisplay: nil) else { return nil }
+        return PictureEdges(buffer)
+    }
+
     func load(_ url: URL, at position: Double?) {
         let item = AVPlayerItem(url: url)
+        let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: 48, kCVPixelBufferHeightKey as String: 27,
+        ])
+        item.add(output)
+        self.output = output
         statusObservation = item.observe(\.status) { [weak self] item, _ in
             Task { @MainActor in
                 if item.status == .failed { self?.onFail?() }
@@ -266,7 +329,7 @@ final class MPVPlayback: Playback {
             return
         }
 
-        for name in ["time-pos", "duration"] { mpv_observe_property(handle, 0, name, MPV_FORMAT_DOUBLE) }
+        for name in ["time-pos", "duration", "video-params/aspect"] { mpv_observe_property(handle, 0, name, MPV_FORMAT_DOUBLE) }
         for name in ["paused-for-cache", "seeking"] { mpv_observe_property(handle, 0, name, MPV_FORMAT_FLAG) }
         #if DEBUG
         // Says in the log whether the graphics chip is decoding; when it is not, the processor is, and runs hot.
@@ -373,6 +436,10 @@ final class MPVPlayback: Playback {
     var position: Double { link["time-pos"] }
     var duration: Double { link["duration"] }
     var waiting: Bool { link["paused-for-cache"] > 0 || link["seeking"] > 0 }
+    var aspect: Double { link["video-params/aspect"] }
+
+    /// mpv draws straight to the screen and keeps no copy to read; the light falls back to the title's colour.
+    func edges() -> PictureEdges? { nil }
 
     func load(_ url: URL, at position: Double?) {
         guard mpv != nil else {

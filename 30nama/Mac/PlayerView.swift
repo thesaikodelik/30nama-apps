@@ -29,6 +29,7 @@ struct PlayerView: View {
                             if episodes { episodes = false } else { engine.toggle() }
                             wake()
                         }
+                    AmbientLight(edges: engine.ambient, aspect: engine.aspect, size: geo.size)
                     if engine.buffering {
                         ProgressView().controlSize(.large).tint(.white)
                     }
@@ -50,6 +51,7 @@ struct PlayerView: View {
             }
         }
         .ignoresSafeArea()
+        .environment(\.hue, request.post.tint)
         .focusable()
         .focusEffectDisabled()
         .focused($focused)
@@ -385,12 +387,65 @@ private struct MenuButton<Content: View>: View {
     }
 }
 
+/// The light the picture throws into the black around it: each bar glows, brightest against the
+/// picture, in the colours of the edge it lies along. Where the frame cannot be read, the whole
+/// of it is the title's own colour.
+private struct AmbientLight: View {
+    let edges: PictureEdges?
+    let aspect: Double
+    let size: CGSize
+
+    @Environment(\.hue) private var hue
+    @Environment(\.lively) private var lively
+
+    var body: some View {
+        if aspect > 0, size.width > 0, size.height > 0 {
+            let wide = aspect > size.width / size.height
+            let bar = wide ? (size.height - size.width / aspect) / 2 : 0
+            let flank = wide ? 0 : (size.width - size.height * aspect) / 2
+            ZStack {
+                if bar >= 10 {
+                    VStack(spacing: 0) {
+                        strip(edges?.top, .horizontal).frame(height: bar)
+                            .mask(LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom))
+                        Spacer(minLength: 0)
+                        strip(edges?.bottom, .horizontal).frame(height: bar)
+                            .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+                    }
+                } else if flank >= 10 {
+                    HStack(spacing: 0) {
+                        strip(edges?.left, .vertical).frame(width: flank)
+                            .mask(LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing))
+                        Spacer(minLength: 0)
+                        strip(edges?.right, .vertical).frame(width: flank)
+                            .mask(LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing))
+                    }
+                }
+            }
+            // Left is the picture's left whatever the language of the interface.
+            .environment(\.layoutDirection, .leftToRight)
+            .opacity(0.62)
+            // A slow turn where motion is affordable; elsewhere a short one, so the window is
+            // not being redrawn for most of every two seconds.
+            .animation(.easeInOut(duration: lively ? 1.6 : 0.5), value: edges)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func strip(_ shades: [PictureEdges.Shade]?, _ axis: Axis) -> some View {
+        let colours = shades.map { $0.map { Color(red: min(1, $0.red * 1.3), green: min(1, $0.green * 1.3), blue: min(1, $0.blue * 1.3)) } }
+            ?? [hue ?? .clear, hue ?? .clear].map { $0.opacity(0.55) }
+        return LinearGradient(colors: colours, startPoint: axis == .horizontal ? .leading : .top, endPoint: axis == .horizontal ? .trailing : .bottom)
+    }
+}
+
 /// The timeline: click or drag anywhere on it, and the time under the pointer shows above.
 private struct Scrubber: View {
     let time: Double
     let duration: Double
     let seek: (Double) -> Void
 
+    @Environment(\.hue) private var hue
     @State private var drag: Double?
     @State private var hover: Double?
 
@@ -401,7 +456,7 @@ private struct Scrubber: View {
             let active = drag != nil || hover != nil
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.24)).frame(height: active ? 6 : 4)
-                Capsule().fill(Theme.accent).frame(width: width * fraction, height: active ? 6 : 4)
+                Capsule().fill(hue ?? Theme.accent).frame(width: width * fraction, height: active ? 6 : 4)
                 Circle()
                     .fill(.white)
                     .frame(width: 14, height: 14)
@@ -562,6 +617,7 @@ private struct EpisodeRow: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
+    @Environment(\.hue) private var hue
     @State private var hovering = false
 
     var body: some View {
@@ -569,7 +625,7 @@ private struct EpisodeRow: View {
             HStack(spacing: 12) {
                 Text(loc.num(item.episodeRaw ?? "\(item.episodeNumber)"))
                     .font(.app(15, .heavy))
-                    .foregroundStyle(playing ? Theme.accent : Theme.text2)
+                    .foregroundStyle(playing ? (hue ?? Theme.accent) : Theme.text2)
                     .frame(width: 34)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title(loc.lang) ?? "\(loc(.episode)) \(loc.num(item.episodeNumber))")
@@ -582,7 +638,7 @@ private struct EpisodeRow: View {
                 }
                 Spacer(minLength: 0)
                 if playing {
-                    Image(systemName: "waveform").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.accent)
+                    Image(systemName: "waveform").font(.system(size: 13, weight: .bold)).foregroundStyle(hue ?? Theme.accent)
                 }
             }
             .padding(.horizontal, 10)

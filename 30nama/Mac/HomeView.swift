@@ -50,6 +50,7 @@ struct HomeView: View {
             if feed != nil { continuing = await app.continueWatching() }
         }
         .task(id: "\(hero)|\(resting)|\(feed == nil)") { await rotate() }
+        .environment(\.hue, featured?.tint)
     }
 
     // MARK: Billboard
@@ -60,7 +61,7 @@ struct HomeView: View {
             if let post = featured {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 9) {
-                        Capsule().fill(Theme.accent).frame(width: 4, height: 16)
+                        Capsule().fill(post.tint).frame(width: 4, height: 16)
                         Text("\(loc(.featured)) · \(loc.kindLine(post))")
                             .font(.app(14, .semibold))
                             .foregroundStyle(Theme.text2)
@@ -120,7 +121,7 @@ struct HomeView: View {
                         .frame(width: index == hero ? 44 : 12, height: 4)
                         .overlay(alignment: .leading) {
                             // With motion reduced nothing moves on, so the segment is simply lit.
-                            Capsule().fill(Color.white)
+                            Capsule().fill(featured?.tint ?? .white)
                                 .frame(width: index == hero ? (calm ? 44 : max(4, 44 * turn)) : 0, height: 4)
                         }
                         .padding(.vertical, 8)
