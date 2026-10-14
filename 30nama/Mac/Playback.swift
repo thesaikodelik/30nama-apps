@@ -1,6 +1,7 @@
 import SwiftUI
 import AVKit
 import Libmpv
+import CoreImage
 
 /// What decodes a file, draws its picture and plays its sound. The player above it (the queue of
 /// episodes, subtitles, the skip offers, the controls) is the same whichever of these is at work.
@@ -23,9 +24,6 @@ protocol Playback: AnyObject {
     /// Width over height of the picture as it is shown; zero until that is known.
     var aspect: Double { get }
 
-    /// The colours along the edges of the frame on screen now, or nil when they cannot be had.
-    func edges() -> PictureEdges?
-
     func load(_ url: URL, at position: Double?)
     func play()
     func pause()
@@ -35,46 +33,6 @@ protocol Playback: AnyObject {
     func setMuted(_ muted: Bool)
     /// Stops for good and lets go of everything.
     func stop()
-}
-
-/// The colours along the four edges of a frame, a few to a side, for the light the player throws
-/// into the black around the picture.
-struct PictureEdges: Equatable {
-    struct Shade: Equatable {
-        var red, green, blue: Double
-    }
-
-    var top: [Shade]
-    var bottom: [Shade]
-    var left: [Shade]
-    var right: [Shade]
-
-    /// Reads them off a small BGRA copy of the frame.
-    init?(_ buffer: CVPixelBuffer) {
-        CVPixelBufferLockBaseAddress(buffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
-        let width = CVPixelBufferGetWidth(buffer), height = CVPixelBufferGetHeight(buffer), stride = CVPixelBufferGetBytesPerRow(buffer)
-        guard width >= 8, height >= 6, let base = CVPixelBufferGetBaseAddress(buffer)?.assumingMemoryBound(to: UInt8.self) else { return nil }
-        func mean(_ xs: Range<Int>, _ ys: Range<Int>) -> Shade {
-            var sum = (0.0, 0.0, 0.0)
-            for y in ys {
-                for x in xs {
-                    let pixel = base + y * stride + x * 4
-                    sum.0 += Double(pixel[2]); sum.1 += Double(pixel[1]); sum.2 += Double(pixel[0])
-                }
-            }
-            let count = Double(max(1, xs.count * ys.count)) * 255
-            return Shade(red: sum.0 / count, green: sum.1 / count, blue: sum.2 / count)
-        }
-        func parts(_ length: Int, _ count: Int) -> [Range<Int>] {
-            (0..<count).map { ($0 * length / count)..<max($0 * length / count + 1, ($0 + 1) * length / count) }
-        }
-        let rim = max(1, height / 6), flank = max(1, width / 8)
-        top = parts(width, 8).map { mean($0, 0..<rim) }
-        bottom = parts(width, 8).map { mean($0, (height - rim)..<height) }
-        left = parts(height, 5).map { mean(0..<flank, $0) }
-        right = parts(height, 5).map { mean((width - flank)..<width, $0) }
-    }
 }
 
 // MARK: - The system's decoder
@@ -92,7 +50,7 @@ final class SystemPlayback: Playback {
     private var statusObservation: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
     private(set) var pip: AVPictureInPictureController?
-    /// Hands out a thumbnail-sized copy of the frame on screen, to read its edge colours from.
+    /// Hands out a thumbnail of the frame on screen, for the light around the picture.
     private var output: AVPlayerItemVideoOutput?
 
     init() {
@@ -121,16 +79,21 @@ final class SystemPlayback: Playback {
         return size.width / size.height
     }
 
-    func edges() -> PictureEdges? {
-        guard let output, let buffer = output.copyPixelBuffer(forItemTime: player.currentTime(), itemTimeForDisplay: nil) else { return nil }
-        return PictureEdges(buffer)
+    /// The frame on screen now, 96 by 108, or nil when it has not changed since the last call.
+    func glimpse() -> CVPixelBuffer? {
+        guard let output else { return nil }
+        let time = output.itemTime(forHostTime: CACurrentMediaTime())
+        guard output.hasNewPixelBuffer(forItemTime: time) else { return nil }
+        return output.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: nil)
     }
 
     func load(_ url: URL, at position: Double?) {
         let item = AVPlayerItem(url: url)
         let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: 48, kCVPixelBufferHeightKey as String: 27,
+            // Taller than the picture's shape: the rows are what black bars are looked for in.
+            kCVPixelBufferWidthKey as String: 96, kCVPixelBufferHeightKey as String: 108,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any](),
         ])
         item.add(output)
         self.output = output
@@ -199,6 +162,8 @@ final class SystemPlayback: Playback {
 /// The layer the system's decoder draws into. SwiftUI's own `VideoPlayer` brings the system's controls with it.
 struct SystemSurface: NSViewRepresentable {
     let playback: SystemPlayback
+    /// Fill the black around the picture with the picture itself, blurred.
+    var ambient = true
     let onWindow: (NSWindow?) -> Void
 
     func makeNSView(context: Context) -> SurfaceView {
@@ -206,33 +171,170 @@ struct SystemSurface: NSViewRepresentable {
         view.playerLayer.player = playback.player
         playback.attach(view.playerLayer)
         view.onWindow = onWindow
+        view.light(ambient ? { [weak playback] in playback?.glimpse() } : nil)
         return view
     }
 
-    func updateNSView(_ view: SurfaceView, context: Context) {}
+    func updateNSView(_ view: SurfaceView, context: Context) {
+        view.light(ambient ? { [weak playback] in playback?.glimpse() } : nil)
+    }
+
+    static func dismantleNSView(_ view: SurfaceView, coordinator: ()) {
+        view.light(nil)
+    }
 
     final class SurfaceView: NSView {
         let playerLayer = AVPlayerLayer()
+        /// The frame on screen again, behind the picture and filling the window: a tiny copy,
+        /// taken ten times a second, stretched up and blurred into light. Where the picture
+        /// leaves bars, they glow with what is on screen instead of being black.
+        private let glow = CALayer()
+        /// Keeps black bars that are part of the file itself out of sight: the picture is
+        /// enlarged until they fall outside this, and they are cut away.
+        private let cut = CALayer()
+        /// How much of the frame, top, bottom, left and right, is bars burned into the file.
+        private var trim = Trim()
+        private var watch = Watch()
+
+        struct Trim: Equatable {
+            var top = 0.0, bottom = 0.0, left = 0.0, right = 0.0
+        }
+
+        /// What the frames seen so far say about the bars: the fewest black rows and columns at
+        /// each edge of any frame bright enough to tell. A dark scene proves nothing; a single
+        /// bright one with picture at an edge is enough to keep that edge.
+        private struct Watch {
+            var top = Int.max, bottom = Int.max, left = Int.max, right = Int.max
+            var frames = 0
+        }
+        private static let shrink: CGFloat = 24
+        private var timer: Timer?
+        /// The last two frames shown, kept so their memory is not handed back while on screen.
+        private var held: [CVPixelBuffer] = []
         var onWindow: ((NSWindow?) -> Void)?
 
         override init(frame: NSRect) {
             super.init(frame: frame)
             wantsLayer = true
+            layerUsesCoreImageFilters = true
             let root = CALayer()
             root.backgroundColor = NSColor.black.cgColor
             layer = root
+            glow.contentsGravity = .resize
+            glow.magnificationFilter = .linear
+            glow.opacity = 0.55
+            glow.filters = [CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.5])].compactMap { $0 }
+            glow.isHidden = true
+            root.addSublayer(glow)
             playerLayer.videoGravity = .resizeAspect
+            cut.backgroundColor = NSColor.black.cgColor
+            playerLayer.mask = cut
             root.addSublayer(playerLayer)
+        }
+
+        /// Turns the light around the picture on, with where to take frames from, or off.
+        func light(_ source: (() -> CVPixelBuffer?)?) {
+            guard let source else {
+                timer?.invalidate()
+                timer = nil
+                held = []
+                glow.contents = nil
+                glow.isHidden = true
+                watch = Watch()
+                if trim != Trim() {
+                    trim = Trim()
+                    needsLayout = true
+                }
+                return
+            }
+            guard timer == nil else { return }
+            glow.isHidden = false
+            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let frame = source(), let surface = CVPixelBufferGetIOSurface(frame)?.takeUnretainedValue() else { return }
+                    self.held = [frame] + self.held.prefix(1)
+                    // Left to animate: each new frame fades over the last, which smooths the steps.
+                    self.glow.contents = surface
+                    self.look(at: frame)
+                }
+            }
+        }
+
+        /// Counts the black rows and columns at the edges of a frame, and once a second and a
+        /// half of bright frames agree, cuts that much away.
+        private func look(at frame: CVPixelBuffer) {
+            CVPixelBufferLockBaseAddress(frame, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(frame, .readOnly) }
+            let width = CVPixelBufferGetWidth(frame), height = CVPixelBufferGetHeight(frame), rowBytes = CVPixelBufferGetBytesPerRow(frame)
+            guard width > 8, height > 8, let base = CVPixelBufferGetBaseAddress(frame)?.assumingMemoryBound(to: UInt8.self) else { return }
+            func bright(_ x: Int, _ y: Int) -> Int {
+                let pixel = base + y * rowBytes + x * 4
+                return max(Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
+            }
+            // Too dark a frame cannot tell a bar from a night sky.
+            var sum = 0
+            for y in stride(from: height / 4, to: height * 3 / 4, by: 4) {
+                for x in stride(from: width / 4, to: width * 3 / 4, by: 4) { sum += bright(x, y) }
+            }
+            let samples = max(1, ((height / 2) / 4) * ((width / 2) / 4))
+            guard sum / samples > 45 else { return }
+            func blackRow(_ y: Int) -> Bool { (0..<width).allSatisfy { bright($0, y) < 26 } }
+            func blackColumn(_ x: Int) -> Bool { (0..<height).allSatisfy { bright(x, $0) < 26 } }
+            let limit = 0.3
+            var top = 0; while top < Int(Double(height) * limit), blackRow(top) { top += 1 }
+            var bottom = 0; while bottom < Int(Double(height) * limit), blackRow(height - 1 - bottom) { bottom += 1 }
+            var left = 0; while left < Int(Double(width) * limit), blackColumn(left) { left += 1 }
+            var right = 0; while right < Int(Double(width) * limit), blackColumn(width - 1 - right) { right += 1 }
+            watch.top = min(watch.top, top); watch.bottom = min(watch.bottom, bottom)
+            watch.left = min(watch.left, left); watch.right = min(watch.right, right)
+            watch.frames += 1
+            guard watch.frames >= 15 else { return }
+            let found = Trim(top: Double(watch.top) / Double(height), bottom: Double(watch.bottom) / Double(height),
+                             left: Double(watch.left) / Double(width), right: Double(watch.right) / Double(width))
+            guard found != trim else { return }
+            trim = found
+            // The bars slide away rather than vanish.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.6
+                context.allowsImplicitAnimation = true
+                self.place(animated: true)
+            }
         }
 
         required init?(coder: NSCoder) { fatalError("not used") }
 
         override func layout() {
             super.layout()
-            // No implicit animation, or the picture lags behind the window while it is resized.
+            place(animated: false)
+        }
+
+        /// Lays the picture out, enlarged by whatever bars are burned into it so that only the
+        /// picture proper is fitted to the window, and the bars are cut away.
+        private func place(animated: Bool) {
             CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            playerLayer.frame = bounds
+            // No implicit animation on a resize, or the picture lags behind the window.
+            CATransaction.setDisableActions(!animated)
+            if animated { CATransaction.setAnimationDuration(0.6) }
+            let size = playerLayer.player?.currentItem?.presentationSize ?? .zero
+            if size.width > 0, size.height > 0, trim != Trim() {
+                let inner = CGSize(width: size.width * (1 - trim.left - trim.right), height: size.height * (1 - trim.top - trim.bottom))
+                let scale = min(bounds.width / inner.width, bounds.height / inner.height)
+                let shown = CGRect(x: bounds.midX - inner.width * scale / 2, y: bounds.midY - inner.height * scale / 2,
+                                   width: inner.width * scale, height: inner.height * scale)
+                // The layer's origin is its bottom-left corner, and the frame's first rows are its top.
+                playerLayer.frame = CGRect(x: shown.minX - size.width * trim.left * scale, y: shown.minY - size.height * trim.bottom * scale,
+                                           width: size.width * scale, height: size.height * scale)
+                cut.frame = CGRect(x: size.width * trim.left * scale, y: size.height * trim.bottom * scale, width: shown.width, height: shown.height)
+            } else {
+                playerLayer.frame = bounds
+                cut.frame = playerLayer.bounds
+            }
+            // Laid out small and scaled up, so the blur is worked out on a few pixels and the
+            // stretch does the rest; a touch larger than the window, so its soft rim falls outside.
+            let shrink = SurfaceView.shrink
+            glow.bounds = CGRect(x: 0, y: 0, width: bounds.width / shrink, height: bounds.height / shrink)
+            glow.position = CGPoint(x: bounds.midX, y: bounds.midY)
+            glow.transform = CATransform3DMakeScale(shrink * 1.08, shrink * 1.08, 1)
             CATransaction.commit()
         }
 
@@ -438,8 +540,6 @@ final class MPVPlayback: Playback {
     var waiting: Bool { link["paused-for-cache"] > 0 || link["seeking"] > 0 }
     var aspect: Double { link["video-params/aspect"] }
 
-    /// mpv draws straight to the screen and keeps no copy to read; the light falls back to the title's colour.
-    func edges() -> PictureEdges? { nil }
 
     func load(_ url: URL, at position: Double?) {
         guard mpv != nil else {

@@ -30,7 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
-    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits
+    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, ambientLight
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -166,7 +166,7 @@ struct Loc: Equatable {
         .incomplete: "Incomplete", .notInPack: "Not available in this quality", .ofTotal: "of",
         .removeFromList: "Remove from list", .moveToTrash: "Remove from list and delete file",
         .topFilms: "Top 10 Films", .topSeries: "Top 10 Series",
-        .intro: "Intro", .recap: "Recap", .credits: "Credits",
+        .intro: "Intro", .recap: "Recap", .credits: "Credits", .ambientLight: "Ambient light instead of black bars",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -235,7 +235,7 @@ struct Loc: Equatable {
         .incomplete: "ناقص", .notInPack: "در این کیفیت موجود نیست", .ofTotal: "از",
         .removeFromList: "حذف از فهرست", .moveToTrash: "حذف از فهرست و فایل",
         .topFilms: "۱۰ فیلم برتر", .topSeries: "۱۰ سریال برتر",
-        .intro: "تیتراژ", .recap: "خلاصهٔ قسمت قبل", .credits: "تیتراژ پایانی",
+        .intro: "تیتراژ", .recap: "خلاصهٔ قسمت قبل", .credits: "تیتراژ پایانی", .ambientLight: "نور محیطی به‌جای نوار سیاه",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -304,7 +304,7 @@ struct Loc: Equatable {
         .incomplete: "غير مكتمل", .notInPack: "غير متوفرة بهذه الجودة", .ofTotal: "من",
         .removeFromList: "إزالة من القائمة", .moveToTrash: "إزالة من القائمة وحذف الملف",
         .topFilms: "أفضل 10 أفلام", .topSeries: "أفضل 10 مسلسلات",
-        .intro: "المقدمة", .recap: "ملخص الحلقة السابقة", .credits: "شارة النهاية",
+        .intro: "المقدمة", .recap: "ملخص الحلقة السابقة", .credits: "شارة النهاية", .ambientLight: "إضاءة محيطة بدل الأشرطة السوداء",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

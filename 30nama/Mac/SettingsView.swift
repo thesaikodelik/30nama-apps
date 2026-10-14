@@ -112,8 +112,14 @@ struct SettingsView: View {
             row(loc(.autoplay)) {
                 toggle(app.settings.autoplayNext) { value in app.update { $0.autoplayNext = value } }
             }
+            row(loc(.ambientLight)) {
+                toggle(ambientLight) { ambientLight = $0 }
+            }
         }
     }
+
+    /// Read by the player; kept on this Mac only, like the other things that are about the screen.
+    @AppStorage("ambientLight") private var ambientLight = true
 
     @Environment(Downloads.self) private var downloads
 

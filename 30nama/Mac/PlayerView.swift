@@ -12,6 +12,8 @@ struct PlayerView: View {
     @Environment(\.loc) private var loc
 
     @State private var engine: PlayerEngine?
+    /// The setting for light around the picture instead of black bars.
+    @AppStorage("ambientLight") private var ambientLight = true
     @State private var controls = true
     @State private var episodes = false
     @State private var hideTask: Task<Void, Never>?
@@ -29,7 +31,9 @@ struct PlayerView: View {
                             if episodes { episodes = false } else { engine.toggle() }
                             wake()
                         }
-                    AmbientLight(edges: engine.ambient, aspect: engine.aspect, size: geo.size)
+                    if ambientLight, engine.playback is MPVPlayback {
+                        AmbientLight(aspect: engine.aspect, size: geo.size)
+                    }
                     // Until the picture moves, the title's own artwork stands in for it, so the
                     // page the user came from dissolves into the film rather than into black.
                     if !engine.started {
@@ -91,7 +95,7 @@ struct PlayerView: View {
         if let mpv = engine.playback as? MPVPlayback {
             MPVSurface(playback: mpv) { engine.attach(window: $0) }.id("mpv")
         } else if let system = engine.playback as? SystemPlayback {
-            SystemSurface(playback: system) { engine.attach(window: $0) }.id(ObjectIdentifier(system))
+            SystemSurface(playback: system, ambient: ambientLight) { engine.attach(window: $0) }.id(ObjectIdentifier(system))
         }
     }
 
@@ -399,55 +403,38 @@ private struct MenuButton<Content: View>: View {
     }
 }
 
-/// The light the picture throws into the black around it: each bar glows, brightest against the
-/// picture, in the colours of the edge it lies along. Where the frame cannot be read, the whole
-/// of it is the title's own colour.
+/// The light around the picture for a file mpv plays: mpv draws straight to the screen and
+/// keeps no copy to fill the bars with, so they glow in the title's own colour instead,
+/// brightest against the picture.
 private struct AmbientLight: View {
-    let edges: PictureEdges?
     let aspect: Double
     let size: CGSize
 
     @Environment(\.hue) private var hue
-    @Environment(\.lively) private var lively
 
     var body: some View {
-        if aspect > 0, size.width > 0, size.height > 0 {
+        if let hue, aspect > 0, size.width > 0, size.height > 0 {
             let wide = aspect > size.width / size.height
             let bar = wide ? (size.height - size.width / aspect) / 2 : 0
             let flank = wide ? 0 : (size.width - size.height * aspect) / 2
-            ZStack {
+            Group {
                 if bar >= 10 {
                     VStack(spacing: 0) {
-                        strip(edges?.top, .horizontal).frame(height: bar)
-                            .mask(LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom))
+                        LinearGradient(colors: [hue.opacity(0.08), hue.opacity(0.4)], startPoint: .top, endPoint: .bottom).frame(height: bar)
                         Spacer(minLength: 0)
-                        strip(edges?.bottom, .horizontal).frame(height: bar)
-                            .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+                        LinearGradient(colors: [hue.opacity(0.4), hue.opacity(0.08)], startPoint: .top, endPoint: .bottom).frame(height: bar)
                     }
                 } else if flank >= 10 {
                     HStack(spacing: 0) {
-                        strip(edges?.left, .vertical).frame(width: flank)
-                            .mask(LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing))
+                        LinearGradient(colors: [hue.opacity(0.08), hue.opacity(0.4)], startPoint: .leading, endPoint: .trailing).frame(width: flank)
                         Spacer(minLength: 0)
-                        strip(edges?.right, .vertical).frame(width: flank)
-                            .mask(LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing))
+                        LinearGradient(colors: [hue.opacity(0.4), hue.opacity(0.08)], startPoint: .leading, endPoint: .trailing).frame(width: flank)
                     }
                 }
             }
-            // Left is the picture's left whatever the language of the interface.
             .environment(\.layoutDirection, .leftToRight)
-            .opacity(0.62)
-            // A slow turn where motion is affordable; elsewhere a short one, so the window is
-            // not being redrawn for most of every two seconds.
-            .animation(.easeInOut(duration: lively ? 1.6 : 0.5), value: edges)
             .allowsHitTesting(false)
         }
-    }
-
-    private func strip(_ shades: [PictureEdges.Shade]?, _ axis: Axis) -> some View {
-        let colours = shades.map { $0.map { Color(red: min(1, $0.red * 1.3), green: min(1, $0.green * 1.3), blue: min(1, $0.blue * 1.3)) } }
-            ?? [hue ?? .clear, hue ?? .clear].map { $0.opacity(0.55) }
-        return LinearGradient(colors: colours, startPoint: axis == .horizontal ? .leading : .top, endPoint: axis == .horizontal ? .trailing : .bottom)
     }
 }
 

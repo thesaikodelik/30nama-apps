@@ -33,10 +33,8 @@ final class PlayerEngine {
     /// What the user asked for; the picture may still be waiting on the network.
     private(set) var playing = true
     private(set) var buffering = true
-    /// Width over height of the picture, and the colours along its edges, for the light around it.
+    /// Width over height of the picture, for the light around it.
     private(set) var aspect = 0.0
-    private(set) var ambient: PictureEdges?
-    @ObservationIgnored private var ticks = 0
     /// The picture is moving: the clock has gone forward between two looks at it. Until then
     /// the player shows the title's own artwork instead of a black window.
     private(set) var started = false
@@ -348,9 +346,6 @@ final class PlayerEngine {
         }
         let shape = playback.aspect
         if shape > 0, abs(shape - aspect) > 0.001 { aspect = shape }
-        // The light around the picture follows the scene, looked at every two seconds.
-        ticks += 1
-        if ticks % 8 == 1, let edges = playback.edges(), edges != ambient { ambient = edges }
         let active = system?.pip?.isPictureInPictureActive ?? false
         if active != pictureInPicture { pictureInPicture = active }
 
