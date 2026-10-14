@@ -124,7 +124,8 @@ struct MainView: View {
         }
         .background { shortcuts }
         .overlay(alignment: .top) {
-            NavBar().padding(.top, 14).zIndex(2)
+            // Clear of the window's edge, with the same air above it as the window's own buttons have.
+            NavBar().padding(.top, 22).zIndex(2)
         }
         .overlay {
             // Placed by the window's own left and top, whatever way the language reads; the card

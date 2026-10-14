@@ -64,8 +64,9 @@ struct RootView: View {
             Theme.bg0.ignoresSafeArea()
             switch app.phase {
             case .booting:
-                // Only seen when retrying after a failed start; the first start is covered by the opening title.
-                ProgressView()
+                // Only when retrying after a failed start: the first start is under the opening title,
+                // whose glass would show a spinner through it.
+                if splashGone { ProgressView() }
             case .failed:
                 ErrorState(message: "\(app.loc(.noConnection)). \(app.loc(.tryAgain))") {
                     Task { await app.boot() }
