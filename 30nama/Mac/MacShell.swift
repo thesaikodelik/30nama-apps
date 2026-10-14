@@ -62,6 +62,8 @@ final class MacNav {
     private(set) var opened: [MacRoute] = []
     /// The title a download is being chosen for, when that pane is up.
     var picking: Post?
+    /// The quick-search bar is up.
+    var palette = false
     /// The poster the pointer has rested on, while its card is up.
     var peek: Peek?
     /// The poster in flight to the page being opened, until it lands.
@@ -89,7 +91,7 @@ final class MacNav {
 
     func back() {
         peek = nil
-        if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
+        if palette { palette = false } else if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
     }
 
     func go(_ section: MacSection) {
@@ -169,6 +171,12 @@ struct MainView: View {
                     .transition(.opacity)
             }
         }
+        .overlay {
+            if nav.palette {
+                CommandPalette().transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: nav.palette)
         .animation(.easeOut(duration: 0.22), value: nav.picking?.id)
         .animation(.easeOut(duration: 0.28), value: nav.opened.last)
         .environment(nav)
@@ -212,13 +220,18 @@ struct MainView: View {
         }
     }
 
-    /// The keyboard's way around: ⌘1 to ⌘9 for the sections, ⌘F to search, ⌘[ to step back.
+    /// The keyboard's way around: ⌘1 to ⌘9 for the sections, ⌘K to find anything, ⌘F to search, ⌘[ to step back.
     private var shortcuts: some View {
         Group {
             ForEach(Array(MacSection.allCases.enumerated()), id: \.offset) { index, section in
                 Button("") { nav.go(section) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
             }
+            Button("") {
+                nav.peek = nil
+                nav.palette.toggle()
+            }
+            .keyboardShortcut("k", modifiers: .command)
             Button("") { nav.go(.search) }.keyboardShortcut("f", modifiers: .command)
             Button("") { nav.back() }.keyboardShortcut("[", modifiers: .command)
         }

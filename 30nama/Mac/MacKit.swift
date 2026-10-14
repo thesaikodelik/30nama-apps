@@ -284,7 +284,9 @@ struct PosterCard: View {
         .task(id: hovering) {
             guard hovering, let nav else { return }
             try? await Task.sleep(for: .milliseconds(700))
-            guard !Task.isCancelled, spot.frame.width > 0, Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
+            // Not under a pane that has the window: the pointer there is not on this poster.
+            guard !Task.isCancelled, spot.frame.width > 0, !nav.palette, nav.picking == nil,
+                  Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
             nav.peek = Peek(post: post, frame: spot.frame)
         }
         .animation(Theme.focusSpring, value: hovering)
