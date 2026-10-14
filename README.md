@@ -4,7 +4,7 @@
 
 <h1 dir="rtl">۳۰نما برای مک و Apple TV</h1>
 
-<p dir="rtl">برنامهٔ غیررسمی و بومی ۳۰نما برای مک و Apple TV، نوشته‌شده با SwiftUI.</p>
+<p dir="rtl">برنامهٔ غیررسمی و بومی یا بروزی ۳۰نما برای مک و Apple TV، نوشته‌شده با SwiftUI.</p>
 
 <p>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%201.1.0-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
