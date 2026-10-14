@@ -52,7 +52,7 @@
 
 ### نصب
 
-فایل `30nama-mac-1.0.0.dmg` را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-tvos/releases/latest) بگیرید.
+فایل `30nama-mac-1.0.0.dmg` را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
@@ -208,7 +208,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 
 چیزی که نداریم خود Apple TV است. هر چه خودمان دیده‌ایم روی شبیه‌ساز بوده، و دکمهٔ «قسمت بعد» را فقط در حالت دمو دیده‌ایم. اولین خبر از دستگاه واقعی را یکی از همکاران داد: پخش روی Apple TV با دو HomePod صدا نداشت. همان همکار درستش کرد و حالا پخش با میکس استریو شروع می‌شود.
 
-نسخهٔ مک را می‌شود از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-tvos/releases/latest) نصب کرد. برنامهٔ Apple TV هنوز منتشر نشده است. برنامه غیررسمی است و با نام و لوگوی ۳۰نما کار می‌کند، پس قدم بعدی‌اش به خود ۳۰نما بستگی دارد. فعلاً راه نصبش ساختن از روی همین کد است.
+نسخهٔ مک را می‌شود از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) نصب کرد. برنامهٔ Apple TV هنوز منتشر نشده است. برنامه غیررسمی است و با نام و لوگوی ۳۰نما کار می‌کند، پس قدم بعدی‌اش به خود ۳۰نما بستگی دارد. فعلاً راه نصبش ساختن از روی همین کد است.
 
 اگر از ۳۰نما این را می‌خوانید: با اضافه شدن امتیاز دادن، پروفایل عمومی و دنبال کردن به API تلویزیون، نیمهٔ دیگر این نقشه هم ساختنی است. کد با مجوز MIT همین‌جاست و برای رسمی شدنش هر کمکی از دستمان بربیاید می‌کنیم.
 
@@ -221,7 +221,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 <div dir="ltr">
 
 ```
-git clone https://github.com/thesaikodelik/30nama-tvos.git
+git clone https://github.com/thesaikodelik/30nama-apps.git
 ```
 
 </div>
