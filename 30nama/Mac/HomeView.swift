@@ -11,6 +11,10 @@ struct HomeView: View {
 
     @State private var feed: HomeFeed?
     @State private var continuing: [Post] = []
+    /// The ten best-loved films and series. The home feed no longer names a top ten of its own,
+    /// so these are the first ten of the catalogue's "most popular" order.
+    @State private var top: [String: [Post]] = HomeView.topCache
+    private static var topCache: [String: [Post]] = [:]
     @State private var failed = false
     @State private var hero = 0
     /// The pointer is on the billboard: someone is reading it, so it should not move on.
@@ -168,7 +172,16 @@ struct HomeView: View {
             }
             ForEach(feed.sections) { section in
                 Shelf(title: loc.title(forSection: section.key), posts: section.posts) { post in
-                    PosterCard(post: post) { nav.open(post) }
+                    if section.key == "top_10" {
+                        RankedCard(rank: (section.posts.firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
+                    } else {
+                        PosterCard(post: post) { nav.open(post) }
+                    }
+                }
+                // The two top tens sit under the first shelf, before the long lists begin.
+                if section.id == feed.sections.first?.id, feed.posts("top_10").isEmpty {
+                    ranked(loc(.topFilms), top["movies"] ?? [])
+                    ranked(loc(.topSeries), top["series"] ?? [])
                 }
             }
         }
@@ -184,6 +197,15 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
+    private func ranked(_ title: String, _ posts: [Post]) -> some View {
+        if !posts.isEmpty {
+            Shelf(title: title, posts: posts, step: 4) { post in
+                RankedCard(rank: (posts.firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
+            }
+        }
+    }
+
     // MARK: Data
 
     private func load() async {
@@ -196,5 +218,17 @@ struct HomeView: View {
         } catch {
             if feed == nil { failed = true }
         }
+        await loadTop()
+    }
+
+    /// Asked for once and kept for as long as the app runs: the order changes slowly, and the
+    /// page is not waiting on it.
+    private func loadTop() async {
+        guard top.isEmpty else { return }
+        for slug in ["movies", "series"] {
+            guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": "1", "page": "1", "orderby": "favorite", "order": "desc"], background: true) else { continue }
+            top[slug] = Array(PostPage(result).posts.prefix(10))
+        }
+        HomeView.topCache = top
     }
 }

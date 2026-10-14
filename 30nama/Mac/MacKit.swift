@@ -229,12 +229,21 @@ struct PosterCard: View {
     @Environment(\.lively) private var lively
     @Environment(MacNav.self) private var nav: MacNav?
     @State private var hovering = false
-    /// Where the card is in the window, noted as the pointer comes onto it.
-    @State private var frame = CGRect.zero
+    /// Where the card is in the window. Kept outside the view's state: it changes with every
+    /// scroll and nothing is drawn from it.
+    @State private var spot = Spot()
+
+    private final class Spot {
+        var frame = CGRect.zero
+    }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Mac.radius, style: .continuous)
-        Button(action: action) {
+        Button {
+            // The poster leaves from here for the title's page.
+            if spot.frame.width > 0 { nav?.flight = Flight(post: post, from: spot.frame) }
+            action()
+        } label: {
             RemoteImage(url: post.poster.url(forWidth: width * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(width * 1.5 * Display.scale))
                 .frame(width: width, height: width * 1.5)
                 // A poster that has not arrived yet is still a tile, not a hole in the row.
@@ -266,17 +275,17 @@ struct PosterCard: View {
         .onHover { hovering = $0 }
         .background {
             GeometryReader { geo in
-                Color.clear.onChange(of: hovering) { _, on in
-                    if on { frame = geo.frame(in: .named(MainView.space)) }
-                }
+                Color.clear
+                    .onAppear { spot.frame = geo.frame(in: .named(MainView.space)) }
+                    .onChange(of: geo.frame(in: .named(MainView.space))) { _, new in spot.frame = new }
             }
         }
         // The pointer has come to rest here: open the card that says more about the title.
         .task(id: hovering) {
             guard hovering, let nav else { return }
             try? await Task.sleep(for: .milliseconds(700))
-            guard !Task.isCancelled, frame.width > 0, Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
-            nav.peek = Peek(post: post, frame: frame)
+            guard !Task.isCancelled, spot.frame.width > 0, Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
+            nav.peek = Peek(post: post, frame: spot.frame)
         }
         .animation(Theme.focusSpring, value: hovering)
         .zIndex(hovering ? 1 : 0)
@@ -402,7 +411,7 @@ struct PeekCard: View {
                         }
                     }
                     Spacer(minLength: 0)
-                    round("chevron.forward", lit: false, help: loc(.details)) { nav.open(post) }
+                    round("chevron.forward", lit: false, help: loc(.details)) { nav.open(post, from: peek.frame) }
                 }
             }
             .padding(.horizontal, 16)
@@ -417,7 +426,7 @@ struct PeekCard: View {
         .shadow(color: post.tint.opacity(0.35), radius: 40, y: 20)
         .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
         .contentShape(shape)
-        .onTapGesture { nav.open(post) }
+        .onTapGesture { nav.open(post, from: peek.frame) }
         .environment(\.hue, post.tint)
         .environment(\.layoutDirection, direction)
         .position(x: rect.midX, y: rect.midY)
@@ -446,6 +455,47 @@ struct PeekCard: View {
         .buttonStyle(.plain)
         .help(help)
     }
+}
+
+// MARK: - The poster in flight
+
+/// The poster of a title being opened, travelling from the card that was clicked to where the
+/// page keeps it. The page holds its own copy back until this one has landed on that spot.
+struct FlyingPoster: View {
+    let flight: Flight
+    let bounds: CGSize
+    let rtl: Bool
+
+    @Environment(MacNav.self) private var nav
+    @State private var landed = false
+
+    /// Where the title's page puts its poster.
+    static func landing(in bounds: CGSize, rtl: Bool) -> CGRect {
+        CGRect(x: rtl ? bounds.width - Mac.edge - DetailsLayout.poster.width : Mac.edge, y: DetailsLayout.top,
+               width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
+    }
+
+    var body: some View {
+        let rect = landed ? FlyingPoster.landing(in: bounds, rtl: rtl) : flight.from
+        // The card's own picture: it is in memory already, so the flight never starts blank.
+        RemoteImage(url: flight.post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: flight.post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
+            .frame(width: rect.width, height: rect.height)
+            .clipShape(RoundedRectangle(cornerRadius: landed ? 16 : Mac.radius, style: .continuous))
+            .shadow(color: flight.post.tint.opacity(0.4), radius: 40, y: 18)
+            .position(x: rect.midX, y: rect.midY)
+            .allowsHitTesting(false)
+            .task {
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.86)) { landed = true }
+                try? await Task.sleep(for: .milliseconds(640))
+                nav.flight = nil
+            }
+    }
+}
+
+/// Where the title's page lays its poster out, shared with the poster that flies there.
+enum DetailsLayout {
+    static let poster = CGSize(width: 240, height: 360)
+    static let top: CGFloat = 130
 }
 
 // MARK: - A card that leans to the pointer
@@ -492,6 +542,33 @@ private struct Tilt<S: Shape>: ViewModifier {
 extension View {
     /// Makes a card lean to the pointer and catch the light. See `Tilt`.
     func tilting<S: Shape>(_ shape: S, degrees: Double = 9) -> some View { modifier(Tilt(shape: shape, degrees: degrees)) }
+}
+
+/// A poster with its place in the top ten beside it, in figures as tall as the poster. The
+/// figure is a quiet grey until the pointer is on the card, and then takes the title's colour.
+struct RankedCard: View {
+    let rank: Int
+    let post: Post
+    let action: () -> Void
+
+    @Environment(\.loc) private var loc
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: -24) {
+            Text(loc.num(rank))
+                .font(.app(170, .heavy))
+                .foregroundStyle(LinearGradient(
+                    colors: hovering ? [post.tint, post.tint.opacity(0.4)] : [Theme.text1.opacity(0.5), Theme.text1.opacity(0.07)],
+                    startPoint: .top, endPoint: .bottom))
+                .fixedSize()
+                .frame(height: Mac.posterWidth * 1.5)
+                .environment(\.layoutDirection, .leftToRight)
+            PosterCard(post: post, action: action)
+        }
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.2), value: hovering)
+    }
 }
 
 /// A wide card for something half-watched: the scene, how far in, and what is left.

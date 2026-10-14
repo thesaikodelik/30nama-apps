@@ -30,7 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
-    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash
+    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -165,6 +165,7 @@ struct Loc: Equatable {
         .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
         .incomplete: "Incomplete", .notInPack: "Not available in this quality", .ofTotal: "of",
         .removeFromList: "Remove from list", .moveToTrash: "Remove from list and delete file",
+        .topFilms: "Top 10 Films", .topSeries: "Top 10 Series",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
@@ -232,6 +233,7 @@ struct Loc: Equatable {
         .subtitleMissing: "زیرنویس هماهنگ پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
         .incomplete: "ناقص", .notInPack: "در این کیفیت موجود نیست", .ofTotal: "از",
         .removeFromList: "حذف از فهرست", .moveToTrash: "حذف از فهرست و فایل",
+        .topFilms: "۱۰ فیلم برتر", .topSeries: "۱۰ سریال برتر",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
@@ -299,6 +301,7 @@ struct Loc: Equatable {
         .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",
         .incomplete: "غير مكتمل", .notInPack: "غير متوفرة بهذه الجودة", .ofTotal: "من",
         .removeFromList: "إزالة من القائمة", .moveToTrash: "إزالة من القائمة وحذف الملف",
+        .topFilms: "أفضل 10 أفلام", .topSeries: "أفضل 10 مسلسلات",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",

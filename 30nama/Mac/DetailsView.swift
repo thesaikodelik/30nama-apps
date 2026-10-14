@@ -31,7 +31,7 @@ struct DetailsView: View {
                     facts
                 }
                 .padding(.horizontal, Mac.edge)
-                .padding(.top, 130)
+                .padding(.top, DetailsLayout.top)
                 .padding(.bottom, 60)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -96,11 +96,18 @@ struct DetailsView: View {
             let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
             VStack(spacing: 14) {
                 RemoteImage(url: post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(360 * Display.scale))
-                    .frame(width: 240, height: 360)
+                    .frame(width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
+                    // Under the full-size picture, the small one the shelves already have: the
+                    // poster is never a blur while the large one is on its way.
+                    .background {
+                        RemoteImage(url: post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
+                    }
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
                     .tilting(shape, degrees: 7)
                     .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
+                    // Held back, frame and all, while the clicked card's poster is still flying to this spot.
+                    .opacity(nav.flight?.post.id == post.id ? 0 : 1)
             }
 
             VStack(alignment: .leading, spacing: 14) {

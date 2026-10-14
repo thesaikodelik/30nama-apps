@@ -48,6 +48,12 @@ struct Peek: Equatable {
     let frame: CGRect
 }
 
+/// A poster on its way from the card that was clicked to its place on the title's page.
+struct Flight: Equatable {
+    let post: Post
+    let from: CGRect
+}
+
 /// Where the user is: a section, and what has been opened on top of it.
 @MainActor
 @Observable
@@ -58,6 +64,8 @@ final class MacNav {
     var picking: Post?
     /// The poster the pointer has rested on, while its card is up.
     var peek: Peek?
+    /// The poster in flight to the page being opened, until it lands.
+    var flight: Flight?
     /// A title opened by a play button somewhere else: its page starts it without a second click.
     var autoplay: Int?
     /// Where the card that is up lies, and when the window was last scrolled. Read by the code
@@ -65,8 +73,11 @@ final class MacNav {
     @ObservationIgnored var peekRect = CGRect.zero
     @ObservationIgnored var lastScroll = Date.distantPast
 
-    func open(_ post: Post, playing: Bool = false) {
+    /// Opens a title's page. Given where its poster is in the window, the poster flies to its
+    /// place on the page rather than the page simply fading in.
+    func open(_ post: Post, playing: Bool = false, from frame: CGRect? = nil) {
         if playing { autoplay = post.id }
+        if let frame, frame.width > 0, opened.last != .title(post) { flight = Flight(post: post, from: frame) }
         open(.title(post))
     }
 
@@ -121,6 +132,10 @@ struct MainView: View {
                     PeekCard(peek: peek, bounds: geo.size, direction: direction)
                         .id(peek.post.id)
                         .transition(.scale(scale: 0.86).combined(with: .opacity))
+                }
+                if let flight = nav.flight {
+                    FlyingPoster(flight: flight, bounds: geo.size, rtl: direction == .rightToLeft)
+                        .id(flight.post.id)
                 }
             }
             .environment(\.layoutDirection, .leftToRight)
