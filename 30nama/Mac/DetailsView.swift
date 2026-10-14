@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 
 /// One title: its artwork behind, what it is, the user's own stars, and the people in it.
 struct DetailsView: View {
@@ -15,6 +16,12 @@ struct DetailsView: View {
     /// Why 30nama would not hand over the stream, in its own words.
     @State private var refusal: String?
     @State private var season = 1
+    /// The film itself, silently, behind the page once the user has lingered on it.
+    @State private var teaser: URL?
+    @State private var teaserShowing = false
+    @Environment(\.calm) private var calm
+    @Environment(\.controlActiveState) private var windowState
+    @Environment(\.layoutDirection) private var direction
     @Environment(MacNav.self) private var nav
 
     private var post: Post { loaded ?? preview }
@@ -23,6 +30,14 @@ struct DetailsView: View {
         ZStack {
             Theme.bg0
             StageView(post: post, dim: 0.3, settle: .zero)
+            if let teaser {
+                TeaserVideo(url: teaser) { teaserShowing = true }
+                    .overlay { teaserScrims }
+                    .opacity(teaserShowing ? 1 : 0)
+                    .animation(.easeInOut(duration: 1.4), value: teaserShowing)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 40) {
                     header
@@ -50,6 +65,8 @@ struct DetailsView: View {
             if DebugLaunch.play { play() }
             #endif
         }
+        // A few seconds on the page with nothing else going on: let the film itself play behind it.
+        .task(id: "\(stream != nil)|\(app.playback == nil)|\(windowState == .key)|\(nav.opened.last == .title(preview))") { await runTeaser() }
         .task(id: app.watchVersion) {
             // Back from the player: where to resume has moved.
             if stream != nil { await loadStream(quietly: true) }
@@ -87,6 +104,54 @@ struct DetailsView: View {
             return
         }
         app.play(PlaybackRequest(post: post, items: stream.items, index: index ?? stream.startIndex, resume: stream.resume))
+    }
+
+    // MARK: Teaser
+
+    /// Shows a stretch of the film, without sound and in its smallest picture, behind the page:
+    /// once per visit, for half a minute, and only while the page is what the user is looking
+    /// at. It reads from the address the page has already been given and tells the server
+    /// nothing, so it counts neither as a request nor as watching.
+    private func runTeaser() async {
+        let quiet = stream != nil && app.playback == nil && windowState == .key && nav.opened.last == .title(preview) && !calm
+        guard quiet else {
+            await endTeaser()
+            return
+        }
+        guard teaser == nil, let stream, let item = stream.items.first else { return }
+        let small = item.qualities.filter { !$0.isAuto && $0.height > 0 }.min { $0.height < $1.height } ?? item.qualities.first
+        guard let url = small?.url else { return }
+        try? await Task.sleep(for: .seconds(3))
+        guard !Task.isCancelled else { return }
+        teaser = url
+        try? await Task.sleep(for: .seconds(35))
+        guard !Task.isCancelled else { return }
+        await endTeaser()
+    }
+
+    private func endTeaser() async {
+        guard teaser != nil else { return }
+        teaserShowing = false
+        try? await Task.sleep(for: .seconds(1.4))
+        teaser = nil
+    }
+
+    /// The page's text has to stay readable over moving pictures: the same shading the still has.
+    private var teaserScrims: some View {
+        let rtl = direction == .rightToLeft
+        return ZStack {
+            Color.black.opacity(0.3)
+            LinearGradient(stops: [
+                .init(color: Theme.bg0.opacity(0.96), location: 0),
+                .init(color: Theme.bg0.opacity(0.78), location: 0.30),
+                .init(color: Theme.bg0.opacity(0), location: 0.68),
+            ], startPoint: rtl ? .trailing : .leading, endPoint: rtl ? .leading : .trailing)
+            LinearGradient(stops: [
+                .init(color: Theme.bg0, location: 0),
+                .init(color: Theme.bg0.opacity(0.85), location: 0.32),
+                .init(color: Theme.bg0.opacity(0), location: 0.62),
+            ], startPoint: .bottom, endPoint: .top)
+        }
     }
 
     // MARK: Header
@@ -318,6 +383,75 @@ struct StarRater: View {
             .contentShape(Rectangle())
             .onHover { if $0 { preview = stars } }
             .onTapGesture { set(value == stars ? nil : stars) }
+    }
+}
+
+/// A film playing silently behind a page: filling the space, from a third of the way in, past
+/// any opening titles. It says when its first picture is on screen, so it can be faded in then.
+private struct TeaserVideo: NSViewRepresentable {
+    let url: URL
+    let ready: () -> Void
+
+    func makeNSView(context: Context) -> Surface {
+        let view = Surface()
+        view.start(url, ready: ready)
+        return view
+    }
+
+    func updateNSView(_ view: Surface, context: Context) {}
+
+    static func dismantleNSView(_ view: Surface, coordinator: ()) {
+        view.stop()
+    }
+
+    final class Surface: NSView {
+        private let player = AVPlayer()
+        private let picture = AVPlayerLayer()
+        private var watching: [NSKeyValueObservation] = []
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer = CALayer()
+            picture.videoGravity = .resizeAspectFill
+            picture.player = player
+            layer?.addSublayer(picture)
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        override func layout() {
+            super.layout()
+            picture.frame = bounds
+        }
+
+        func start(_ url: URL, ready: @escaping () -> Void) {
+            player.isMuted = true
+            player.preventsDisplaySleepDuringVideoPlayback = false
+            let item = AVPlayerItem(url: url)
+            // Small is enough for a picture under shading; it spares the line and the chip.
+            item.preferredPeakBitRate = 2_500_000
+            watching.append(item.observe(\.status) { [weak self] item, _ in
+                guard item.status == .readyToPlay else { return }
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    let length = item.duration.seconds
+                    let from = length.isFinite && length > 120 ? length / 3 : 0
+                    self.player.seek(to: CMTime(seconds: from, preferredTimescale: 600)) { _ in self.player.play() }
+                }
+            })
+            watching.append(picture.observe(\.isReadyForDisplay) { layer, _ in
+                guard layer.isReadyForDisplay else { return }
+                DispatchQueue.main.async { ready() }
+            })
+            player.replaceCurrentItem(with: item)
+        }
+
+        func stop() {
+            watching = []
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+        }
     }
 }
 
