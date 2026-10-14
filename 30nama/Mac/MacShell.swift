@@ -41,6 +41,13 @@ enum MacRoute: Hashable {
     case catalog(slug: String, title: String)
 }
 
+/// The card that opens over a poster the pointer has rested on: the title, and where its poster
+/// is in the window.
+struct Peek: Equatable {
+    let post: Post
+    let frame: CGRect
+}
+
 /// Where the user is: a section, and what has been opened on top of it.
 @MainActor
 @Observable
@@ -49,21 +56,33 @@ final class MacNav {
     private(set) var opened: [MacRoute] = []
     /// The title a download is being chosen for, when that pane is up.
     var picking: Post?
+    /// The poster the pointer has rested on, while its card is up.
+    var peek: Peek?
+    /// A title opened by a play button somewhere else: its page starts it without a second click.
+    var autoplay: Int?
+    /// Where the card that is up lies, and when the window was last scrolled. Read by the code
+    /// that puts the card up and takes it away; nothing is drawn from them.
+    @ObservationIgnored var peekRect = CGRect.zero
+    @ObservationIgnored var lastScroll = Date.distantPast
 
-    func open(_ post: Post) {
+    func open(_ post: Post, playing: Bool = false) {
+        if playing { autoplay = post.id }
         open(.title(post))
     }
 
     func open(_ route: MacRoute) {
+        peek = nil
         guard opened.last != route else { return }
         opened.append(route)
     }
 
     func back() {
+        peek = nil
         if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
     }
 
     func go(_ section: MacSection) {
+        peek = nil
         opened.removeAll()
         self.section = section
     }
@@ -72,6 +91,8 @@ final class MacNav {
 struct MainView: View {
     @Environment(AppModel.self) private var app
     @State private var nav = MacNav()
+    @State private var scrollWatch: Any?
+    @Environment(\.layoutDirection) private var direction
 
     var body: some View {
         ZStack {
@@ -93,6 +114,40 @@ struct MainView: View {
             NavBar().padding(.top, 14).zIndex(2)
         }
         .overlay {
+            // Placed by the window's own left and top, whatever way the language reads; the card
+            // itself goes back to the language's direction.
+            GeometryReader { geo in
+                if let peek = nav.peek {
+                    PeekCard(peek: peek, bounds: geo.size, direction: direction)
+                        .id(peek.post.id)
+                        .transition(.scale(scale: 0.86).combined(with: .opacity))
+                }
+            }
+            .environment(\.layoutDirection, .leftToRight)
+        }
+        // The card goes when the pointer leaves it. Asked of the window and not of the card: a
+        // card that comes up under a pointer at rest is never told the pointer came in, and so
+        // would never hear that it left.
+        .onContinuousHover(coordinateSpace: .named(MainView.space)) { phase in
+            guard nav.peek != nil else { return }
+            if case .active(let point) = phase, nav.peekRect.insetBy(dx: -10, dy: -10).contains(point) { return }
+            nav.peek = nil
+        }
+        .coordinateSpace(name: MainView.space)
+        .animation(Theme.focusSpring, value: nav.peek)
+        .onAppear {
+            // Scrolling is not resting: the card steps aside, and none comes up mid-scroll.
+            scrollWatch = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                nav.lastScroll = Date()
+                if nav.peek != nil { nav.peek = nil }
+                return event
+            }
+        }
+        .onDisappear {
+            if let scrollWatch { NSEvent.removeMonitor(scrollWatch) }
+            scrollWatch = nil
+        }
+        .overlay {
             if let post = nav.picking {
                 DownloadPicker(post: post) { nav.picking = nil }
                     .id(post.id)
@@ -108,6 +163,9 @@ struct MainView: View {
         .task { await debugLaunch() }
         #endif
     }
+
+    /// The coordinate space cards and the pointer are placed in: the whole window.
+    static let space = "window"
 
     #if DEBUG
     private func debugLaunch() async {

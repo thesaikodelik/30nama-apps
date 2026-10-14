@@ -41,6 +41,11 @@ struct DetailsView: View {
         .task {
             loaded = (try? await app.api.get("single", ["post_id": String(preview.id)])).flatMap { Post($0) }
             await loadStream(quietly: false)
+            // Opened by a play button elsewhere: start without asking again.
+            if nav.autoplay == preview.id {
+                nav.autoplay = nil
+                play()
+            }
             #if DEBUG
             if DebugLaunch.play { play() }
             #endif

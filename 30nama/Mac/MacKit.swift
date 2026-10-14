@@ -227,7 +227,10 @@ struct PosterCard: View {
 
     @Environment(\.loc) private var loc
     @Environment(\.lively) private var lively
+    @Environment(MacNav.self) private var nav: MacNav?
     @State private var hovering = false
+    /// Where the card is in the window, noted as the pointer comes onto it.
+    @State private var frame = CGRect.zero
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Mac.radius, style: .continuous)
@@ -261,6 +264,20 @@ struct PosterCard: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .background {
+            GeometryReader { geo in
+                Color.clear.onChange(of: hovering) { _, on in
+                    if on { frame = geo.frame(in: .named(MainView.space)) }
+                }
+            }
+        }
+        // The pointer has come to rest here: open the card that says more about the title.
+        .task(id: hovering) {
+            guard hovering, let nav else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled, frame.width > 0, Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
+            nav.peek = Peek(post: post, frame: frame)
+        }
         .animation(Theme.focusSpring, value: hovering)
         .zIndex(hovering ? 1 : 0)
     }
@@ -303,6 +320,131 @@ struct PosterCard: View {
                 .background(Capsule(style: .continuous).fill(Color.black.opacity(0.65)))
                 .padding(8)
         }
+    }
+}
+
+// MARK: - The card over a poster
+
+/// What a poster opens into when the pointer rests on it: the scene, what the title is, and the
+/// two things most often wanted of it, without leaving the shelf.
+struct PeekCard: View {
+    let peek: Peek
+    /// The size of the window, to keep the card inside it.
+    let bounds: CGSize
+    /// The direction the card's own contents read in.
+    let direction: LayoutDirection
+
+    @Environment(AppModel.self) private var app
+    @Environment(MacNav.self) private var nav
+    @Environment(\.loc) private var loc
+
+    private static let size = CGSize(width: 344, height: 372)
+
+    /// Over its poster, moved in from any edge of the window it would cross.
+    private var rect: CGRect {
+        let size = PeekCard.size
+        let x = min(max(peek.frame.midX, size.width / 2 + 16), bounds.width - size.width / 2 - 16)
+        let y = min(max(peek.frame.midY, size.height / 2 + 16), bounds.height - size.height / 2 - 16)
+        return CGRect(x: x - size.width / 2, y: y - size.height / 2, width: size.width, height: size.height)
+    }
+
+    var body: some View {
+        let post = peek.post
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        VStack(alignment: .leading, spacing: 0) {
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(PeekCard.size.width * Display.scale))
+                .frame(width: PeekCard.size.width, height: 194)
+                .clipped()
+                .overlay { LinearGradient(colors: [.clear, Theme.bg1.opacity(0.95)], startPoint: .center, endPoint: .bottom) }
+                .overlay(alignment: .bottomLeading) {
+                    Text(post.title(loc.lang))
+                        .font(.app(20, .heavy))
+                        .foregroundStyle(Theme.text1)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    if let score = post.imdbScore {
+                        HStack(spacing: 4) {
+                            Text("IMDb").font(.system(size: 10, weight: .heavy)).foregroundStyle(Color(hex: 0xF5C518))
+                            Text(loc.num(Fmt.score(score))).font(.app(13, .bold)).foregroundStyle(Theme.text1)
+                        }
+                    }
+                    Text(facts(post)).font(.app(13)).foregroundStyle(Theme.text2).lineLimit(1)
+                }
+                Text(post.plot(loc.lang))
+                    .font(.app(13))
+                    .foregroundStyle(Theme.text2)
+                    .lineSpacing(4)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                HStack(spacing: 8) {
+                    Button { nav.open(post, playing: true) } label: {
+                        Label(loc(post.resume != nil ? .resume : .play), systemImage: "play.fill")
+                            .font(.app(14, .bold))
+                            .foregroundStyle(Theme.focusInk)
+                            .padding(.horizontal, 18)
+                            .frame(height: 38)
+                            .background(Capsule(style: .continuous).fill(.white))
+                            .shadow(color: post.tint.opacity(0.5), radius: 12, y: 4)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    if app.isLoggedIn {
+                        round(app.isListed(post, "watchlist") ? "bookmark.fill" : "bookmark", lit: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
+                            Task { await app.toggleList(post, "watchlist") }
+                        }
+                        round(app.isListed(post, "favorite") ? "heart.fill" : "heart", lit: app.isListed(post, "favorite"), help: loc(.favorites)) {
+                            Task { await app.toggleList(post, "favorite") }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    round("chevron.forward", lit: false, help: loc(.details)) { nav.open(post) }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+        }
+        .frame(width: PeekCard.size.width, height: PeekCard.size.height, alignment: .top)
+        .background(Theme.bg1.opacity(0.82))
+        .background(.ultraThinMaterial)
+        .clipShape(shape)
+        .hueRim(shape)
+        .shadow(color: post.tint.opacity(0.35), radius: 40, y: 20)
+        .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
+        .contentShape(shape)
+        .onTapGesture { nav.open(post) }
+        .environment(\.hue, post.tint)
+        .environment(\.layoutDirection, direction)
+        .position(x: rect.midX, y: rect.midY)
+        .onAppear { nav.peekRect = rect }
+        .onChange(of: bounds) { nav.peekRect = rect }
+    }
+
+    /// The year, how long it runs and what kind of thing it is, in one line.
+    private func facts(_ post: Post) -> String {
+        var parts: [String] = []
+        if let year = post.year { parts.append(loc.num(year)) }
+        if let runtime = Fmt.runtime(minutes: post.runtimeMinutes, lang: loc.lang) { parts.append(runtime) }
+        parts += post.genres.prefix(2).map(\.name)
+        return parts.joined(separator: " · ")
+    }
+
+    private func round(_ symbol: String, lit: Bool, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(lit ? peek.post.tint : Theme.text1)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.white.opacity(0.12)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }
 
