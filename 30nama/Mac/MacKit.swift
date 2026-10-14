@@ -252,6 +252,7 @@ struct PosterCard: View {
                 .overlay(alignment: .topLeading) { badge }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
+                .tilting(shape)
                 // A row of resting shadows is the dearest thing to draw while a shelf scrolls, so a
                 // slow Mac gets a shadow only under the pointer.
                 .shadow(color: hovering ? post.tint.opacity(0.55) : .black.opacity(lively ? 0.4 : 0), radius: hovering ? 24 : lively ? 8 : 0, y: hovering ? 14 : lively ? 4 : 0)
@@ -305,6 +306,52 @@ struct PosterCard: View {
     }
 }
 
+// MARK: - A card that leans to the pointer
+
+/// Leans a card under the pointer, as if pressed there, and runs a glint of light across it:
+/// what a poster held in the hand does. It moves only while the pointer does, and comes back
+/// flat when the pointer leaves.
+private struct Tilt<S: Shape>: ViewModifier {
+    let shape: S
+    let degrees: Double
+
+    @Environment(\.calm) private var calm
+    /// Where the pointer is on the card, 0...1 each way; nil when it is elsewhere.
+    @State private var at: UnitPoint?
+
+    func body(content: Content) -> some View {
+        let across = Double(at?.x ?? 0.5) - 0.5, down = Double(at?.y ?? 0.5) - 0.5
+        return content
+            .overlay {
+                if let at {
+                    RadialGradient(colors: [.white.opacity(0.30), .white.opacity(0.07), .clear], center: at, startRadius: 0, endRadius: 230)
+                        .blendMode(.plusLighter)
+                        .clipShape(shape)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .rotation3DEffect(.degrees(-down * 2 * degrees), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
+            .rotation3DEffect(.degrees(across * 2 * degrees), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+            .onContinuousHover(coordinateSpace: .local) { phase in
+                guard !calm else { return }
+                switch phase {
+                case .active(let point): at = UnitPoint(x: point.x / max(1, size.width), y: point.y / max(1, size.height))
+                case .ended: at = nil
+                }
+            }
+            .background { GeometryReader { geo in Color.clear.onAppear { size = geo.size }.onChange(of: geo.size) { _, new in size = new } } }
+            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.78), value: at)
+    }
+
+    @State private var size = CGSize.zero
+}
+
+extension View {
+    /// Makes a card lean to the pointer and catch the light. See `Tilt`.
+    func tilting<S: Shape>(_ shape: S, degrees: Double = 9) -> some View { modifier(Tilt(shape: shape, degrees: degrees)) }
+}
+
 /// A wide card for something half-watched: the scene, how far in, and what is left.
 struct ContinueCard: View {
     let post: Post
@@ -345,6 +392,7 @@ struct ContinueCard: View {
                 }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
+                .tilting(shape, degrees: 6)
                 .shadow(color: post.tint.opacity(hovering ? 0.5 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
                 .scaleEffect(hovering ? 1.04 : 1)
                 .contentShape(shape)

@@ -94,6 +94,7 @@ struct DetailsView: View {
                     .frame(width: 240, height: 360)
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
+                    .tilting(shape, degrees: 7)
                     .shadow(color: post.tint.opacity(0.4), radius: 40, y: 18)
             }
 
