@@ -37,6 +37,8 @@ struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The opening title has run its course.
     @State private var introPlayed = false
+    /// The window is on screen, so the opening title can begin.
+    @State private var onScreen = false
     /// The opening title has finished leaving and is out of the hierarchy.
     @State private var splashGone = false
 
@@ -81,9 +83,11 @@ struct RootView: View {
             // Seen through the opening title's glass: softened, but still itself, and coming
             // into focus as the glass parts.
             .blur(radius: splashLeaving || splashGone ? 0 : 6)
+            // And it settles into place as it comes into focus.
+            .scaleEffect(splashLeaving || splashGone ? 1 : 1.03)
             .animation(.easeOut(duration: 0.9), value: splashLeaving)
             if !splashGone {
-                SplashView(leaving: splashLeaving)
+                SplashView(leaving: splashLeaving, ready: app.homeLoaded || (app.phase != .main && app.phase != .booting), start: onScreen)
                     .zIndex(10)
             }
             if let request = app.playback {
@@ -119,8 +123,19 @@ struct RootView: View {
             if phase == .active, app.phase == .main { app.syncRatings(unlessFresherThan: 60) }
         }
         .task {
+            // The title is timed from when the window is really on screen, not from when the app
+            // started: the window can take a second or more to appear.
+            while !NSApp.windows.contains(where: { $0.isVisible && $0.occlusionState.contains(.visible) }) {
+                try? await Task.sleep(for: .milliseconds(30))
+            }
+            onScreen = true
             // The opening title runs its course once; after that it only waits on the network.
-            try? await Task.sleep(for: .seconds(2.3))
+            try? await Task.sleep(for: .seconds(2.8))
+            // Then a little longer, at most, for the home page to arrive behind the glass.
+            let deadline = Date().addingTimeInterval(2.5)
+            while !app.homeLoaded, app.phase == .main || app.phase == .booting, Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
             introPlayed = true
         }
         .onChange(of: splashLeaving) { _, leaving in

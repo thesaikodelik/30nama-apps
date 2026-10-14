@@ -214,6 +214,9 @@ struct HomeView: View {
     // MARK: Data
 
     private func load() async {
+        // Last time's page at once, so there is something to see from the first frame; the fresh
+        // one replaces it when it comes.
+        if feed == nil, let saved = app.cachedHome() { feed = saved }
         do {
             let fresh = try await app.home()
             feed = fresh

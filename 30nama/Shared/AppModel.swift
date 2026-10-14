@@ -255,6 +255,9 @@ final class AppModel {
     let api = APIClient()
 
     @ObservationIgnored private var homeCache: (feed: HomeFeed, at: Date, lang: Lang)?
+    /// The home page has arrived at least once since launch. The opening title waits a little for
+    /// it, so the page is there behind its glass.
+    private(set) var homeLoaded = false
     @ObservationIgnored private var menuCache: (menu: Menu, lang: Lang)?
     @ObservationIgnored private var filterCache: (options: FilterOptions, lang: Lang)?
     /// The ids of the titles in each of the user's 30nama lists ("watchlist", "favorite", "notify").
@@ -378,11 +381,25 @@ final class AppModel {
 
     // MARK: Shared data
 
+    private func homeFile(_ lang: Lang) -> URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("home-\(lang.rawValue).json")
+    }
+
+    /// The home page as it was last fetched, read from disk: shown at once on launch, under the
+    /// opening title's glass, while the fresh one is on its way.
+    func cachedHome() -> HomeFeed? {
+        guard let data = try? Data(contentsOf: homeFile(settings.lang)), let json = try? JSON.parse(data) else { return nil }
+        let feed = HomeFeed(json)
+        guard !feed.isEmpty else { return nil }
+        homeLoaded = true
+        return feed
+    }
+
     /// Home feed, cached for 90 seconds. If the network fails, the last good feed is served instead.
     func home() async throws -> HomeFeed {
         let lang = settings.lang
         if let c = homeCache, c.lang == lang, Date().timeIntervalSince(c.at) < 90 { return c.feed }
-        let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("home-\(lang.rawValue).json")
+        let file = homeFile(lang)
         do {
             await api.setLanguage(lang)
             let result = try await api.get("home_stream")
@@ -390,11 +407,15 @@ final class AppModel {
             guard !feed.isEmpty else { throw APIError.server("empty") }
             homeCache = (feed, Date(), lang)
             try? result.data()?.write(to: file, options: .atomic)
+            homeLoaded = true
             return feed
         } catch {
             if let data = try? Data(contentsOf: file), let json = try? JSON.parse(data) {
                 let feed = HomeFeed(json)
-                if !feed.isEmpty { return feed }
+                if !feed.isEmpty {
+                    homeLoaded = true
+                    return feed
+                }
             }
             throw error
         }

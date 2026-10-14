@@ -81,9 +81,11 @@ struct RootView: View {
             // Seen through the opening title's glass: softened, but still itself, and coming
             // into focus as the glass parts.
             .blur(radius: splashLeaving || splashGone ? 0 : 6)
+            // And it settles into place as it comes into focus.
+            .scaleEffect(splashLeaving || splashGone ? 1 : 1.03)
             .animation(.easeOut(duration: 0.9), value: splashLeaving)
             if !splashGone {
-                SplashView(leaving: splashLeaving)
+                SplashView(leaving: splashLeaving, ready: app.homeLoaded || (app.phase != .main && app.phase != .booting))
                     .zIndex(10)
             }
         }
@@ -119,7 +121,12 @@ struct RootView: View {
         }
         .task {
             // The opening title runs its course once; after that it only waits on the network.
-            try? await Task.sleep(for: .seconds(2.3))
+            try? await Task.sleep(for: .seconds(2.8))
+            // Then a little longer, at most, for the home page to arrive behind the glass.
+            let deadline = Date().addingTimeInterval(2.5)
+            while !app.homeLoaded, app.phase == .main || app.phase == .booting, Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
             introPlayed = true
         }
     }
