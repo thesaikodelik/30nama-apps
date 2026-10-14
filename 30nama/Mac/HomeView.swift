@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var paused = false
     /// How much of the featured title's turn has run, 0...1. It holds while the billboard rests.
     @State private var turn = 0.0
+    /// The billboard is on screen, not scrolled away above the shelves.
+    @State private var inSight = true
 
     /// How long each featured title is shown.
     private static let turnLength = 12.0
@@ -36,8 +38,11 @@ struct HomeView: View {
                 StageView(post: featured)
                 if let feed {
                     ScrollView(.vertical) {
-                        VStack(alignment: .leading, spacing: 0) {
+                        // Lazy, so the billboard is told when it scrolls out of sight and back.
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             billboard(feed).frame(height: max(500, geo.size.height * 0.72))
+                                .onAppear { inSight = true }
+                                .onDisappear { inSight = false }
                             shelves(feed)
                         }
                     }
@@ -140,7 +145,7 @@ struct HomeView: View {
     /// The billboard has no audience: something covers it, the window is not the one in use, or
     /// the user is reading it. It costs nothing while it rests.
     private var resting: Bool {
-        calm || paused || !nav.opened.isEmpty || app.playback != nil || windowState != .key
+        calm || paused || !inSight || !nav.opened.isEmpty || app.playback != nil || windowState != .key
     }
 
     /// Runs the featured title's turn and moves the billboard on when it is over. The turn is

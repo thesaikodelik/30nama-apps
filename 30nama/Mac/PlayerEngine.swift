@@ -37,6 +37,10 @@ final class PlayerEngine {
     private(set) var aspect = 0.0
     private(set) var ambient: PictureEdges?
     @ObservationIgnored private var ticks = 0
+    /// The picture is moving: the clock has gone forward between two looks at it. Until then
+    /// the player shows the title's own artwork instead of a black window.
+    private(set) var started = false
+    @ObservationIgnored private var lastSeen: Double?
     private(set) var speed: Float = 1
     private(set) var volume: Float = 1
     private(set) var muted = false
@@ -72,6 +76,25 @@ final class PlayerEngine {
 
     private var loc: Loc { app.loc }
     var current: StreamItem { items[index] }
+
+    /// A stretch of the file with a name: the recap, the opening titles, the end credits.
+    struct Mark: Hashable {
+        enum Kind { case recap, intro, credits }
+        let kind: Kind
+        let from: Double
+        let to: Double
+    }
+
+    /// The named stretches of the file being played, as far as the server knows them.
+    var marks: [Mark] {
+        guard duration > 0 else { return [] }
+        var found: [Mark] = []
+        let item = current
+        if let end = item.recapEnd, end > 0 { found.append(Mark(kind: .recap, from: item.recapStart ?? 0, to: min(end, duration))) }
+        if let end = item.introEnd, end > 0 { found.append(Mark(kind: .intro, from: item.introStart ?? 0, to: min(end, duration))) }
+        if let start = item.creditsStart, start > 0, start < duration { found.append(Mark(kind: .credits, from: start, to: duration)) }
+        return found.filter { $0.to > $0.from }
+    }
     var hasNext: Bool { index + 1 < items.count }
     var hasPrevious: Bool { index > 0 }
 
@@ -319,6 +342,10 @@ final class PlayerEngine {
         if length > 0, length != duration { duration = length }
         let waiting = playback.waiting
         if waiting != buffering { buffering = waiting }
+        if !started {
+            if let lastSeen, !waiting, seconds > lastSeen, seconds - lastSeen < 1.5 { started = true }
+            lastSeen = seconds
+        }
         let shape = playback.aspect
         if shape > 0, abs(shape - aspect) > 0.001 { aspect = shape }
         // The light around the picture follows the scene, looked at every two seconds.

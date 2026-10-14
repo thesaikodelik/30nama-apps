@@ -30,10 +30,16 @@ struct PlayerView: View {
                             wake()
                         }
                     AmbientLight(edges: engine.ambient, aspect: engine.aspect, size: geo.size)
-                    if engine.buffering {
+                    // Until the picture moves, the title's own artwork stands in for it, so the
+                    // page the user came from dissolves into the film rather than into black.
+                    if !engine.started {
+                        Curtain(post: request.post, line: curtainLine(engine))
+                            .transition(.opacity.animation(.easeInOut(duration: 0.9)))
+                    } else if engine.buffering {
                         ProgressView().controlSize(.large).tint(.white)
                     }
-                    subtitle(engine, height: geo.size.height)
+                    // No lines over the opening card: the film is not on screen to say them.
+                    if engine.started { subtitle(engine, height: geo.size.height) }
                     // Out of the hierarchy while hidden, so that nothing is redrawn as the clock runs.
                     if controls {
                         chrome(engine).transition(.opacity)
@@ -87,6 +93,12 @@ struct PlayerView: View {
         } else if let system = engine.playback as? SystemPlayback {
             SystemSurface(playback: system) { engine.attach(window: $0) }.id(ObjectIdentifier(system))
         }
+    }
+
+    /// "Season 2 · Episode 5" under the title on the opening card, for a series.
+    private func curtainLine(_ engine: PlayerEngine) -> String? {
+        guard request.post.isSeries else { return nil }
+        return loc.episodeTag(season: engine.current.season, episode: engine.current.episodeRaw ?? "\(engine.current.episodeNumber)")
     }
 
     // MARK: Showing and hiding
@@ -230,7 +242,7 @@ struct PlayerView: View {
 
     private func bottomBar(_ engine: PlayerEngine) -> some View {
         VStack(spacing: 6) {
-            Scrubber(time: engine.time, duration: engine.duration) { engine.seek(to: $0) }
+            Scrubber(time: engine.time, duration: engine.duration, marks: engine.marks) { engine.seek(to: $0) }
             HStack(spacing: 6) {
                 RoundButton(symbol: engine.playing ? "pause.fill" : "play.fill", size: 46, glyph: 20) { engine.toggle() }
                 RoundButton(symbol: "gobackward.10") { engine.skip(-10) }
@@ -443,9 +455,12 @@ private struct AmbientLight: View {
 private struct Scrubber: View {
     let time: Double
     let duration: Double
+    /// The named stretches of the file, drawn on the line and named under the pointer.
+    var marks: [PlayerEngine.Mark] = []
     let seek: (Double) -> Void
 
     @Environment(\.hue) private var hue
+    @Environment(\.loc) private var loc
     @State private var drag: Double?
     @State private var hover: Double?
 
@@ -457,20 +472,27 @@ private struct Scrubber: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.24)).frame(height: active ? 6 : 4)
                 Capsule().fill(hue ?? Theme.accent).frame(width: width * fraction, height: active ? 6 : 4)
+                if duration > 0 {
+                    ForEach(marks, id: \.self) { mark in
+                        Capsule().fill(Color.white.opacity(0.55))
+                            .frame(width: max(4, width * (mark.to - mark.from) / duration), height: active ? 6 : 4)
+                            .offset(x: width * mark.from / duration)
+                    }
+                }
                 Circle()
                     .fill(.white)
                     .frame(width: 14, height: 14)
                     .offset(x: width * fraction - 7)
                     .opacity(active ? 1 : 0)
                 if let at = drag ?? hover, duration > 0 {
-                    Text(Fmt.clock(at * duration))
+                    Text(label(at * duration))
                         .font(.system(size: 12, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8)
                         .frame(height: 24)
                         .background(Capsule().fill(Color.black.opacity(0.8)))
                         .fixedSize()
-                        .position(x: min(max(28, width * at), width - 28), y: -14)
+                        .position(x: min(max(70, width * at), width - 70), y: -14)
                         .allowsHitTesting(false)
                 }
             }
@@ -493,6 +515,57 @@ private struct Scrubber: View {
             .animation(.easeOut(duration: 0.12), value: active)
         }
         .frame(height: 22)
+    }
+
+    /// The time under the pointer, with the name of the stretch it falls in.
+    private func label(_ seconds: Double) -> String {
+        let clock = Fmt.clock(seconds)
+        guard let mark = marks.first(where: { seconds >= $0.from && seconds <= $0.to }) else { return clock }
+        let name: String
+        switch mark.kind {
+        case .recap: name = loc(.recap)
+        case .intro: name = loc(.intro)
+        case .credits: name = loc(.credits)
+        }
+        return "\(name) · \(clock)"
+    }
+}
+
+/// What the player shows before the picture moves: the title's own artwork, drawing slowly
+/// nearer, with its name. It hands over to the film the moment the film is there.
+private struct Curtain: View {
+    let post: Post
+    let line: String?
+
+    @Environment(\.loc) private var loc
+    @Environment(\.calm) private var calm
+    @State private var near = false
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Color.black
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: 1920)
+                .scaleEffect(near ? 1.07 : 1)
+                .clipped()
+            LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(post.title(loc.lang))
+                    .font(.app(44, .heavy))
+                    .foregroundStyle(Theme.text1)
+                    .lineLimit(2)
+                    .shadow(color: .black.opacity(0.6), radius: 16, y: 6)
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small).tint(.white)
+                    if let line { Text(line).font(.app(17, .semibold)).foregroundStyle(Theme.text2) }
+                }
+            }
+            .padding(.horizontal, Mac.edge)
+            // Clear of the controls, which are up when the player opens.
+            .padding(.bottom, 170)
+        }
+        .allowsHitTesting(false)
+        // Once, and it ends: a push towards the screen while the film is fetched.
+        .onAppear { if !calm { withAnimation(.easeOut(duration: 8)) { near = true } } }
     }
 }
 

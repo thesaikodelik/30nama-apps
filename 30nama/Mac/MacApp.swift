@@ -60,12 +60,16 @@ struct RootView: View {
             case .login:
                 LoginView()
             case .main:
+                // Going to the film, the page draws nearer and goes dark, like a room's lights
+                // going down; it comes back the same way.
                 MainView()
+                    .scaleEffect(app.playback != nil ? 1.08 : 1)
+                    .opacity(app.playback != nil ? 0 : 1)
             }
             if let request = app.playback {
                 PlayerView(request: request)
                     .id(request.id)
-                    .transition(.opacity)
+                    .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.45).delay(0.2)), removal: .opacity))
                     .zIndex(5)
             }
         }
@@ -78,7 +82,7 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.4), value: app.phase)
         .animation(.easeOut(duration: 0.24), value: app.toast)
-        .animation(.easeOut(duration: 0.3), value: app.playback?.id)
+        .animation(.easeInOut(duration: 0.55), value: app.playback?.id)
         .onChange(of: app.playback?.id) { old, new in
             // The player has gone: what was watched may have changed "continue watching".
             if old != nil, new == nil { app.playerDidClose() }
