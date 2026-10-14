@@ -112,8 +112,8 @@ struct SettingsView: View {
             row(loc(.autoplay)) {
                 toggle(app.settings.autoplayNext) { value in app.update { $0.autoplayNext = value } }
             }
-            row(loc(.ambientLight)) {
-                toggle(ambientLight) { ambientLight = $0 }
+            row(loc(.aroundPicture)) {
+                picker([false, true], selection: ambientLight, name: { loc($0 ? .sceneGlow : .blackBars) }) { ambientLight = $0 }
             }
         }
     }
@@ -260,12 +260,22 @@ struct SettingsView: View {
         }
     }
 
+    /// A choice from a short list: a glass capsule showing what is chosen, all of them the same
+    /// width so that they line up down the page, opening the system's menu with a tick by the
+    /// current one.
     private func picker<Value: Hashable>(_ values: [Value], selection: Value, name: @escaping (Value) -> String, set: @escaping (Value) -> Void) -> some View {
-        Picker("", selection: Binding(get: { selection }, set: set)) {
-            ForEach(values, id: \.self) { Text(name($0)).tag($0) }
+        SwiftUI.Menu {
+            Picker("", selection: Binding(get: { selection }, set: set)) {
+                ForEach(values, id: \.self) { Text(name($0)).tag($0) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            ChoiceLabel(text: name(selection))
         }
-        .pickerStyle(.menu)
-        .labelsHidden()
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
         .fixedSize()
     }
 
@@ -278,5 +288,32 @@ struct SettingsView: View {
             .toggleStyle(.switch)
             .labelsHidden()
             .tint(Theme.accent)
+    }
+}
+
+/// The face of a settings dropdown.
+private struct ChoiceLabel: View {
+    let text: String
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text)
+                .font(.app(14, .semibold))
+                .foregroundStyle(Theme.text1)
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.text3)
+        }
+        .padding(.horizontal, 16)
+        .frame(width: 252, height: 36)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
+        .overlay { Capsule(style: .continuous).strokeBorder(Color.white.opacity(hovering ? 0.22 : 0.1), lineWidth: 1) }
+        .contentShape(Capsule(style: .continuous))
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
     }
 }
