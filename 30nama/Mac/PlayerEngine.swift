@@ -209,12 +209,36 @@ final class PlayerEngine {
         time = position ?? 0
         duration = 0
         buffering = true
+        offer = nil
+        countdown = nil
+        guard url.isFileURL else { return begin(url, at: position) }
+        // A downloaded file is read once first, away from the main thread. The first time, macOS
+        // asks the user whether the app may use the folder and holds the read until they answer;
+        // mpv, asked first, is left waiting for good. Asked here, the answer is in before it starts.
+        let item = index
+        Task { [weak self] in
+            let readable = await Task.detached { () -> Bool in
+                guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+                try? handle.close()
+                return true
+            }.value
+            guard let self, !self.closed, self.index == item else { return }
+            guard readable else {
+                self.app.showToast(self.loc(.folderDenied))
+                return self.close()
+            }
+            self.begin(url, at: position)
+            // A file on this Mac has no network to wait on: one that has not begun by now will not.
+            try? await Task.sleep(for: .seconds(15))
+            if !self.closed, self.index == item, !self.started, self.duration == 0 { self.failed() }
+        }
+    }
+
+    private func begin(_ url: URL, at position: Double?) {
         playback.load(url, at: position)
         playback.setSpeed(speed, playing: false)
         playing = true
         playback.play()
-        offer = nil
-        countdown = nil
     }
 
     private func finished() {
