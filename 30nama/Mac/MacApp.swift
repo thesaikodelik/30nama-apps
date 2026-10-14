@@ -35,6 +35,13 @@ struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The opening title has run its course.
+    @State private var introPlayed = false
+    /// The opening title has finished leaving and is out of the hierarchy.
+    @State private var splashGone = false
+
+    /// The title leaves once it has played and there is something to show behind it.
+    private var splashLeaving: Bool { introPlayed && app.phase != .booting }
 
     /// Whether ambient motion may run without end. The user can say; left to itself the app gives
     /// it to a Mac that can afford it, and never while the Mac is saving power.
@@ -52,7 +59,8 @@ struct RootView: View {
             Theme.bg0.ignoresSafeArea()
             switch app.phase {
             case .booting:
-                Opening()
+                // Only seen when retrying after a failed start; the first start is covered by the opening title.
+                ProgressView()
             case .failed:
                 ErrorState(message: "\(app.loc(.noConnection)). \(app.loc(.tryAgain))") {
                     Task { await app.boot() }
@@ -65,6 +73,11 @@ struct RootView: View {
                 MainView()
                     .scaleEffect(app.playback != nil ? 1.08 : 1)
                     .opacity(app.playback != nil ? 0 : 1)
+            }
+            // The same opening title as on the Apple TV.
+            if !splashGone {
+                SplashView(leaving: splashLeaving)
+                    .zIndex(10)
             }
             if let request = app.playback {
                 PlayerView(request: request)
@@ -98,26 +111,18 @@ struct RootView: View {
             // Back in front: pick up what was rated on another device meanwhile.
             if phase == .active, app.phase == .main { app.syncRatings(unlessFresherThan: 60) }
         }
-    }
-}
-
-/// What is on screen while the app finds its server: the logo, with light gathering behind it.
-private struct Opening: View {
-    @State private var lit = false
-
-    var body: some View {
-        ZStack {
-            RadialGradient(colors: [Theme.accent.opacity(lit ? 0.32 : 0), .clear], center: .center, startRadius: 0, endRadius: 520)
-            Image("Logo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 96)
-                .opacity(lit ? 1 : 0)
-                .blur(radius: lit ? 0 : 14)
-                .scaleEffect(lit ? 1 : 0.94)
+        .task {
+            // The opening title runs its course once; after that it only waits on the network.
+            try? await Task.sleep(for: .seconds(2.3))
+            introPlayed = true
         }
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.9)) { lit = true }
+        .onChange(of: splashLeaving) { _, leaving in
+            guard leaving else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(SplashView.exitDuration))
+                splashGone = true
+            }
         }
     }
 }
+
