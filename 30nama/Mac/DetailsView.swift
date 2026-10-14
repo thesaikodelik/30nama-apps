@@ -549,5 +549,7 @@ private struct ListToggle: View {
         .animation(Theme.focusSpring, value: hovering)
         .animation(Theme.focusSpring, value: on)
         .help(help)
+        .accessibilityLabel(help)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }

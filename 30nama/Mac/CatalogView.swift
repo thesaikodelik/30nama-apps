@@ -90,6 +90,7 @@ struct CatalogView: View {
                 }
                 .buttonStyle(.plain)
                 .help(loc(.reset))
+                .accessibilityLabel(loc(.reset))
             }
             Spacer(minLength: 0)
         }
@@ -342,6 +343,7 @@ struct SearchView: View {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 17)).foregroundStyle(Theme.text3)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(loc(.clearSearch))
             }
         }
         .padding(.horizontal, 20)

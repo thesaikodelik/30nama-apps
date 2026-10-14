@@ -30,7 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
-    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, aroundPicture, blackBars, sceneGlow, folderDenied, performance
+    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, aroundPicture, blackBars, sceneGlow, folderDenied, performance, back, close, back10, forward10, rowNext, rowPrevious, clearSearch, sound
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -153,6 +153,8 @@ struct Loc: Equatable {
         .speed: "Speed", .subtitleTiming: "Subtitle timing", .subtitleFile: "Subtitle file…",
         .pictureInPicture: "Picture in Picture", .alwaysOnTop: "Always on top", .fullScreen: "Full screen", .reset: "Reset",
         .effects: "Motion effects", .effectsAuto: "Automatic, for this Mac", .effectsFull: "Full", .effectsLight: "Light, easier on the Mac", .performance: "Performance",
+        .back: "Back", .close: "Close", .back10: "Back 10 seconds", .forward10: "Forward 10 seconds",
+        .rowNext: "Next titles", .rowPrevious: "Previous titles", .clearSearch: "Clear search", .sound: "Sound on or off",
         .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in",
         .markWatched: "Mark as watched", .markUnwatched: "Mark as not watched", .upcoming: "New episodes on the way",
         .allChoices: "All", .minScore: "IMDb", .decade: "Years",
@@ -223,6 +225,8 @@ struct Loc: Equatable {
         .speed: "سرعت پخش", .subtitleTiming: "زمان‌بندی زیرنویس", .subtitleFile: "فایل زیرنویس…",
         .pictureInPicture: "تصویر در تصویر", .alwaysOnTop: "همیشه روی سایر پنجره‌ها", .fullScreen: "تمام‌صفحه", .reset: "بازنشانی",
         .effects: "جلوه‌های حرکتی", .effectsAuto: "خودکار، بر اساس همین مک", .effectsFull: "کامل", .effectsLight: "سبک، کم‌مصرف‌تر", .performance: "کارایی دستگاه",
+        .back: "برگشت", .close: "بستن", .back10: "۱۰ ثانیه عقب", .forward10: "۱۰ ثانیه جلو",
+        .rowNext: "عنوان‌های بعدی", .rowPrevious: "عنوان‌های قبلی", .clearSearch: "پاک کردن جستجو", .sound: "قطع و وصل صدا",
         .exportRatings: "خروجی امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
         .markWatched: "علامت‌گذاری به‌عنوان دیده‌شده", .markUnwatched: "علامت‌گذاری به‌عنوان دیده‌نشده", .upcoming: "قسمت‌های آینده",
         .allChoices: "همه", .minScore: "IMDb", .decade: "سال",
@@ -293,6 +297,8 @@ struct Loc: Equatable {
         .speed: "سرعة التشغيل", .subtitleTiming: "توقيت الترجمة", .subtitleFile: "ملف ترجمة…",
         .pictureInPicture: "صورة داخل صورة", .alwaysOnTop: "دائمًا في المقدمة", .fullScreen: "ملء الشاشة", .reset: "إعادة الضبط",
         .effects: "تأثيرات الحركة", .effectsAuto: "تلقائي حسب هذا الجهاز", .effectsFull: "كاملة", .effectsLight: "خفيفة وأقل استهلاكًا", .performance: "أداء الجهاز",
+        .back: "رجوع", .close: "إغلاق", .back10: "رجوع ١٠ ثوانٍ", .forward10: "تقدّم ١٠ ثوانٍ",
+        .rowNext: "العناوين التالية", .rowPrevious: "العناوين السابقة", .clearSearch: "مسح البحث", .sound: "تشغيل الصوت أو كتمه",
         .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في",
         .markWatched: "وضع علامة «تمت المشاهدة»", .markUnwatched: "إزالة علامة «تمت المشاهدة»", .upcoming: "حلقات جديدة قادمة",
         .allChoices: "الكل", .minScore: "IMDb", .decade: "السنوات",

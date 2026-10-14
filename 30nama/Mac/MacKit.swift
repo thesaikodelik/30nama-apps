@@ -272,6 +272,8 @@ struct PosterCard: View {
                 .contentShape(shape)
         }
         .buttonStyle(.plain)
+        // The poster is a picture: say what it is a picture of.
+        .accessibilityLabel(post.year.map { "\(post.title(loc.lang)), \(loc.num($0))" } ?? post.title(loc.lang))
         .onHover { hovering = $0 }
         .background {
             GeometryReader { geo in
@@ -456,6 +458,7 @@ struct PeekCard: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 
@@ -568,6 +571,10 @@ struct RankedCard: View {
                 .environment(\.layoutDirection, .leftToRight)
             PosterCard(post: post, action: action)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(loc.num(rank)). \(post.title(loc.lang))")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { action() }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.2), value: hovering)
     }
@@ -645,6 +652,7 @@ struct Shelf<Card: View>: View {
 
     @State private var position: Post.ID?
     @State private var hovering = false
+    @Environment(\.loc) private var loc
 
     /// Each title once. A list drawn from several of the home feed's sections can name a title
     /// twice, and a row given the same id twice draws the second one as an empty space.
@@ -693,6 +701,7 @@ struct Shelf<Card: View>: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(loc(direction < 0 ? .rowPrevious : .rowNext))
             .padding(.horizontal, 8)
             .transition(.opacity)
         }

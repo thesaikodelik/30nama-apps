@@ -248,13 +248,13 @@ struct PlayerView: View {
         VStack(spacing: 6) {
             Scrubber(time: engine.time, duration: engine.duration, marks: engine.marks) { engine.seek(to: $0) }
             HStack(spacing: 6) {
-                RoundButton(symbol: engine.playing ? "pause.fill" : "play.fill", size: 46, glyph: 20) { engine.toggle() }
-                RoundButton(symbol: "gobackward.10") { engine.skip(-10) }
-                RoundButton(symbol: "goforward.10") { engine.skip(10) }
+                RoundButton(symbol: engine.playing ? "pause.fill" : "play.fill", help: loc(engine.playing ? .pause : .play), size: 46, glyph: 20) { engine.toggle() }
+                RoundButton(symbol: "gobackward.10", help: loc(.back10)) { engine.skip(-10) }
+                RoundButton(symbol: "goforward.10", help: loc(.forward10)) { engine.skip(10) }
                 if engine.hasNext {
                     RoundButton(symbol: "forward.end.fill", help: loc(.nextEpisode)) { engine.start(engine.index + 1) }
                 }
-                RoundButton(symbol: engine.muted || engine.volume == 0 ? "speaker.slash.fill" : engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill") { engine.toggleMute() }
+                RoundButton(symbol: engine.muted || engine.volume == 0 ? "speaker.slash.fill" : engine.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill", help: loc(.sound)) { engine.toggleMute() }
                 Level(value: Double(engine.muted ? 0 : engine.volume)) { engine.setVolume(Float($0)) }
                     .frame(width: 84)
                 Text("\(Fmt.clock(engine.time)) / \(Fmt.clock(engine.duration))")
@@ -373,6 +373,9 @@ private struct RoundButton: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.14), value: hovering)
         .help(help ?? "")
+        // Read out by name, not by the picture on it.
+        .accessibilityLabel(help ?? "")
+        .accessibilityAddTraits(lit ? .isSelected : [])
     }
 }
 
@@ -400,6 +403,7 @@ private struct MenuButton<Content: View>: View {
         .fixedSize()
         .onHover { hovering = $0 }
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 

@@ -151,6 +151,8 @@ struct HomeView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(loc(.featured)) \(loc.num(index + 1))")
+                .accessibilityAddTraits(index == hero ? .isSelected : [])
             }
         }
         .animation(Theme.focusSpring, value: hero)

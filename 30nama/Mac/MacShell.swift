@@ -227,14 +227,16 @@ struct MainView: View {
             ForEach(Array(MacSection.allCases.enumerated()), id: \.offset) { index, section in
                 Button("") { nav.go(section) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                    .accessibilityHidden(true)
             }
             Button("") {
                 nav.peek = nil
                 nav.palette.toggle()
             }
             .keyboardShortcut("k", modifiers: .command)
-            Button("") { nav.go(.search) }.keyboardShortcut("f", modifiers: .command)
-            Button("") { nav.back() }.keyboardShortcut("[", modifiers: .command)
+            .accessibilityHidden(true)
+            Button("") { nav.go(.search) }.keyboardShortcut("f", modifiers: .command).accessibilityHidden(true)
+            Button("") { nav.back() }.keyboardShortcut("[", modifiers: .command).accessibilityHidden(true)
         }
         .opacity(0)
         .frame(width: 0, height: 0)
@@ -261,6 +263,8 @@ private struct NavBar: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(loc(.back))
+            .accessibilityHidden(nav.opened.isEmpty)
             .opacity(nav.opened.isEmpty ? 0 : 1)
             .scaleEffect(nav.opened.isEmpty ? 0.8 : 1)
             .allowsHitTesting(!nav.opened.isEmpty)
@@ -311,5 +315,7 @@ private struct NavItem: View {
         .animation(.easeOut(duration: 0.16), value: hovering)
         .animation(Theme.focusSpring, value: selected)
         .help(loc(section.title))
+        .accessibilityLabel(loc(section.title))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

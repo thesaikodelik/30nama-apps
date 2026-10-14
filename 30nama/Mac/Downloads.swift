@@ -723,6 +723,7 @@ private struct DownloadRow: View {
                         }
                         .buttonStyle(.plain)
                         .help("\(loc(.openIn)) \(player.name)")
+                        .accessibilityLabel("\(loc(.openIn)) \(player.name)")
                     }
                     if item.subtitlePath != nil {
                         RowButton(symbol: "captions.bubble.fill", help: loc(.withSubtitle), tint: Theme.good) {}
@@ -830,6 +831,7 @@ private struct RowButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 
@@ -893,5 +895,8 @@ struct DownloadsDisc: View {
         .animation(.easeOut(duration: 0.16), value: hovering)
         .animation(Theme.focusSpring, value: selected)
         .help(loc(.downloads))
+        .accessibilityLabel(loc(.downloads))
+        .accessibilityValue(busy.isEmpty ? "" : loc.num("\(Int(fraction * 100))٪"))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -79,6 +79,7 @@ struct DownloadPicker: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(loc(.close))
             .padding(18)
         }
     }
