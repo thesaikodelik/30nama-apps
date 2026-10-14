@@ -24,7 +24,7 @@ struct SettingsView: View {
                         playback
                         subtitles
                         storage
-                        group(loc(.display)) {
+                        group(loc(.performance)) {
                             row(loc(.effects)) {
                                 picker(Effects.allCases, selection: app.settings.effects, name: { loc($0.label) }) { value in
                                     app.update { $0.effects = value }
