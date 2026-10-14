@@ -62,6 +62,7 @@ struct RootView: View {
         @Bindable var app = app
         ZStack {
             Theme.bg0.ignoresSafeArea()
+            Group {
             switch app.phase {
             case .booting:
                 // Only when retrying after a failed start: the first start is under the opening title,
@@ -76,6 +77,11 @@ struct RootView: View {
             case .main:
                 MainView()
             }
+            }
+            // Seen through the opening title's glass: softened, but still itself, and coming
+            // into focus as the glass parts.
+            .blur(radius: splashLeaving || splashGone ? 0 : 6)
+            .animation(.easeOut(duration: 0.9), value: splashLeaving)
             if !splashGone {
                 SplashView(leaving: splashLeaving)
                     .zIndex(10)

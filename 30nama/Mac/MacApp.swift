@@ -57,6 +57,7 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Theme.bg0.ignoresSafeArea()
+            Group {
             switch app.phase {
             case .booting:
                 // Only when retrying after a failed start: the first start is under the opening title,
@@ -76,6 +77,11 @@ struct RootView: View {
                     .opacity(app.playback != nil ? 0 : 1)
             }
             // The same opening title as on the Apple TV.
+            }
+            // Seen through the opening title's glass: softened, but still itself, and coming
+            // into focus as the glass parts.
+            .blur(radius: splashLeaving || splashGone ? 0 : 6)
+            .animation(.easeOut(duration: 0.9), value: splashLeaving)
             if !splashGone {
                 SplashView(leaving: splashLeaving)
                     .zIndex(10)

@@ -72,19 +72,19 @@ struct SplashView: View {
     }
 
     /// A sheet of liquid glass over the whole screen, through which the app behind is seen. Where
-    /// the system has Liquid Glass it is made of that; elsewhere a frosted material with light on
-    /// its upper face and along its rim.
+    /// the system has Liquid Glass it is made of that; elsewhere it is light on the glass's face
+    /// and rim, and the app behind is softened by the root view (a material here would blur it
+    /// past recognising).
     @ViewBuilder
     private var glassPane: some View {
         if #available(tvOS 26.0, macOS 26.0, *) {
-            Color.clear.glassEffect(.regular, in: Rectangle())
+            Color.clear.glassEffect(.clear, in: Rectangle())
                 .overlay { sheen }
         } else {
             ZStack {
-                Rectangle().fill(.ultraThinMaterial)
                 // Clear glass, with a shade only where the logo sits, so it holds its own over
                 // whatever the app shows behind.
-                RadialGradient(colors: [.black.opacity(0.45), .black.opacity(0.12)], center: .center, startRadius: 0, endRadius: 700)
+                RadialGradient(colors: [.black.opacity(0.5), .black.opacity(0.15)], center: .center, startRadius: 0, endRadius: 650)
                 sheen
                 // The thick edge of the glass: a bright rim, and light glowing in from it.
                 Rectangle().strokeBorder(LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.15), .white.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 2)
