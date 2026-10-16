@@ -118,6 +118,22 @@ struct SettingsView: View {
             row(loc(.autoSkip)) {
                 toggle(app.settings.autoSkip) { value in app.update { $0.autoSkip = value } }
             }
+            VStack(alignment: .leading, spacing: 2) {
+                row(loc(.subsourceKey)) {
+                    SecureField("", text: $subsourceKey)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .monospaced))
+                        .padding(.horizontal, 12)
+                        .frame(width: 252, height: 32)
+                        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+                        .environment(\.layoutDirection, .leftToRight)
+                }
+                Text(loc(.subsourceKeyHint))
+                    .font(.app(12))
+                    .foregroundStyle(Theme.text3)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
             row(loc(.aroundPicture)) {
                 picker([false, true], selection: ambientLight, name: { loc($0 ? .sceneGlow : .blackBars) }) { ambientLight = $0 }
             }
@@ -143,6 +159,9 @@ struct SettingsView: View {
         parts.queryItems = [URLQueryItem(name: "body", value: body)]
         if let url = parts.url { NSWorkspace.shared.open(url) }
     }
+
+    /// The user's own SubSource key, read by `SubtitleFinder`. Never leaves this Mac.
+    @AppStorage("subsourceKey") private var subsourceKey = ""
 
     /// Read by the player; kept on this Mac only, like the other things that are about the screen.
     @AppStorage("ambientLight") private var ambientLight = true
