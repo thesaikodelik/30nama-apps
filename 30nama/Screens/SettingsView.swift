@@ -37,6 +37,9 @@ struct SettingsView: View {
                         choice(loc(.autoplay), value: loc(app.settings.autoplayNext ? .on : .off)) {
                             app.update { $0.autoplayNext.toggle() }
                         }
+                        choice(loc(.autoSkip), value: loc(app.settings.autoSkip ? .on : .off)) {
+                            app.update { $0.autoSkip.toggle() }
+                        }
                     }
                     group(loc(.display)) {
                         choice(loc(.reduceMotion), value: loc(app.settings.reduceMotion ? .on : .off)) {

@@ -313,6 +313,15 @@ struct HomeView: View {
                 ContinueCard(post: post)
             }
             .buttonStyle(CardButtonStyle(glow: post.tint))
+            // Held select: off the row, on 30nama too.
+            .contextMenu {
+                Button(role: .destructive) {
+                    app.dismissContinue(post)
+                    withAnimation(Theme.glide) { continuing.removeAll { $0.id == post.id } }
+                } label: {
+                    Label(loc(.removeFromContinue), systemImage: "xmark.circle")
+                }
+            }
         case "top_10":
             HStack(alignment: .bottom, spacing: -34) {
                 Text(loc.num(rank))

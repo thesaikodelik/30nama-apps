@@ -245,7 +245,7 @@ struct DetailsView: View {
         return VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .firstTextBaseline, spacing: 18) {
                 SectionTitle(loc(.episodes))
-                Text("\(loc.num(inSeason.count)) \(loc(.episode))")
+                Text("\(loc.num(inSeason.count)) \(loc(.episodeCount))")
                     .font(.app(24))
                     .foregroundStyle(Theme.text3)
             }

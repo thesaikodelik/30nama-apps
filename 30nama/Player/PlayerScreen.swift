@@ -78,6 +78,14 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     private var loc: Loc { app.loc }
     private var current: StreamItem { items[index] }
 
+    /// When playback stops by itself, for falling asleep to.
+    private enum SleepTimer: Equatable { case off, endOfEpisode, minutes(Int) }
+    private var sleep: SleepTimer = .off
+    private var sleepTask: Task<Void, Never>?
+    /// The stretch last jumped over by itself, so that one the user goes back into is left alone.
+    private var skippedOn: String?
+    private var rateObservation: NSKeyValueObservation?
+
     init(request: PlaybackRequest, app: AppModel) {
         post = request.post
         items = request.items
@@ -112,6 +120,11 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.report() }
         }
+        // The speed picked in the system's menu, kept for the series' next episodes.
+        rateObservation = player.observe(\.rate) { [weak self] player, _ in
+            let rate = player.rate
+            Task { @MainActor in if rate > 0 { self?.keepSpeed(rate) } }
+        }
         if items.isEmpty { close() } else { start(index) }
         return controller
     }
@@ -128,6 +141,8 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         statusObservation = nil
         heartbeat?.invalidate()
         subtitleTask?.cancel()
+        sleepTask?.cancel()
+        rateObservation = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
     }
@@ -181,6 +196,10 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         if let position, position > 0 {
             player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
         }
+        // Play goes at the default rate: the speed this series was last watched at.
+        let speed = keptSpeed
+        player.defaultRate = speed
+        if let choice = controller?.speeds.first(where: { abs($0.rate - speed) < 0.01 }) { controller?.selectSpeed(choice) }
         player.play()
 
         due = nil
@@ -190,6 +209,10 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     }
 
     private func finished() {
+        if sleep == .endOfEpisode {
+            sleep = .off
+            return close()
+        }
         if index + 1 < items.count, app.settings.autoplayNext {
             start(index + 1)
         } else {
@@ -201,6 +224,47 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         guard !closed else { return }
         app.showToast(loc(.playError))
         close()
+    }
+
+    // MARK: Speed and sleep
+
+    /// A series keeps its speed from one episode, and one evening, to the next.
+    private var speedKey: String { "series.\(post.id)" }
+
+    private var keptSpeed: Float {
+        guard post.isSeries, let kept = UserDefaults.standard.dictionary(forKey: speedKey)?["speed"] as? Double else { return 1 }
+        return Float(kept)
+    }
+
+    private func keepSpeed(_ rate: Float) {
+        guard post.isSeries, abs(rate - keptSpeed) > 0.01 else { return }
+        var kept = UserDefaults.standard.dictionary(forKey: speedKey) ?? [:]
+        kept["speed"] = Double(rate)
+        UserDefaults.standard.set(kept, forKey: speedKey)
+    }
+
+    private func setSleep(_ timer: SleepTimer) {
+        sleep = timer
+        sleepTask?.cancel()
+        refreshMenus()
+        guard case .minutes(let minutes) = timer else { return }
+        sleepTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard !Task.isCancelled, let self else { return }
+            self.sleep = .off
+            self.player.pause()
+            self.refreshMenus()
+        }
+    }
+
+    private func sleepMenu() -> UIMenu {
+        let choices: [(SleepTimer, String)] = [
+            (.off, loc(.off)),
+            (.endOfEpisode, loc(post.isSeries ? .endOfEpisode : .endOfFilm)),
+        ] + [15, 30, 45, 60].map { (.minutes($0), "\(loc.num($0)) \(loc(.min))") }
+        return UIMenu(title: loc(.sleepTimer), image: UIImage(systemName: sleep == .off ? "moon.zzz" : "moon.zzz.fill"), children: choices.map { timer, name in
+            UIAction(title: name, state: timer == sleep ? .on : .off) { [weak self] _ in self?.setSleep(timer) }
+        })
     }
 
     // MARK: Progress
@@ -262,6 +326,13 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
 
         if let skip = current.skipTarget(at: time) {
             due = skip.isIntro ? .intro : .recap
+            // Once per stretch: going back into it on purpose is not undone.
+            let stretch = "\(current.id)@\(skip.to)"
+            if app.settings.autoSkip, skippedOn != stretch, player.timeControlStatus == .playing {
+                skippedOn = stretch
+                player.seek(to: CMTime(seconds: skip.to, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                due = nil
+            }
         } else if let credits = current.creditsStart, credits > 0, time >= credits, index + 1 < items.count {
             due = .next
         } else {
@@ -312,7 +383,7 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
             return
         }
         var offer = PlayerPrompt.Offer(kind: due, title: loc(due == .intro ? .skipIntro : due == .recap ? .skipRecap : .nextEpisode))
-        if due == .next, app.settings.autoplayNext, let credits = current.creditsStart,
+        if due == .next, app.settings.autoplayNext, sleep != .endOfEpisode, let credits = current.creditsStart,
            let length = player.currentItem?.duration.seconds, length.isFinite, length > credits {
             // In steps, so the pill is not redrawn four times a second.
             offer.countdown = (min(1, max(0, (time - credits) / (length - credits))) * 50).rounded() / 50
@@ -382,12 +453,12 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
                 }
             }))
         }
+        menus.append(sleepMenu())
         controller.transportBarCustomMenuItems = menus
 
         if items.count > 1 {
-            let season = current.season
             let strip = EpisodeStrip(
-                entries: Array(items.enumerated()).filter { $0.element.season == season }.map { .init(index: $0.offset, item: $0.element) },
+                entries: Array(items.enumerated()).map { .init(index: $0.offset, item: $0.element) },
                 playing: index
             ) { [weak self] chosen in
                 self?.start(chosen)
@@ -400,9 +471,10 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
             let host = UIHostingController(rootView: strip
                 .environment(\.loc, loc)
                 .environment(\.layoutDirection, loc.lang.isRTL ? .rightToLeft : .leftToRight))
-            host.title = "\(loc(.season)) \(loc.num(season))"
+            host.title = loc(.episodes)
             host.view.backgroundColor = .clear
-            host.preferredContentSize = CGSize(width: 0, height: 290)
+            // Room for the row of season names over the episodes, when there is more than one season.
+            host.preferredContentSize = CGSize(width: 0, height: Set(items.map(\.season)).count > 1 ? 390 : 290)
             controller.customInfoViewControllers = [host]
         } else {
             controller.customInfoViewControllers = []
@@ -559,7 +631,11 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
 
     /// How far subtitles sit above the bottom edge: clear of the episodes panel or the transport
     /// bar while either is showing.
-    private var subtitleLift: CGFloat { episodesShowing ? -470 : (barShowing ? -250 : -70) }
+    private var subtitleLift: CGFloat {
+        // The panel is taller with the row of season names in it.
+        let panel: CGFloat = Set(items.map(\.season)).count > 1 ? -570 : -470
+        return episodesShowing ? panel : (barShowing ? -250 : -70)
+    }
 
     /// Lifts subtitles clear of the transport bar while it is showing.
     nonisolated func playerViewController(
@@ -579,7 +655,8 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     }
 }
 
-/// The current season's episodes, shown as a tab of the player's info panel.
+/// The series' episodes, shown as a tab of the player's info panel: the season names in a row, and
+/// under them the episodes of the one chosen, which is the season playing when the panel opens.
 private struct EpisodeStrip: View {
     struct Entry: Identifiable {
         let index: Int
@@ -593,28 +670,77 @@ private struct EpisodeStrip: View {
     /// Told when the strip comes on screen and when it leaves.
     let shown: (Bool) -> Void
 
+    @Environment(\.loc) private var loc
+    @State private var season: Int?
+
+    private var seasons: [Int] { Array(Set(entries.map(\.item.season))).sorted() }
+    private var playingSeason: Int { entries.first { $0.index == playing }?.item.season ?? seasons.first ?? 1 }
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 24) {
-                    ForEach(entries) { entry in
-                        Button { select(entry.index) } label: {
-                            EpisodeTile(item: entry.item, position: entry.index + 1, nowPlaying: entry.index == playing)
+        let open = season ?? playingSeason
+        VStack(alignment: .leading, spacing: 0) {
+            if seasons.count > 1 {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 16) {
+                        ForEach(seasons, id: \.self) { number in
+                            SeasonChip(title: "\(loc(.season)) \(loc.num(number))", selected: number == open, playing: number == playingSeason) {
+                                withAnimation(Theme.glide) { season = number }
+                            }
                         }
-                        .buttonStyle(CardButtonStyle(radius: Theme.tileRadius, scale: 1.06))
-                        .id(entry.index)
                     }
+                    .padding(.horizontal, Theme.edge)
+                    .padding(.top, 18)
                 }
-                .padding(.horizontal, Theme.edge)
-                .padding(.vertical, 26)
+                .scrollIndicators(.hidden)
+                .scrollClipDisabled()
+                .focusSection()
             }
-            .scrollIndicators(.hidden)
-            .scrollClipDisabled()
-            .onAppear {
-                proxy.scrollTo(playing, anchor: .center)
-                shown(true)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 24) {
+                        ForEach(entries.filter { $0.item.season == open }) { entry in
+                            Button { select(entry.index) } label: {
+                                EpisodeTile(item: entry.item, position: entry.index + 1, nowPlaying: entry.index == playing)
+                            }
+                            .buttonStyle(CardButtonStyle(radius: Theme.tileRadius, scale: 1.06))
+                            .id(entry.index)
+                        }
+                    }
+                    .padding(.horizontal, Theme.edge)
+                    .padding(.vertical, 26)
+                    // A new season starts at its first episode, not where the last one was left.
+                    .id(open)
+                }
+                .scrollIndicators(.hidden)
+                .scrollClipDisabled()
+                .focusSection()
+                .onAppear {
+                    proxy.scrollTo(playing, anchor: .center)
+                    shown(true)
+                }
+                .onDisappear { shown(false) }
             }
-            .onDisappear { shown(false) }
         }
+    }
+}
+
+/// A season's name over the episodes; pressed, it shows that season's. The app's chip, as on the
+/// title page: the system's plain button lays a white plate behind it when focused.
+private struct SeasonChip: View {
+    let title: String
+    let selected: Bool
+    /// The episode playing is in this season.
+    let playing: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if playing { Circle().fill(Theme.accent).frame(width: 10, height: 10) }
+                Text(title)
+            }
+        }
+        .buttonStyle(PillButtonStyle(kind: .chip, selected: selected))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
