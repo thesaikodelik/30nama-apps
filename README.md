@@ -7,7 +7,7 @@
 <p dir="rtl">برنامهٔ غیررسمی، بومی و به‌روز ۳۰نما برای مک و Apple TV، نوشته‌شده با SwiftUI.</p>
 
 <p>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%201.1.0-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%201.2.0-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
 </p>
 
 <p>
@@ -55,7 +55,7 @@
 
 ### نصب
 
-آخرین نسخه را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید (فایل `30nama-mac-1.1.0.dmg`).
+آخرین نسخه را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید (فایل `30nama-mac-1.2.0.dmg`).
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
@@ -72,6 +72,8 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 ۳. اولین باری که چیزی دانلود یا پخش می‌کنید، macOS می‌پرسد برنامه به پوشهٔ Downloads دسترسی داشته باشد یا نه. «Allow» را بزنید.
 
 همگام‌سازی با iCloud هم امضای اپل می‌خواهد، پس در نسخهٔ نصبی ستاره‌هایی که می‌دهید فقط روی همان مک می‌مانند.
+
+از نسخهٔ ۱.۲.۰ به بعد، برنامه خودش نسخهٔ تازه را خبر می‌دهد و با یک کلیک دانلود و نصبش می‌کند. پیش از نصب، امضای فایل با کلید این پروژه بررسی می‌شود و فایلی که با آن امضا نشده باشد نصب نمی‌شود. کسی که ۱.۱.۰ دارد، یک بار دیگر باید ۱.۲.۰ را دستی نصب کند.
 
 ### معرفی آغازین و خانه
 
@@ -237,7 +239,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 
 چیزی که نداریم خود Apple TV است. هر چه خودمان دیده‌ایم روی شبیه‌ساز بوده، و دکمهٔ «قسمت بعد» را فقط در حالت دمو دیده‌ایم. اولین خبر از دستگاه واقعی را یکی از همکاران داد: پخش روی Apple TV با دو HomePod صدا نداشت. همان همکار درستش کرد و حالا پخش با میکس استریو شروع می‌شود.
 
-نسخهٔ مک (۱.۱.۰) را می‌شود از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) نصب کرد و روی مک اینتل با حساب واقعی آزموده شده است؛ روی Apple Silicon هنوز نه. برنامهٔ Apple TV هنوز منتشر نشده است. برنامه غیررسمی است و با نام و لوگوی ۳۰نما کار می‌کند، پس قدم بعدی‌اش به خود ۳۰نما بستگی دارد. فعلاً راه نصبش ساختن از روی همین کد است.
+نسخهٔ مک (۱.۲.۰) را می‌شود از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) نصب کرد و روی مک اینتل با حساب واقعی آزموده شده است؛ روی Apple Silicon هنوز نه. برنامهٔ Apple TV هنوز منتشر نشده است. برنامه غیررسمی است و با نام و لوگوی ۳۰نما کار می‌کند، پس قدم بعدی‌اش به خود ۳۰نما بستگی دارد. فعلاً راه نصبش ساختن از روی همین کد است.
 
 اگر از ۳۰نما این را می‌خوانید: با اضافه شدن امتیاز دادن، پروفایل عمومی و دنبال کردن به API تلویزیون، نیمهٔ دیگر این نقشه هم ساختنی است. کد با مجوز MIT همین‌جاست و برای رسمی شدنش هر کمکی از دستمان بربیاید می‌کنیم.
 
