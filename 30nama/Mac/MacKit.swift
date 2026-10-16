@@ -786,6 +786,7 @@ struct Toast: View {
 /// language follows it in smaller type, so it is still there to read.
 struct TitleArt: View {
     static let arrival = AnyTransition.modifier(active: Arrival(shown: false), identity: Arrival(shown: true))
+    static let settle = Animation.spring(response: 0.7, dampingFraction: 0.9)
 
     let post: Post
     /// Size of the name in type, and so of the space the logo is given.
@@ -829,7 +830,6 @@ struct TitleArt: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeOut(duration: 0.7), value: logo.map { $0 != nil })
         .task(id: post.id) {
             // Known already, as on going back to a page: at once, with nothing to wait for.
             if let url = TMDBStore.shared.known[post.id]?.logo, let hit = ImagePipeline.shared.cached(url, maxPixel: 1000) {
@@ -840,15 +840,17 @@ struct TitleArt: View {
             // A slow answer is not waited on for long; the name shows, and a logo that comes later still replaces it.
             let fallback = Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))
-                if !Task.isCancelled, logo == nil { logo = .some(nil) }
+                if !Task.isCancelled, logo == nil { withAnimation(TitleArt.settle) { logo = .some(nil) } }
             }
             defer { fallback.cancel() }
             guard let info = await TMDBStore.shared.info(for: post, lang: loc.lang), let url = info.logo,
                   let image = await ImagePipeline.shared.image(url, maxPixel: 1000) else {
-                if !Task.isCancelled { logo = .some(nil) }
+                if !Task.isCancelled { withAnimation(TitleArt.settle) { logo = .some(nil) } }
                 return
             }
-            if !Task.isCancelled { logo = .some(image) }
+            // In one motion with the page: what is below moves down to make room as the logo comes in,
+            // instead of jumping there.
+            if !Task.isCancelled { withAnimation(TitleArt.settle) { logo = .some(image) } }
         }
     }
 }
