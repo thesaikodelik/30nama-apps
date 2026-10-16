@@ -50,6 +50,19 @@ final class TMDBStore {
     @ObservationIgnored private var trailerSettled: Set<Int> = []
 
     private func look(_ post: Post, lang: Lang) async -> TMDB.Info? {
+        #if DEBUG
+        // `NAMA_TMDB_SAMPLE=1`: sample crew and reviews on top of what the public pages give, to
+        // see those parts of a page without a key.
+        if ProcessInfo.processInfo.environment["NAMA_TMDB_SAMPLE"] == "1" {
+            var info = await publicLook(for: post, lang: lang) ?? TMDB.Info()
+            info.crew = [.init(name: "Sample Director", job: "Director"), .init(name: "Sample Writer", job: "Screenplay"),
+                         .init(name: "Sample Composer", job: "Original Music Composer"), .init(name: "Sample DoP", job: "Director of Photography")]
+            info.reviews = [.init(author: "sample critic", text: String(repeating: "A sample review that runs on for a while, to see how a long text is cut short in its card. ", count: 4), rating: 8, link: nil),
+                            .init(author: "another", text: "Short and to the point.", rating: nil, link: nil)]
+            known[post.id] = info
+            return info
+        }
+        #endif
         guard let key = TMDBStore.key else { return await publicLook(for: post, lang: lang) }
         var id: Int?
         if let imdb = post.imdbID, let found = await json(TMDB.findRequest(imdbID: imdb, key: key)) {
