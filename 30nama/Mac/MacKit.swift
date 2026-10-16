@@ -785,16 +785,20 @@ struct Toast: View {
 /// other name under it. The logo is mostly in English; in Persian or Arabic the name in that
 /// language follows it in smaller type, so it is still there to read.
 struct TitleArt: View {
+    static let arrival = AnyTransition.modifier(active: Arrival(shown: false), identity: Arrival(shown: true))
+
     let post: Post
     /// Size of the name in type, and so of the space the logo is given.
     let size: CGFloat
 
     @Environment(\.loc) private var loc
-    @State private var logo: PlatformImage?
+    /// Nil while TMDB is being asked: the name is not shown yet, so it does not flash up and then
+    /// give way to the logo.
+    @State private var logo: PlatformImage??
 
     var body: some View {
         Group {
-            if let logo {
+            if case .some(.some(let logo)) = logo {
                 VStack(alignment: .leading, spacing: 10) {
                     Image(platformImage: logo)
                         .resizable()
@@ -806,7 +810,7 @@ struct TitleArt: View {
                         Text(post.title(loc.lang)).font(.app(size * 0.38, .semibold)).foregroundStyle(Theme.text1)
                     }
                 }
-                .transition(.opacity)
+                .transition(TitleArt.arrival)
             } else {
                 VStack(alignment: .leading, spacing: 14) {
                     Text(post.title(loc.lang))
@@ -819,15 +823,44 @@ struct TitleArt: View {
                         Text(other).font(.app(18, .medium)).foregroundStyle(Theme.text2)
                     }
                 }
+                // Holding its place, unseen, until it is known there is no logo; then coming up out
+                // of a blur, as the opening title does.
+                .modifier(Arrival(shown: logo != nil))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeOut(duration: 0.35), value: logo != nil)
+        .animation(.easeOut(duration: 0.7), value: logo.map { $0 != nil })
         .task(id: post.id) {
+            // Known already, as on going back to a page: at once, with nothing to wait for.
+            if let url = TMDBStore.shared.known[post.id]?.logo, let hit = ImagePipeline.shared.cached(url, maxPixel: 1000) {
+                logo = .some(hit)
+                return
+            }
             logo = nil
+            // A slow answer is not waited on for long; the name shows, and a logo that comes later still replaces it.
+            let fallback = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                if !Task.isCancelled, logo == nil { logo = .some(nil) }
+            }
+            defer { fallback.cancel() }
             guard let info = await TMDBStore.shared.info(for: post, lang: loc.lang), let url = info.logo,
-                  let image = await ImagePipeline.shared.image(url, maxPixel: 1000), !Task.isCancelled else { return }
-            logo = image
+                  let image = await ImagePipeline.shared.image(url, maxPixel: 1000) else {
+                if !Task.isCancelled { logo = .some(nil) }
+                return
+            }
+            if !Task.isCancelled { logo = .some(image) }
         }
+    }
+}
+
+/// Coming into view out of a blur, from a little below.
+private struct Arrival: ViewModifier {
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .blur(radius: shown ? 0 : 12)
+            .offset(y: shown ? 0 : 14)
     }
 }
