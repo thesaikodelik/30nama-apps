@@ -340,8 +340,26 @@ final class PlayerEngine {
         announce()
     }
 
+    /// Presses of the arrow keys in quick succession, added up: the picture jumps once, to where
+    /// they lead, instead of stalling at every step on the way.
+    private(set) var pendingSkip = 0.0
+    @ObservationIgnored private var skipTarget: Double?
+    @ObservationIgnored private var skipTask: Task<Void, Never>?
+
     func skip(_ seconds: Double) {
-        seek(to: playback.position + seconds)
+        var target = (skipTarget ?? playback.position) + seconds
+        target = max(0, duration > 0 ? min(target, duration - 1) : target)
+        skipTarget = target
+        pendingSkip += seconds
+        time = target
+        skipTask?.cancel()
+        skipTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard let self, !Task.isCancelled, let target = self.skipTarget else { return }
+            self.skipTarget = nil
+            self.pendingSkip = 0
+            self.seek(to: target)
+        }
     }
 
     func setSpeed(_ value: Float) {
@@ -446,7 +464,8 @@ final class PlayerEngine {
 
     private func tick(_ seconds: Double) {
         guard !closed, seconds.isFinite else { return }
-        time = seconds
+        // While presses are being added up, the clock shows where they lead.
+        if skipTarget == nil { time = seconds }
         let length = playback.duration
         if length > 0, length != duration {
             duration = length

@@ -52,6 +52,10 @@ struct PlayerView: View {
                     if controls {
                         chrome(engine).transition(.opacity)
                     }
+                    if engine.pendingSkip != 0 {
+                        SkipPill(seconds: engine.pendingSkip)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    }
                     // Above the controls' shading, so the offer stays bright and takes its own clicks.
                     OfferPill(engine: engine)
                         .padding(.bottom, controls ? 150 : 70)
@@ -85,6 +89,7 @@ struct PlayerView: View {
         .animation(.easeOut(duration: 0.25), value: controls)
         .animation(Theme.glide, value: episodes)
         .animation(Theme.glide, value: keys)
+        .animation(.easeOut(duration: 0.18), value: engine?.pendingSkip != 0)
         .onAppear {
             let engine = PlayerEngine(request: request, app: app)
             self.engine = engine
@@ -94,6 +99,14 @@ struct PlayerView: View {
             // Letter keys are taken here, by where they sit on the keyboard: with a Persian or
             // Arabic layout the F key types ب, and SwiftUI only offers the letter typed.
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // The side arrows here too: SwiftUI hands on only some of a quick run of presses,
+                // and a run is what is added up into one jump.
+                if !episodes, !keys, event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
+                   event.keyCode == 123 || event.keyCode == 124 {
+                    wake()
+                    engine.skip(event.keyCode == 124 ? 10 : -10)
+                    return nil
+                }
                 guard event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
                       let letter = PlayerView.keyLetters[event.keyCode], press(letter) else { return event }
                 return nil
@@ -1032,5 +1045,31 @@ private struct RoutePicker: NSViewRepresentable {
 
     func updateNSView(_ view: AVRoutePickerView, context: Context) {
         if view.player !== player { view.player = player }
+    }
+}
+
+/// How far the arrow presses so far will jump, in the middle of the picture.
+private struct SkipPill: View {
+    let seconds: Double
+
+    @Environment(\.loc) private var loc
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: seconds > 0 ? "goforward" : "gobackward")
+                .font(.system(size: 22, weight: .semibold))
+            // The sign stays by the number, before it, in every language.
+            Text("\u{2066}\(seconds > 0 ? "+" : "−")\(loc.num(Int(abs(seconds))))\u{2069} \(loc(.secondsShort))")
+                .font(.app(22, .bold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 26)
+        .frame(height: 64)
+        .background(Color.black.opacity(0.45), in: Capsule(style: .continuous))
+        .glass(Capsule(style: .continuous))
+        .animation(.easeOut(duration: 0.15), value: seconds)
+        .allowsHitTesting(false)
     }
 }
