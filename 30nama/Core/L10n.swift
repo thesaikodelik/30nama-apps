@@ -47,6 +47,12 @@ struct Loc: Equatable {
     func num(_ s: String) -> String { lang == .fa ? Fmt.persianDigits(s) : s }
     func num(_ n: Int) -> String { num(String(n)) }
 
+    /// Text held to the interface's direction wherever it is drawn, so mixed words and figures
+    /// keep their order in a place laid out left to right.
+    func isolated(_ text: String) -> String {
+        (lang.isRTL ? "\u{2067}" : "\u{2066}") + text + "\u{2069}"
+    }
+
     /// A job as TMDB names it, in the interface's language.
     func job(_ name: String) -> String {
         switch name {
@@ -192,7 +198,7 @@ struct Loc: Equatable {
     ]
 
     static let fa: [S: String] = [
-        .home: "خانه", .search: "جستجو", .browse: "مرور", .settings: "تنظیمات",
+        .home: "خانه", .search: "جستجو", .browse: "کاوش", .settings: "تنظیمات",
         .movies: "فیلم", .series: "سریال", .anime: "انیمه", .movie: "فیلم",
         .signIn: "ورود", .scanTitle: "با گوشی اسکن کنید", .step1: "دوربین گوشی را باز کنید",
         .step2: "کد را اسکن کنید", .step3: "در ۳۰نما تأیید کنید", .orEnterCode: "یا در 30nama.com/auth این کد را وارد کنید",

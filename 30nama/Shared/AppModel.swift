@@ -246,6 +246,8 @@ final class AppModel {
     private(set) var contentVersion = 0
     /// Bumped when watch progress changed (the player closed).
     private(set) var watchVersion = 0
+    /// Goes up when "continue watching" should be asked for again, after a title was taken off it.
+    private(set) var continueVersion = 0
     var playback: PlaybackRequest?
     private(set) var toast: String?
     /// The user's own ratings. The copy on the device is what the app works from; iCloud keeps
@@ -459,7 +461,15 @@ final class AppModel {
         dismissals.dismiss(post)
         UserDefaults.standard.set(dismissals.plist, forKey: "continueDismissals")
         let api = api
-        Task { _ = try? await api.call("continue_watching_dismiss", ["id": String(post.id)], background: true) }
+        Task {
+            _ = try? await api.call("continue_watching_dismiss", ["id": String(post.id)], background: true)
+            // The server sends at most twelve, and its list lags behind for a while: asked again
+            // shortly and once more later, the titles after the ones taken off move up into the row.
+            for wait in [2.0, 45.0] {
+                try? await Task.sleep(for: .seconds(wait))
+                continueVersion += 1
+            }
+        }
     }
 
     /// One of the user's own lists on 30nama ("watchlist" or "favorite"), newest addition first.

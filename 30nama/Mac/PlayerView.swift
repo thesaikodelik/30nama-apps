@@ -31,9 +31,19 @@ struct PlayerView: View {
                     surface(engine)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { engine.toggleFullScreen() }
+                        // A click shows the controls, or puts them away; pausing is Space or the button,
+                        // as in the Mac's other players.
                         .onTapGesture {
-                            if episodes { episodes = false } else { engine.toggle() }
-                            wake()
+                            if episodes {
+                                episodes = false
+                                wake()
+                            } else if controls {
+                                hideTask?.cancel()
+                                controls = false
+                                NSCursor.setHiddenUntilMouseMoves(true)
+                            } else {
+                                wake()
+                            }
                         }
                     if ambientLight, engine.playback is MPVPlayback {
                         AmbientLight(aspect: engine.aspect, size: geo.size)

@@ -677,10 +677,13 @@ struct Shelf<Card: View>: View {
     let posts: [Post]
     /// How many cards one press of an arrow moves by.
     var step = 5
+    /// Where the row's name leads, when there is a whole section of it: Movies, Series, Anime.
+    var more: (() -> Void)? = nil
     @ViewBuilder var card: (Post) -> Card
 
     @State private var position: Post.ID?
     @State private var hovering = false
+    @State private var titleHovered = false
     @Environment(\.loc) private var loc
 
     /// Each title once. A list drawn from several of the home feed's sections can name a title
@@ -693,10 +696,30 @@ struct Shelf<Card: View>: View {
     var body: some View {
         let posts = shown
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.app(20, .bold))
-                .foregroundStyle(Theme.text1)
-                .padding(.horizontal, Mac.edge)
+            Group {
+                if let more {
+                    Button(action: more) {
+                        HStack(spacing: 6) {
+                            Text(title)
+                            // The way on, shown under the pointer so the name reads as a name the rest of the time.
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 14, weight: .bold))
+                                .opacity(titleHovered ? 1 : 0)
+                                .offset(x: titleHovered ? 0 : -4)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { titleHovered = $0 }
+                    .animation(.easeOut(duration: 0.15), value: titleHovered)
+                    .accessibilityHint(title)
+                } else {
+                    Text(title)
+                }
+            }
+            .font(.app(20, .bold))
+            .foregroundStyle(Theme.text1)
+            .padding(.horizontal, Mac.edge)
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 16) {
                     ForEach(posts) { card($0) }

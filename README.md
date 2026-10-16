@@ -155,11 +155,11 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 <img src="docs/screenshots/details.jpg" alt="صفحهٔ یک عنوان" width="49%">
 </p>
 
-صفحهٔ هر عنوان فصل‌ها و قسمت‌ها و بازیگرانش را دارد. فیلم، سریال و انیمه هر کدام فهرست خودشان را دارند که می‌شود مرتبشان کرد. ژانرها را هم می‌شود مرور کرد، و برای پیدا کردن عنوانی مشخص، جستجو هست.
+صفحهٔ هر عنوان فصل‌ها و قسمت‌ها و بازیگرانش را دارد. فیلم، سریال و انیمه هر کدام فهرست خودشان را دارند که می‌شود مرتبشان کرد. در بخش «کاوش» می‌شود ژانر به ژانر گشت، و برای پیدا کردن عنوانی مشخص، جستجو هست.
 
 <p align="center">
 <img src="docs/screenshots/movies.jpg" alt="فهرست فیلم‌ها" width="32%">
-<img src="docs/screenshots/browse.jpg" alt="مرور ژانرها" width="32%">
+<img src="docs/screenshots/browse.jpg" alt="کاوش در ژانرها" width="32%">
 <img src="docs/screenshots/search.jpg" alt="جستجو" width="32%">
 </p>
 
