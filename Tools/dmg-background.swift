@@ -1,5 +1,6 @@
 // Draws the background of the Mac app's disk image: the window people see when they open the
-// download, with the logo, an arrow from the app to Applications, and what to do in two languages.
+// download, with the logo, an arrow from the app to Applications, what to do in two languages, and
+// where to let it open the first time.
 // Writes background.png and background@2x.png into the folder given.
 // Run from the repository root: swift Tools/dmg-background.swift <folder>
 import AppKit
@@ -13,7 +14,7 @@ for name in ["Regular", "Medium", "Bold"] {
 let logo = NSBitmapImageRep(data: try! Data(contentsOf: root.appendingPathComponent("Tools/30nama-logo.png")))!.cgImage!
 
 /// The window's size in points; the icons sit at the points make-dmg.sh gives Finder.
-let size = CGSize(width: 660, height: 420)
+let size = CGSize(width: 660, height: 470)
 let appAt = CGPoint(x: 170, y: 200), applicationsAt = CGPoint(x: 490, y: 200)
 
 func colour(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
@@ -97,6 +98,14 @@ func draw(scale: CGFloat) -> NSBitmapImageRep {
     }
     line("برای نصب، ۳۰نما را روی پوشهٔ Applications بکشید", font: "Vazirmatn-Medium", points: 15, hex: 0x30333B, y: 318, rightToLeft: true)
     line("Drag 30nama onto Applications to install it", font: "Vazirmatn-Regular", points: 12, hex: 0x8A8D96, y: 348, rightToLeft: false)
+
+    // And the way past macOS's refusal the first time, since the app is not signed by Apple: under
+    // a hairline, smaller, as the path to follow in System Settings.
+    cg.setFillColor(colour(0x1B1D24, 0.1))
+    cg.fill(CGRect(x: (size.width - 220) / 2, y: 386, width: 220, height: 1))
+    // The names as macOS shows them, in English: that is the language its settings are in for most people here.
+    line("اگر باز نشد:", font: "Vazirmatn-Regular", points: 12.5, hex: 0x5C606A, y: 398, rightToLeft: true)
+    line("System Settings › Privacy & Security › Open Anyway", font: "Vazirmatn-Medium", points: 12.5, hex: 0x30333B, y: 422, rightToLeft: false)
     return rep
 }
 
