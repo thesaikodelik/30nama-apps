@@ -59,6 +59,11 @@ struct DetailsView: View {
                     header
                     if post.isSeries, let stream, stream.items.count > 1 { episodes(stream) }
                     if !post.cast.isEmpty { cast }
+                    // From TMDB, with the user's own key: the people behind the camera, and reviews.
+                    if let extra = TMDBStore.shared.known[post.id] {
+                        if !extra.crew.isEmpty { crew(extra.crew) }
+                        if !extra.reviews.isEmpty { reviews(extra.reviews) }
+                    }
                     facts
                 }
                 .padding(.horizontal, Mac.edge)
@@ -370,6 +375,47 @@ struct DetailsView: View {
         }
     }
 
+    private func crew(_ people: [TMDB.Person]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(loc(.crew)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: 20) {
+                    ForEach(people, id: \.self) { person in
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle().fill(Theme.surface2)
+                                Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(Theme.text3)
+                                if let photo = person.photo {
+                                    RemoteImage(url: photo, maxPixel: Int(96 * Display.scale))
+                                }
+                            }
+                            .frame(width: 96, height: 96)
+                            .clipShape(Circle())
+                            Text(person.name).font(.app(13, .semibold)).foregroundStyle(Theme.text1).lineLimit(1)
+                            Text(loc.job(person.job)).font(.app(12)).foregroundStyle(Theme.text3).lineLimit(1)
+                        }
+                        .frame(width: 112)
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+        }
+    }
+
+    private func reviews(_ list: [TMDB.Review]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(loc(.reviews)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: 16) {
+                    ForEach(list, id: \.self) { ReviewCard(review: $0) }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+        }
+    }
+
     private var facts: some View {
         let rows: [(S, String)] = [
             (.director, post.directors), (.creator, post.creators), (.writer, post.writers),
@@ -587,5 +633,52 @@ private struct ListToggle: View {
         .help(help)
         .accessibilityLabel(help)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// One review from TMDB, in the language it was written in (mostly English), cut short; the
+/// whole of it opens on TMDB.
+private struct ReviewCard: View {
+    let review: TMDB.Review
+
+    @Environment(\.loc) private var loc
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Mac.radius + 4, style: .continuous)
+        Button {
+            if let link = review.link { NSWorkspace.shared.open(link) }
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(review.author).font(.app(14, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let rating = review.rating {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xF5C518))
+                            Text("\(loc.num(Fmt.score(rating)))/\(loc.num(10))").font(.app(12, .bold)).foregroundStyle(Theme.text2)
+                        }
+                    }
+                }
+                Text(review.text)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.text2)
+                    .lineSpacing(3)
+                    .lineLimit(6)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    // Written left to right whatever the interface reads in.
+                    .environment(\.layoutDirection, .leftToRight)
+            }
+            .padding(16)
+            .frame(width: 340, height: 180, alignment: .topLeading)
+            .background(Color.white.opacity(hovering ? 0.1 : 0.06), in: shape)
+            .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .accessibilityLabel("\(review.author): \(review.text)")
     }
 }
