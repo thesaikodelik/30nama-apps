@@ -490,6 +490,8 @@ enum SubtitleFetcher {
     /// - Parameter page: the site's listing for this film or season.
     /// - Returns: whether a subtitle in time with this copy was found and written to `target`.
     static func fetch(page: URL, fileName: String, season: Int?, episode: Int?, to target: URL) async -> Bool {
+        // Addresses 30nama links to may be in the site's old form ("season=1").
+        let page = SubSource.current(page)
         guard let listing = await get(page).flatMap({ String(data: $0, encoding: .utf8) }),
               let entry = SubtitleSite.best(for: fileName, season: season, episode: episode, among: SubtitleSite.entries(in: listing)),
               let own = URL(string: entry.path, relativeTo: page)?.absoluteURL,

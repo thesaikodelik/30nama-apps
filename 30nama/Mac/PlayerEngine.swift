@@ -74,6 +74,13 @@ final class PlayerEngine {
 
     /// The subtitle choice for a track inside the file: this, followed by the track's id.
     static let inFile = "infile:"
+    /// The subtitle choice for one found on SubSource: this, followed by the candidate's id.
+    static let found = "found:"
+
+    /// Persian subtitles found on SubSource for an item 30nama gives none for, best first.
+    private(set) var foundSubtitles: [SubSource.Candidate] = []
+    private(set) var findingSubtitles = false
+    @ObservationIgnored private var findTask: Task<Void, Never>?
 
     @ObservationIgnored private var resume: ContinueWatching?
     @ObservationIgnored private var track = SubtitleTrack()
@@ -167,6 +174,7 @@ final class PlayerEngine {
         heartbeat?.invalidate()
         subtitleTask?.cancel()
         sleepTask?.cancel()
+        findTask?.cancel()
         if pinned { window?.level = .normal }
         playback.stop()
         nowPlaying?.end()
@@ -245,8 +253,9 @@ final class PlayerEngine {
         // A file belongs to the episode it was picked for.
         fileTrack = nil
         subtitleFileName = nil
-        let kept = subtitleLanguage == PlayerEngine.fileSubtitle || subtitleLanguage.hasPrefix(PlayerEngine.inFile)
+        let kept = subtitleLanguage == PlayerEngine.fileSubtitle || subtitleLanguage.hasPrefix(PlayerEngine.inFile) || subtitleLanguage.hasPrefix(PlayerEngine.found)
         selectSubtitle(kept ? app.settings.defaultSubtitle : subtitleLanguage, remember: false)
+        lookForSubtitles()
     }
 
     private func resumePosition() -> Double? {
@@ -521,16 +530,58 @@ final class PlayerEngine {
         (playback as? MPVPlayback)?.selectAudio(id)
     }
 
+    /// 30nama has no Persian subtitle for this item: look on SubSource, and show the best one at once
+    /// if Persian is what the user watches with.
+    private func lookForSubtitles() {
+        findTask?.cancel()
+        foundSubtitles = []
+        findingSubtitles = false
+        var none = current.subtitles["fa"] == nil
+        #if DEBUG
+        if DebugLaunch.findSubtitles { none = true }
+        #endif
+        guard none, current.token != PlayerEngine.localToken else { return }
+        let item = index
+        let query = SubSource.Query(title: post.titleEnglish ?? post.title(.en), year: post.year, imdbID: post.imdbID,
+                                    isSeries: post.isSeries, season: post.isSeries ? current.season : nil)
+        let release = [current.title(.en), quality?.label].compactMap { $0 }.joined(separator: " ")
+        let episode = post.isSeries ? current.episodeNumber : nil
+        findingSubtitles = true
+        findTask = Task { [weak self] in
+            let list = await SubtitleFinder.shared.candidates(for: query, release: release, episode: episode)
+            guard let self, !Task.isCancelled, !self.closed, self.index == item else { return }
+            self.findingSubtitles = false
+            self.foundSubtitles = Array(list.prefix(8))
+            if let best = list.first, self.subtitleLanguage == "fa" {
+                self.selectSubtitle(PlayerEngine.found + best.id, remember: false)
+            }
+        }
+    }
+
     func selectSubtitle(_ language: String, remember: Bool) {
         subtitleLanguage = language
         let inFile = language.hasPrefix(PlayerEngine.inFile)
-        if remember, language != PlayerEngine.fileSubtitle, !inFile { app.update { $0.defaultSubtitle = language } }
+        // A subtitle found for this title is remembered as Persian, which is what it is.
+        let chosen = language.hasPrefix(PlayerEngine.found) ? "fa" : language
+        if remember, language != PlayerEngine.fileSubtitle, !inFile { app.update { $0.defaultSubtitle = chosen } }
         subtitleTask?.cancel()
         track = SubtitleTrack()
         cue = ""
         // A track inside the file is drawn by mpv, in its own styling; anything else by the app.
         (playback as? MPVPlayback)?.selectSubtitle(inFile ? Int(language.dropFirst(PlayerEngine.inFile.count)) : nil)
         if inFile { return }
+        if language.hasPrefix(PlayerEngine.found) {
+            let id = String(language.dropFirst(PlayerEngine.found.count))
+            guard let candidate = foundSubtitles.first(where: { $0.id == id }) else { return }
+            let season = post.isSeries ? current.season : nil, episode = post.isSeries ? current.episodeNumber : nil
+            subtitleTask = Task { [weak self] in
+                let text = await SubtitleFinder.shared.text(of: candidate, season: season, episode: episode)
+                guard !Task.isCancelled, let self, self.subtitleLanguage == language else { return }
+                guard let text else { return self.app.showToast(self.loc(.subFailed)) }
+                self.track = SubtitleTrack(vtt: text)
+            }
+            return
+        }
         if language == PlayerEngine.fileSubtitle {
             track = fileTrack ?? SubtitleTrack()
             return

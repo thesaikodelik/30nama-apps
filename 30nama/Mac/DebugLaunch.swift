@@ -56,5 +56,7 @@ enum DebugLaunch {
     static var holdControls: Bool { environment["NAMA_CONTROLS"] == "1" }
     static var updateFeed: URL? { environment["NAMA_UPDATE_FEED"].flatMap(URL.init(string:)) }
     static var version: String? { environment["NAMA_VERSION"] }
+    /// `NAMA_FINDSUBS=1`: look on SubSource as if 30nama had no Persian subtitle for what plays.
+    static var findSubtitles: Bool { environment["NAMA_FINDSUBS"] == "1" }
 }
 #endif

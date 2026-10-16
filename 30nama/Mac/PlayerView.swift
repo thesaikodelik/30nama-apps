@@ -341,6 +341,19 @@ struct PlayerView: View {
                 }
             }
             .pickerStyle(.inline)
+            // 30nama has no Persian subtitle for this one: those found on SubSource, best first.
+            if engine.findingSubtitles {
+                Text(loc(.findingSubtitles))
+            } else if !engine.foundSubtitles.isEmpty {
+                Picker(loc(.fromSubSource), selection: Binding(get: { engine.subtitleLanguage }, set: { engine.selectSubtitle($0, remember: true) })) {
+                    ForEach(Array(engine.foundSubtitles.enumerated()), id: \.element.id) { place, candidate in
+                        // The same release name twice gets a number, so the two can be told apart.
+                        let earlier = engine.foundSubtitles.prefix(place).filter { $0.name == candidate.name }.count
+                        Text(earlier > 0 ? "\(candidate.name) (\(loc.num(earlier + 1)))" : candidate.name).tag(PlayerEngine.found + candidate.id)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
             Button(loc(.subtitleFile)) { engine.chooseSubtitleFile() }
             Divider()
             Section("\(loc(.subtitleTiming)): \(engine.subtitleOffset.formatted(.number.sign(strategy: .always(includingZero: false)).precision(.fractionLength(2))))s") {

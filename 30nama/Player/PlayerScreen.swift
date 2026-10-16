@@ -51,6 +51,12 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     private var closed = false
 
     private var subtitleLanguage: String
+    /// Seconds the subtitles are shown later (or, negative, earlier) than their file says.
+    private var subtitleOffset = 0.0
+    /// Persian subtitles found on SubSource for an item 30nama gives none for, best first.
+    private var foundSubtitles: [SubSource.Candidate] = []
+    private var findTask: Task<Void, Never>?
+    private static let found = "found:"
     private var track = SubtitleTrack()
     private var subtitleCache: [URL: SubtitleTrack] = [:]
     private var subtitleTask: Task<Void, Never>?
@@ -120,6 +126,8 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.report() }
         }
+        // A series keeps its subtitle timing from one episode to the next, as on the Mac.
+        if post.isSeries, let kept = UserDefaults.standard.dictionary(forKey: speedKey)?["subtitleOffset"] as? Double { subtitleOffset = kept }
         // The speed picked in the system's menu, kept for the series' next episodes.
         rateObservation = player.observe(\.rate) { [weak self] player, _ in
             let rate = player.rate
@@ -142,6 +150,7 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         heartbeat?.invalidate()
         subtitleTask?.cancel()
         sleepTask?.cancel()
+        findTask?.cancel()
         rateObservation = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -165,7 +174,31 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         }
         load(quality, at: position ?? resumePosition())
         resume = nil
+        if subtitleLanguage.hasPrefix(PlayerEngine.found) { subtitleLanguage = "fa" }
         selectSubtitle(subtitleLanguage, remember: false)
+        lookForSubtitles()
+    }
+
+    /// 30nama has no Persian subtitle for this item: look on SubSource, and show the best one at once
+    /// if Persian is what the user watches with.
+    private func lookForSubtitles() {
+        findTask?.cancel()
+        foundSubtitles = []
+        guard current.subtitles["fa"] == nil else { return }
+        let item = index
+        let query = SubSource.Query(title: post.titleEnglish ?? post.title(.en), year: post.year, imdbID: post.imdbID,
+                                    isSeries: post.isSeries, season: post.isSeries ? current.season : nil)
+        let release = [current.title(.en), quality?.label].compactMap { $0 }.joined(separator: " ")
+        let episode = post.isSeries ? current.episodeNumber : nil
+        findTask = Task { [weak self] in
+            let list = await SubtitleFinder.shared.candidates(for: query, release: release, episode: episode)
+            guard let self, !Task.isCancelled, !self.closed, self.index == item else { return }
+            self.foundSubtitles = Array(list.prefix(6))
+            if let best = list.first, self.subtitleLanguage == "fa" {
+                self.selectSubtitle(PlayerEngine.found + best.id, remember: false)
+            }
+            self.refreshMenus()
+        }
     }
 
     private func resumePosition() -> Double? {
@@ -224,6 +257,19 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         guard !closed else { return }
         app.showToast(loc(.playError))
         close()
+    }
+
+    // MARK: Subtitle timing
+
+    private func nudgeSubtitles(_ seconds: Double) {
+        subtitleOffset = seconds == 0 ? 0 : ((subtitleOffset + seconds) * 4).rounded() / 4
+        if post.isSeries {
+            var kept = UserDefaults.standard.dictionary(forKey: speedKey) ?? [:]
+            kept["subtitleOffset"] = subtitleOffset
+            UserDefaults.standard.set(kept, forKey: speedKey)
+        }
+        showCue(track.text(at: player.currentTime().seconds - subtitleOffset))
+        refreshMenus()
     }
 
     // MARK: Speed and sleep
@@ -321,7 +367,7 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     private func tick(_ time: Double) {
         guard !closed, time.isFinite else { return }
         if let item = player.currentItem { preferPlayableAudio(on: item) }
-        let cue = track.text(at: time)
+        let cue = track.text(at: time - subtitleOffset)
         if cue != shownCue { showCue(cue) }
 
         if let skip = current.skipTarget(at: time) {
@@ -419,15 +465,30 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
         var menus: [UIMenuElement] = []
 
         let languages = ["fa", "en"].filter { current.subtitles[$0] != nil }
-        if !languages.isEmpty {
-            let options = [("off", loc(.off))] + languages.map { ($0, loc($0 == "fa" ? .persian : .english)) }
-            let active = languages.contains(subtitleLanguage) ? subtitleLanguage : "off"
-            menus.append(UIMenu(title: loc(.subtitles), image: UIImage(systemName: "text.bubble"), children: options.map { code, name in
+        if !languages.isEmpty || !foundSubtitles.isEmpty {
+            let codes = languages + foundSubtitles.map { PlayerEngine.found + $0.id }
+            var options = [("off", loc(.off))] + languages.map { ($0, loc($0 == "fa" ? .persian : .english)) }
+            // Found ones are named by their release; the same name twice gets a number.
+            var seen: [String: Int] = [:]
+            for candidate in foundSubtitles {
+                seen[candidate.name, default: 0] += 1
+                let n = seen[candidate.name]!
+                options.append((PlayerEngine.found + candidate.id, "\(loc(.persian)) · \(candidate.name)" + (n > 1 ? " (\(loc.num(n)))" : "")))
+            }
+            let active = codes.contains(subtitleLanguage) ? subtitleLanguage : "off"
+            let choices = UIMenu(options: .displayInline, children: options.map { code, name in
                 UIAction(title: name, state: code == active ? .on : .off) { [weak self] _ in
                     self?.selectSubtitle(code, remember: true)
                     self?.refreshMenus()
                 }
-            }))
+            })
+            let shown = subtitleOffset == 0 ? "0" : subtitleOffset.formatted(.number.sign(strategy: .always()).precision(.fractionLength(2)))
+            let timing = UIMenu(title: "\(loc(.subtitleTiming)): \(loc.num(shown))s", children: [
+                UIAction(title: loc(.subtitleEarlier) + " (−0.25s)") { [weak self] _ in self?.nudgeSubtitles(-0.25) },
+                UIAction(title: loc(.subtitleLater) + " (+0.25s)") { [weak self] _ in self?.nudgeSubtitles(0.25) },
+                UIAction(title: loc(.reset), attributes: subtitleOffset == 0 ? .disabled : []) { [weak self] _ in self?.nudgeSubtitles(0) },
+            ])
+            menus.append(UIMenu(title: loc(.subtitles), image: UIImage(systemName: "text.bubble"), children: [choices, timing]))
         }
 
         let mixes = quality?.mixes ?? []
@@ -522,10 +583,23 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
     /// drawn over the video.
     private func selectSubtitle(_ language: String, remember: Bool) {
         subtitleLanguage = language
-        if remember { app.update { $0.defaultSubtitle = language } }
+        let found = language.hasPrefix(PlayerEngine.found)
+        if remember { app.update { $0.defaultSubtitle = found ? "fa" : language } }
         subtitleTask?.cancel()
         track = SubtitleTrack()
         showCue("")
+        if found {
+            let id = String(language.dropFirst(PlayerEngine.found.count))
+            guard let candidate = foundSubtitles.first(where: { $0.id == id }) else { return }
+            let season = post.isSeries ? current.season : nil, episode = post.isSeries ? current.episodeNumber : nil
+            subtitleTask = Task { [weak self] in
+                let text = await SubtitleFinder.shared.text(of: candidate, season: season, episode: episode)
+                guard !Task.isCancelled, let self, self.subtitleLanguage == language else { return }
+                guard let text else { return self.app.showToast(self.loc(.subFailed)) }
+                self.track = SubtitleTrack(vtt: text)
+            }
+            return
+        }
         guard language != "off", let url = current.subtitles[language] else { return }
         if let cached = subtitleCache[url] {
             track = cached
