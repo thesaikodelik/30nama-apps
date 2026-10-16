@@ -125,7 +125,14 @@ struct MainView: View {
         .background { shortcuts }
         .overlay(alignment: .top) {
             // Clear of the window's edge, with the same air above it as the window's own buttons have.
-            NavBar().padding(.top, 22).zIndex(2)
+            // The update capsule sits behind the bar and slides out from under it.
+            ZStack(alignment: .top) {
+                UpdatePill().padding(.top, UpdatePill.drop)
+                // At its full width: sharing the stack, it was offered a little less and cut a title short.
+                NavBar().fixedSize()
+            }
+            .padding(.top, 22)
+            .zIndex(2)
         }
         .overlay {
             // Placed by the window's own left and top, whatever way the language reads; the card

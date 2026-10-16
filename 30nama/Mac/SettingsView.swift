@@ -34,6 +34,9 @@ struct SettingsView: View {
                         group(loc(.about)) {
                             fact(loc(.version), loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
                             fact(loc(.apiHost), hostName)
+                            row(loc(.reportProblem)) {
+                                Button(loc(.reportProblem)) { reportProblem() }.buttonStyle(GlassButtonStyle(height: 34))
+                            }
                         }
                     }
                     .frame(maxWidth: 620)
@@ -112,10 +115,33 @@ struct SettingsView: View {
             row(loc(.autoplay)) {
                 toggle(app.settings.autoplayNext) { value in app.update { $0.autoplayNext = value } }
             }
+            row(loc(.autoSkip)) {
+                toggle(app.settings.autoSkip) { value in app.update { $0.autoSkip = value } }
+            }
             row(loc(.aroundPicture)) {
                 picker([false, true], selection: ambientLight, name: { loc($0 ? .sceneGlow : .blackBars) }) { ambientLight = $0 }
             }
         }
+    }
+
+    /// A new issue on the project's GitHub page, with what a report needs to be acted on already
+    /// filled in. Nothing about the account goes with it.
+    private func reportProblem() {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        let body = """
+        **What happened / چه اتفاقی افتاد:**
+
+
+        **What I expected / چه انتظاری داشتم:**
+
+
+        ---
+        30nama for Mac \(version) · macOS \(system) · \(app.settings.lang.rawValue)
+        """
+        var parts = URLComponents(string: "https://github.com/thesaikodelik/30nama-apps/issues/new")!
+        parts.queryItems = [URLQueryItem(name: "body", value: body)]
+        if let url = parts.url { NSWorkspace.shared.open(url) }
     }
 
     /// Read by the player; kept on this Mac only, like the other things that are about the screen.

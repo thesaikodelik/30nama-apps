@@ -30,7 +30,7 @@ enum S: String, CaseIterable {
     case downloads, download, downloadFolder, choose, showInFinder, noDownloads, allEpisodes
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
-    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, aroundPicture, blackBars, sceneGlow, folderDenied, performance, back, close, back10, forward10, rowNext, rowPrevious, clearSearch, sound
+    case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, aroundPicture, blackBars, sceneGlow, folderDenied, performance, back, close, back10, forward10, rowNext, rowPrevious, clearSearch, sound, removeFromContinue, newVersion, installUpdate, updating, relaunch, updateReady, updateFailed, downloadPage, later, openElsewhere, shortcuts, mute, volume, slower, faster, subtitleEarlier, subtitleLater, seen, episodeCount, sleepTimer, endOfEpisode, endOfFilm, airPlay, autoSkip, reportProblem, newEpisode
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
@@ -155,7 +155,7 @@ struct Loc: Equatable {
         .effects: "Motion effects", .effectsAuto: "Automatic, for this Mac", .effectsFull: "Full", .effectsLight: "Light, easier on the Mac", .performance: "Performance",
         .back: "Back", .close: "Close", .back10: "Back 10 seconds", .forward10: "Forward 10 seconds",
         .rowNext: "Next titles", .rowPrevious: "Previous titles", .clearSearch: "Clear search", .sound: "Sound on or off",
-        .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in",
+        .exportRatings: "Export ratings…", .exportDone: "Ratings saved", .openIn: "Open in", .openElsewhere: "Open in another player", .shortcuts: "Keyboard shortcuts", .mute: "Mute", .volume: "Volume", .slower: "Slower", .faster: "Faster", .subtitleEarlier: "Subtitles earlier", .subtitleLater: "Subtitles later", .seen: "Watched", .episodeCount: "episodes", .sleepTimer: "Sleep timer", .endOfEpisode: "End of this episode", .endOfFilm: "End of the film", .airPlay: "AirPlay", .autoSkip: "Skip intros and recaps", .reportProblem: "Report a problem", .newEpisode: "New episode",
         .markWatched: "Mark as watched", .markUnwatched: "Mark as not watched", .upcoming: "New episodes on the way",
         .allChoices: "All", .minScore: "IMDb", .decade: "Years",
         .downloads: "Downloads", .download: "Download", .downloadFolder: "Download folder", .choose: "Choose…",
@@ -166,7 +166,7 @@ struct Loc: Equatable {
         .getSubtitle: "Get Persian subtitles", .subtitleSaved: "Subtitles saved beside the file",
         .subtitleMissing: "No matching subtitles found", .withSubtitle: "Persian subtitles included",
         .incomplete: "Incomplete", .notInPack: "Not available in this quality", .ofTotal: "of",
-        .removeFromList: "Remove from list", .moveToTrash: "Remove from list and delete file",
+        .removeFromList: "Remove from list", .removeFromContinue: "Remove from Continue Watching", .newVersion: "New version", .installUpdate: "Update", .updating: "Downloading", .relaunch: "Relaunch", .updateReady: "Update ready", .updateFailed: "Update failed", .downloadPage: "Download page", .later: "Later", .moveToTrash: "Remove from list and delete file",
         .topFilms: "Top 10 Films", .topSeries: "Top 10 Series",
         .intro: "Intro", .recap: "Recap", .credits: "Credits", .aroundPicture: "Around the picture", .blackBars: "Black bars, as in a cinema", .sceneGlow: "Scene glow, no black bars",
         .folderDenied: "The app may not open the download folder. Allow it in System Settings, Privacy & Security, Files and Folders.",
@@ -227,7 +227,7 @@ struct Loc: Equatable {
         .effects: "جلوه‌های حرکتی", .effectsAuto: "خودکار، بر اساس همین مک", .effectsFull: "کامل", .effectsLight: "سبک، کم‌مصرف‌تر", .performance: "کارایی دستگاه",
         .back: "برگشت", .close: "بستن", .back10: "۱۰ ثانیه عقب", .forward10: "۱۰ ثانیه جلو",
         .rowNext: "عنوان‌های بعدی", .rowPrevious: "عنوان‌های قبلی", .clearSearch: "پاک کردن جستجو", .sound: "قطع و وصل صدا",
-        .exportRatings: "خروجی امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در",
+        .exportRatings: "خروجی امتیازها…", .exportDone: "امتیازها ذخیره شد", .openIn: "باز کردن در", .openElsewhere: "باز کردن در برنامهٔ دیگر", .shortcuts: "میان‌برهای کیبورد", .mute: "بی‌صدا", .volume: "بلندی صدا", .slower: "آهسته‌تر", .faster: "تندتر", .subtitleEarlier: "زیرنویس زودتر", .subtitleLater: "زیرنویس دیرتر", .seen: "دیده‌شده", .episodeCount: "قسمت", .sleepTimer: "تایمر خواب", .endOfEpisode: "پایان همین قسمت", .endOfFilm: "پایان فیلم", .airPlay: "پخش روی دستگاه دیگر", .autoSkip: "رد کردن خودکار تیتراژ و خلاصه", .reportProblem: "گزارش مشکل", .newEpisode: "قسمت تازه",
         .markWatched: "علامت‌گذاری به‌عنوان دیده‌شده", .markUnwatched: "علامت‌گذاری به‌عنوان دیده‌نشده", .upcoming: "قسمت‌های آینده",
         .allChoices: "همه", .minScore: "IMDb", .decade: "سال",
         .downloads: "دانلودها", .download: "دانلود", .downloadFolder: "پوشهٔ دانلود", .choose: "انتخاب…",
@@ -238,7 +238,7 @@ struct Loc: Equatable {
         .getSubtitle: "دریافت زیرنویس فارسی", .subtitleSaved: "زیرنویس کنار فایل ذخیره شد",
         .subtitleMissing: "زیرنویس هماهنگ پیدا نشد", .withSubtitle: "با زیرنویس فارسی",
         .incomplete: "ناقص", .notInPack: "در این کیفیت موجود نیست", .ofTotal: "از",
-        .removeFromList: "حذف از فهرست", .moveToTrash: "حذف از فهرست و فایل",
+        .removeFromList: "حذف از فهرست", .removeFromContinue: "حذف از ادامهٔ تماشا", .newVersion: "نسخهٔ تازه", .installUpdate: "به‌روزرسانی", .updating: "در حال دریافت", .relaunch: "اجرای دوباره", .updateReady: "به‌روزرسانی آماده است", .updateFailed: "به‌روزرسانی انجام نشد", .downloadPage: "صفحهٔ دانلود", .later: "بعداً", .moveToTrash: "حذف از فهرست و فایل",
         .topFilms: "۱۰ فیلم برتر", .topSeries: "۱۰ سریال برتر",
         .intro: "تیتراژ", .recap: "خلاصهٔ قسمت قبل", .credits: "تیتراژ پایانی", .aroundPicture: "اطراف تصویر فیلم", .blackBars: "نوار سیاه، مثل سینما", .sceneGlow: "نور صحنه، بدون نوار سیاه",
         .folderDenied: "برنامه اجازهٔ باز کردن پوشهٔ دانلود را ندارد. در تنظیمات سیستم، بخش «حریم خصوصی و امنیت»، قسمت «فایل‌ها و پوشه‌ها» اجازه دهید.",
@@ -299,7 +299,7 @@ struct Loc: Equatable {
         .effects: "تأثيرات الحركة", .effectsAuto: "تلقائي حسب هذا الجهاز", .effectsFull: "كاملة", .effectsLight: "خفيفة وأقل استهلاكًا", .performance: "أداء الجهاز",
         .back: "رجوع", .close: "إغلاق", .back10: "رجوع ١٠ ثوانٍ", .forward10: "تقدّم ١٠ ثوانٍ",
         .rowNext: "العناوين التالية", .rowPrevious: "العناوين السابقة", .clearSearch: "مسح البحث", .sound: "تشغيل الصوت أو كتمه",
-        .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في",
+        .exportRatings: "تصدير التقييمات…", .exportDone: "تم حفظ التقييمات", .openIn: "فتح في", .openElsewhere: "فتح في مشغّل آخر", .shortcuts: "اختصارات لوحة المفاتيح", .mute: "كتم الصوت", .volume: "مستوى الصوت", .slower: "أبطأ", .faster: "أسرع", .subtitleEarlier: "الترجمة أبكر", .subtitleLater: "الترجمة لاحقًا", .seen: "تمت مشاهدتها", .episodeCount: "حلقات", .sleepTimer: "مؤقت النوم", .endOfEpisode: "نهاية هذه الحلقة", .endOfFilm: "نهاية الفيلم", .airPlay: "التشغيل على جهاز آخر", .autoSkip: "تخطي المقدمة والملخص تلقائيًا", .reportProblem: "الإبلاغ عن مشكلة", .newEpisode: "حلقة جديدة",
         .markWatched: "وضع علامة «تمت المشاهدة»", .markUnwatched: "إزالة علامة «تمت المشاهدة»", .upcoming: "حلقات جديدة قادمة",
         .allChoices: "الكل", .minScore: "IMDb", .decade: "السنوات",
         .downloads: "التنزيلات", .download: "تنزيل", .downloadFolder: "مجلد التنزيل", .choose: "اختيار…",
@@ -310,7 +310,7 @@ struct Loc: Equatable {
         .getSubtitle: "جلب الترجمة الفارسية", .subtitleSaved: "حُفظت الترجمة بجانب الملف",
         .subtitleMissing: "لم يُعثر على ترجمة مطابقة", .withSubtitle: "مع ترجمة فارسية",
         .incomplete: "غير مكتمل", .notInPack: "غير متوفرة بهذه الجودة", .ofTotal: "من",
-        .removeFromList: "إزالة من القائمة", .moveToTrash: "إزالة من القائمة وحذف الملف",
+        .removeFromList: "إزالة من القائمة", .removeFromContinue: "إزالة من متابعة المشاهدة", .newVersion: "إصدار جديد", .installUpdate: "تحديث", .updating: "جارٍ التنزيل", .relaunch: "إعادة التشغيل", .updateReady: "التحديث جاهز", .updateFailed: "تعذّر التحديث", .downloadPage: "صفحة التنزيل", .later: "لاحقًا", .moveToTrash: "إزالة من القائمة وحذف الملف",
         .topFilms: "أفضل 10 أفلام", .topSeries: "أفضل 10 مسلسلات",
         .intro: "المقدمة", .recap: "ملخص الحلقة السابقة", .credits: "شارة النهاية", .aroundPicture: "حول صورة الفيلم", .blackBars: "أشرطة سوداء كما في السينما", .sceneGlow: "توهج المشهد بلا أشرطة سوداء",
         .folderDenied: "لا يُسمح للتطبيق بفتح مجلد التنزيل. اسمح بذلك من إعدادات النظام، الخصوصية والأمان، الملفات والمجلدات.",

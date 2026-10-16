@@ -16,7 +16,13 @@ final class PlayerEngine {
     /// The token of an item that is a file on this Mac, not a stream. 30nama is told nothing
     /// about it; where it was left is remembered here instead.
     static let localToken = "local"
-    static let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
+    static let speeds: [Float] = [0.5, 0.75, 0.9, 1, 1.05, 1.1, 1.25, 1.5, 1.75, 2]
+    /// What [ and ] change the speed by: small enough to catch up with a slow scene unnoticed.
+    static let speedStep: Float = 0.05
+
+    static func name(of speed: Float) -> String {
+        speed == 1 ? "1×" : "\(speed.formatted(.number.precision(.fractionLength(0...2))))×"
+    }
 
     let post: Post
     let items: [StreamItem]
@@ -52,6 +58,16 @@ final class PlayerEngine {
     private(set) var subtitleFileName: String?
     private(set) var pictureInPicture = false
     private(set) var pinned = false
+    /// When playback stops by itself, for falling asleep to.
+    private(set) var sleep: SleepTimer = .off
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+    /// The stretch last jumped over by itself, so that one the user goes back into is left alone.
+    @ObservationIgnored private var skippedOn: String?
+
+    enum SleepTimer: Hashable {
+        case off, endOfEpisode, minutes(Int)
+        static let choices: [SleepTimer] = [.off, .endOfEpisode, .minutes(15), .minutes(30), .minutes(45), .minutes(60)]
+    }
     /// The sound and subtitle tracks inside the file, when mpv is playing it. A stream has none to choose from here.
     private(set) var tracks: [MPVPlayback.Track] = []
     private(set) var audioTrack: Int?
@@ -71,6 +87,7 @@ final class PlayerEngine {
     @ObservationIgnored private var markedWatched = false
     private var system: SystemPlayback? { playback as? SystemPlayback }
     @ObservationIgnored private weak var window: NSWindow?
+    @ObservationIgnored private var nowPlaying: NowPlaying?
 
     private var loc: Loc { app.loc }
     var current: StreamItem { items[index] }
@@ -110,13 +127,34 @@ final class PlayerEngine {
 
     func begin() {
         wire()
+        nowPlaying = NowPlaying(.init(
+            play: { [weak self] in if self?.playing == false { self?.toggle() } },
+            pause: { [weak self] in if self?.playing == true { self?.toggle() } },
+            toggle: { [weak self] in self?.toggle() },
+            skip: { [weak self] in self?.skip($0) },
+            seek: { [weak self] in self?.seek(to: $0) },
+            next: { [weak self] in if let self, self.hasNext { self.start(self.index + 1) } }
+        ))
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.report() }
         }
         #if DEBUG
         if DebugLaunch.mute { toggleMute() }
         #endif
+        if post.isSeries, let kept = UserDefaults.standard.dictionary(forKey: seriesKey) {
+            if let value = kept["speed"] as? Double { speed = Float(value) }
+            if let value = kept["subtitleOffset"] as? Double { subtitleOffset = value }
+        }
         if items.isEmpty { close() } else { start(index) }
+    }
+
+    /// A series keeps its speed and subtitle timing from one episode, and one evening, to the next:
+    /// a subtitle that runs late on one episode usually runs late on them all.
+    private var seriesKey: String { "series.\(post.id)" }
+
+    private func keepSeriesChoices() {
+        guard post.isSeries else { return }
+        UserDefaults.standard.set(["speed": Double(speed), "subtitleOffset": subtitleOffset], forKey: seriesKey)
     }
 
     func shutdown() {
@@ -128,8 +166,26 @@ final class PlayerEngine {
         }
         heartbeat?.invalidate()
         subtitleTask?.cancel()
+        sleepTask?.cancel()
         if pinned { window?.level = .normal }
         playback.stop()
+        nowPlaying?.end()
+        nowPlaying = nil
+    }
+
+    /// Brings the system's media controls up to date with what the player is doing.
+    private func announce() {
+        guard !closed, items.indices.contains(index) else { return }
+        nowPlaying?.update(
+            title: post.title(loc.lang),
+            subtitle: post.isSeries ? loc.episodeTag(season: current.season, episode: current.episodeRaw ?? "\(current.episodeNumber)") : nil,
+            poster: post.poster.jpeg ?? post.poster.url(pixelWidth: 600),
+            time: time,
+            duration: duration,
+            playing: playing,
+            speed: speed,
+            hasNext: hasNext
+        )
     }
 
     /// Listens to whatever is decoding now.
@@ -239,9 +295,14 @@ final class PlayerEngine {
         playback.setSpeed(speed, playing: false)
         playing = true
         playback.play()
+        announce()
     }
 
     private func finished() {
+        if sleep == .endOfEpisode {
+            sleep = .off
+            return close()
+        }
         if hasNext, app.settings.autoplayNext {
             start(index + 1)
         } else {
@@ -260,12 +321,14 @@ final class PlayerEngine {
     func toggle() {
         playing.toggle()
         if playing { playback.play() } else { playback.pause() }
+        announce()
     }
 
     func seek(to seconds: Double) {
         let target = max(0, duration > 0 ? min(seconds, duration - 1) : seconds)
         time = target
         playback.seek(to: target)
+        announce()
     }
 
     func skip(_ seconds: Double) {
@@ -275,11 +338,26 @@ final class PlayerEngine {
     func setSpeed(_ value: Float) {
         speed = value
         playback.setSpeed(value, playing: playing)
+        announce()
+        keepSeriesChoices()
+    }
+
+    func setSleep(_ timer: SleepTimer) {
+        sleep = timer
+        sleepTask?.cancel()
+        guard case .minutes(let minutes) = timer else { return }
+        sleepTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard !Task.isCancelled, let self else { return }
+            self.sleep = .off
+            if self.playing { self.toggle() }
+        }
     }
 
     func stepSpeed(_ direction: Int) {
-        let at = PlayerEngine.speeds.firstIndex(of: speed) ?? 2
-        setSpeed(PlayerEngine.speeds[min(max(0, at + direction), PlayerEngine.speeds.count - 1)])
+        // Counted in hundredths, so that a step lands on exactly the speed the menu lists.
+        let hundredths = Int((speed * 100).rounded()) + direction * Int((PlayerEngine.speedStep * 100).rounded())
+        setSpeed(Float(min(200, max(50, hundredths))) / 100)
     }
 
     func setVolume(_ value: Float) {
@@ -361,7 +439,10 @@ final class PlayerEngine {
         guard !closed, seconds.isFinite else { return }
         time = seconds
         let length = playback.duration
-        if length > 0, length != duration { duration = length }
+        if length > 0, length != duration {
+            duration = length
+            announce()
+        }
         let waiting = playback.waiting
         if waiting != buffering { buffering = waiting }
         if !started {
@@ -386,9 +467,16 @@ final class PlayerEngine {
         var left: Double?
         if let skip = current.skipTarget(at: seconds) {
             due = skip.isIntro ? .intro : .recap
+            // Once per stretch: going back into it on purpose is not undone.
+            let stretch = "\(current.id)@\(skip.to)"
+            if app.settings.autoSkip, started, skippedOn != stretch {
+                skippedOn = stretch
+                seek(to: skip.to)
+                due = nil
+            }
         } else if let credits = current.creditsStart, credits > 0, seconds >= credits, hasNext {
             due = .next
-            if app.settings.autoplayNext, duration > credits {
+            if app.settings.autoplayNext, sleep != .endOfEpisode, duration > credits {
                 // In steps, so the pill is not redrawn four times a second.
                 left = (min(1, max(0, (seconds - credits) / (duration - credits))) * 50).rounded() / 50
             }
@@ -466,6 +554,7 @@ final class PlayerEngine {
 
     func nudgeSubtitles(_ seconds: Double) {
         subtitleOffset = seconds == 0 ? 0 : ((subtitleOffset + seconds) * 4).rounded() / 4
+        keepSeriesChoices()
     }
 
     /// Asks for a subtitle file on this Mac and shows it in place of the stream's own.

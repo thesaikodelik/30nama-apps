@@ -31,7 +31,8 @@ enum DemoStream {
             ]
         }
         let items = post.isSeries
-            ? [1, 2].flatMap { s in (1...6).map { item(season: s, episode: $0) } }
+            // Seasons of very different lengths, as real series have.
+            ? [(1, 4), (2, 14), (3, 22)].flatMap { s, count in (1...count).map { item(season: s, episode: $0) } }
             : [["info": ["file_id": "1", "post_id": post.id], "options": ["token": "demo"], "file": ["m3u8": video, "subtitle": subtitles]]]
         return StreamResult(JSON([
             "hls": items,

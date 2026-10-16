@@ -172,7 +172,7 @@ struct DetailsView: View {
                     }
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
-                    .tilting(shape, degrees: 7)
+                    .tilting(shape, degrees: 3)
                     .shadow(color: (sceneTint ?? post.tint).opacity(0.4), radius: 40, y: 18)
                     // Held back, frame and all, while the clicked card's poster is still flying to this spot.
                     .opacity(nav.flight?.post.id == post.id ? 0 : 1)

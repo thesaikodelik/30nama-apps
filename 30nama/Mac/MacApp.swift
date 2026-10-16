@@ -4,6 +4,7 @@ import SwiftUI
 struct NamaMacApp: App {
     @State private var app: AppModel
     @State private var downloads: Downloads
+    @State private var updater = Updater()
 
     init() {
         let model = AppModel()
@@ -20,7 +21,25 @@ struct NamaMacApp: App {
             RootView()
                 .environment(app)
                 .environment(downloads)
+                .environment(updater)
                 .frame(minWidth: 1120, minHeight: 720)
+                // Every hour while open; the updater itself asks GitHub only every few. The first
+                // look waits for the opening title to be over, so the news is seen arriving.
+                .task {
+                    try? await Task.sleep(for: .seconds(8))
+                    while !Task.isCancelled {
+                        await updater.look()
+                        try? await Task.sleep(for: .seconds(3600))
+                    }
+                }
+                // A minute in, once the app is signed in and the home page has had its requests.
+                .task {
+                    try? await Task.sleep(for: .seconds(60))
+                    while !Task.isCancelled {
+                        await EpisodeWatch.shared.look(app)
+                        try? await Task.sleep(for: .seconds(3600))
+                    }
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 900)

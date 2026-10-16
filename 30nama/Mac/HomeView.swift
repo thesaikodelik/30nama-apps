@@ -188,7 +188,10 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 20) {
             if !continuing.isEmpty {
                 Shelf(title: loc(.continueWatching), posts: continuing, step: 3) { post in
-                    ContinueCard(post: post) { nav.open(post) }
+                    ContinueCard(post: post, remove: {
+                        app.dismissContinue(post)
+                        withAnimation(Theme.glide) { continuing.removeAll { $0.id == post.id } }
+                    }) { nav.open(post) }
                 }
             }
             ForEach(feed.sections) { section in

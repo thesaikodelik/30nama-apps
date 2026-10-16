@@ -13,6 +13,8 @@ struct Settings: Equatable {
     var subtitleColor = SubtitleColor.white
     var subtitleBackground = SubtitleBackground.none
     var autoplayNext = true
+    /// Jump over the opening titles and the recap without being asked.
+    var autoSkip = false
     /// Stereo by default: the original mix is often silent on the Apple TV's own speakers.
     var audioMix: AudioMix = .stereo
     /// Mac only: how much the app moves when nobody is touching it.
@@ -34,6 +36,7 @@ struct Settings: Equatable {
         if let v = d.string(forKey: "subColor").flatMap(SubtitleColor.init(rawValue:)) { s.subtitleColor = v }
         if let v = d.string(forKey: "subBackground").flatMap(SubtitleBackground.init(rawValue:)) { s.subtitleBackground = v }
         if let v = d.object(forKey: "autoplay") as? Bool { s.autoplayNext = v }
+        s.autoSkip = d.bool(forKey: "autoSkip")
         if let v = d.string(forKey: "audioMix").flatMap(AudioMix.init(rawValue:)) { s.audioMix = v }
         if let v = d.string(forKey: "effects").flatMap(Effects.init(rawValue:)) { s.effects = v }
         s.downloadFolder = d.string(forKey: "downloadFolder")
@@ -50,6 +53,7 @@ struct Settings: Equatable {
         d.set(subtitleColor.rawValue, forKey: "subColor")
         d.set(subtitleBackground.rawValue, forKey: "subBackground")
         d.set(autoplayNext, forKey: "autoplay")
+        d.set(autoSkip, forKey: "autoSkip")
         d.set(audioMix.rawValue, forKey: "audioMix")
         d.set(effects.rawValue, forKey: "effects")
         d.set(downloadFolder, forKey: "downloadFolder")
@@ -423,7 +427,21 @@ final class AppModel {
 
     func continueWatching() async -> [Post] {
         guard isLoggedIn, let result = try? await api.get("continue_watching") else { return [] }
-        return Post.continueList(result)
+        let list = dismissals.filter(Post.continueList(result))
+        UserDefaults.standard.set(dismissals.plist, forKey: "continueDismissals")
+        return list
+    }
+
+    @ObservationIgnored private var dismissals = ContinueDismissals(plist: UserDefaults.standard.dictionary(forKey: "continueDismissals") as? [String: Double] ?? [:])
+
+    /// Takes a title off "continue watching", on 30nama and so on every device. The server's list
+    /// is cached for a while after that, so the app also keeps the title off itself until it is
+    /// watched again.
+    func dismissContinue(_ post: Post) {
+        dismissals.dismiss(post)
+        UserDefaults.standard.set(dismissals.plist, forKey: "continueDismissals")
+        let api = api
+        Task { _ = try? await api.call("continue_watching_dismiss", ["id": String(post.id)], background: true) }
     }
 
     /// One of the user's own lists on 30nama ("watchlist" or "favorite"), newest addition first.

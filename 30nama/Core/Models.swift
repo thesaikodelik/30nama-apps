@@ -839,6 +839,16 @@ extension Post {
         return format.date(from: String(raw.prefix(10)))
     }
 
+    /// The day of the next episode as people say it, weekday first and no year: "پنجشنبه ۲۳ مهر",
+    /// "Thursday 15 October". The server writes it the other way round ("۲۳ مهر ۱۴۰۵ پنجشنبه").
+    func nextEpisodeLabel(_ lang: Lang) -> String? {
+        guard let raw = lang == .fa ? nextEpisodeDate.jalali : nextEpisodeDate.gregorian else { return nil }
+        let parts = raw.split(separator: " ").map(String.init)
+        // Day, month, year, then the weekday, which in Persian can be two words ("سه شنبه").
+        guard parts.count >= 4 else { return raw }
+        return ([parts[3...].joined(separator: " "), parts[0], parts[1]]).joined(separator: " ")
+    }
+
     /// The series among `posts` with an episode still to come, soonest first.
     static func upcoming(_ posts: [Post], now: Date = Date()) -> [Post] {
         let today = now.addingTimeInterval(-86400)
