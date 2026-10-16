@@ -62,4 +62,11 @@ final class TMDBTests: XCTestCase {
         XCTAssertEqual(TMDB.logosPage(title: page, language: "en")?.absoluteString, "https://www.themoviedb.org/movie/475557-joker/images/logos?image_language=en")
         XCTAssertNil(TMDB.logosPage(title: URL(string: "https://www.themoviedb.org/search")!, language: "en"), "not a title page")
     }
+
+    func testReadsTheTrailerFromThePublicPage() {
+        XCTAssertEqual(TMDB.trailer(inPage: ##"<a data-site="YouTube" data-id="t433PEQGErc" href="#">"##), "t433PEQGErc")
+        XCTAssertNil(TMDB.trailer(inPage: "<p>none</p>"))
+        XCTAssertEqual(TMDB.trailersPage(title: URL(string: "https://www.themoviedb.org/tv/196322-dark-matter")!)?.absoluteString,
+                       "https://www.themoviedb.org/tv/196322-dark-matter/videos?active_nav_item=Trailers&language=en-US")
+    }
 }

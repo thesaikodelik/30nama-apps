@@ -14,10 +14,12 @@ final class TMDBStore {
 
     /// What is known, by 30nama post id. Kept for the session; titles do not change their logo.
     private(set) var known: [Int: TMDB.Info] = [:]
-    @ObservationIgnored private var asked: Set<Int> = []
+    /// Looks under way, so that two parts of a page asking at once share one.
+    @ObservationIgnored private var running: [Int: Task<TMDB.Info?, Never>] = [:]
     @ObservationIgnored private var usedKey: String?
 
-    /// What TMDB has for `post`, fetched the first time it is asked for.
+    /// What TMDB has for `post`, fetched the first time it is asked for. Without a key it returns
+    /// once the logo is known; the trailer arrives in `known` a moment later.
     func info(for post: Post, lang: Lang) async -> TMDB.Info? {
         // A new key, or none: what was looked up with the old one may not hold.
         if TMDBStore.key != usedKey {
@@ -25,9 +27,30 @@ final class TMDBStore {
             forget()
         }
         if let info = known[post.id] { return info }
-        guard !asked.contains(post.id) else { return nil }
-        guard let key = TMDBStore.key else { return await publicLogo(for: post, lang: lang) }
-        asked.insert(post.id)
+        if let task = running[post.id] { return await task.value }
+        let task = Task { await look(post, lang: lang) }
+        running[post.id] = task
+        let info = await task.value
+        running[post.id] = nil
+        return info
+    }
+
+    /// The trailer for `post`, waiting up to `patience` for a look that is still under way.
+    func trailer(for post: Post, lang: Lang, patience: Duration = .seconds(4)) async -> String? {
+        _ = await info(for: post, lang: lang)
+        let until = ContinuousClock.now + patience
+        while ContinuousClock.now < until {
+            if let trailer = known[post.id]?.trailer { return trailer }
+            if trailerSettled.contains(post.id) { return nil }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return known[post.id]?.trailer
+    }
+
+    @ObservationIgnored private var trailerSettled: Set<Int> = []
+
+    private func look(_ post: Post, lang: Lang) async -> TMDB.Info? {
+        guard let key = TMDBStore.key else { return await publicLook(for: post, lang: lang) }
         var id: Int?
         if let imdb = post.imdbID, let found = await json(TMDB.findRequest(imdbID: imdb, key: key)) {
             id = TMDB.id(inFind: found, isSeries: post.isSeries)
@@ -35,48 +58,56 @@ final class TMDBStore {
         if id == nil, let found = await json(TMDB.searchRequest(title: post.titleEnglish ?? post.title(.en), year: post.year, isSeries: post.isSeries, key: key)) {
             id = TMDB.id(inSearch: found)
         }
-        guard let id, let details = await json(TMDB.detailsRequest(id: id, isSeries: post.isSeries, key: key)) else {
-            // A failed look is tried again next time the title is opened.
-            asked.remove(post.id)
-            return nil
-        }
+        // A failed look is tried again next time the title is opened.
+        guard let id, let details = await json(TMDB.detailsRequest(id: id, isSeries: post.isSeries, key: key)) else { return nil }
         let info = TMDB.info(in: details, lang: lang)
         known[post.id] = info
+        trailerSettled.insert(post.id)
         return info
     }
 
-    /// Without a key, the logo alone, read from the site's public pages; the rest needs the API.
-    private func publicLogo(for post: Post, lang: Lang) async -> TMDB.Info? {
+    /// Without a key, the logo and the trailer, read from the site's public pages; the rest needs the API.
+    private func publicLook(for post: Post, lang: Lang) async -> TMDB.Info? {
         guard let imdb = post.imdbID else { return nil }
-        asked.insert(post.id)
         // The redirect lands on the title's own page; that address is all that is wanted of it.
         var request = URLRequest(url: TMDB.publicPage(imdbID: imdb))
         request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
         request.httpMethod = "HEAD"
-        guard let (_, response) = try? await URLSession.shared.data(for: request), let page = response.url else {
-            asked.remove(post.id)
-            return nil
-        }
+        guard let (_, response) = try? await URLSession.shared.data(for: request), let page = response.url else { return nil }
+        var info = TMDB.Info()
         for language in (lang == .fa ? ["fa", "en"] : ["en"]) {
-            guard let list = TMDB.logosPage(title: page, language: language) else { break }
-            var get = URLRequest(url: list)
-            get.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
-            if let (data, _) = try? await URLSession.shared.data(for: get),
-               let logo = TMDB.logo(inPage: String(decoding: data, as: UTF8.self)) {
-                let info = TMDB.Info(logo: logo)
-                known[post.id] = info
-                return info
+            guard let list = TMDB.logosPage(title: page, language: language),
+                  let html = await publicPage(list) else { break }
+            if let logo = TMDB.logo(inPage: html) {
+                info.logo = logo
+                break
             }
         }
-        known[post.id] = TMDB.Info()
-        return nil
+        // The logo is returned at once; the trailer follows into `known` without holding it up.
+        known[post.id] = info
+        Task {
+            if let list = TMDB.trailersPage(title: page), let html = await publicPage(list), let trailer = TMDB.trailer(inPage: html) {
+                known[post.id]?.trailer = trailer
+            }
+            trailerSettled.insert(post.id)
+        }
+        return info
+    }
+
+    private func publicPage(_ url: URL) async -> String? {
+        var request = URLRequest(url: url)
+        request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return String(decoding: data, as: UTF8.self)
     }
 
     private static let agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 
     private func forget() {
         known = [:]
-        asked = []
+        running = [:]
+        trailerSettled = []
     }
 
     private func json(_ request: URLRequest) async -> JSON? {

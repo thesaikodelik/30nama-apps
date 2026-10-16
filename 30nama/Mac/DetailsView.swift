@@ -20,6 +20,9 @@ struct DetailsView: View {
     /// The colour the page is lit in, from the title's scene.
     @State private var sceneTint: Color?
     @State private var teaser: URL?
+    @State private var trailerFailed = false
+    /// The trailer playing behind the page instead of the film, when TMDB has one and YouTube answers.
+    @State private var backdropTrailer: String?
     @State private var teaserShowing = false
     @Environment(\.calm) private var calm
     @Environment(\.controlActiveState) private var windowState
@@ -32,7 +35,18 @@ struct DetailsView: View {
         ZStack {
             Theme.bg0
             StageView(post: post, dim: 0.3, settle: .zero, tint: sceneTint)
-            if let teaser {
+            if let backdropTrailer {
+                BackdropTrailer(video: backdropTrailer) { teaserShowing = true } failed: {
+                    // YouTube out of reach: a stretch of the film instead, as before.
+                    self.backdropTrailer = nil
+                    trailerFailed = true
+                    Task { await runTeaser() }
+                }
+                .overlay { teaserScrims }
+                .opacity(teaserShowing ? 1 : 0)
+                .animation(.easeInOut(duration: 1.4), value: teaserShowing)
+                .ignoresSafeArea()
+            } else if let teaser {
                 TeaserVideo(url: teaser) { teaserShowing = true }
                     .overlay { teaserScrims }
                     .opacity(teaserShowing ? 1 : 0)
@@ -111,20 +125,35 @@ struct DetailsView: View {
 
     // MARK: Teaser
 
-    /// Shows a stretch of the film, without sound and in its smallest picture, behind the page:
-    /// once per visit, for half a minute, and only while the page is what the user is looking
-    /// at. It reads from the address the page has already been given and tells the server
-    /// nothing, so it counts neither as a request nor as watching.
+    /// Plays something behind the page, without sound: the trailer, which says what the title is
+    /// about, when TMDB has one and YouTube can be reached; otherwise a stretch of the film itself,
+    /// in its smallest picture. Once per visit, and only while the page is what the user is looking
+    /// at. Neither tells 30nama anything, so it counts neither as a request nor as watching.
     private func runTeaser() async {
-        let quiet = stream != nil && app.playback == nil && windowState == .key && nav.opened.last == .title(preview) && !calm
+        let quiet = app.playback == nil && windowState == .key && nav.opened.last == .title(preview) && !calm
         guard quiet else {
             await endTeaser()
             return
         }
-        guard teaser == nil, let stream, let item = stream.items.first else { return }
+        guard teaser == nil, backdropTrailer == nil else { return }
+        var waited = false
+        if !trailerFailed {
+            try? await Task.sleep(for: .seconds(3))
+            waited = true
+            guard !Task.isCancelled else { return }
+            if let video = await TMDBStore.shared.trailer(for: post, lang: loc.lang), !Task.isCancelled {
+                backdropTrailer = video
+                // A trailer is the length it is; it is let run for a minute and a half.
+                try? await Task.sleep(for: .seconds(90))
+                guard !Task.isCancelled, backdropTrailer != nil else { return }
+                await endTeaser()
+                return
+            }
+        }
+        guard let stream, let item = stream.items.first else { return }
         let small = item.qualities.filter { !$0.isAuto && $0.height > 0 }.min { $0.height < $1.height } ?? item.qualities.first
         guard let url = small?.url else { return }
-        try? await Task.sleep(for: .seconds(3))
+        if !waited { try? await Task.sleep(for: .seconds(3)) }
         guard !Task.isCancelled else { return }
         teaser = url
         try? await Task.sleep(for: .seconds(35))
@@ -133,10 +162,11 @@ struct DetailsView: View {
     }
 
     private func endTeaser() async {
-        guard teaser != nil else { return }
+        guard teaser != nil || backdropTrailer != nil else { return }
         teaserShowing = false
         try? await Task.sleep(for: .seconds(1.4))
         teaser = nil
+        backdropTrailer = nil
     }
 
     /// The page's text has to stay readable over moving pictures: the same shading the still has.
@@ -227,6 +257,20 @@ struct DetailsView: View {
                 Label(loc(.download), systemImage: "arrow.down.to.line")
             }
             .buttonStyle(GlassButtonStyle())
+        }
+        // Only once a trailer has been found, so there is never a button that leads nowhere.
+        if let video = TMDBStore.shared.known[post.id]?.trailer {
+            Button {
+                // The silent preview behind the page stops; the trailer has the sound.
+                teaser = nil
+                backdropTrailer = nil
+                teaserShowing = false
+                nav.trailer = (post.title(loc.lang), video)
+            } label: {
+                Label(loc(.trailer), systemImage: "play.rectangle")
+            }
+            .buttonStyle(GlassButtonStyle())
+            .transition(.opacity)
         }
     }
 
