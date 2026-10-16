@@ -807,7 +807,8 @@ struct TitleArt: View {
                         .frame(maxWidth: size * 8, maxHeight: size * 2.4, alignment: .leading)
                         .shadow(color: .black.opacity(0.55), radius: 16, y: 6)
                         .accessibilityLabel(post.title(loc.lang))
-                    if loc.lang != .en {
+                    // Only a name in another script: a series with no Persian name would repeat the logo.
+                    if loc.lang != .en, SubSource.simple(post.title(loc.lang)) != SubSource.simple(post.title(.en)) {
                         Text(post.title(loc.lang)).font(.app(size * 0.38, .semibold)).foregroundStyle(Theme.text1)
                     }
                 }

@@ -425,6 +425,24 @@ final class AppModel {
         }
     }
 
+    /// What is trending on TMDB this week and can be watched on 30nama, in TMDB's order. Through
+    /// the user's TMDB key when there is one, else TMDB's public page. Each title costs a 30nama
+    /// search the first time, so the answers are kept on disk (see `Trending`).
+    func trendingThisWeek() async -> [Post] {
+        let key = TMDBStore.key
+        if trending == nil || trending?.key != key {
+            let api = api
+            let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(key == nil ? "trending-public.json" : "trending.json")
+            trending = (key, Trending(key: key, cacheFile: file) { query in
+                try await api.get("search", ["query": query, "streamonly": "0", "page": "1"], background: true)
+            })
+        }
+        return await trending?.service.row(.trend) ?? []
+    }
+
+    @ObservationIgnored private var trending: (key: String?, service: Trending)?
+
     func continueWatching() async -> [Post] {
         guard isLoggedIn, let result = try? await api.get("continue_watching") else { return [] }
         let list = dismissals.filter(Post.continueList(result))
