@@ -63,7 +63,7 @@ struct HomeView: View {
             }
         }
         .task(id: app.contentVersion) { await load() }
-        .task(id: app.watchVersion) {
+        .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
             if feed != nil { continuing = await app.continueWatching() }
         }
         .task(id: "\(hero)|\(resting)|\(feed == nil)") { await rotate() }
@@ -176,6 +176,16 @@ struct HomeView: View {
         }
     }
 
+    /// The section a row of the home feed stands for, when it is a whole one.
+    static func section(for key: String) -> MacSection? {
+        switch key {
+        case "movies": return .movies
+        case "series": return .series
+        case "anime": return .anime
+        default: return nil
+        }
+    }
+
     // MARK: Shelves
 
     private func shelves(_ feed: HomeFeed) -> some View {
@@ -195,7 +205,7 @@ struct HomeView: View {
                 .transition(.opacity)
             }
             ForEach(feed.sections) { section in
-                Shelf(title: loc.title(forSection: section.key), posts: section.posts) { post in
+                Shelf(title: loc.title(forSection: section.key), posts: section.posts, more: HomeView.section(for: section.key).map { target in { nav.go(target) } }) { post in
                     if section.key == "top_10" {
                         RankedCard(rank: (section.posts.firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
                     } else {

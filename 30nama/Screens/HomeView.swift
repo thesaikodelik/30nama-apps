@@ -90,7 +90,7 @@ struct HomeView: View {
         .ignoresSafeArea()
         .toolbar(.hidden, for: .navigationBar)
         .task { await load() }
-        .task(id: app.watchVersion) {
+        .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
             if feed != nil { continuing = await app.continueWatching() }
         }
         .task(id: browsing) {

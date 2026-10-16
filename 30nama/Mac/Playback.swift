@@ -145,8 +145,11 @@ final class SystemPlayback: Playback {
     func attach(_ layer: AVPlayerLayer) {
         if pip == nil, AVPictureInPictureController.isPictureInPictureSupported() {
             pip = AVPictureInPictureController(playerLayer: layer)
+            pip?.delegate = pipReturn
         }
     }
+
+    private let pipReturn = PictureInPictureReturn()
 
     func stop() {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
@@ -156,6 +159,21 @@ final class SystemPlayback: Playback {
         if pip?.isPictureInPictureActive == true { pip?.stopPictureInPicture() }
         player.pause()
         player.replaceCurrentItem(with: nil)
+    }
+}
+
+/// Back from Picture in Picture, the app's window is brought forward, on whatever desktop or
+/// screen it is: left alone, the picture returns to a window the user is not looking at.
+private final class PictureInPictureReturn: NSObject, AVPictureInPictureControllerDelegate {
+    func pictureInPictureController(_ controller: AVPictureInPictureController,
+                                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completion: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            // The app has one window, and the picture plays in it.
+            let window = NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
+            window?.makeKeyAndOrderFront(nil)
+            completion(true)
+        }
     }
 }
 

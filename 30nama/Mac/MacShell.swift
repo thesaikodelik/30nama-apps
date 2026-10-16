@@ -1,7 +1,8 @@
 import SwiftUI
 
 enum MacSection: Hashable, CaseIterable {
-    case profile, home, movies, series, anime, browse, search, downloads, settings
+    // The order of the bar: search first, as most apps have it; the user's own page last, by settings.
+    case search, home, movies, series, anime, browse, profile, settings, downloads
 
     var symbol: String {
         switch self {

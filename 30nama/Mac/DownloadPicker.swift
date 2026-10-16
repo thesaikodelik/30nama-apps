@@ -141,7 +141,9 @@ struct DownloadPicker: View {
                     app.showToast(loc(.downloadStarted))
                     close()
                 } label: {
-                    Label("\(loc(.wholeSeason)) · \(loc.num(left.count)) \(loc(.episode))", systemImage: "arrow.down.to.line")
+                    // Held to the language's own direction: inside the button it was laid out left
+                    // to right, which in Persian put the count before the words.
+                    Label(loc.isolated("\(loc(.wholeSeason)) · \(loc.num(left.count)) \(loc(.episode))"), systemImage: "arrow.down.to.line")
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(left.isEmpty)
