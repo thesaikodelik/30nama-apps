@@ -89,15 +89,7 @@ struct HomeView: View {
                             .font(.app(14, .semibold))
                             .foregroundStyle(Theme.text2)
                     }
-                    Text(post.title(loc.lang))
-                        .font(.app(56, .heavy))
-                        .foregroundStyle(LinearGradient(colors: [.white, Theme.text1.opacity(0.84)], startPoint: .top, endPoint: .bottom))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .shadow(color: .black.opacity(0.5), radius: 18, y: 6)
-                    if let other = post.alternateTitle(loc.lang) {
-                        Text(other).font(.app(18, .medium)).foregroundStyle(Theme.text2)
-                    }
+                    TitleArt(post: post, size: 56)
                     MetaRow(post: post).padding(.top, 2)
                     Text(post.plot(loc.lang))
                         .font(.app(16))

@@ -778,3 +778,56 @@ struct Toast: View {
             .glass(Capsule(style: .continuous))
     }
 }
+
+// MARK: - The title as its own artwork
+
+/// A title's name: its logo from TMDB when TMDB has one, otherwise the name in large type with its
+/// other name under it. The logo is mostly in English; in Persian or Arabic the name in that
+/// language follows it in smaller type, so it is still there to read.
+struct TitleArt: View {
+    let post: Post
+    /// Size of the name in type, and so of the space the logo is given.
+    let size: CGFloat
+
+    @Environment(\.loc) private var loc
+    @State private var logo: PlatformImage?
+
+    var body: some View {
+        Group {
+            if let logo {
+                VStack(alignment: .leading, spacing: 10) {
+                    Image(platformImage: logo)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: size * 8, maxHeight: size * 2.4, alignment: .leading)
+                        .shadow(color: .black.opacity(0.55), radius: 16, y: 6)
+                        .accessibilityLabel(post.title(loc.lang))
+                    if loc.lang != .en {
+                        Text(post.title(loc.lang)).font(.app(size * 0.38, .semibold)).foregroundStyle(Theme.text1)
+                    }
+                }
+                .transition(.opacity)
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(post.title(loc.lang))
+                        .font(.app(size, .heavy))
+                        .foregroundStyle(LinearGradient(colors: [.white, Theme.text1.opacity(0.84)], startPoint: .top, endPoint: .bottom))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
+                        .shadow(color: .black.opacity(0.5), radius: 18, y: 6)
+                    if let other = post.alternateTitle(loc.lang) {
+                        Text(other).font(.app(18, .medium)).foregroundStyle(Theme.text2)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeOut(duration: 0.35), value: logo != nil)
+        .task(id: post.id) {
+            logo = nil
+            guard let info = await TMDBStore.shared.info(for: post, lang: loc.lang), let url = info.logo,
+                  let image = await ImagePipeline.shared.image(url, maxPixel: 1000), !Task.isCancelled else { return }
+            logo = image
+        }
+    }
+}
