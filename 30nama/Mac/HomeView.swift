@@ -11,6 +11,8 @@ struct HomeView: View {
 
     @State private var feed: HomeFeed?
     @State private var continuing: [Post] = []
+    /// TMDB's week, as far as 30nama has it; filled in after the page is up.
+    @State private var trending: [Post] = []
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own,
     /// so these are the first ten of the catalogue's "most popular" order.
     @State private var top: [String: [Post]] = HomeView.topCache
@@ -186,6 +188,12 @@ struct HomeView: View {
                     }) { nav.open(post) }
                 }
             }
+            if !trending.isEmpty {
+                Shelf(title: loc(.trendingWeek), posts: trending) { post in
+                    PosterCard(post: post) { nav.open(post) }
+                }
+                .transition(.opacity)
+            }
             ForEach(feed.sections) { section in
                 Shelf(title: loc.title(forSection: section.key), posts: section.posts) { post in
                     if section.key == "top_10" {
@@ -238,6 +246,10 @@ struct HomeView: View {
             if feed == nil { failed = true }
         }
         await loadTop()
+        if trending.isEmpty {
+            let found = await app.trendingThisWeek()
+            if !Task.isCancelled { withAnimation(Theme.glide) { trending = found } }
+        }
     }
 
     /// Asked for once and kept for as long as the app runs: the order changes slowly, and the
