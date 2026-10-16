@@ -286,6 +286,12 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(resume.remainingMinutes, 31, "the length is worked out from the position and the percentage")
     }
 
+    func testNextEpisodeLabelPutsTheWeekdayFirst() {
+        let post = Post.list(JSON(["posts": [["id": 1, "air": ["next_episode_date": ["g": "20 October 2026 Tuesday", "j": "۲۸ مهر ۱۴۰۵ سه شنبه"]]]]] as [String: Any])).first!
+        XCTAssertEqual(post.nextEpisodeLabel(.fa), "سه شنبه ۲۸ مهر")
+        XCTAssertEqual(post.nextEpisodeLabel(.en), "Tuesday 20 October")
+    }
+
     func testUserShapes() {
         let bare = User(JSON(["user_session": "abc", "user_name": "sara", "user_expire": 1_800_000_000, "user_id": 12] as [String: Any]))
         XCTAssertEqual(bare?.token, "abc")

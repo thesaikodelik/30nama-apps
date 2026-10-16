@@ -38,7 +38,7 @@ struct ProfileView: View {
                     .padding(.horizontal, Mac.edge)
                     if !upcoming.isEmpty {
                         Shelf(title: loc(.upcoming), posts: upcoming) { post in
-                            PosterCard(post: post, note: loc.lang == .fa ? post.nextEpisodeDate.jalali : post.nextEpisodeDate.gregorian) { nav.open(post) }
+                            PosterCard(post: post, note: post.nextEpisodeLabel(loc.lang)) { nav.open(post) }
                         }
                     }
                     if !picks.isEmpty { shelf(loc(.forYou), picks) }

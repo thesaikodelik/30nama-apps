@@ -252,6 +252,9 @@ struct PosterCard: View {
                 .overlay(alignment: .bottom) {
                     if let note, !hovering {
                         Text(note)
+                            // In the direction of the words in it, so they come in the right order. Only
+                            // Persian has its own; elsewhere the day is written in English.
+                            .environment(\.layoutDirection, loc.lang == .fa ? .rightToLeft : .leftToRight)
                             .font(.app(11, .bold))
                             .foregroundStyle(.white)
                             .lineLimit(1)
@@ -282,10 +285,11 @@ struct PosterCard: View {
                     .onChange(of: geo.frame(in: .named(MainView.space))) { _, new in spot.frame = new }
             }
         }
-        // The pointer has come to rest here: open the card that says more about the title.
+        // The pointer has come to rest here: open the card that says more about the title. Not
+        // at once: someone still looking along the row should not have cards opening under them.
         .task(id: hovering) {
             guard hovering, let nav else { return }
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: .milliseconds(1300))
             // Not under a pane that has the window: the pointer there is not on this poster.
             guard !Task.isCancelled, spot.frame.width > 0, !nav.palette, nav.picking == nil,
                   Date().timeIntervalSince(nav.lastScroll) > 0.4 else { return }
@@ -528,8 +532,8 @@ private struct Tilt<S: Shape>: ViewModifier {
                         .transition(.opacity)
                 }
             }
-            .rotation3DEffect(.degrees(-down * 2 * degrees), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .rotation3DEffect(.degrees(across * 2 * degrees), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+            .rotation3DEffect(.degrees(-down * 2 * degrees), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
+            .rotation3DEffect(.degrees(across * 2 * degrees), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
             .onContinuousHover(coordinateSpace: .local) { phase in
                 guard !calm else { return }
                 switch phase {
@@ -538,7 +542,8 @@ private struct Tilt<S: Shape>: ViewModifier {
                 }
             }
             .background { GeometryReader { geo in Color.clear.onAppear { size = geo.size }.onChange(of: geo.size) { _, new in size = new } } }
-            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.78), value: at)
+            // Slow to follow, so the card leans after the pointer rather than snapping to it.
+            .animation(.interactiveSpring(response: 0.45, dampingFraction: 0.85), value: at)
     }
 
     @State private var size = CGSize.zero
@@ -546,7 +551,7 @@ private struct Tilt<S: Shape>: ViewModifier {
 
 extension View {
     /// Makes a card lean to the pointer and catch the light. See `Tilt`.
-    func tilting<S: Shape>(_ shape: S, degrees: Double = 9) -> some View { modifier(Tilt(shape: shape, degrees: degrees)) }
+    func tilting<S: Shape>(_ shape: S, degrees: Double = 4) -> some View { modifier(Tilt(shape: shape, degrees: degrees)) }
 }
 
 /// A poster with its place in the top ten beside it, in figures as tall as the poster. The
@@ -583,6 +588,8 @@ struct RankedCard: View {
 /// A wide card for something half-watched: the scene, how far in, and what is left.
 struct ContinueCard: View {
     let post: Post
+    /// Takes the card off the row; nil where it cannot be taken off.
+    var remove: (() -> Void)? = nil
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -620,12 +627,34 @@ struct ContinueCard: View {
                 }
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
-                .tilting(shape, degrees: 6)
+                .tilting(shape, degrees: 3)
                 .shadow(color: post.tint.opacity(hovering ? 0.5 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
                 .scaleEffect(hovering ? 1.04 : 1)
                 .contentShape(shape)
         }
         .buttonStyle(.plain)
+        // Off the card itself, so a click on it does not also open the title.
+        .overlay(alignment: .topTrailing) {
+            if let remove, hovering {
+                Button(action: remove) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.black.opacity(0.6)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(loc(.removeFromContinue))
+                .accessibilityLabel(loc(.removeFromContinue))
+                .padding(10)
+                .transition(.opacity)
+            }
+        }
+        .contextMenu {
+            if let remove { Button(loc(.removeFromContinue), action: remove) }
+        }
         .onHover { hovering = $0 }
         .animation(Theme.focusSpring, value: hovering)
         .zIndex(hovering ? 1 : 0)

@@ -9,6 +9,8 @@ import Foundation
 ///   and `NAMA_OPEN=<post id>` one from the home feed.
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
+/// - `NAMA_UPDATE_FEED=<url>` reads releases from there instead of GitHub, and `NAMA_VERSION=1.1.0`
+///   makes the app take itself for that version, to walk through an update before one is published.
 /// - `NAMA_PROBE="action?key=value&key=value;another"` with `NAMA_PROBE_OUT=<file>` calls those API
 ///   actions with the signed-in session, writes the shape of each answer (values cut short) to
 ///   the file and quits without showing a window. For finding out what an action returns.
@@ -52,5 +54,7 @@ enum DebugLaunch {
     static var play: Bool { environment["NAMA_PLAY"] == "1" }
     static var mute: Bool { environment["NAMA_MUTE"] == "1" }
     static var holdControls: Bool { environment["NAMA_CONTROLS"] == "1" }
+    static var updateFeed: URL? { environment["NAMA_UPDATE_FEED"].flatMap(URL.init(string:)) }
+    static var version: String? { environment["NAMA_VERSION"] }
 }
 #endif
