@@ -63,6 +63,18 @@ enum TMDB {
         return URL(string: page.absoluteString.components(separatedBy: "?")[0] + "/images/logos?image_language=" + language)
     }
 
+    /// The page that lists a title's trailers, given the title's own page.
+    static func trailersPage(title page: URL) -> URL? {
+        guard page.path.hasPrefix("/movie/") || page.path.hasPrefix("/tv/") else { return nil }
+        return URL(string: page.absoluteString.components(separatedBy: "?")[0] + "/videos?active_nav_item=Trailers&language=en-US")
+    }
+
+    /// The YouTube id of the first trailer the page lists.
+    static func trailer(inPage html: String) -> String? {
+        guard let range = html.range(of: #"data-site="YouTube" data-id="[A-Za-z0-9_-]{11}""#, options: .regularExpression) else { return nil }
+        return String(html[range].dropLast().suffix(11))
+    }
+
     /// The first logo the page lists, which the site puts best voted first.
     static func logo(inPage html: String) -> URL? {
         guard let range = html.range(of: #"/t/p/[a-z0-9_]+/[A-Za-z0-9]+\.(png|svg)"#, options: .regularExpression) else { return nil }

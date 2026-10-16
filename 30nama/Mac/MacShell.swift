@@ -62,6 +62,8 @@ final class MacNav {
     private(set) var opened: [MacRoute] = []
     /// The title a download is being chosen for, when that pane is up.
     var picking: Post?
+    /// The trailer playing over the window: the title's name and the YouTube id.
+    var trailer: (title: String, video: String)?
     /// The quick-search bar is up.
     var palette = false
     /// The poster the pointer has rested on, while its card is up.
@@ -91,7 +93,7 @@ final class MacNav {
 
     func back() {
         peek = nil
-        if palette { palette = false } else if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
+        if trailer != nil { trailer = nil } else if palette { palette = false } else if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
     }
 
     func go(_ section: MacSection) {
@@ -180,12 +182,20 @@ struct MainView: View {
             }
         }
         .overlay {
+            if let trailer = nav.trailer {
+                TrailerSheet(title: trailer.title, video: trailer.video) { nav.trailer = nil }
+                    .id(trailer.video)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .overlay {
             if nav.palette {
                 CommandPalette().transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
         .animation(.easeOut(duration: 0.18), value: nav.palette)
         .animation(.easeOut(duration: 0.22), value: nav.picking?.id)
+        .animation(.easeOut(duration: 0.22), value: nav.trailer?.video)
         .animation(.easeOut(duration: 0.28), value: nav.opened.last)
         .environment(nav)
         // Esc steps back out of a title, as it closes anything else on a Mac.
