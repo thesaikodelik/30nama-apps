@@ -85,7 +85,14 @@ final class Updater {
                 self.phase = .downloading(release, progress: (fraction * 100).rounded() / 100)
             }
         }
-        let (signature, _) = try await URLSession.shared.data(from: release.signature)
+        let signature: Data
+        do {
+            (signature, _) = try await URLSession.shared.data(from: release.signature)
+        } catch {
+            // The image is no use without it; it is not left behind in the temporary folder.
+            try? FileManager.default.removeItem(at: image)
+            throw error
+        }
         let expectedID = Bundle.main.bundleIdentifier
         let place = Bundle.main.bundleURL
         return try await Task.detached {

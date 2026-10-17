@@ -38,9 +38,9 @@ struct DetailsView: View {
             if let backdropTrailer {
                 BackdropTrailer(video: backdropTrailer) { teaserShowing = true } failed: {
                     // YouTube out of reach: a stretch of the film instead, as before.
+                    // Through the page's own task, which knows when to stop (as when Play is pressed).
                     self.backdropTrailer = nil
                     trailerFailed = true
-                    Task { await runTeaser() }
                 }
                 .overlay { teaserScrims }
                 .opacity(teaserShowing ? 1 : 0)
@@ -88,7 +88,7 @@ struct DetailsView: View {
             #endif
         }
         // A few seconds on the page with nothing else going on: let the film itself play behind it.
-        .task(id: "\(stream != nil)|\(app.playback == nil)|\(windowState == .key)|\(nav.opened.last == .title(preview))") { await runTeaser() }
+        .task(id: "\(stream != nil)|\(app.playback == nil)|\(windowState == .key)|\(nav.opened.last == .title(preview))|\(trailerFailed)") { await runTeaser() }
         .task(id: app.watchVersion) {
             // Back from the player: where to resume has moved.
             if stream != nil { await loadStream(quietly: true) }

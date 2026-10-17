@@ -483,9 +483,10 @@ final class PlayerEngine: NSObject, AVPlayerViewControllerDelegate, UIGestureRec
                 }
             })
             let shown = subtitleOffset == 0 ? "0" : subtitleOffset.formatted(.number.sign(strategy: .always()).precision(.fractionLength(2)))
-            let timing = UIMenu(title: "\(loc(.subtitleTiming)): \(loc.num(shown))s", children: [
-                UIAction(title: loc(.subtitleEarlier) + " (−0.25s)") { [weak self] _ in self?.nudgeSubtitles(-0.25) },
-                UIAction(title: loc(.subtitleLater) + " (+0.25s)") { [weak self] _ in self?.nudgeSubtitles(0.25) },
+            let quarter = loc.num("0.25")
+            let timing = UIMenu(title: loc.isolated("\(loc(.subtitleTiming)): \(loc.num(shown)) \(loc(.secondsShort))"), children: [
+                UIAction(title: loc.isolated("\(loc(.subtitleEarlier)) (−\(quarter) \(loc(.secondsShort)))")) { [weak self] _ in self?.nudgeSubtitles(-0.25) },
+                UIAction(title: loc.isolated("\(loc(.subtitleLater)) (+\(quarter) \(loc(.secondsShort)))")) { [weak self] _ in self?.nudgeSubtitles(0.25) },
                 UIAction(title: loc(.reset), attributes: subtitleOffset == 0 ? .disabled : []) { [weak self] _ in self?.nudgeSubtitles(0) },
             ])
             menus.append(UIMenu(title: loc(.subtitles), image: UIImage(systemName: "text.bubble"), children: [choices, timing]))
