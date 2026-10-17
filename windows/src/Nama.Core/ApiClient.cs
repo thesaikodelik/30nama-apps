@@ -160,11 +160,15 @@ public sealed class ApiClient
     /// encrypted here, and HttpClient is handed it as a plain one: the request goes out as
     /// <c>http://host:443</c> with the Host header put back.
     /// </summary>
-    public static Transport HttpTransport()
+    /// <param name="decompress">
+    /// Off for files fetched in parts: a compressed answer makes the byte positions of a range
+    /// mean nothing.
+    /// </param>
+    public static Transport HttpTransport(bool decompress = true)
     {
         var handler = new SocketsHttpHandler
         {
-            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            AutomaticDecompression = decompress ? System.Net.DecompressionMethods.All : System.Net.DecompressionMethods.None,
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(60),
             ConnectCallback = async (context, cancel) =>
             {
@@ -201,7 +205,9 @@ public sealed class ApiClient
                 request.Headers.Host = url.IsDefaultPort ? url.Host : url.Authority;
                 request.Options.Set(Secure, true);
             }
-            return client.SendAsync(request, cancel);
+            // Handed over once the headers are in: a download reads its body as it comes, instead of
+            // all of it being held in memory first.
+            return client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
         };
     }
 
