@@ -82,8 +82,18 @@ public sealed class PeekCard : Grid
         column.Children.Add(body);
         Children.Add(column);
         Children.Add(new Border { CornerRadius = new CornerRadius(20), BorderThickness = new Thickness(1), BorderBrush = Kit.RimBrush(hue), IsHitTestVisible = false });
-        Translation = new System.Numerics.Vector3(0, 0, 48);
-        Shadow = new ThemeShadow();
+        // The card's own light, as on the Mac: a glow in the title's colour and a dark shadow under
+        // it. Behind the rounded body, which would otherwise clip them.
+        var rounded = new Grid { CornerRadius = new CornerRadius(20) };
+        foreach (var child in Children.ToList())
+        {
+            Children.Remove(child);
+            rounded.Children.Add(child);
+        }
+        CornerRadius = new CornerRadius(0);
+        Children.Add(new Glow(new Glow.Look(hue, 0.35f, 56, 20)));
+        Children.Add(new Glow(new Glow.Look(Colors.Black, 0.5f, 32, 12)));
+        Children.Add(rounded);
 
         ShowActions();
         App.Changed += OnChanged;

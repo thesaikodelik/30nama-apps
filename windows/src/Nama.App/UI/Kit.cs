@@ -261,6 +261,7 @@ public static class Kit
         });
         PosterEffects.Tilt(button, face);
         PosterEffects.Peek(button, face, post);
+        PosterEffects.Glow(button, face, post.Tint());
         AutomationName(button, post.Year is { } y ? $"{post.Title(loc.Lang)}, {loc.Num(y)}" : post.Title(loc.Lang));
         button.PointerEntered += (_, _) =>
         {
