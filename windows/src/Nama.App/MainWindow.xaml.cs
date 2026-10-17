@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private NavBar? _bar;
     private Border? _toast;
     private Section? _shownSection;
+    private Route? _shownRoute;
 
     /// <summary>The window is the one in use: things that move only for someone watching can rest otherwise.</summary>
     public static bool IsActive { get; private set; } = true;
@@ -112,6 +113,7 @@ public sealed partial class MainWindow : Window
         _page.Children.Clear();
         _route.Children.Clear();
         _shownSection = null;
+        _shownRoute = null;
         if (_bar is not null) { _overlay.Children.Remove(_bar); _bar = null; }
         switch (_app.Phase)
         {
@@ -179,23 +181,35 @@ public sealed partial class MainWindow : Window
         {
             _shownSection = _nav.Section;
             _page.Children.Clear();
+            var loc = _app.Loc;
             _page.Children.Add(_nav.Section switch
             {
                 Section.Settings => new SettingsPage(),
-                _ => new HomePage(_nav),
+                Section.Search => new SearchPage(_nav),
+                Section.Movies => new CatalogPage("movies", loc[S.movies], _nav),
+                Section.Series => new CatalogPage("series", loc[S.series], _nav),
+                Section.Anime => new CatalogPage("anime", loc[S.anime], _nav),
+                Section.Browse => new BrowsePage(_nav),
+                _ => (UIElement)new HomePage(_nav),
             });
         }
         // What is open on top of the section: only the newest is built; the section stays under it.
         var top = _nav.Opened.Count > 0 ? _nav.Opened[^1] : null;
-        if (_route.Children.Count > 0 && _route.Children[^1] is TitlePage shown && top is Route.Title t && shown.Post.Id == t.Post.Id) return;
-        _route.Children.Clear();
-        if (top is Route.Title title)
-        {
-            var page = new TitlePage(title.Post, _nav, title.Playing) { Opacity = 0 }.Springy(0.28);
-            _route.Children.Add(page);
-            page.Loaded += (_, _) => page.Opacity = 1;
-        }
         _page.Visibility = top is null ? Visibility.Visible : Visibility.Collapsed;
+        if (top is not null && _shownRoute is not null && _shownRoute.Same(top)) return;
+        _shownRoute = top;
+        _route.Children.Clear();
+        FrameworkElement? page = top switch
+        {
+            Route.Title title => new TitlePage(title.Post, _nav, title.Playing),
+            Route.Catalog catalog => new CatalogPage(catalog.Slug, catalog.Name, _nav),
+            _ => null,
+        };
+        if (page is null) return;
+        page.Opacity = 0;
+        page.Springy(0.28);
+        _route.Children.Add(page);
+        page.Loaded += (_, _) => page.Opacity = 1;
     }
 
     private void ShowPlayer()
