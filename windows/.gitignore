@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+# Fetched by tools/fetch-libmpv.ps1, never committed.
+libmpv/
