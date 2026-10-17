@@ -250,7 +250,14 @@ public static class Kit
         var rim = new Border { CornerRadius = new CornerRadius(Theme.Radius), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08) };
         face.Children.Add(rim);
 
-        var button = Theme.Bare(face, click);
+        var button = Theme.Bare(face, () =>
+        {
+            // The poster leaves from here for the title's page.
+            PosterEffects.Launched(post, face);
+            click();
+        });
+        PosterEffects.Tilt(button, face);
+        PosterEffects.Peek(button, face, post);
         AutomationName(button, post.Year is { } y ? $"{post.Title(loc.Lang)}, {loc.Num(y)}" : post.Title(loc.Lang));
         button.PointerEntered += (_, _) =>
         {
