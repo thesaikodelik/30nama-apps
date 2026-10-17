@@ -78,6 +78,17 @@ public sealed class SettingsPage : Grid
             Row(loc[S.subBackground], Choice([(loc[S.bgNone], SubtitleBackground.None), (loc[S.bgHalf], SubtitleBackground.Half), (loc[S.bgSolid], (object)SubtitleBackground.Solid)], s.SubtitleBackground, v => App.Update(x => x with { SubtitleBackground = (SubtitleBackground)v }))),
         ]);
 
+        var folder = Value(Downloads.Shared.Folder, ltr: true);
+        folder.MaxWidth = 300;
+        var folderRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        folderRow.Children.Add(folder);
+        folderRow.Children.Add(Kit.Glass(loc[S.choose], null, ChooseFolder, height: 34));
+        Group(loc[S.downloads],
+        [
+            Row(loc[S.downloadFolder], folderRow),
+            Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
+        ]);
+
         var version = typeof(SettingsPage).Assembly.GetName().Version;
         Group(loc[S.about],
         [
@@ -145,6 +156,14 @@ public sealed class SettingsPage : Grid
         var toggle = new ToggleSwitch { IsOn = on, OnContent = "", OffContent = "", MinWidth = 0 };
         toggle.Toggled += (_, _) => set(toggle.IsOn);
         return toggle;
+    }
+
+    private async void ChooseFolder()
+    {
+        var picker = new Windows.Storage.Pickers.FolderPicker();
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSingleFolderAsync() is { } chosen) App.Update(x => x with { DownloadFolder = chosen.Path });
     }
 
     private async void ConfirmSignOut()

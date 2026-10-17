@@ -475,7 +475,14 @@ public sealed class PlayerEngine
     /// </summary>
     private void Report()
     {
-        if (_closed || !_app.IsLoggedIn || Index >= Items.Count || Duration <= 0) return;
+        if (_closed || Index >= Items.Count || Duration <= 0) return;
+        // A file on this computer: 30nama is told nothing; where it was left is kept here instead.
+        if (Current.Token == Downloads.LocalToken)
+        {
+            if (Playback.Position > 5) Downloads.KeepPosition(Current.FileId, Playback.Position);
+            return;
+        }
+        if (!_app.IsLoggedIn) return;
         var seconds = Playback.Position;
         if (!double.IsFinite(seconds)) return;
         var position = (int)seconds / 30 * 30;

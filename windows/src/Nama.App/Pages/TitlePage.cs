@@ -157,6 +157,15 @@ public sealed class TitlePage : Grid
         // narrow for the row puts the user's own part on a second one.
         var buttons = new WrapRow(14);
         buttons.Add(PlayButton());
+        if (App.IsLoggedIn
+#if DEBUG
+            || Player.DemoStream.IsEnabled
+#endif
+            )
+        {
+            var download = Kit.Glass(App.Loc[S.download], Glyph.Download, () => _nav.Pick(Post), rim: Hue);
+            buttons.Add(download);
+        }
         buttons.Add(Rating());
         if (App.IsLoggedIn)
         {

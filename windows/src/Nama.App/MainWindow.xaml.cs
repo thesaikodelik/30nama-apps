@@ -34,11 +34,17 @@ public sealed partial class MainWindow : Window
     /// <summary>The window is the one in use: things that move only for someone watching can rest otherwise.</summary>
     public static bool IsActive { get; private set; } = true;
 
+    /// <summary>The one window, for the dialogs that have to be told whose they are.</summary>
+    public static MainWindow Shared { get; private set; } = null!;
+
     public MainWindow()
     {
         InitializeComponent();
+        Shared = this;
         Title = "30nama";
         _app = new AppModel(DispatcherQueue);
+        _ = new Downloads(_app, DispatcherQueue);
+        _nav.Picking += ShowPicker;
         Content = _root;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(_dragStrip);
@@ -191,6 +197,7 @@ public sealed partial class MainWindow : Window
                 Section.Anime => new CatalogPage("anime", loc[S.anime], _nav),
                 Section.Browse => new BrowsePage(_nav),
                 Section.Profile => new ProfilePage(_nav),
+                Section.Downloads => new DownloadsPage(),
                 _ => (UIElement)new HomePage(_nav),
             });
         }
@@ -211,6 +218,14 @@ public sealed partial class MainWindow : Window
         page.Springy(0.28);
         _route.Children.Add(page);
         page.Loaded += (_, _) => page.Opacity = 1;
+    }
+
+    /// <summary>The pane for choosing what of a title to download, over everything but the player.</summary>
+    private void ShowPicker(Post post)
+    {
+        DownloadPicker? picker = null;
+        picker = new DownloadPicker(post, () => _overlay.Children.Remove(picker));
+        _overlay.Children.Insert(_bar is null ? 0 : _overlay.Children.IndexOf(_bar) + 1, picker);
     }
 
     private void ShowPlayer()
