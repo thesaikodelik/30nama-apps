@@ -1,3 +1,4 @@
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -6,6 +7,8 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Nama.App.Model;
 using Nama.Core;
 using Windows.Foundation;
+
+using Color = Windows.UI.Color;
 
 namespace Nama.App.UI;
 
@@ -120,6 +123,24 @@ public static class PosterEffects
             board.Children.Add(back);
         }
         return board;
+    }
+
+    /// <summary>
+    /// The light a poster throws under it, as on the Mac: a faint dark shadow at rest, and under
+    /// the pointer a glow in the poster's own colour that grows with it.
+    /// </summary>
+    public static void Glow(Button button, FrameworkElement face, Color tint)
+    {
+        var rest = new UI.Glow.Look(Colors.Black, 0.4f, 8, 4);
+        var lifted = new UI.Glow.Look(tint, 0.55f, 32, 14);
+        var glow = new UI.Glow(rest, grow: 1.07f);
+        var content = (FrameworkElement)button.Content;
+        button.Content = null;
+        content.Width = face.Width;
+        content.Height = face.Height;
+        button.Content = UI.Glow.Behind(content, glow);
+        button.PointerEntered += (_, _) => glow.To(lifted, lifted: true);
+        button.PointerExited += (_, _) => glow.To(rest, lifted: false);
     }
 
     /// <summary>
