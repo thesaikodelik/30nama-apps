@@ -1,7 +1,6 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.Web.WebView2.Core;
 using Nama.App.Model;
 using Nama.App.UI;
 using Nama.Core;
@@ -76,7 +75,7 @@ public sealed class TrailerSheet : Grid
     {
         if (_closed) return;
         _closed = true;
-        try { _web.Close(); } catch (Exception) { }
+        YouTube.Stop(_web);
     }
 
     private async Task StartAsync(string video)
@@ -84,26 +83,8 @@ public sealed class TrailerSheet : Grid
         var reachable = ReachableAsync();
         try
         {
-            // Its own folder under the app's, and leave to start with sound without a click.
-            var environment = await CoreWebView2Environment.CreateWithOptionsAsync(null, Path.Combine(Storage.Folder, "WebView2"),
-                new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required" });
-            await _web.EnsureCoreWebView2Async(environment);
-            if (_closed) return;
-            var core = _web.CoreWebView2;
-            core.Settings.AreDevToolsEnabled = false;
-            core.Settings.AreDefaultContextMenusEnabled = false;
-            core.Settings.IsStatusBarEnabled = false;
-            // Links out of the player open in the browser, not in the sheet.
-            core.NewWindowRequested += (sender, e) =>
-            {
-                e.Handled = true;
-                if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var link)) _ = Windows.System.Launcher.LaunchUriAsync(link);
-            };
-            // The player itself as the page; YouTube wants to know which page it is on, and is told.
-            // A header given with the navigation itself is dropped, so it is put on the request as it leaves.
-            core.AddWebResourceRequestedFilter("https://www.youtube-nocookie.com/embed/*", CoreWebView2WebResourceContext.Document);
-            core.WebResourceRequested += (sender, e) => e.Request.Headers.SetHeader("Referer", "https://github.com/thesaikodelik/30nama-apps");
-            core.Navigate($"https://www.youtube-nocookie.com/embed/{video}?autoplay=1&rel=0&playsinline=1&iv_load_policy=3");
+            // The player itself as the page, with sound.
+            await YouTube.LoadAsync(_web, video, "autoplay=1&rel=0&playsinline=1&iv_load_policy=3");
         }
         catch (Exception)
         {
