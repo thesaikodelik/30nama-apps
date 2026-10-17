@@ -190,6 +190,7 @@ public sealed partial class MainWindow : Window
                 Section.Series => new CatalogPage("series", loc[S.series], _nav),
                 Section.Anime => new CatalogPage("anime", loc[S.anime], _nav),
                 Section.Browse => new BrowsePage(_nav),
+                Section.Profile => new ProfilePage(_nav),
                 _ => (UIElement)new HomePage(_nav),
             });
         }

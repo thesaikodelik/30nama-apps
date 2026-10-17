@@ -197,7 +197,9 @@ public static class Kit
     // MARK: Cards
 
     /// <summary>A poster that lifts toward the pointer and shows its name.</summary>
-    public static Button Poster(Post post, Action click, double width = Theme.PosterWidth)
+    /// <param name="stars">A star rating to pin on the corner, as on the profile's own shelf.</param>
+    /// <param name="note">A line that stays on the card whatever the pointer does: the day an episode is due.</param>
+    public static Button Poster(Post post, Action click, double width = Theme.PosterWidth, double? stars = null, string? note = null)
     {
         var loc = Loc;
         var height = width * 1.5;
@@ -214,7 +216,27 @@ public static class Kit
         if (post.Year is { } year) caption.Children.Add(Theme.Text(loc.Num(year), 11, FontWeights.Medium, Theme.Hex(0xFFFFFF, 0.7)));
         face.Children.Add(caption);
 
-        if (post.ComingSoon)
+        if (note is not null)
+        {
+            var line = Theme.Text(note, 11, FontWeights.Bold, Colors.White);
+            line.HorizontalAlignment = HorizontalAlignment.Center;
+            line.VerticalAlignment = VerticalAlignment.Center;
+            // In the direction of the words in it; only Persian has its own, elsewhere the day is in English.
+            line.FlowDirection = loc.Lang == Lang.Fa ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            face.Children.Add(new Border { MinHeight = 26, VerticalAlignment = VerticalAlignment.Bottom, Background = Theme.Black(0.72), Padding = new Thickness(8, 0, 8, 0), Child = line });
+        }
+        if (stars is { } rated)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            row.Children.Add(Centered(Glyph.Icon(Glyph.StarFill, 10, Theme.Hex(0xF5C518))));
+            row.Children.Add(Centered(Theme.Text(loc.Num(Fmt.Score(rated)), 12, FontWeights.Bold, Colors.White)));
+            face.Children.Add(new Border
+            {
+                Height = 22, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(8), CornerRadius = new CornerRadius(11),
+                Background = Theme.Black(0.72), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Child = row,
+            });
+        }
+        else if (post.ComingSoon)
         {
             var badge = new Border
             {

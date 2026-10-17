@@ -311,6 +311,57 @@ public sealed class AppModel
         return options;
     }
 
+    /// <summary>One of the user's own lists on 30nama ("watchlist" or "favorite"), newest addition first.</summary>
+    public async Task<List<Post>> MyListAsync(string group)
+    {
+        if (!IsLoggedIn) return [];
+        try
+        {
+            return Post.List(await Api.GetAsync("user_list", new Dictionary<string, string>
+            {
+                ["action"] = "list", ["group"] = group, ["page"] = "1", ["orderby"] = "add_list", ["order"] = "DESC",
+            }));
+        }
+        catch (Exception) { return []; }
+    }
+
+    /// <summary>How many titles the user keeps in each of their 30nama lists.</summary>
+    public async Task<Dictionary<string, int>> MyListSizesAsync()
+    {
+        if (!IsLoggedIn) return [];
+        try
+        {
+            var result = await Api.GetAsync("user_mylist");
+            return (result.Object ?? new Dictionary<string, Json>()).ToDictionary(kv => kv.Key, kv => kv.Value["post"].Array.Count);
+        }
+        catch (Exception) { return []; }
+    }
+
+    /// <summary>Series on the user's watchlist or notify list with an episode still to come, soonest first.</summary>
+    public async Task<List<Post>> UpcomingAsync()
+    {
+        if (!IsLoggedIn) return [];
+        var posts = new List<Post>();
+        try
+        {
+            foreach (var group in new[] { "watchlist", "notify" })
+            {
+                // A handful of pages is every list a person keeps; more would only hammer the server.
+                for (int page = 1, pages = 1; page <= pages && page <= 4; page++)
+                {
+                    var next = new PostPage(await Api.GetAsync("user_list", new Dictionary<string, string>
+                    {
+                        ["action"] = "list", ["group"] = group, ["page"] = page.ToString(), ["orderby"] = "add_list", ["order"] = "DESC",
+                    }, background: true));
+                    posts.AddRange(next.Posts);
+                    pages = next.Pages;
+                }
+            }
+        }
+        catch (Exception) { return []; }
+        return Post.Upcoming(posts);
+    }
+
     // MARK: Lists
 
     /// <summary>Reads which titles are on the user's lists, so a title page can show where it stands.</summary>
