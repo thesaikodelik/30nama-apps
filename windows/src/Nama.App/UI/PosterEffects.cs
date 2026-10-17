@@ -1,3 +1,4 @@
+using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Hosting;
 using System.Numerics;
 using Microsoft.UI;
@@ -64,7 +65,7 @@ public static class PosterEffects
     /// Turned in 3D by the compositor, with perspective, after a spring: not a XAML projection,
     /// which draws the poster on a surface of its own and softens its edges.
     /// </summary>
-    public static void Tilt(Button button, Grid face, double degrees = 4)
+    public static void Tilt(Button button, Grid face, double degrees = 6)
     {
         if (App.Settings.ReduceMotion) return;
         // On a holder: the face grows under the pointer by XAML's own scale, which the compositor's
@@ -91,9 +92,14 @@ public static class PosterEffects
         var lean = visual.Properties;
         lean.InsertScalar("X", 0);
         lean.InsertScalar("Y", 0);
-        holder.SizeChanged += (_, e) =>
+        // The 3D turn is on only while the card leans: at rest a card under a perspective
+        // transform is drawn by another path, which softens its edges by a pixel.
+        var turning = false;
+        void StartTurn()
         {
-            var centre = new Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
+            if (turning || holder.ActualWidth <= 0) return;
+            turning = true;
+            var centre = new Vector3((float)holder.ActualWidth / 2, (float)holder.ActualHeight / 2, 0);
             var matrix = compositor.CreateExpressionAnimation(
                 "Matrix4x4.CreateTranslation(-Centre) * Matrix4x4.CreateFromAxisAngle(Vector3(1, 0, 0), Lean.X) * Matrix4x4.CreateFromAxisAngle(Vector3(0, 1, 0), Lean.Y) * Depth * Matrix4x4.CreateTranslation(Centre)");
             matrix.SetVector3Parameter("Centre", centre);
@@ -101,7 +107,14 @@ public static class PosterEffects
             matrix.SetMatrix4x4Parameter("Depth", new Matrix4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1f / 280, 0, 0, 0, 1));
             matrix.SetReferenceParameter("Lean", lean);
             visual.StartAnimation("TransformMatrix", matrix);
-        };
+        }
+        void EndTurn()
+        {
+            turning = false;
+            visual.StopAnimation("TransformMatrix");
+            visual.TransformMatrix = Matrix4x4.Identity;
+        }
+        var hovering = false;
         void LeanTo(float x, float y)
         {
             // Slow to follow, so the card leans after the pointer rather than snapping to it: interactiveSpring(0.45, 0.85).
@@ -132,6 +145,8 @@ public static class PosterEffects
         button.PointerMoved += (_, e) =>
         {
             if (face.ActualWidth <= 0) return;
+            hovering = true;
+            StartTurn();
             var at = e.GetCurrentPoint(face).Position;
             var across = (float)(Math.Clamp(at.X / face.ActualWidth, 0, 1) - 0.5);
             var down = (float)(Math.Clamp(at.Y / face.ActualHeight, 0, 1) - 0.5);
@@ -146,8 +161,13 @@ public static class PosterEffects
         };
         button.PointerExited += (_, _) =>
         {
+            hovering = false;
             glint.Opacity = 0;
+            // Back to flat, and once it is there, the turn is taken off.
+            var settled = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
             LeanTo(0, 0);
+            settled.End();
+            settled.Completed += (_, _) => { if (!hovering) EndTurn(); };
         };
     }
 

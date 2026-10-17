@@ -229,7 +229,7 @@ public sealed class TitlePage : Grid
         poster.Children.Add(Images.Remote(post.Poster.Big ?? post.Poster.Large, null, PosterWidth * 1.5));
         poster.Children.Add(new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.14) });
         // As on the Mac: the poster leans 3 degrees to the pointer, and throws a glow in the title's colour.
-        PosterEffects.Lean(poster, poster, poster, 3);
+        PosterEffects.Lean(poster, poster, poster, 4.5);
         var lifted = Glow.Behind(poster, new Glow(new Glow.Look(Hue, 0.4f, 56, 18)));
         lifted.VerticalAlignment = VerticalAlignment.Top;
         if (_held) lifted.Opacity = 0;

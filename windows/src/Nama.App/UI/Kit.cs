@@ -348,7 +348,7 @@ public static class Kit
         AutomationName(button, post.Title(loc.Lang));
         // As the Mac's card for something half-watched: it leans 3 degrees to the pointer and
         // glows in the title's colour under it.
-        PosterEffects.Tilt(button, face, 3);
+        PosterEffects.Tilt(button, face, 4.5);
         PosterEffects.Glow(button, face, new Glow.Look(Colors.Black, 0, 0, 0), new Glow.Look(post.Tint(), 0.5f, 32, 14), 1.04f);
         var host = new Grid();
         host.Children.Add(Hovering(button, face, 1.04));
