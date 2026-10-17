@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Nama.App.Model;
 using Nama.App.UI;
+using Nama.Core;
 
 namespace Nama.App.Shell;
 
@@ -13,6 +14,51 @@ public sealed class NavBar : StackPanel
     private readonly Nav _nav;
     private readonly Button _back;
     private readonly Button _downloads;
+
+    /// <summary>The notifications, with how many are new on it, opening their pane under the bar.</summary>
+    private Button Bell()
+    {
+        var loc = AppModel.Shared.Loc;
+        var unread = AppModel.Shared.Notifications?.Unread ?? 0;
+        var face = new Grid { Height = 40, Padding = new Thickness(13, 0, 13, 0), CornerRadius = new CornerRadius(20), Background = Theme.White(0) };
+        face.Children.Add(Glyph.Icon("", 16, Theme.Text1.WithAlpha(0.78)));
+        if (unread > 0)
+        {
+            var count = Theme.Text(loc.Num(Math.Min(unread, 99)), 10, Microsoft.UI.Text.FontWeights.Bold, Microsoft.UI.Colors.White);
+            count.HorizontalAlignment = HorizontalAlignment.Center;
+            count.VerticalAlignment = VerticalAlignment.Center;
+            face.Children.Add(new Border
+            {
+                MinWidth = 16, Height = 16, CornerRadius = new CornerRadius(8), Background = Theme.Brush(Theme.Accent), Padding = new Thickness(4, 0, 4, 0),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 4, -6, 0), Child = count,
+            });
+        }
+        var button = Theme.Bare(face, () => { });
+        var flyout = new Flyout
+        {
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom,
+            FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+            {
+                Setters =
+                {
+                    new Setter(Control.BackgroundProperty, Theme.White(0)),
+                    new Setter(Control.BorderThicknessProperty, new Thickness(0)),
+                    new Setter(Control.PaddingProperty, new Thickness(0)),
+                    new Setter(FrameworkElement.MaxWidthProperty, 600.0),
+                },
+            },
+        };
+        button.Click += (_, _) =>
+        {
+            flyout.Content = new Pages.NotificationsPanel(_nav, flyout.Hide) { FlowDirection = FlowDirection };
+            flyout.ShowAt(button);
+        };
+        button.PointerEntered += (_, _) => face.Background = Theme.White(0.12);
+        button.PointerExited += (_, _) => face.Background = Theme.White(0);
+        ToolTipService.SetToolTip(button, loc[Extra.notifications]);
+        Kit.AutomationName(button, loc[Extra.notifications]);
+        return button;
+    }
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
 
     public NavBar(Nav nav)
@@ -38,7 +84,14 @@ public sealed class NavBar : StackPanel
         Kit.AutomationName(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
         Children.Add(_downloads);
         nav.Changed += Refresh;
+        AppModel.Shared.Changed += OnChanged;
+        Unloaded += (_, _) => AppModel.Shared.Changed -= OnChanged;
         Refresh();
+    }
+
+    private void OnChanged(string what)
+    {
+        if (what is "notifications" or "user") Refresh();
     }
 
     public void Refresh()
@@ -80,6 +133,8 @@ public sealed class NavBar : StackPanel
             ToolTipService.SetToolTip(button, loc[Nav.Title(section)]);
             Kit.AutomationName(button, loc[Nav.Title(section)]);
             _items.Children.Add(button);
+            // The bell sits before settings, for someone signed in: what 30nama has to tell them.
+            if (section == Section.Profile && AppModel.Shared.IsLoggedIn) _items.Children.Add(Bell());
         }
     }
 }
