@@ -77,7 +77,7 @@ public class ModelTests
         Assert.True(new Filter().IsEmpty);
         var filter = new Filter(Genre: "drama", Country: "US", Score: "8.5", Decade: 2010);
         Assert.False(filter.IsEmpty);
-        Assert.Equal("""{"country":"US","genre":"drama","imdb_rate":8.5,"max_year":2019,"min_year":2010,"stream":"true","type":"movie"}""", filter.Parameters("movie"));
+        Assert.Equal("""{"country":"US","genre":"drama","imdb_rate":8.5,"max_year":2019,"min_year":2010,"stream":"true","type":["movie"]}""", filter.Parameters("movie")); // the type as a list, or the server ignores it
         Assert.Equal("""{"imdb_rate":8,"stream":"true"}""", new Filter(Score: "8").Parameters(null));
     }
 

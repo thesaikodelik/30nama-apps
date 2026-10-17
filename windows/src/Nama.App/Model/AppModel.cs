@@ -338,6 +338,17 @@ public sealed class AppModel
         return options;
     }
 
+    /// <summary>Everything the advanced search can be narrowed by, kept for the session in the language it came in.</summary>
+    public async Task<SearchChoices> SearchChoicesAsync()
+    {
+        if (_choicesCache is { } c && c.Lang == Settings.Lang) return c.Choices;
+        var choices = new SearchChoices(await Api.GetAsync("advanced_search_parameters"));
+        _choicesCache = (choices, Settings.Lang);
+        return choices;
+    }
+
+    private (SearchChoices Choices, Lang Lang)? _choicesCache;
+
     /// <summary>One of the user's own lists on 30nama ("watchlist" or "favorite"), newest addition first.</summary>
     public async Task<List<Post>> MyListAsync(string group)
     {

@@ -946,7 +946,9 @@ public sealed record Filter(string? Genre = null, string? Country = null, string
     public string Parameters(string? type)
     {
         var fields = new SortedDictionary<string, object>(StringComparer.Ordinal) { ["stream"] = "true" };
-        if (type is not null) fields["type"] = type;
+        // As a list: the server ignores a type given as a single value, and the catalogue of films
+        // filled up with series.
+        if (type is not null) fields["type"] = new[] { type };
         if (Genre is not null) fields["genre"] = Genre;
         if (Country is not null) fields["country"] = Country;
         if (Score is not null && double.TryParse(Score, NumberStyles.Float, CultureInfo.InvariantCulture, out var floor)) fields["imdb_rate"] = floor;
