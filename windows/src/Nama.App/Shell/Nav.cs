@@ -36,6 +36,11 @@ public sealed class Nav
 
     public void Pick(Post post) => Picking?.Invoke(post);
 
+    /// <summary>A trailer to play over the window: the title's name and the YouTube id.</summary>
+    public event Action<string, string>? Trailering;
+
+    public void Trailer(string title, string video) => Trailering?.Invoke(title, video);
+
     public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Profile, Section.Settings];
 
     public static string Symbol(Section s) => s switch

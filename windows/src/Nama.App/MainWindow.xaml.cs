@@ -62,6 +62,7 @@ public sealed partial class MainWindow : Window
         _app = new AppModel(DispatcherQueue);
         _ = new Downloads(_app, DispatcherQueue);
         _nav.Picking += ShowPicker;
+        _nav.Trailering += ShowTrailer;
         Content = _root;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(_dragStrip);
@@ -258,6 +259,13 @@ public sealed partial class MainWindow : Window
         DownloadPicker? picker = null;
         picker = new DownloadPicker(post, () => _overlay.Children.Remove(picker));
         _overlay.Children.Insert(_bar is null ? 0 : _overlay.Children.IndexOf(_bar) + 1, picker);
+    }
+
+    private void ShowTrailer(string title, string video)
+    {
+        TrailerSheet? sheet = null;
+        sheet = new TrailerSheet(title, video, () => _overlay.Children.Remove(sheet));
+        _overlay.Children.Insert(_bar is null ? 0 : _overlay.Children.IndexOf(_bar) + 1, sheet);
     }
 
     private void ShowPlayer()

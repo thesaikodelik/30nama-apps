@@ -26,6 +26,8 @@ public sealed class HomePage : Grid
 
     private HomeFeed? _feed;
     private List<Post> _continuing = [];
+    /// <summary>What is trending on TMDB this week and is on 30nama; asked for once per run.</summary>
+    private static List<Post> Trend = [];
     /// <summary>
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own, so
     /// these are the first ten of the catalogue's "most popular" order, asked for once per run.
@@ -92,7 +94,7 @@ public sealed class HomePage : Grid
         kind.Children.Add(new Border { Width = 4, Height = 16, CornerRadius = new CornerRadius(2), Background = Theme.Brush(tint), VerticalAlignment = VerticalAlignment.Center });
         kind.Children.Add(Theme.Text($"{loc[S.featured]} · {loc.KindLine(post)}", 14, FontWeights.SemiBold, Theme.Text2));
         column.Children.Add(kind);
-        column.Children.Add(TitleArt(post, 56));
+        column.Children.Add(new TitleArt(post, 56));
         var meta = Kit.MetaRow(post);
         meta.Margin = new Thickness(0, 2, 0, 0);
         column.Children.Add(meta);
@@ -117,23 +119,6 @@ public sealed class HomePage : Grid
         _billboard.Children.Add(column);
         column.Loaded += (_, _) => { column.Opacity = 1; column.Translation = default; };
         ShowDots();
-    }
-
-    /// <summary>A title's name in large type, with its name in the other language under it.</summary>
-    public static StackPanel TitleArt(Post post, double size)
-    {
-        var loc = App.Loc;
-        var column = new StackPanel { Spacing = 14 };
-        var name = Theme.Text(post.Title(loc.Lang), size, FontWeights.ExtraBold, lines: 2);
-        name.LineHeight = size * 1.15;
-        name.Foreground = new LinearGradientBrush
-        {
-            StartPoint = new Windows.Foundation.Point(0.5, 0), EndPoint = new Windows.Foundation.Point(0.5, 1),
-            GradientStops = { new GradientStop { Color = Colors.White, Offset = 0 }, new GradientStop { Color = Theme.Text1.WithAlpha(0.84), Offset = 1 } },
-        };
-        column.Children.Add(name);
-        if (post.AlternateTitle(loc.Lang) is { } other) column.Children.Add(Theme.Text(other, 18, FontWeights.Medium, Theme.Text2));
-        return column;
     }
 
     /// <summary>Story-style pager: the current segment fills as its turn runs out.</summary>
@@ -195,6 +180,8 @@ public sealed class HomePage : Grid
                 _continuing.RemoveAll(x => x.Id == p.Id);
                 ShowShelves();
             })), step: 3));
+        if (Trend.Count > 0)
+            _shelves.Children.Add(Kit.Shelf(loc[S.trendingWeek], Trend.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p)))));
         foreach (var section in feed.Sections)
         {
             var posts = Distinct(section.Posts);
@@ -258,7 +245,17 @@ public sealed class HomePage : Grid
             }
             return;
         }
+        _ = LoadTrendingAsync();
         await LoadTopAsync();
+    }
+
+    private async Task LoadTrendingAsync()
+    {
+        if (Trend.Count > 0) return;
+        var found = await App.TrendingThisWeekAsync();
+        if (found.Count == 0) return;
+        Trend = found;
+        ShowShelves();
     }
 
     private void Show(HomeFeed feed)

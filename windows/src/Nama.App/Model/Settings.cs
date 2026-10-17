@@ -47,6 +47,8 @@ public sealed record Settings
     public bool KeepInTray { get; init; } = true;
     /// <summary>The user's own SubSource key, if they made one. Kept on this computer only.</summary>
     public string? SubsourceKey { get; init; }
+    /// <summary>The user's own TMDB key or read access token, if they made one. Kept on this computer only.</summary>
+    public string? TmdbKey { get; init; }
     public double Volume { get; init; } = 1;
 
     public static readonly int[] SubtitleSizes = [38, 46, 54];
