@@ -27,6 +27,7 @@ public sealed partial class PlayerPage : Grid
     private readonly PlaybackRequest _request;
     private readonly MainWindow _window;
     private readonly PlayerEngine _engine;
+    private NowPlaying? _nowPlaying;
     private readonly Color _hue;
 
     private readonly VideoSurface _surface = new();
@@ -105,6 +106,7 @@ public sealed partial class PlayerPage : Grid
         SizeChanged += (_, _) => ShowCue(force: true);
         Loaded += (_, _) =>
         {
+            _nowPlaying = new NowPlaying(_engine, WinRT.Interop.WindowNative.GetWindowHandle(_window), DispatcherQueue);
             _engine.Begin();
             Focus(FocusState.Programmatic);
             Wake();
@@ -112,6 +114,7 @@ public sealed partial class PlayerPage : Grid
         Unloaded += (_, _) =>
         {
             _hide.Stop();
+            _nowPlaying?.Dispose();
             _engine.Shutdown();
             ShowPointer(true);
             if (_window.IsFullScreen) _window.SetFullScreen(false);
