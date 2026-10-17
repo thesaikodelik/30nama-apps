@@ -1,8 +1,9 @@
+using Microsoft.UI.Xaml.Hosting;
+using System.Numerics;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Nama.App.Model;
 using Nama.Core;
@@ -60,19 +61,46 @@ public static class PosterEffects
     /// <summary>
     /// Leans the poster under the pointer, as if pressed there, and runs a glint of light across
     /// it. It moves only while the pointer does, and comes back flat when the pointer leaves.
+    /// Turned in 3D by the compositor, with perspective, after a spring: not a XAML projection,
+    /// which draws the poster on a surface of its own and softens its edges.
     /// </summary>
     public static void Tilt(Button button, Grid face, double degrees = 4)
     {
         if (App.Settings.ReduceMotion) return;
-        // On a holder around the face: a projection cannot share an element with the scale the
-        // face grows by under the pointer.
-        // Only while the pointer is on it: a projected element is drawn on a surface of its own,
-        // which softens its edges by a pixel, and a resting poster should be sharp.
-        var projection = new PlaneProjection();
         var holder = new Grid();
         button.Content = null;
         holder.Children.Add(face);
         button.Content = holder;
+
+        var visual = ElementCompositionPreview.GetElementVisual(holder);
+        var compositor = visual.Compositor;
+        var lean = visual.Properties;
+        lean.InsertScalar("X", 0);
+        lean.InsertScalar("Y", 0);
+        holder.SizeChanged += (_, e) =>
+        {
+            var centre = new Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
+            var matrix = compositor.CreateExpressionAnimation(
+                "Matrix4x4.CreateTranslation(-Centre) * Matrix4x4.CreateFromAxisAngle(Vector3(1, 0, 0), Lean.X) * Matrix4x4.CreateFromAxisAngle(Vector3(0, 1, 0), Lean.Y) * Depth * Matrix4x4.CreateTranslation(Centre)");
+            matrix.SetVector3Parameter("Centre", centre);
+            // Perspective, as SwiftUI's 0.4 gives a card of this size.
+            matrix.SetMatrix4x4Parameter("Depth", new Matrix4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1f / 700, 0, 0, 0, 1));
+            matrix.SetReferenceParameter("Lean", lean);
+            visual.StartAnimation("TransformMatrix", matrix);
+        };
+        void LeanTo(float x, float y)
+        {
+            // Slow to follow, so the card leans after the pointer rather than snapping to it: interactiveSpring(0.45, 0.85).
+            foreach (var (name, value) in new[] { ("X", x), ("Y", y) })
+            {
+                var spring = compositor.CreateSpringScalarAnimation();
+                spring.FinalValue = value;
+                spring.Period = TimeSpan.FromSeconds(0.45 / (2 * Math.PI));
+                spring.DampingRatio = 0.85f;
+                lean.StartAnimation(name, spring);
+            }
+        }
+
         var glint = new Border { Opacity = 0, IsHitTestVisible = false, CornerRadius = face.CornerRadius }.Springy(0.2);
         var light = new RadialGradientBrush
         {
@@ -86,18 +114,16 @@ public static class PosterEffects
         };
         glint.Background = light;
         face.Children.Add(glint);
-        Storyboard? settling = null;
+        var radians = (float)(degrees * Math.PI / 180);
         button.PointerMoved += (_, e) =>
         {
             if (face.ActualWidth <= 0) return;
-            settling?.Stop();
-            holder.Projection ??= projection;
             var at = e.GetCurrentPoint(face).Position;
-            // Physical left to right: a window laid out right to left mirrors the pointer's x.
-            var across = Math.Clamp(at.X / face.ActualWidth, 0, 1) - 0.5;
-            var down = Math.Clamp(at.Y / face.ActualHeight, 0, 1) - 0.5;
-            projection.RotationX = down * 2 * degrees;
-            projection.RotationY = across * 2 * degrees * (face.FlowDirection == FlowDirection.RightToLeft ? -1 : 1);
+            var across = (float)(Math.Clamp(at.X / face.ActualWidth, 0, 1) - 0.5);
+            var down = (float)(Math.Clamp(at.Y / face.ActualHeight, 0, 1) - 0.5);
+            // A window laid out right to left mirrors the pointer's x.
+            var side = face.FlowDirection == FlowDirection.RightToLeft ? -1 : 1;
+            LeanTo(down * 2 * radians, -across * 2 * radians * side);
             var origin = new Point(across + 0.5, down + 0.5);
             light.Center = origin;
             light.GradientOrigin = origin;
@@ -106,23 +132,8 @@ public static class PosterEffects
         button.PointerExited += (_, _) =>
         {
             glint.Opacity = 0;
-            settling = Settle(projection);
-            settling.Completed += (_, _) => holder.Projection = null;
-            settling.Begin();
+            LeanTo(0, 0);
         };
-    }
-
-    private static Storyboard Settle(PlaneProjection projection)
-    {
-        var board = new Storyboard();
-        foreach (var property in new[] { "RotationX", "RotationY" })
-        {
-            var back = new DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(450), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-            Storyboard.SetTarget(back, projection);
-            Storyboard.SetTargetProperty(back, property);
-            board.Children.Add(back);
-        }
-        return board;
     }
 
     /// <summary>
