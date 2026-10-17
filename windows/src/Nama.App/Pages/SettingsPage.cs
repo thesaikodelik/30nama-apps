@@ -86,6 +86,7 @@ public sealed class SettingsPage : Grid
         Group(loc[S.downloads],
         [
             Row(loc[S.downloadFolder], folderRow),
+            Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
             Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 

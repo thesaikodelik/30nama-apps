@@ -10,7 +10,7 @@ namespace Nama.Core;
 public enum Extra
 {
     imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages,
-    bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace,
+    bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace, keepInTray, keepInTrayHint, openApp, quit,
 }
 #pragma warning restore IDE1006
 
@@ -21,6 +21,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.keepInTray] = "Keep running in the notification area",
+        [Extra.keepInTrayHint] = "Closing the window leaves the app beside the clock, so downloads go on.",
+        [Extra.openApp] = "Open 30nama",
+        [Extra.quit] = "Quit",
         [Extra.showInFolder] = "Show in folder",
         [Extra.downloadSpeed] = "Download speed",
         [Extra.unlimited] = "Unlimited",
@@ -41,6 +45,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.keepInTray] = "ماندن در کنار ساعت ویندوز",
+        [Extra.keepInTrayHint] = "با بستن پنجره، برنامه کنار ساعت می‌ماند تا دانلودها ادامه پیدا کنند.",
+        [Extra.openApp] = "باز کردن ۳۰نما",
+        [Extra.quit] = "خروج",
         [Extra.showInFolder] = "نمایش در پوشه",
         [Extra.downloadSpeed] = "سرعت دانلود",
         [Extra.unlimited] = "بدون محدودیت",
@@ -61,6 +69,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.keepInTray] = "البقاء في منطقة الإشعارات",
+        [Extra.keepInTrayHint] = "إغلاق النافذة يُبقي التطبيق بجانب الساعة لتستمر التنزيلات.",
+        [Extra.openApp] = "فتح 30nama",
+        [Extra.quit] = "إنهاء",
         [Extra.showInFolder] = "إظهار في المجلد",
         [Extra.downloadSpeed] = "سرعة التنزيل",
         [Extra.unlimited] = "بلا حد",
