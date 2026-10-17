@@ -132,7 +132,13 @@ public sealed class HomePage : Grid
             var index = i;
             var current = i == _hero;
             var track = new Grid { Width = current ? 44 : 12, Height = 4, CornerRadius = new CornerRadius(2), Background = Theme.White(0.28), Margin = new Thickness(0, 8, 0, 8) };
-            if (current) track.Children.Add(new Border { Background = Theme.Brush(tint), HorizontalAlignment = HorizontalAlignment.Left, Width = App.Settings.ReduceMotion ? 44 : Math.Max(4, 44 * _turn), CornerRadius = new CornerRadius(2) });
+            if (current)
+            {
+                _fill = new Border { Background = Theme.Brush(tint), HorizontalAlignment = HorizontalAlignment.Left, Width = 44, CornerRadius = new CornerRadius(2) };
+                track.Children.Add(_fill);
+                _filling = false;
+                ShowFill();
+            }
             var dot = Theme.Bare(track, () =>
             {
                 _hero = index;
@@ -151,16 +157,43 @@ public sealed class HomePage : Grid
     private bool Resting => App.Settings.ReduceMotion || _paused || _nav.Opened.Count > 0 || App.Playback is not null
         || _scroller.VerticalOffset > _billboard.ActualHeight * 0.6 || !MainWindow.IsActive;
 
-    private void Tick()
+    /// <summary>The current segment's fill, and whether it is running smoothly toward its end.</summary>
+    private Border? _fill;
+    private bool _filling;
+
+    /// <summary>
+    /// The fill runs on the compositor, at an even pace from where the turn is to its end; the
+    /// timer only keeps count. Resting, it stops where it is.
+    /// </summary>
+    private void ShowFill()
     {
-        if (Resting || _feed is not { Heroes.Count: > 1 } feed) return;
-        _turn = Math.Min(1, _turn + _timer.Interval.TotalSeconds / TurnLength);
-        if (_turn < 1)
+        if (_fill is null) return;
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(_fill);
+        var at = App.Settings.ReduceMotion ? 1 : (float)Math.Max(4.0 / 44, _turn);
+        if (Resting || App.Settings.ReduceMotion)
         {
-            if (_dots.Children.Count > _hero && ((Button)_dots.Children[_hero]).Content is Grid { Children.Count: > 0 } track)
-                ((Border)track.Children[0]).Width = Math.Max(4, 44 * _turn);
+            visual.StopAnimation("Scale.X");
+            visual.Scale = new System.Numerics.Vector3(at, 1, 1);
+            _filling = false;
             return;
         }
+        if (_filling) return;
+        _filling = true;
+        visual.Scale = new System.Numerics.Vector3(at, 1, 1);
+        var run = visual.Compositor.CreateScalarKeyFrameAnimation();
+        run.InsertKeyFrame(0, at);
+        run.InsertKeyFrame(1, 1, visual.Compositor.CreateLinearEasingFunction());
+        run.Duration = TimeSpan.FromSeconds(Math.Max(0.1, (1 - _turn) * TurnLength));
+        visual.StartAnimation("Scale.X", run);
+    }
+
+    private void Tick()
+    {
+        // Resting or not, the fill is told: it stops, or starts again from where it stopped.
+        if (_filling == Resting) ShowFill();
+        if (Resting || _feed is not { Heroes.Count: > 1 } feed) return;
+        _turn = Math.Min(1, _turn + _timer.Interval.TotalSeconds / TurnLength);
+        if (_turn < 1) return;
         _hero = (_hero + 1) % feed.Heroes.Count;
         _turn = 0;
         ShowBillboard();
