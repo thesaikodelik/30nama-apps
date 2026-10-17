@@ -34,9 +34,22 @@ public sealed class TitlePage : Grid
     public Post Post => _loaded ?? _preview;
     private Color Hue => Post.Tint();
 
-    public TitlePage(Post preview, Nav nav, bool autoplay)
+    /// <summary>A poster is flying here from the card that was clicked; the page's own waits for it to land.</summary>
+    private bool _held;
+    private FrameworkElement? _poster;
+
+    public TitlePage(Post preview, Nav nav, bool autoplay, bool held = false)
     {
         _preview = preview;
+        _held = held;
+        if (held)
+        {
+            _ = Task.Delay(620).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+            {
+                _held = false;
+                if (_poster is not null) _poster.Opacity = 1;
+            }), TaskScheduler.Default);
+        }
         _nav = nav;
         _autoplay = autoplay;
         Background = Theme.Brush(Theme.Bg0);
@@ -165,6 +178,8 @@ public sealed class TitlePage : Grid
         poster.Children.Add(Images.Remote(post.Poster.Big ?? post.Poster.Large, null, PosterWidth * 1.5));
         poster.Children.Add(new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.14) });
         var lifted = new Border { Child = poster, CornerRadius = new CornerRadius(16), Translation = new System.Numerics.Vector3(0, 0, 48), Shadow = new ThemeShadow(), VerticalAlignment = VerticalAlignment.Top };
+        if (_held) lifted.Opacity = 0;
+        _poster = lifted;
         row.Children.Add(lifted);
 
         var info = new StackPanel { Spacing = 14 };

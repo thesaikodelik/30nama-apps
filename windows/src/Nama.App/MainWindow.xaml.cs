@@ -30,6 +30,8 @@ public sealed partial class MainWindow : Window
     private Border? _toast;
     private UpdatePill? _update;
     private CommandPalette? _palette;
+    /// <summary>Holds the card a poster opens and the poster flying to a title's page, in window pixels left to right.</summary>
+    private readonly Grid _effects = new() { FlowDirection = FlowDirection.LeftToRight };
     /// <summary>Asks now and then whether a newer version is out; the updater itself keeps to every few hours.</summary>
     private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(1) };
     private Section? _shownSection;
@@ -100,6 +102,8 @@ public sealed partial class MainWindow : Window
         _root.Children.Add(_route);
         _root.Children.Add(_dragStrip);
         _root.Children.Add(_overlay);
+        _root.Children.Add(_effects);
+        PosterEffects.Peeking += ShowPeek;
         _app.Changed += OnChanged;
         _nav.Changed += ShowNav;
         _root.KeyDown += (_, e) =>
@@ -225,6 +229,7 @@ public sealed partial class MainWindow : Window
 
     private void ShowNav()
     {
+        ClosePeek();
         if (_app.Phase != AppModel.Phases.Main) return;
         if (_shownSection != _nav.Section)
         {
@@ -250,9 +255,10 @@ public sealed partial class MainWindow : Window
         if (top is not null && _shownRoute is not null && _shownRoute.Same(top)) return;
         _shownRoute = top;
         _route.Children.Clear();
+        var flight = top is Route.Title opened && !_app.Settings.ReduceMotion ? PosterEffects.TakeLaunch(opened.Post.Id) : null;
         FrameworkElement? page = top switch
         {
-            Route.Title title => new TitlePage(title.Post, _nav, title.Playing),
+            Route.Title title => new TitlePage(title.Post, _nav, title.Playing, held: flight is not null),
             Route.Catalog catalog => new CatalogPage(catalog.Slug, catalog.Name, _nav),
             _ => null,
         };
@@ -261,6 +267,64 @@ public sealed partial class MainWindow : Window
         page.Springy(0.28);
         _route.Children.Add(page);
         page.Loaded += (_, _) => page.Opacity = 1;
+        if (flight is { } launch && top is Route.Title flown) Fly(flown.Post, launch.From, launch.Picture);
+    }
+
+    // MARK: Poster effects
+
+    /// <summary>The card about a title, over the poster the pointer rests on, kept inside the window.</summary>
+    private void ShowPeek(Post post, Windows.Foundation.Rect poster)
+    {
+        // Not under a pane that has the window: the pointer there is not on the poster.
+        if (_palette is not null || _app.Playback is not null || _overlay.Children.OfType<DownloadPicker>().Any() || _overlay.Children.OfType<TrailerSheet>().Any()) return;
+        ClosePeek();
+        var width = _root.ActualWidth;
+        var height = _root.ActualHeight;
+        var x = Math.Clamp(poster.X + poster.Width / 2 - PeekCard.CardWidth / 2, 16, Math.Max(16, width - PeekCard.CardWidth - 16));
+        var y = Math.Clamp(poster.Y + poster.Height / 2 - PeekCard.CardHeight / 2, 16, Math.Max(16, height - PeekCard.CardHeight - 16));
+        var card = new PeekCard(post, _nav, ClosePeek)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(x, y, 0, 0), FlowDirection = _root.FlowDirection,
+        };
+        _effects.Children.Add(card);
+    }
+
+    private void ClosePeek()
+    {
+        foreach (var card in _effects.Children.OfType<PeekCard>().ToList()) _effects.Children.Remove(card);
+    }
+
+    /// <summary>
+    /// The poster of a title being opened, travelling from the card that was clicked to where the
+    /// page keeps it. The page holds its own copy back until this one has landed.
+    /// </summary>
+    private void Fly(Post post, Windows.Foundation.Rect from, Microsoft.UI.Xaml.Media.ImageSource? picture)
+    {
+        const double w = 240, h = 360, top = 130;
+        var rtl = _root.FlowDirection == FlowDirection.RightToLeft;
+        var land = new Windows.Foundation.Point(rtl ? _root.ActualWidth - Theme.Edge - w : Theme.Edge, top);
+        var card = new Grid
+        {
+            Width = w, Height = h, CornerRadius = new CornerRadius(16), Background = Theme.Brush(Theme.Surface2),
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(land.X, land.Y, 0, 0), IsHitTestVisible = false,
+            // The card's own picture: it is in memory already, so the flight never starts blank.
+            Translation = new System.Numerics.Vector3((float)(from.X - land.X), (float)(from.Y - land.Y), 0),
+            Scale = new System.Numerics.Vector3((float)(from.Width / w), (float)(from.Height / h), 1),
+        };
+        card.Children.Add(picture is not null
+            ? new Image { Source = picture, Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill }
+            : Images.Remote(post.Poster.Url(Theme.PosterWidth * 1.1 * 1.5), post.Poster.Blurhash, Theme.PosterWidth * 1.5));
+        _effects.Children.Add(card);
+        card.Loaded += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            card.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(480) };
+            card.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(480) };
+            card.Translation = default;
+            card.Scale = System.Numerics.Vector3.One;
+        });
+        _ = Task.Delay(640).ContinueWith(_ => DispatcherQueue.TryEnqueue(() => _effects.Children.Remove(card)), TaskScheduler.Default);
     }
 
     /// <summary>
