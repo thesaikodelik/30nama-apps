@@ -27,4 +27,17 @@ public class L10nParityTests
                 Assert.True(table.TryGetValue(Enum.Parse<S>(key), out var ours) && ours == value, $"{name}.{key} differs from L10n.swift; " + hint);
         }
     }
+
+    [Fact]
+    public void StringsTheMacAppHasNotYetAreInAllThreeLanguages()
+    {
+        foreach (var key in Enum.GetValues<Extra>())
+        {
+            Assert.True(Loc.ExtraEn.ContainsKey(key), $"missing English: {key}");
+            Assert.True(Loc.ExtraFa.ContainsKey(key), $"missing Persian: {key}");
+            Assert.True(Loc.ExtraAr.ContainsKey(key), $"missing Arabic: {key}");
+            // Once the Mac app has a key, it belongs in the shared tables and leaves this one.
+            Assert.False(Enum.IsDefined(typeof(S), key.ToString()), $"{key} is in L10n.swift now; move it out of L10n.Extra.cs");
+        }
+    }
 }

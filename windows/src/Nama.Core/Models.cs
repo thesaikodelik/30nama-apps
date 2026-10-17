@@ -86,6 +86,21 @@ public sealed class Post : IEquatable<Post>
     public int? Metacritic { get; set; }
     /// <summary>MyAnimeList (anime) or MyDramaList (Asian drama) score out of 10, whichever the title has.</summary>
     public FanScore? FanScore { get; set; }
+    /// <summary>Place on IMDb's top 250, when the title is on it.</summary>
+    public int? ImdbTop250 { get; set; }
+    /// <summary>Place on 30nama's own top 100, when the title is on it.</summary>
+    public int? SiteTop100 { get; set; }
+    public int? ImdbVotes { get; set; }
+    /// <summary>How many 30nama users keep the title on their watchlist, and among their favourites.</summary>
+    public int? InWatchlists { get; set; }
+    public int? InFavorites { get; set; }
+    /// <summary>As the server words it.</summary>
+    public string? Budget { get; set; }
+    /// <summary>Persian subtitles made by 30nama itself.</summary>
+    public bool ExclusiveSubtitle { get; set; }
+    public IReadOnlyList<string> OtherLanguages { get; set; } = [];
+    /// <summary>The newest note on what was added to the title: "اضافه شدن قسمت جدید", "اپیزود 10 فصل 3".</summary>
+    public (string Title, string? Content)? LatestUpdate { get; set; }
 
     public IReadOnlyList<Person> Cast { get; set; } = [];
     public IReadOnlyList<string> Directors { get; set; } = [];
@@ -143,6 +158,16 @@ public sealed class Post : IEquatable<Post>
         {
             if (score[key]["score"].Double is double v and > 0) { p.FanScore = new FanScore(label, v); break; }
         }
+        // Shown by 30nama's own apps, not by the Mac app yet: places on the top lists, votes, list counts.
+        p.ImdbTop250 = score["imdb"]["top_250"].Int is int top and > 0 ? top : null;
+        p.SiteTop100 = score["30nama"]["top_100"].Int is int site and > 0 ? site : null;
+        p.ImdbVotes = score["imdb"]["votes"].Int is int votes and > 0 ? votes : null;
+        p.InWatchlists = j["list"]["watchlist"].Int is int w and > 0 ? w : null;
+        p.InFavorites = j["list"]["favorite"].Int is int f and > 0 ? f : null;
+        p.Budget = info["budget"].Text;
+        p.ExclusiveSubtitle = o["exclusive_subtitle"].Bool;
+        p.OtherLanguages = j["language"]["others"].Array.Select(x => x["name"].Text).OfType<string>().Where(x => x != p.Language).Distinct().ToList();
+        if (j["note"]["update"][0]["title"].Text is { } note) p.LatestUpdate = (note, j["note"]["update"][0]["content"].Text);
 
         p.Cast = j["cast"].Array.Select(c =>
         {
@@ -157,6 +182,7 @@ public sealed class Post : IEquatable<Post>
         p.Networks = j["network"].Array.Select(x => x.Text).OfType<string>().ToList();
         p.Countries = Names(j["country"]);
         p.Language = j["language"]["primary"]["name"].Text;
+        p.OtherLanguages = p.OtherLanguages.Where(x => x != p.Language).ToList();
         p.AirStatus = j["air"]["air_status"].Text;
         p.NextEpisodeCaption = j["air"]["next_episode_caption"].Text;
         p.NextEpisodeDate = (j["air"]["next_episode_date"]["g"].Text, j["air"]["next_episode_date"]["j"].Text);

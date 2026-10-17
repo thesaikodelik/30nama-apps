@@ -8,6 +8,15 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- The app's red wherever a control would take the system's accent: switches, focus, progress. -->
+            <Color x:Key="SystemAccentColor">#F0454A</Color>
+            <Color x:Key="SystemAccentColorLight1">#F2585C</Color>
+            <Color x:Key="SystemAccentColorLight2">#F46B6F</Color>
+            <Color x:Key="SystemAccentColorLight3">#F67E81</Color>
+            <Color x:Key="SystemAccentColorDark1">#D83E43</Color>
+            <Color x:Key="SystemAccentColorDark2">#C0373B</Color>
+            <Color x:Key="SystemAccentColorDark3">#A83034</Color>
+            <FontFamily x:Key="ContentControlThemeFontFamily">ms-appx:///Fonts/Vazirmatn-Regular.ttf#Vazirmatn</FontFamily>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
