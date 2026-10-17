@@ -14,6 +14,32 @@ public sealed class NavBar : StackPanel
     private readonly Nav _nav;
     private readonly Button _back;
     private readonly Button _downloads;
+    private readonly Border _downloadsFill = new() { Margin = new Thickness(4), CornerRadius = new CornerRadius(20) };
+    private readonly FontIcon _downloadsIcon = Glyph.Icon(Glyph.Download, 16, Theme.Text1.WithAlpha(0.78));
+    private readonly ProgressRing _downloadsRing = new()
+    {
+        Width = 48, Height = 48, IsIndeterminate = false, Minimum = 0, Maximum = 1, Visibility = Visibility.Collapsed,
+        Foreground = Theme.Brush(Theme.Accent), Background = Theme.White(0.14), IsHitTestVisible = false,
+    };
+    private readonly Border _downloadsCount = new()
+    {
+        MinWidth = 19, Height = 19, CornerRadius = new CornerRadius(9.5), Background = Theme.Brush(Theme.Accent), Padding = new Thickness(5, 0, 5, 0),
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -3, -3, 0), Visibility = Visibility.Collapsed,
+    };
+    private bool _downloadsLit, _downloadsHover;
+
+    /// <summary>
+    /// A disc beside the bar, made as the bar is: the same glass and rim, and inside it the same
+    /// white pill when its page is the open one. Not the lighter glass of the app's other buttons.
+    /// </summary>
+    private static (Button Button, Grid Face) Disc(UIElement inside, Action click)
+    {
+        var face = new Grid { Width = 48, Height = 48 };
+        face.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(24) });
+        face.Children.Add(new Border { CornerRadius = new CornerRadius(24), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
+        face.Children.Add(inside);
+        return (Theme.Bare(face, click), face);
+    }
 
     /// <summary>The notifications, with how many are new on it, opening their pane under the bar.</summary>
     private Button Bell()
@@ -69,7 +95,10 @@ public sealed class NavBar : StackPanel
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Top;
         // The back button keeps its place beside the bar while it is hidden, so the bar stays centred.
-        _back = Kit.Glass(null, Glyph.Back, nav.Back, height: 48).Springy(0.2);
+        var arrow = Glyph.Icon(Glyph.Back, 15, Theme.Text1);
+        arrow.HorizontalAlignment = HorizontalAlignment.Center;
+        arrow.MirroredWhenRightToLeft = true;
+        _back = Disc(arrow, nav.Back).Button.Springy(0.2);
         Kit.AutomationName(_back, AppModel.Shared.Loc[Core.S.back]);
         Children.Add(_back);
         var capsule = new Grid();
@@ -79,14 +108,49 @@ public sealed class NavBar : StackPanel
         Children.Add(capsule);
         // Downloads are not a place in the catalogue; they have a disc of their own beside the bar,
         // which also balances the back button so the bar sits in the middle of the window.
-        _downloads = Kit.Glass(null, Glyph.Download, () => _nav.Go(Section.Downloads), height: 48);
+        var inside = new Grid();
+        inside.Children.Add(_downloadsFill);
+        inside.Children.Add(_downloadsRing);
+        _downloadsIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        inside.Children.Add(_downloadsIcon);
+        var count = Theme.Text("", 11, FontWeights.ExtraBold, Colors.White);
+        count.HorizontalAlignment = HorizontalAlignment.Center;
+        count.VerticalAlignment = VerticalAlignment.Center;
+        _downloadsCount.Child = count;
+        var (downloads, discFace) = Disc(inside, () => _nav.Go(Section.Downloads));
+        discFace.Children.Add(_downloadsCount);
+        _downloads = downloads;
+        _downloads.PointerEntered += (_, _) => { _downloadsHover = true; ShowDownloads(); };
+        _downloads.PointerExited += (_, _) => { _downloadsHover = false; ShowDownloads(); };
         ToolTipService.SetToolTip(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
         Kit.AutomationName(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
         Children.Add(_downloads);
         nav.Changed += Refresh;
         AppModel.Shared.Changed += OnChanged;
-        Unloaded += (_, _) => AppModel.Shared.Changed -= OnChanged;
+        Downloads.Shared.Changed += ShowDownloads;
+        Unloaded += (_, _) =>
+        {
+            AppModel.Shared.Changed -= OnChanged;
+            Downloads.Shared.Changed -= ShowDownloads;
+        };
         Refresh();
+    }
+
+    /// <summary>
+    /// The downloads disc: white while its page is open, and while files are coming in, a red ring
+    /// of how far they have all got and a count of them, as on the Mac.
+    /// </summary>
+    private void ShowDownloads()
+    {
+        var busy = Downloads.Shared.Items.Where(i => i.State is DownloadItem.States.Running or DownloadItem.States.Paused).ToList();
+        _downloadsFill.Background = _downloadsLit ? Theme.Brush(Colors.White) : Theme.White(_downloadsHover ? 0.12 : 0);
+        _downloadsIcon.Glyph = busy.Count > 0 ? "\uE74B" : Glyph.Download;
+        _downloadsIcon.Foreground = Theme.Brush(_downloadsLit ? Theme.FocusInk : Theme.Text1.WithAlpha(_downloadsHover ? 1 : 0.78));
+        _downloadsRing.Visibility = _downloadsCount.Visibility = busy.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (busy.Count == 0) return;
+        long expected = busy.Sum(i => i.Expected), received = busy.Sum(i => i.Received);
+        _downloadsRing.Value = expected > 0 ? Math.Max(0.02, Math.Min(1, (double)received / expected)) : 0.02;
+        ((TextBlock)_downloadsCount.Child).Text = AppModel.Shared.Loc.Num(busy.Count);
     }
 
     private void OnChanged(string what)
@@ -102,12 +166,8 @@ public sealed class NavBar : StackPanel
         _back.IsHitTestVisible = showBack;
         _back.IsTabStop = showBack;
         // Lit while its section is open, as the bar's own items are.
-        var onDownloads = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
-        if (_downloads.Content is Grid disc)
-        {
-            disc.Children[1] = new Border { Background = onDownloads ? Theme.Brush(Microsoft.UI.Colors.White) : Theme.White(0.1), CornerRadius = new CornerRadius(24) };
-            if (disc.Children[^1] is FontIcon icon) icon.Foreground = Theme.Brush(onDownloads ? Theme.FocusInk : Theme.Text1);
-        }
+        _downloadsLit = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
+        ShowDownloads();
         _items.Children.Clear();
         foreach (var section in Nav.OnBar)
         {
