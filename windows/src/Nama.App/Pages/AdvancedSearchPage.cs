@@ -38,7 +38,7 @@ public sealed class AdvancedSearchPage : Grid
     {
         _nav = nav;
         Children.Add(Kit.Ambient());
-        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 96, Theme.Edge, 60) };
+        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
         column.Children.Add(_header);
         column.Children.Add(_wall);
         column.Children.Add(_footer);

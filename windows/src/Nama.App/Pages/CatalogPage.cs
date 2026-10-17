@@ -48,7 +48,7 @@ public sealed class CatalogPage : Grid
         _title = title;
         _nav = nav;
         Children.Add(Kit.Ambient());
-        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 96, Theme.Edge, 60) };
+        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
         column.Children.Add(_header);
         column.Children.Add(_wall);
         column.Children.Add(_footer);
@@ -243,7 +243,7 @@ public sealed class BrowsePage : Grid
 {
     private static AppModel App => AppModel.Shared;
     private readonly Nav _nav;
-    private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(Theme.Edge, 96, Theme.Edge, 60) };
+    private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
 
     public BrowsePage(Nav nav)
     {
@@ -361,7 +361,7 @@ public sealed class SearchPage : Grid
     {
         _nav = nav;
         Children.Add(Kit.Ambient());
-        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 96, Theme.Edge, 60) };
+        var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
         column.Children.Add(Field());
         column.Children.Add(_note);
         column.Children.Add(_heading);

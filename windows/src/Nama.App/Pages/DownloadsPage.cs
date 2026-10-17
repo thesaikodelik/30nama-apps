@@ -19,7 +19,7 @@ public sealed class DownloadsPage : Grid
     private static Loc Loc => App.Loc;
 
     private readonly Stage _stage = new(dim: 0.5);
-    private readonly StackPanel _column = new() { Spacing = 22, Padding = new Thickness(Theme.Edge, 96, Theme.Edge, 60), MaxWidth = 1020 };
+    private readonly StackPanel _column = new() { Spacing = 22, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60), MaxWidth = 1020 };
     /// <summary>The part on show. Until the user picks one, it is the part the newest download is in.</summary>
     private DownloadItem.Shelves? _chosen;
     /// <summary>The series whose episodes are folded out.</summary>

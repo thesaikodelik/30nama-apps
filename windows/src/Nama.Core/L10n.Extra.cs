@@ -13,6 +13,7 @@ public enum Extra
     bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace, keepInTray, keepInTrayHint, openApp, quit, notifications, markAllRead, noNotifications, unread, earlier,
     downloadHours, downloadHoursHint, anyTime, hoursTo, waitingForHours,
     advancedSearch, advancedHint, kind, ageRating, years, relevance, byYear, noMatches, directorName,
+    signInHint,
 }
 #pragma warning restore IDE1006
 
@@ -50,6 +51,7 @@ public sealed partial class Loc
         [Extra.byYear] = "Year",
         [Extra.noMatches] = "Nothing matches these filters.",
         [Extra.directorName] = "Director's name",
+        [Extra.signInHint] = "Sign in to your 30nama account for your lists, suggestions and where you left off.",
         [Extra.imdbTop250] = "IMDb Top 250",
         [Extra.siteTop100] = "30nama Top 100",
         [Extra.votes] = "votes",
@@ -93,6 +95,7 @@ public sealed partial class Loc
         [Extra.byYear] = "سال",
         [Extra.noMatches] = "چیزی با این فیلترها پیدا نشد.",
         [Extra.directorName] = "نام کارگردان",
+        [Extra.signInHint] = "برای دیدن لیست‌ها، پیشنهادها و ادامهٔ تماشا وارد حساب ۳۰نما شوید.",
         [Extra.imdbTop250] = "۲۵۰ فیلم برتر IMDb",
         [Extra.siteTop100] = "۱۰۰ عنوان برتر ۳۰نما",
         [Extra.votes] = "رأی",
@@ -136,6 +139,7 @@ public sealed partial class Loc
         [Extra.byYear] = "السنة",
         [Extra.noMatches] = "لا شيء يطابق هذه المرشحات.",
         [Extra.directorName] = "اسم المخرج",
+        [Extra.signInHint] = "سجّل الدخول إلى حسابك في 30nama لقوائمك والاقتراحات ومتابعة المشاهدة.",
         [Extra.imdbTop250] = "أفضل 250 في IMDb",
         [Extra.siteTop100] = "أفضل 100 في 30nama",
         [Extra.votes] = "صوتًا",
