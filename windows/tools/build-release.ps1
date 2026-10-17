@@ -56,7 +56,9 @@ try {
     Get-ChildItem $out -Recurse -Include *.pdb | Remove-Item
 
     Step 'Search for personal names and paths'
-    $words = @($env:USERNAME, $env:USERPROFILE, $repo, (git -C $repo config user.email), (git -C $repo config user.name)) |
+    # The account name only as a folder in a path: as a bare word it turns up inside ordinary
+    # words ("ClearManaged"). The project's public GitHub name is meant to be there, in its address.
+    $words = @("\$env:USERNAME\", "/$env:USERNAME/", $env:USERPROFILE, $repo, $repo.Replace('\', '/'), (git -C $repo config user.email)) |
         Where-Object { $_ -and $_.Length -ge 4 } | Select-Object -Unique
     $found = foreach ($file in Get-ChildItem $out -Recurse -File) {
         $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
