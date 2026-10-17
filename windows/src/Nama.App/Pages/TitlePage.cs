@@ -66,6 +66,56 @@ public sealed class TitlePage : Grid
         };
         _ = LoadAsync();
         _ = LoadTmdbAsync();
+        Loaded += (_, _) => _ = RunTeaserAsync();
+        Unloaded += (_, _) => EndTeaser();
+        _quiet.Tick += (_, _) => { if (!Quiet) EndTeaser(); };
+    }
+
+    // MARK: Teaser
+
+    private BackdropTrailer? _backdrop;
+    private CancellationTokenSource? _teaser;
+    private bool _teaserShown;
+    /// <summary>Watches, while the trailer runs, for the page to stop being what the user looks at.</summary>
+    private readonly DispatcherTimer _quiet = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    /// <summary>The page is what the user is looking at: no player over it, the window in front.</summary>
+    private bool Quiet => App.Playback is null && MainWindow.IsActive && XamlRoot is not null;
+
+    /// <summary>
+    /// Plays the trailer behind the page, without sound, when TMDB has one and YouTube can be
+    /// reached: once per visit, a few seconds in, for a minute and a half. It tells 30nama
+    /// nothing. As the Mac's title page; the Mac's stretch of the film itself, when there is no
+    /// trailer, is not here yet.
+    /// </summary>
+    private async Task RunTeaserAsync()
+    {
+        if (_teaserShown || App.Settings.ReduceMotion) return;
+        var cancel = (_teaser = new CancellationTokenSource()).Token;
+        try
+        {
+            await Task.Delay(3000, cancel);
+            if (!Quiet || await TmdbStore.Shared.TrailerAsync(_preview, App.Loc.Lang) is not { } video || cancel.IsCancellationRequested || !Quiet) return;
+            _teaserShown = true;
+            var backdrop = _backdrop = new BackdropTrailer(video);
+            backdrop.Failed += EndTeaser;
+            // Over the still, under the page.
+            Children.Insert(1, backdrop);
+            _quiet.Start();
+            // A trailer is the length it is; it is let run for a minute and a half.
+            await Task.Delay(TimeSpan.FromSeconds(90), cancel);
+            EndTeaser();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void EndTeaser()
+    {
+        _teaser?.Cancel();
+        _quiet.Stop();
+        if (_backdrop is not { } backdrop) return;
+        _backdrop = null;
+        _ = backdrop.EndAsync().ContinueWith(_ => DispatcherQueue.TryEnqueue(() => Children.Remove(backdrop)), TaskScheduler.Default);
     }
 
     private void OnTrailer(int post)
@@ -83,6 +133,7 @@ public sealed class TitlePage : Grid
 
     private void OnChanged(string what)
     {
+        if (what == "playback" && App.Playback is not null) EndTeaser();
         if (what is "lists" or "ratings") Render();
         // Back from the player: where to resume has moved.
         if (what == "watch" && _stream is not null) _ = LoadStreamAsync(quietly: true);
@@ -208,7 +259,12 @@ public sealed class TitlePage : Grid
         }
         // Only once a trailer has been found, so there is never a button that leads nowhere.
         if (TmdbStore.Shared.Known(post.Id)?.Trailer is { } video)
-            buttons.Add(Kit.Glass(loc[S.trailer], Glyph.Video, () => _nav.Trailer(post.Title(loc.Lang), video), rim: Hue));
+            buttons.Add(Kit.Glass(loc[S.trailer], Glyph.Video, () =>
+            {
+                // The silent one behind the page stops; the trailer has the sound.
+                EndTeaser();
+                _nav.Trailer(post.Title(loc.Lang), video);
+            }, rim: Hue));
         buttons.Add(Rating());
         if (App.IsLoggedIn)
         {
