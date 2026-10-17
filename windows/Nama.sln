@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A0294489
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nama.Core.Tests", "tests\Nama.Core.Tests\Nama.Core.Tests.csproj", "{20423226-DE28-45A6-8D81-204DECDAF747}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nama.App", "src\Nama.App\Nama.App.csproj", "{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{20423226-DE28-45A6-8D81-204DECDAF747}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{20423226-DE28-45A6-8D81-204DECDAF747}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{20423226-DE28-45A6-8D81-204DECDAF747}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8}.Debug|Any CPU.Build.0 = Debug|x64
+		{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8}.Release|Any CPU.ActiveCfg = Release|x64
+		{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8}.Release|Any CPU.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E4527843-863A-405B-ADC0-33050DD80CF9} = {21F503D7-0FA8-4751-93FF-9BE05541D866}
 		{20423226-DE28-45A6-8D81-204DECDAF747} = {A0294489-4614-4E27-99DF-5A9BAAA41E20}
+		{D21CC5AF-876C-4F5E-8210-DD44AF4ABCF8} = {21F503D7-0FA8-4751-93FF-9BE05541D866}
 	EndGlobalSection
 EndGlobal
