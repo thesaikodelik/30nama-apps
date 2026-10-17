@@ -36,10 +36,14 @@ public static class Images
     public static Grid Remote(Uri? url, string? blurhash, double decodeWidth, Stretch stretch = Stretch.UniformToFill)
     {
         var host = new Grid { FlowDirection = FlowDirection.LeftToRight };
-        if (Wash(blurhash) is { } wash) host.Children.Add(new Image { Source = wash, Stretch = Stretch.Fill });
+        // A picture is drawn with its outermost pixel half see-through; whatever is under it then
+        // shows as a thin line round the frame. Drawn a pixel larger on every side, that edge falls
+        // outside the frame and is cut away.
+        var bleed = stretch == Stretch.UniformToFill ? new Thickness(-1) : new Thickness(0);
+        if (Wash(blurhash) is { } wash) host.Children.Add(new Image { Source = wash, Stretch = Stretch.Fill, Margin = bleed });
         if (url is not null)
         {
-            var image = new Image { Stretch = stretch, Opacity = 0 }.Springy(0.35);
+            var image = new Image { Stretch = stretch, Opacity = 0, Margin = bleed }.Springy(0.35);
             var bitmap = new BitmapImage { DecodePixelWidth = (int)Math.Max(1, decodeWidth), DecodePixelType = DecodePixelType.Physical };
             bitmap.ImageOpened += (_, _) => image.Opacity = 1;
             bitmap.UriSource = url;
