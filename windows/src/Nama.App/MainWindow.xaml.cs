@@ -28,6 +28,9 @@ public sealed partial class MainWindow : Window
     private readonly Border _dragStrip = new() { Height = 72, VerticalAlignment = VerticalAlignment.Top, Background = Theme.White(0) };
     private NavBar? _bar;
     private Border? _toast;
+    private UpdatePill? _update;
+    /// <summary>Asks now and then whether a newer version is out; the updater itself keeps to every few hours.</summary>
+    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(1) };
     private Section? _shownSection;
     private Route? _shownRoute;
     private readonly Tray _tray;
@@ -61,6 +64,8 @@ public sealed partial class MainWindow : Window
         Title = "30nama";
         _app = new AppModel(DispatcherQueue);
         _ = new Downloads(_app, DispatcherQueue);
+        new Updater(DispatcherQueue).Changed += ShowUpdate;
+        _updateTimer.Tick += (_, _) => _ = Updater.Shared.LookAsync();
         _nav.Picking += ShowPicker;
         _nav.Trailering += ShowTrailer;
         Content = _root;
@@ -171,6 +176,9 @@ public sealed partial class MainWindow : Window
                 _overlay.Children.Add(_bar);
                 _bar.SizeChanged += (_, _) => UpdateDragRegions();
                 ShowNav();
+                ShowUpdate();
+                _ = Updater.Shared.LookAsync();
+                _updateTimer.Start();
 #if DEBUG
                 _ = DebugLaunchAsync();
 #endif
@@ -278,6 +286,26 @@ public sealed partial class MainWindow : Window
             player.Focus(FocusState.Programmatic);
         }
         if (_bar is not null) _bar.Visibility = _app.Playback is null ? Visibility.Visible : Visibility.Collapsed;
+        ShowUpdate();
+        UpdateDragRegions();
+    }
+
+    /// <summary>The capsule that tells of a newer version, under the bar, while there is something to tell.</summary>
+    private void ShowUpdate()
+    {
+        var updater = Updater.Shared;
+        var wanted = updater.Phase != Updater.Phases.Idle && !updater.Postponed && _bar is not null && _app.Playback is null;
+        if (!wanted)
+        {
+            if (_update is not null) _overlay.Children.Remove(_update);
+            _update = null;
+        }
+        else if (_update is null)
+        {
+            _update = new UpdatePill(Quit);
+            _update.SizeChanged += (_, _) => UpdateDragRegions();
+            _overlay.Children.Insert(_overlay.Children.IndexOf(_bar) + 1, _update);
+        }
         UpdateDragRegions();
     }
 
@@ -319,11 +347,16 @@ public sealed partial class MainWindow : Window
             source.SetRegionRects(NonClientRegionKind.Passthrough, []);
             return;
         }
-        var bounds = _bar.TransformToVisual(null).TransformBounds(new Windows.Foundation.Rect(0, 0, _bar.ActualWidth, _bar.ActualHeight));
-        source.SetRegionRects(NonClientRegionKind.Passthrough,
-        [
-            new Windows.Graphics.RectInt32((int)(bounds.X * scale), (int)(bounds.Y * scale), (int)(bounds.Width * scale), (int)(bounds.Height * scale)),
-        ]);
+        // The update capsule lies over the strip too, just under the bar.
+        source.SetRegionRects(NonClientRegionKind.Passthrough, new FrameworkElement?[] { _bar, _update }
+            .OfType<FrameworkElement>()
+            .Where(e => e.ActualWidth > 0)
+            .Select(e =>
+            {
+                var bounds = e.TransformToVisual(null).TransformBounds(new Windows.Foundation.Rect(0, 0, e.ActualWidth, e.ActualHeight));
+                return new Windows.Graphics.RectInt32((int)(bounds.X * scale), (int)(bounds.Y * scale), (int)(bounds.Width * scale), (int)(bounds.Height * scale));
+            })
+            .ToArray());
     }
 
     /// <summary>Full screen for the player, and back.</summary>

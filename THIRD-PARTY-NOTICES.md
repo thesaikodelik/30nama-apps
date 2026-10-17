@@ -64,6 +64,27 @@ them with a changed version: this app's whole source is here under the MIT Licen
 rebuilt against any build of them. Their own sources and licence texts are at the links above and
 in MPVKit's repository.
 
+## mpv and the libraries it is built on (Windows app only)
+
+The Windows app plays video with [mpv](https://mpv.io), through `libmpv-2.dll` taken prebuilt
+from [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake), the build
+`mpv-dev-x86_64-20261017-git-dde0671072` (named and checked by SHA-256 in
+`windows/tools/fetch-libmpv.ps1`). It is not stored in this repository; it ships inside the
+Windows installer.
+
+That build is configured with mpv's default GPL options and an FFmpeg built with `--enable-gpl
+--enable-version3` (with x264 and x265 among others), so the library as a whole is under the GNU
+General Public License, version 3. The app's own code is under the MIT License, which allows it to
+be combined with GPL code; the Windows app as distributed is therefore under GPL version 3 as a
+whole. The recipe the library was built from is in shinchiro's repository at that date, and the
+sources of mpv, FFmpeg and the other libraries are at their own projects.
+
+## Windows App SDK and WebView2
+
+The Windows installer carries Microsoft's Windows App SDK (MIT License) and the WebView2 SDK
+(Microsoft's BSD-style licence), both from NuGet. The trailer player uses the WebView2 runtime
+that comes with Windows.
+
 ## Subtitle site
 
 When 30nama has no subtitle of its own for a download, the Mac app reads the public pages of the
