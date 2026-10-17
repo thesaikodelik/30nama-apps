@@ -365,9 +365,12 @@ public sealed class AppModel
     }
 
     /// <summary>Series on the user's watchlist or notify list with an episode still to come, soonest first.</summary>
-    public async Task<List<Post>> UpcomingAsync()
+    public async Task<List<Post>> UpcomingAsync() => await UpcomingIfReachableAsync() ?? [];
+
+    /// <summary>Null when 30nama could not be asked, as against no series to come.</summary>
+    public async Task<List<Post>?> UpcomingIfReachableAsync()
     {
-        if (!IsLoggedIn) return [];
+        if (!IsLoggedIn) return null;
         var posts = new List<Post>();
         try
         {
@@ -385,7 +388,7 @@ public sealed class AppModel
                 }
             }
         }
-        catch (Exception) { return []; }
+        catch (Exception) { return null; }
         return Post.Upcoming(posts);
     }
 

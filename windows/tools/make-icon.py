@@ -1,4 +1,5 @@
-"""Writes windows/src/Nama.App/Assets/30nama.ico from the Mac app's icon.
+"""Writes windows/src/Nama.App/Assets/30nama.ico from the Mac app's icon, and a 256-pixel PNG of
+the same for Windows notifications, which do not take .ico files.
 
 The Mac icon leaves the transparent margin macOS asks for; Windows icons fill more of their
 square, so the picture is cut to what is drawn, with a little air kept. Needs Pillow.
@@ -16,3 +17,6 @@ square = source.crop((left - air, top - air, right + air, bottom + air))
 target = root / "windows/src/Nama.App/Assets/30nama.ico"
 square.save(target, sizes=[(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (256, 256)])
 print("wrote", target.relative_to(root), square.size)
+png = target.with_name("30nama-256.png")
+square.resize((256, 256), Image.LANCZOS).save(png)
+print("wrote", png.relative_to(root))
