@@ -70,6 +70,7 @@ public class ApiClientTests
         Assert.Equal("en", last.Headers["c-language"]);
         Assert.Equal("1.0.0", last.Headers["c-version-number"]);
         Assert.Equal(new ApiConfig().ApiKeys[0], last.Headers["c-api-key"]);
+        Assert.StartsWith("30nama", last.Headers["User-Agent"]); // without one, Cloudflare answers with a challenge page
     }
 
     [Fact]

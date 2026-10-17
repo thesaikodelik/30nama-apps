@@ -174,6 +174,16 @@ public class ModelTests
         var series = Post.Parse(Fixtures.Load("single_series")["result"])!;
         Assert.NotNull(series.AirStatus);
         Assert.NotNull(series.NextEpisodeDate.Jalali);
+        // What 30nama's own apps show beside the scores.
+        Assert.Equal(7639, series.ImdbVotes);
+        Assert.Equal(195, series.InWatchlists);
+        Assert.Equal(184, series.InFavorites);
+        Assert.Null(series.ImdbTop250); // sent as an empty string: not on the list
+        Assert.Equal("Chinese", series.OtherLanguages[0]);
+        Assert.DoesNotContain("Mandarin", series.OtherLanguages); // the primary language is not repeated
+        Assert.Equal("اضافه شدن قسمت جدید", series.LatestUpdate?.Title);
+        Assert.Equal("اپیزود 10 فصل 3", series.LatestUpdate?.Content);
+        Assert.Equal(12, Post.Parse(Json.Parse("""{"id":1,"score":{"imdb":{"top_250":"12"}}}"""))!.ImdbTop250);
     }
 
     [Fact]

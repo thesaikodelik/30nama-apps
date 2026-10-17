@@ -23,6 +23,11 @@ public sealed record ApiConfig
         "VdapnkLG9EHsSmF8yeKcb4253RAuN6YX",
     ];
     public string ClientVersion { get; init; } = "1.0.0";
+    /// <summary>
+    /// Cloudflare turns away a request that names no program with a challenge page; the Mac app's
+    /// requests carry one by themselves, these have to be given one.
+    /// </summary>
+    public string UserAgent { get; init; } = "30nama (Windows NT 10.0; Win64; x64)";
     /// <summary>Waits between retries of a transient failure. Its count is the number of retries.</summary>
     public IReadOnlyList<TimeSpan> Backoff { get; init; } = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)];
     public TimeSpan RequestSpacing { get; init; } = TimeSpan.FromSeconds(0.1);
@@ -146,14 +151,62 @@ public sealed class ApiClient
         _transport = transport ?? HttpTransport();
     }
 
+    /// <summary>
+    /// The network, through HttpClient, with the TLS handshake made by the app's own SslStream.
+    ///
+    /// Cloudflare in front of the API answers HttpClient's own HTTPS connections with a challenge
+    /// page (seen on Windows 11 with .NET 8, every header and HTTP version alike), while the same
+    /// request over an SslStream set up directly goes through. So each connection is opened and
+    /// encrypted here, and HttpClient is handed it as a plain one: the request goes out as
+    /// <c>http://host:443</c> with the Host header put back.
+    /// </summary>
     public static Transport HttpTransport()
     {
-        var client = new HttpClient(new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All })
+        var handler = new SocketsHttpHandler
         {
-            Timeout = Timeout.InfiniteTimeSpan,
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(60),
+            ConnectCallback = async (context, cancel) =>
+            {
+                var socket = new System.Net.Sockets.Socket(System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp) { NoDelay = true };
+                try
+                {
+                    await socket.ConnectAsync(context.DnsEndPoint, cancel);
+                    var stream = new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                    if (context.InitialRequestMessage.Options.TryGetValue(Secure, out var secure) && secure)
+                    {
+                        var tls = new System.Net.Security.SslStream(stream);
+                        await tls.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                        {
+                            TargetHost = context.DnsEndPoint.Host,
+                            ApplicationProtocols = [System.Net.Security.SslApplicationProtocol.Http11],
+                        }, cancel);
+                        return tls;
+                    }
+                    return stream;
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
+            },
         };
-        return (request, cancel) => client.SendAsync(request, cancel);
+        var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        return (request, cancel) =>
+        {
+            if (request.RequestUri is { Scheme: "https" } url)
+            {
+                request.RequestUri = new UriBuilder(url) { Scheme = "http", Port = url.Port }.Uri;
+                request.Headers.Host = url.IsDefaultPort ? url.Host : url.Authority;
+                request.Options.Set(Secure, true);
+            }
+            return client.SendAsync(request, cancel);
+        };
     }
+
+    /// <summary>Marks a request whose connection the transport has to encrypt itself.</summary>
+    private static readonly HttpRequestOptionsKey<bool> Secure = new("nama.secure");
 
     public string? Host { get { lock (_lock) return _host; } }
 
@@ -213,6 +266,7 @@ public sealed class ApiClient
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(6));
                 using var request = new HttpRequestMessage(HttpMethod.Get, $"{url}?t={stamp}");
+                request.Headers.TryAddWithoutValidation("User-Agent", Config.UserAgent);
                 using var response = await _transport(request, timeout.Token);
                 var list = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
                 return list.Array.Select(x => x["host"].Text).OfType<string>().ToList();
@@ -315,6 +369,7 @@ public sealed class ApiClient
         string language;
         lock (_lock) language = _language;
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", Config.UserAgent);
         request.Headers.TryAddWithoutValidation("c-api-key", key);
         request.Headers.TryAddWithoutValidation("c-token", token);
         request.Headers.TryAddWithoutValidation("c-version-number", Config.ClientVersion);

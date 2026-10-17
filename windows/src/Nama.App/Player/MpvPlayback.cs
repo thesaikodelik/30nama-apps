@@ -29,7 +29,7 @@ public sealed class MpvPlayback : IDisposable
 
     public bool IsAvailable => _handle != IntPtr.Zero;
 
-    public MpvPlayback(DispatcherQueue ui)
+    public MpvPlayback(DispatcherQueue ui, int bufferSeconds = 0)
     {
         _ui = ui;
         try { _handle = Mpv.Create(); }
@@ -50,6 +50,11 @@ public sealed class MpvPlayback : IDisposable
         })
         {
             Mpv.SetOptionString(_handle, name, value);
+        }
+        if (bufferSeconds > 0)
+        {
+            Mpv.SetOptionString(_handle, "cache-secs", bufferSeconds.ToString(CultureInfo.InvariantCulture));
+            Mpv.SetOptionString(_handle, "demuxer-readahead-secs", bufferSeconds.ToString(CultureInfo.InvariantCulture));
         }
         Mpv.RequestLogMessages(_handle, Debugger.IsAttached || Environment.GetEnvironmentVariable("NAMA_MPV_LOG") is not null ? "warn" : "no");
         if (Mpv.Initialize(_handle) < 0)

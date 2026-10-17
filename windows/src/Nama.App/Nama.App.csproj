@@ -4,8 +4,7 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>Nama.App</RootNamespace>
-    <!-- An identifier cannot start with a digit, so the program is Nama.exe; people see the name 30nama. -->
-    <AssemblyName>Nama</AssemblyName>
+    <AssemblyName>Win - 30nama</AssemblyName>
     <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
@@ -17,6 +16,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\30nama.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
@@ -24,6 +24,12 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Nama.Core\Nama.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The Mac app's typeface and logo, read from where they already are in the repository. -->
+    <Content Include="..\..\..\30nama\Shared\Fonts\Vazirmatn-*.ttf" Link="Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\30nama\Mac\Assets.xcassets\Logo.imageset\logo@2x.png" Link="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\30nama.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Fetched by windows/tools/fetch-libmpv.ps1. -->
