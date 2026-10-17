@@ -43,6 +43,8 @@ public sealed record DownloadItem
     /// <summary>The page of the subtitle site that lists Persian subtitles for this film or season.</summary>
     public Uri? SubtitlePage { get; init; }
     public DateTime Added { get; init; }
+    /// <summary>The parts of a file fetched over several connections, and how far each has got, to go on from after a restart.</summary>
+    public List<SegmentState>? Segments { get; init; }
 
     [JsonIgnore] public double Fraction => Expected > 0 ? Math.Min(1, (double)Received / Expected) : 0;
 
@@ -81,6 +83,11 @@ public sealed partial class Downloads
     public static Downloads Shared { get; private set; } = null!;
 
     private const int AtOnce = 3;
+    /// <summary>
+    /// Connections per file. Measured on 30nama's own server: one gave 11 to 18 MB/s, four 33,
+    /// eight 28, so four is where more stops helping.
+    /// </summary>
+    private const int Connections = 4;
     private readonly AppModel _app;
     private readonly DispatcherQueue _ui;
     private readonly Transport _network = ApiClient.HttpTransport(decompress: false);
@@ -371,41 +378,169 @@ public sealed partial class Downloads
         });
     }
 
-    /// <summary>One try at the rest of the file. Returns once it has all arrived; throws otherwise.</summary>
+    /// <summary>
+    /// One try at the rest of the file. Returns once it has all arrived; throws otherwise. The first
+    /// request asks from where the file has got to; when the server answers with a part of it and
+    /// says how large it is, more connections join, each taking half of what is left of the
+    /// largest part (<see cref="SegmentMap"/>). A server that sends the whole file instead is
+    /// read to the end over the one connection.
+    /// </summary>
     private async Task TransferAsync(DownloadItem item, string partial, CancellationToken stop)
     {
-        var have = System.IO.File.Exists(partial) ? new FileInfo(partial).Length : 0;
-        using var request = new HttpRequestMessage(HttpMethod.Get, item.Address);
-        request.Headers.TryAddWithoutValidation("User-Agent", _app.Api.Config.UserAgent);
-        if (have > 0) request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(have, null);
-        // Nothing heard for a while is a connection that has gone, even if it was never closed.
+        var current = Items.FirstOrDefault(i => i.Id == item.Id) ?? item;
+        var size = System.IO.File.Exists(partial) ? new FileInfo(partial).Length : 0;
+        if (current.Segments is { Count: > 0 } kept && current.Expected > 0 && size == current.Expected)
+        {
+            await PartsAsync(item.Id, partial, new SegmentMap(kept, splittable: true), null, stop);
+            return;
+        }
+        // A file from before the parts, or none yet: it goes on from where it ends.
+        var have = current.Segments is null ? size : 0;
+        var request = Request(item, have, null);
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stop);
         quiet.CancelAfter(TimeSpan.FromSeconds(45));
-        using var response = await _network(request, quiet.Token);
+        var response = await _network(request, quiet.Token);
+        try
+        {
+            Check(response);
+            if (response.StatusCode == System.Net.HttpStatusCode.PartialContent && response.Content.Headers.ContentRange?.Length is { } total and > 0)
+            {
+                await using (var file = new FileStream(partial, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite)) file.SetLength(total);
+                var map = SegmentMap.Whole(total, have);
+                _ui.TryEnqueue(() => Change(item.Id, i => i with { Expected = total, Received = have, Segments = map.Snapshot() }));
+                await PartsAsync(item.Id, partial, map, response, stop);
+                response = null;
+                return;
+            }
+            // The whole file, from its first byte, over this one connection.
+            var expected = response.Content.Headers.ContentLength ?? 0;
+            _ui.TryEnqueue(() => Change(item.Id, i => i with { Expected = expected > 0 ? expected : i.Expected, Received = 0, Segments = null }));
+            var received = 0L;
+            await using (var source = await response.Content.ReadAsStreamAsync(quiet.Token))
+            await using (var target = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true))
+            {
+                var buffer = new byte[1 << 16];
+                int n;
+                while (true)
+                {
+                    quiet.CancelAfter(TimeSpan.FromSeconds(45));
+                    if ((n = await source.ReadAsync(buffer, quiet.Token)) <= 0) break;
+                    await target.WriteAsync(buffer.AsMemory(0, n), stop);
+                    received += n;
+                    await _throttle.TakeAsync(n, stop);
+                    Progressed(item.Id, received);
+                }
+            }
+            // A connection that ended early is not a finished file.
+            if (expected > 0 && received < expected) throw new IOException($"ended at {received} of {expected}");
+        }
+        finally { response?.Dispose(); }
+    }
+
+    private HttpRequestMessage Request(DownloadItem item, long from, long? to)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, item.Address);
+        request.Headers.TryAddWithoutValidation("User-Agent", _app.Api.Config.UserAgent);
+        // Asked as a range even from the first byte: the answer says whether the server can send parts.
+        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(from, to);
+        return request;
+    }
+
+    private static void Check(HttpResponseMessage response)
+    {
         if ((int)response.StatusCode >= 400)
             throw new Refused((int)response.StatusCode, response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow));
-        // A server that ignores the range sends the whole file again: start the copy over.
-        if (have > 0 && response.StatusCode != System.Net.HttpStatusCode.PartialContent) have = 0;
-        var expected = response.Content.Headers.ContentLength is { } length ? have + length : 0;
-        _ui.TryEnqueue(() => Change(item.Id, i => i with { Expected = expected > 0 ? expected : i.Expected, Received = have }));
-        var received = have;
-        await using (var source = await response.Content.ReadAsStreamAsync(quiet.Token))
-        await using (var target = new FileStream(partial, have > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true))
+    }
+
+    /// <summary>
+    /// The file over several connections until every part is in. The first may come with its
+    /// answer already open; the others join a little apart, so the server is not hit all at once.
+    /// Where each part has got to is kept every few seconds, and when it stops for any reason.
+    /// </summary>
+    private async Task PartsAsync(string id, string partial, SegmentMap map, HttpResponseMessage? opened, CancellationToken stop)
+    {
+        using var all = CancellationTokenSource.CreateLinkedTokenSource(stop);
+        var keeper = Task.Run(async () =>
         {
-            var buffer = new byte[1 << 16];
-            int n;
-            while (true)
+            while (!all.IsCancellationRequested)
             {
-                quiet.CancelAfter(TimeSpan.FromSeconds(45));
-                if ((n = await source.ReadAsync(buffer, quiet.Token)) <= 0) break;
-                await target.WriteAsync(buffer.AsMemory(0, n), stop);
-                received += n;
-                await _throttle.TakeAsync(n, stop);
-                Progressed(item.Id, received);
+                try { await Task.Delay(500, all.Token); } catch (OperationCanceledException) { return; }
+                Progressed(id, map.Downloaded);
+            }
+        });
+        Exception? failure = null;
+        var workers = Enumerable.Range(0, Connections).Select(async n =>
+        {
+            try
+            {
+                if (n > 0) await Task.Delay(TimeSpan.FromMilliseconds(400 * n), all.Token);
+                await WorkerAsync(id, partial, map, n == 0 ? opened : null, all.Token);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                // A refusal, or one connection giving up for good, ends the try for all of them.
+                failure ??= e;
+                all.Cancel();
+            }
+        }).ToList();
+        await Task.WhenAll(workers);
+        all.Cancel();
+        await keeper;
+        var snapshot = map.Snapshot();
+        _ui.TryEnqueue(() => { Change(id, i => i with { Segments = snapshot, Received = map.Downloaded }); Save(); });
+        stop.ThrowIfCancellationRequested();
+        if (failure is not null) throw failure;
+        if (!map.IsComplete) throw new IOException("parts missing");
+    }
+
+    /// <summary>One connection: takes a part, fetches it to its end or until another takes its tail, and takes the next.</summary>
+    private async Task WorkerAsync(string id, string partial, SegmentMap map, HttpResponseMessage? opened, CancellationToken stop)
+    {
+        var item = Items.FirstOrDefault(i => i.Id == id) ?? throw new OperationCanceledException();
+        await using var file = new FileStream(partial, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+        var buffer = new byte[1 << 16];
+        var segment = opened is not null ? map.TakeUnowned() : null;
+        for (var attempt = 1; ; )
+        {
+            segment ??= map.NextWork();
+            if (segment is null) return;
+            try
+            {
+                var response = opened ?? await _network(Request(item, segment.Pos, segment.End - 1), stop);
+                opened = null;
+                using (response)
+                {
+                    Check(response);
+                    using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stop);
+                    await using var source = await response.Content.ReadAsStreamAsync(stop);
+                    while (!segment.IsComplete)
+                    {
+                        quiet.CancelAfter(TimeSpan.FromSeconds(45));
+                        var n = await source.ReadAsync(buffer, quiet.Token);
+                        if (n <= 0) break;
+                        var kept = segment.Write(file, buffer.AsSpan(0, n));
+                        await _throttle.TakeAsync(kept, stop);
+                        attempt = 1;
+                        // Another connection took the rest of this part.
+                        if (kept < n) break;
+                    }
+                }
+                if (!segment.IsComplete) throw new IOException("part ended early");
+                segment = null;
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { segment?.Release(); throw; }
+            catch (Exception e)
+            {
+                var refused = e as Refused;
+                if (RetryPolicy.Next(attempt++, refused?.Status, refused?.RetryAfter, Random.Shared.NextDouble()) is not { } wait)
+                {
+                    segment?.Release();
+                    throw;
+                }
+                await Task.Delay(wait, stop);
             }
         }
-        // A connection that ended early is not a finished file: the next try goes on from here.
-        if (expected > 0 && received < expected) throw new IOException($"ended at {received} of {expected}");
     }
 
     /// <summary>A few times a second is plenty for a bar; every packet would redraw the list all day.</summary>
@@ -429,7 +564,7 @@ public sealed partial class Downloads
             Directory.CreateDirectory(Folder);
             var target = Free(System.IO.Path.Combine(Folder, item.FileName));
             System.IO.File.Move(partial, target);
-            Change(id, i => i with { State = DownloadItem.States.Done, Path = target, Received = Math.Max(i.Received, i.Expected), Expected = Math.Max(i.Received, i.Expected) });
+            Change(id, i => i with { State = DownloadItem.States.Done, Path = target, Received = Math.Max(i.Received, i.Expected), Expected = Math.Max(i.Received, i.Expected), Segments = null });
             _app.ShowToast($"{_app.Loc[S.downloadDone]}: {item.Title}");
         }
         catch (Exception)
