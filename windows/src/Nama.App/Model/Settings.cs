@@ -45,6 +45,9 @@ public sealed record Settings
     public static readonly int[] LimitChoices = [0, 256, 512, 1024, 2048, 5120, 10240];
     /// <summary>Closing the window leaves the app beside the clock, as 30nama's own desktop app does by default.</summary>
     public bool KeepInTray { get; init; } = true;
+    /// <summary>The hours downloads may run in, From to To in local time; none for any time. From 30nama's own desktop app.</summary>
+    public int? DownloadFrom { get; init; }
+    public int? DownloadTo { get; init; }
     /// <summary>The user's own SubSource key, if they made one. Kept on this computer only.</summary>
     public string? SubsourceKey { get; init; }
     /// <summary>The user's own TMDB key or read access token, if they made one. Kept on this computer only.</summary>

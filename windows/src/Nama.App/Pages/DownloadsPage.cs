@@ -248,6 +248,7 @@ public sealed class DownloadsPage : Grid
     {
         DownloadItem.States.Done => item.Expected > 0 ? DownloadPicker.Size(item.Expected) : "",
         DownloadItem.States.Failed => Loc[S.downloadFailed],
+        DownloadItem.States.Running when Downloads.OutsideHours && !Downloads.IsActive(item.Id) => Loc[Extra.waitingForHours],
         _ => item.Expected > 0 ? $"{DownloadPicker.Size(item.Received)} / {DownloadPicker.Size(item.Expected)}" : DownloadPicker.Size(item.Received),
     };
 
