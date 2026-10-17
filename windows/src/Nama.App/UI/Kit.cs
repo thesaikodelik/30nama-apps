@@ -204,7 +204,9 @@ public static class Kit
     {
         var loc = Loc;
         var height = width * 1.5;
-        var face = new Grid { Width = width, Height = height, CornerRadius = new CornerRadius(Theme.Radius), Background = Theme.Brush(Theme.Surface2) }.Springy(0.22);
+        // The grey tile only when there is no blurred stand-in to hold the place: under a picture it
+        // shows through the rounded edge as a light line.
+        var face = new Grid { Width = width, Height = height, CornerRadius = new CornerRadius(Theme.Radius), Background = post.Poster.Blurhash is null ? Theme.Brush(Theme.Surface2) : null }.Springy(0.22);
         face.Children.Add(Images.Remote(post.Poster.Url(width * 1.1 * 1.5), post.Poster.Blurhash, width * 1.5));
 
         var caption = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(10, 26, 10, 10), Spacing = 2, Opacity = 0 }.Springy(0.18);
@@ -247,7 +249,8 @@ public static class Kit
             };
             face.Children.Add(badge);
         }
-        var rim = new Border { CornerRadius = new CornerRadius(Theme.Radius), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08) };
+        // A rim only under the pointer; at rest it read as a light line round the dark posters.
+        var rim = new Border { CornerRadius = new CornerRadius(Theme.Radius), BorderThickness = new Thickness(0), BorderBrush = Theme.White(0) };
         face.Children.Add(rim);
 
         var button = Theme.Bare(face, () =>
@@ -269,8 +272,8 @@ public static class Kit
         button.PointerExited += (_, _) =>
         {
             caption.Opacity = 0;
-            rim.BorderBrush = Theme.White(0.08);
-            rim.BorderThickness = new Thickness(1);
+            rim.BorderBrush = Theme.White(0);
+            rim.BorderThickness = new Thickness(0);
             Canvas.SetZIndex(button, 0);
         };
         return Hovering(button, face, 1.07);
@@ -306,7 +309,7 @@ public static class Kit
     {
         var loc = Loc;
         const double w = 288, h = 162;
-        var face = new Grid { Width = w, Height = h, CornerRadius = new CornerRadius(Theme.Radius + 2), Background = Theme.Brush(Theme.Surface2) }.Springy(0.22);
+        var face = new Grid { Width = w, Height = h, CornerRadius = new CornerRadius(Theme.Radius + 2), Background = post.Poster.Blurhash is null ? Theme.Brush(Theme.Surface2) : null }.Springy(0.22);
         face.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, w * 1.5));
         face.Children.Add(new Border
         {
@@ -337,7 +340,7 @@ public static class Kit
             Child = Glyph.Icon(Glyph.Play, 20, Theme.FocusInk),
         }.Springy(0.18);
         face.Children.Add(play);
-        var rim = new Border { CornerRadius = new CornerRadius(Theme.Radius + 2), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08) };
+        var rim = new Border { CornerRadius = new CornerRadius(Theme.Radius + 2), BorderThickness = new Thickness(0), BorderBrush = Theme.White(0) };
         face.Children.Add(rim);
 
         var button = Theme.Bare(face, click);
@@ -378,8 +381,8 @@ public static class Kit
         host.PointerExited += (_, _) =>
         {
             play.Opacity = 0;
-            rim.BorderBrush = Theme.White(0.08);
-            rim.BorderThickness = new Thickness(1);
+            rim.BorderBrush = Theme.White(0);
+            rim.BorderThickness = new Thickness(0);
             if (close is not null) close.Opacity = 0;
             Canvas.SetZIndex(host, 0);
         };
