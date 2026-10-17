@@ -63,8 +63,10 @@ public static class PosterEffects
         if (App.Settings.ReduceMotion) return;
         // On a holder around the face: a projection cannot share an element with the scale the
         // face grows by under the pointer.
+        // Only while the pointer is on it: a projected element is drawn on a surface of its own,
+        // which softens its edges by a pixel, and a resting poster should be sharp.
         var projection = new PlaneProjection();
-        var holder = new Grid { Projection = projection };
+        var holder = new Grid();
         button.Content = null;
         holder.Children.Add(face);
         button.Content = holder;
@@ -86,6 +88,7 @@ public static class PosterEffects
         {
             if (face.ActualWidth <= 0) return;
             settling?.Stop();
+            holder.Projection ??= projection;
             var at = e.GetCurrentPoint(face).Position;
             // Physical left to right: a window laid out right to left mirrors the pointer's x.
             var across = Math.Clamp(at.X / face.ActualWidth, 0, 1) - 0.5;
@@ -101,6 +104,7 @@ public static class PosterEffects
         {
             glint.Opacity = 0;
             settling = Settle(projection);
+            settling.Completed += (_, _) => holder.Projection = null;
             settling.Begin();
         };
     }
