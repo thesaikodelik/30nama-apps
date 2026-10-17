@@ -416,7 +416,9 @@ public static class Kit
         heading.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, 0);
         column.Children.Add(heading);
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Padding = new Thickness(Theme.Edge, 18, Theme.Edge, 18) };
+        // Room inside the row for a card grown under the pointer and the glow it throws, which the
+        // row would otherwise cut off; given back outside it, so the page does not move.
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Padding = new Thickness(Theme.Edge, 30, Theme.Edge, 60) };
         foreach (var card in cards) row.Children.Add(card);
         var scroller = new ScrollViewer
         {
@@ -426,7 +428,7 @@ public static class Kit
             VerticalScrollMode = ScrollMode.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        var area = new Grid();
+        var area = new Grid { Margin = new Thickness(0, -12, 0, -42) };
         area.Children.Add(scroller);
         Button Arrow(int direction)
         {
