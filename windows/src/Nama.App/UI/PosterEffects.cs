@@ -67,11 +67,25 @@ public static class PosterEffects
     public static void Tilt(Button button, Grid face, double degrees = 4)
     {
         if (App.Settings.ReduceMotion) return;
+        // On a holder: the face grows under the pointer by XAML's own scale, which the compositor's
+        // turn may not share an element with.
         var holder = new Grid();
         button.Content = null;
         holder.Children.Add(face);
         button.Content = holder;
+        Lean(button, face, holder, degrees);
+    }
 
+    /// <summary>
+    /// The lean itself: <paramref name="turned"/> is turned toward the pointer over
+    /// <paramref name="source"/>, and <paramref name="face"/> catches the glint. The turned element
+    /// must carry none of XAML's own transforms.
+    /// </summary>
+    public static void Lean(UIElement source, Grid face, FrameworkElement turned, double degrees)
+    {
+        if (App.Settings.ReduceMotion) return;
+        var holder = turned;
+        var button = source;
         var visual = ElementCompositionPreview.GetElementVisual(holder);
         var compositor = visual.Compositor;
         var lean = visual.Properties;
@@ -83,8 +97,8 @@ public static class PosterEffects
             var matrix = compositor.CreateExpressionAnimation(
                 "Matrix4x4.CreateTranslation(-Centre) * Matrix4x4.CreateFromAxisAngle(Vector3(1, 0, 0), Lean.X) * Matrix4x4.CreateFromAxisAngle(Vector3(0, 1, 0), Lean.Y) * Depth * Matrix4x4.CreateTranslation(Centre)");
             matrix.SetVector3Parameter("Centre", centre);
-            // Perspective, as SwiftUI's 0.4 gives a card of this size.
-            matrix.SetMatrix4x4Parameter("Depth", new Matrix4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1f / 700, 0, 0, 0, 1));
+            // Perspective strong enough that a lean of a few degrees is seen, as on the Mac.
+            matrix.SetMatrix4x4Parameter("Depth", new Matrix4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1f / 280, 0, 0, 0, 1));
             matrix.SetReferenceParameter("Lean", lean);
             visual.StartAnimation("TransformMatrix", matrix);
         };
@@ -123,7 +137,8 @@ public static class PosterEffects
             var down = (float)(Math.Clamp(at.Y / face.ActualHeight, 0, 1) - 0.5);
             // A window laid out right to left mirrors the pointer's x.
             var side = face.FlowDirection == FlowDirection.RightToLeft ? -1 : 1;
-            LeanTo(down * 2 * radians, -across * 2 * radians * side);
+            // Pressed where the pointer is: that corner goes back, the far one comes forward.
+            LeanTo(-down * 2 * radians, across * 2 * radians * side);
             var origin = new Point(across + 0.5, down + 0.5);
             light.Center = origin;
             light.GradientOrigin = origin;
@@ -140,11 +155,12 @@ public static class PosterEffects
     /// The light a poster throws under it, as on the Mac: a faint dark shadow at rest, and under
     /// the pointer a glow in the poster's own colour that grows with it.
     /// </summary>
-    public static void Glow(Button button, FrameworkElement face, Color tint)
+    public static void Glow(Button button, FrameworkElement face, Color tint) =>
+        Glow(button, face, new UI.Glow.Look(Colors.Black, 0.4f, 8, 4), new UI.Glow.Look(tint, 0.55f, 32, 14), 1.07f);
+
+    public static void Glow(Button button, FrameworkElement face, UI.Glow.Look rest, UI.Glow.Look lifted, float grow)
     {
-        var rest = new UI.Glow.Look(Colors.Black, 0.4f, 8, 4);
-        var lifted = new UI.Glow.Look(tint, 0.55f, 32, 14);
-        var glow = new UI.Glow(rest, grow: 1.07f);
+        var glow = new UI.Glow(rest, grow);
         var content = (FrameworkElement)button.Content;
         button.Content = null;
         content.Width = face.Width;

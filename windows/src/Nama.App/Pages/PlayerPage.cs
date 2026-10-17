@@ -694,7 +694,7 @@ public sealed partial class PlayerPage : Grid
             }
         }
         Show(shownSeason);
-        column.Children.Add(new ScrollViewer { Content = pills, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, VerticalScrollMode = ScrollMode.Disabled });
+        column.Children.Add(Kit.Sideways(new ScrollViewer { Content = pills, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled, VerticalScrollMode = ScrollMode.Disabled }));
         var scroller = new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Grid.SetRow(scroller, 1);
         column.Children.Add(scroller);

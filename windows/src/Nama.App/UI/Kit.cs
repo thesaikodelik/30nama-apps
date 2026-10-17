@@ -346,6 +346,10 @@ public static class Kit
 
         var button = Theme.Bare(face, click);
         AutomationName(button, post.Title(loc.Lang));
+        // As the Mac's card for something half-watched: it leans 3 degrees to the pointer and
+        // glows in the title's colour under it.
+        PosterEffects.Tilt(button, face, 3);
+        PosterEffects.Glow(button, face, new Glow.Look(Colors.Black, 0, 0, 0), new Glow.Look(post.Tint(), 0.5f, 32, 14), 1.04f);
         var host = new Grid();
         host.Children.Add(Hovering(button, face, 1.04));
         Button? close = null;
@@ -393,6 +397,33 @@ public static class Kit
     // MARK: Shelf
 
     /// <summary>A titled row that scrolls sideways, with arrows that appear under the pointer for a mouse without a wheel.</summary>
+    /// <summary>
+    /// Lets the mouse wheel over a row that scrolls sideways move the page up and down, as on the
+    /// Mac: Windows otherwise turns the wheel into the row's own sideways scroll. A touchpad's
+    /// sideways swipe, or Shift with the wheel, still moves the row.
+    /// </summary>
+    public static ScrollViewer Sideways(ScrollViewer row)
+    {
+        if (row.Content is not UIElement content) return row;
+        content.PointerWheelChanged += (_, e) =>
+        {
+            var point = e.GetCurrentPoint(content);
+            if (point.Properties.IsHorizontalMouseWheel || e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift)) return;
+            if (Upward(row) is not { } page) return;
+            e.Handled = true;
+            page.ChangeView(null, Math.Clamp(page.VerticalOffset - point.Properties.MouseWheelDelta, 0, page.ScrollableHeight), null);
+        };
+        return row;
+    }
+
+    /// <summary>The nearest scroller above that goes up and down.</summary>
+    private static ScrollViewer? Upward(DependencyObject from)
+    {
+        for (var at = VisualTreeHelper.GetParent(from); at is not null; at = VisualTreeHelper.GetParent(at))
+            if (at is ScrollViewer { VerticalScrollMode: not ScrollMode.Disabled } page && page.ScrollableHeight > 0) return page;
+        return null;
+    }
+
     public static FrameworkElement Shelf(string title, IEnumerable<FrameworkElement> cards, Action? more = null, double step = 5)
     {
         var column = new StackPanel { Spacing = 4 };
@@ -420,14 +451,14 @@ public static class Kit
         // row would otherwise cut off; given back outside it, so the page does not move.
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Padding = new Thickness(Theme.Edge, 30, Theme.Edge, 60) };
         foreach (var card in cards) row.Children.Add(card);
-        var scroller = new ScrollViewer
+        var scroller = Sideways(new ScrollViewer
         {
             Content = row,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             HorizontalScrollMode = ScrollMode.Enabled,
             VerticalScrollMode = ScrollMode.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
+        });
         var area = new Grid { Margin = new Thickness(0, -12, 0, -42) };
         area.Children.Add(scroller);
         Button Arrow(int direction)
