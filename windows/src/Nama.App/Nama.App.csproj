@@ -17,7 +17,7 @@
     <SelfContained>true</SelfContained>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\30nama.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <!-- Program.cs has the entry point: it keeps the app to one copy. -->
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
