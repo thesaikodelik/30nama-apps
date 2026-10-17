@@ -49,5 +49,36 @@ public static class DemoStream
         });
         return new StreamResult(json);
     }
+
+    /// <summary>What a download pane offers in the demo: small public test videos, as a film or as two seasons.</summary>
+    public static DownloadOptions Downloads(Post post)
+    {
+        const string small = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4";
+        const string larger = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4";
+        if (!post.IsSeries)
+        {
+            return new DownloadOptions(Json.From(new Dictionary<string, object?>
+            {
+                ["download"] = new[]
+                {
+                    new Dictionary<string, object?> { ["dl"] = larger, ["quality"] = "Demo 720p", ["size"] = "5 MB", ["encoder"] = "test-videos.co.uk", ["tags"] = new[] { "x264" } },
+                    new Dictionary<string, object?> { ["dl"] = small, ["quality"] = "Demo 360p", ["size"] = "1 MB", ["encoder"] = "test-videos.co.uk" },
+                },
+            }));
+        }
+        Dictionary<string, object?> Pack(int season, string quality, string url, int episodes) => new()
+        {
+            ["season_int"] = season, ["quality"] = quality, ["size"] = url == small ? "1 MB" : "5 MB", ["encoder"] = "test-videos.co.uk",
+            ["link"] = Enumerable.Range(1, episodes).Select(e => new Dictionary<string, object?> { ["dl"] = url + "?e=" + season + "-" + e, ["episode"] = e }).ToArray(),
+        };
+        return new DownloadOptions(Json.From(new Dictionary<string, object?>
+        {
+            ["download"] = new Dictionary<string, object?>
+            {
+                ["s1"] = new[] { Pack(1, "Demo 720p", larger, 3), Pack(1, "Demo 360p", small, 2) },
+                ["s2"] = new[] { Pack(2, "Demo 360p", small, 2) },
+            },
+        }));
+    }
 }
 #endif

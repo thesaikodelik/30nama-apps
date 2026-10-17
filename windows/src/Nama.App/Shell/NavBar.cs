@@ -12,6 +12,7 @@ public sealed class NavBar : StackPanel
 {
     private readonly Nav _nav;
     private readonly Button _back;
+    private readonly Button _downloads;
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
 
     public NavBar(Nav nav)
@@ -30,8 +31,12 @@ public sealed class NavBar : StackPanel
         _items.Margin = new Thickness(4);
         capsule.Children.Add(_items);
         Children.Add(capsule);
-        // Balances the back button, so the bar sits in the middle of the window.
-        Children.Add(new Border { Width = 48 });
+        // Downloads are not a place in the catalogue; they have a disc of their own beside the bar,
+        // which also balances the back button so the bar sits in the middle of the window.
+        _downloads = Kit.Glass(null, Glyph.Download, () => _nav.Go(Section.Downloads), height: 48);
+        ToolTipService.SetToolTip(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
+        Kit.AutomationName(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
+        Children.Add(_downloads);
         nav.Changed += Refresh;
         Refresh();
     }
@@ -43,6 +48,13 @@ public sealed class NavBar : StackPanel
         _back.Opacity = showBack ? 1 : 0;
         _back.IsHitTestVisible = showBack;
         _back.IsTabStop = showBack;
+        // Lit while its section is open, as the bar's own items are.
+        var onDownloads = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
+        if (_downloads.Content is Grid disc)
+        {
+            disc.Children[1] = new Border { Background = onDownloads ? Theme.Brush(Microsoft.UI.Colors.White) : Theme.White(0.1), CornerRadius = new CornerRadius(24) };
+            if (disc.Children[^1] is FontIcon icon) icon.Foreground = Theme.Brush(onDownloads ? Theme.FocusInk : Theme.Text1);
+        }
         _items.Children.Clear();
         foreach (var section in Nav.OnBar)
         {

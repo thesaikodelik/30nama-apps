@@ -10,7 +10,7 @@ namespace Nama.Core;
 public enum Extra
 {
     imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages,
-    bufferTime, seconds, streamOnly,
+    bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace,
 }
 #pragma warning restore IDE1006
 
@@ -21,6 +21,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.showInFolder] = "Show in folder",
+        [Extra.downloadSpeed] = "Download speed",
+        [Extra.unlimited] = "Unlimited",
+        [Extra.freeSpace] = "free",
         [Extra.imdbTop250] = "IMDb Top 250",
         [Extra.siteTop100] = "30nama Top 100",
         [Extra.votes] = "votes",
@@ -37,6 +41,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.showInFolder] = "نمایش در پوشه",
+        [Extra.downloadSpeed] = "سرعت دانلود",
+        [Extra.unlimited] = "بدون محدودیت",
+        [Extra.freeSpace] = "فضای خالی",
         [Extra.imdbTop250] = "۲۵۰ فیلم برتر IMDb",
         [Extra.siteTop100] = "۱۰۰ عنوان برتر ۳۰نما",
         [Extra.votes] = "رأی",
@@ -53,6 +61,10 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.showInFolder] = "إظهار في المجلد",
+        [Extra.downloadSpeed] = "سرعة التنزيل",
+        [Extra.unlimited] = "بلا حد",
+        [Extra.freeSpace] = "مساحة فارغة",
         [Extra.imdbTop250] = "أفضل 250 في IMDb",
         [Extra.siteTop100] = "أفضل 100 في 30nama",
         [Extra.votes] = "صوتًا",

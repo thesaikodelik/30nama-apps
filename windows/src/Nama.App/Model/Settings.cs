@@ -35,6 +35,14 @@ public sealed record Settings
     /// </summary>
     public int BufferSeconds { get; init; }
     public static readonly int[] BufferChoices = [0, 30, 60, 120, 300];
+    /// <summary>Where downloads are put. Null is the user's Downloads folder.</summary>
+    public string? DownloadFolder { get; init; }
+    /// <summary>
+    /// The most all downloads together may take, in kilobytes a second; zero for no limit. From
+    /// 30nama's own desktop app, for a line that is shared or metered.
+    /// </summary>
+    public int DownloadLimit { get; init; }
+    public static readonly int[] LimitChoices = [0, 256, 512, 1024, 2048, 5120, 10240];
     public double Volume { get; init; } = 1;
 
     public static readonly int[] SubtitleSizes = [38, 46, 54];

@@ -6,7 +6,7 @@ namespace Nama.App.Shell;
 /// The sections of the bar, in the Mac app's order: search first, as most apps have it; the
 /// user's own page last, by settings.
 /// </summary>
-public enum Section { Search, Home, Movies, Series, Anime, Browse, Profile, Settings }
+public enum Section { Search, Home, Movies, Series, Anime, Browse, Profile, Settings, Downloads }
 
 /// <summary>Something opened on top of a section.</summary>
 public abstract record Route
@@ -31,6 +31,10 @@ public sealed class Nav
     public IReadOnlyList<Route> Opened => _opened;
 
     public event Action? Changed;
+    /// <summary>A title whose files are to be chosen for download.</summary>
+    public event Action<Post>? Picking;
+
+    public void Pick(Post post) => Picking?.Invoke(post);
 
     public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Profile, Section.Settings];
 
@@ -51,6 +55,7 @@ public sealed class Nav
         Section.Browse => S.browse,
         Section.Profile => S.profile,
         Section.Settings => S.settings,
+        Section.Downloads => S.downloads,
         _ => S.home,
     };
 
