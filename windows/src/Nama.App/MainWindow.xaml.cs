@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private NavBar? _bar;
     private Border? _toast;
     private UpdatePill? _update;
+    private CommandPalette? _palette;
     /// <summary>Asks now and then whether a newer version is out; the updater itself keeps to every few hours.</summary>
     private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(1) };
     private Section? _shownSection;
@@ -106,6 +107,7 @@ public sealed partial class MainWindow : Window
             // Esc steps back out of a title, as it closes anything else.
             if (e.Key == Windows.System.VirtualKey.Escape && _app.Playback is null) _nav.Back();
         };
+        AddShortcuts();
         ApplyDirection();
         ShowPhase();
         _ = _app.BootAsync();
@@ -259,6 +261,53 @@ public sealed partial class MainWindow : Window
         page.Springy(0.28);
         _route.Children.Add(page);
         page.Loaded += (_, _) => page.Opacity = 1;
+    }
+
+    /// <summary>
+    /// The keyboard's way around, as on the Mac: Ctrl+1 to Ctrl+8 for the sections on the bar,
+    /// Ctrl+K to find anything, Ctrl+F to search, Alt+Left to step back. The player has keys of its own.
+    /// </summary>
+    private void AddShortcuts()
+    {
+        _root.KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
+        void Key(Windows.System.VirtualKey key, Windows.System.VirtualKeyModifiers modifiers, Action action)
+        {
+            var accelerator = new Microsoft.UI.Xaml.Input.KeyboardAccelerator { Key = key, Modifiers = modifiers };
+            accelerator.Invoked += (_, e) =>
+            {
+                if (_app.Phase != AppModel.Phases.Main || _app.Playback is not null) return;
+                e.Handled = true;
+                action();
+            };
+            _root.KeyboardAccelerators.Add(accelerator);
+        }
+        const Windows.System.VirtualKeyModifiers ctrl = Windows.System.VirtualKeyModifiers.Control;
+        for (var i = 0; i < Nav.OnBar.Count && i < 9; i++)
+        {
+            var section = Nav.OnBar[i];
+            Key(Windows.System.VirtualKey.Number1 + i, ctrl, () => { ClosePalette(); _nav.Go(section); });
+        }
+        Key(Windows.System.VirtualKey.K, ctrl, TogglePalette);
+        Key(Windows.System.VirtualKey.F, ctrl, () => { ClosePalette(); _nav.Go(Section.Search); });
+        Key(Windows.System.VirtualKey.Left, Windows.System.VirtualKeyModifiers.Menu, () => { ClosePalette(); _nav.Back(); });
+    }
+
+    private void TogglePalette()
+    {
+        if (_palette is not null)
+        {
+            ClosePalette();
+            return;
+        }
+        _palette = new CommandPalette(_nav, ClosePalette);
+        _overlay.Children.Add(_palette);
+    }
+
+    private void ClosePalette()
+    {
+        if (_palette is null) return;
+        _overlay.Children.Remove(_palette);
+        _palette = null;
     }
 
     /// <summary>The pane for choosing what of a title to download, over everything but the player.</summary>
