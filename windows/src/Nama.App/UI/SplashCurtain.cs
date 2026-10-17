@@ -132,11 +132,11 @@ public sealed class SplashCurtain : Grid
         public Half(bool upper)
         {
             Children.Add(_dark);
-            // Clear glass: the app behind is softened, not frosted, so it is still itself. Half of a
-            // blur over the sharp page reads as glass a few millimetres thick.
+            // Crystal glass: the app behind is blurred, yet with a little of it still sharp through
+            // the blur, so it reads as thick glass rather than frosted.
             Children.Add(new Border
             {
-                Opacity = 0.5,
+                Opacity = 0.85,
                 Background = new AcrylicBrush { TintColor = Colors.Black, TintOpacity = 0, TintLuminosityOpacity = 0.01, FallbackColor = Colors.Transparent },
             });
             // A shade only where the logo sits, so it holds its own over whatever the app shows.
