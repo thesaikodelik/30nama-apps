@@ -5,3 +5,5 @@ obj/
 TestResults/
 # Fetched by tools/fetch-libmpv.ps1, never committed.
 libmpv/
+# Built by tools/build-release.ps1.
+dist/
