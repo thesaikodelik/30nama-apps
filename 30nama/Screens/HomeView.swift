@@ -298,9 +298,6 @@ struct HomeView: View {
                     if ["movies", "series", "anime"].contains(section.key) {
                         SeeAllCard(title: loc.title(forSection: section.key)) { openTab(section.key) }
                     }
-                    if ["movies", "series", "anime"].contains(section.key) {
-                        SeeAllCard(title: loc.title(forSection: section.key)) { openTab(section.key) }
-                    }
                 }
                 .padding(.horizontal, Theme.edge)
             }

@@ -15,9 +15,14 @@ final class EpisodeWatch {
         guard app.isLoggedIn else { return }
         let last = defaults.double(forKey: "episodeWatch.last")
         guard Date().timeIntervalSince1970 - last > spacing else { return }
-        defaults.set(Date().timeIntervalSince1970, forKey: "episodeWatch.last")
 
-        let followed = await app.upcoming() + app.continueWatching().filter(\.isSeries)
+        // Only when both lists came: with one missing, the days remembered for its series would be
+        // dropped as if they were no longer followed, and their episodes never told of.
+        guard let upcoming = await app.upcomingIfReachable(),
+              let watching = await app.continueWatchingIfReachable(background: true) else { return }
+        // Counted from a look that worked; one that failed is tried again within the hour.
+        defaults.set(Date().timeIntervalSince1970, forKey: "episodeWatch.last")
+        let followed = upcoming + watching.filter(\.isSeries)
         guard !followed.isEmpty else { return }
         var alerts = EpisodeAlerts(plist: defaults.dictionary(forKey: "episodeWatch.expected") as? [String: Double] ?? [:])
         let out = alerts.update(with: followed)

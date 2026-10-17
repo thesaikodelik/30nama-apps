@@ -174,6 +174,7 @@ final class PlayerEngine {
         heartbeat?.invalidate()
         subtitleTask?.cancel()
         sleepTask?.cancel()
+        dropPendingSkip()
         findTask?.cancel()
         if pinned { window?.level = .normal }
         playback.stop()
@@ -240,6 +241,8 @@ final class PlayerEngine {
     /// Starts item `i`, from `position` if given, else from where the user left off.
     func start(_ i: Int, at position: Double? = nil) {
         guard items.indices.contains(i) else { return close() }
+        // Arrow presses still being added up were for the item that was playing.
+        dropPendingSkip()
         report()
         index = i
         reportedTime = 0
@@ -334,6 +337,12 @@ final class PlayerEngine {
     }
 
     func seek(to seconds: Double) {
+        // A place chosen on the timeline wins over arrow presses still being added up.
+        dropPendingSkip()
+        place(at: seconds)
+    }
+
+    private func place(at seconds: Double) {
         let target = max(0, duration > 0 ? min(seconds, duration - 1) : seconds)
         time = target
         playback.seek(to: target)
@@ -345,6 +354,13 @@ final class PlayerEngine {
     private(set) var pendingSkip = 0.0
     @ObservationIgnored private var skipTarget: Double?
     @ObservationIgnored private var skipTask: Task<Void, Never>?
+
+    private func dropPendingSkip() {
+        skipTask?.cancel()
+        skipTask = nil
+        skipTarget = nil
+        pendingSkip = 0
+    }
 
     func skip(_ seconds: Double) {
         var target = (skipTarget ?? playback.position) + seconds
@@ -358,7 +374,7 @@ final class PlayerEngine {
             guard let self, !Task.isCancelled, let target = self.skipTarget else { return }
             self.skipTarget = nil
             self.pendingSkip = 0
-            self.seek(to: target)
+            self.place(at: target)
         }
     }
 

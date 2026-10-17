@@ -446,7 +446,13 @@ final class AppModel {
     @ObservationIgnored private var trending: (key: String?, service: Trending)?
 
     func continueWatching() async -> [Post] {
-        guard isLoggedIn, let result = try? await api.get("continue_watching") else { return [] }
+        await continueWatchingIfReachable() ?? []
+    }
+
+    /// Nil when 30nama could not be asked, as against an empty list.
+    /// - Parameter background: no page is waiting on it, so it gives way to those that are.
+    func continueWatchingIfReachable(background: Bool = false) async -> [Post]? {
+        guard isLoggedIn, let result = try? await api.get("continue_watching", background: background) else { return nil }
         let list = dismissals.filter(Post.continueList(result))
         UserDefaults.standard.set(dismissals.plist, forKey: "continueDismissals")
         return list
@@ -517,13 +523,18 @@ final class AppModel {
 
     /// Series on the user's watchlist or notify list with an episode still to come, soonest first.
     func upcoming() async -> [Post] {
-        guard isLoggedIn else { return [] }
+        await upcomingIfReachable() ?? []
+    }
+
+    /// Nil when one of the lists could not be read, as against lists with nothing coming.
+    func upcomingIfReachable() async -> [Post]? {
+        guard isLoggedIn else { return nil }
         var posts: [Post] = []
         for group in ["watchlist", "notify"] {
             var page = 1, pages = 1
             // A handful of pages is every list a person keeps; more would only hammer the server.
             while page <= pages, page <= 4 {
-                guard let result = try? await api.get("user_list", ["action": "list", "group": group, "page": String(page), "orderby": "add_list", "order": "DESC"], background: true) else { break }
+                guard let result = try? await api.get("user_list", ["action": "list", "group": group, "page": String(page), "orderby": "add_list", "order": "DESC"], background: true) else { return nil }
                 let next = PostPage(result)
                 posts += next.posts
                 pages = next.pages

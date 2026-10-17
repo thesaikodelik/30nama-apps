@@ -29,7 +29,8 @@ final class SubtitleFinder {
             var list: [SubSource.Candidate] = []
             if let key = SubtitleFinder.key { list = await viaAPI(query, key: key) }
             if list.isEmpty { list = await viaPages(query) }
-            found[cacheKey] = list
+            // Nothing found may be the network; asked again for the next episode.
+            if !list.isEmpty { found[cacheKey] = list }
             all = list
         }
         return SubSource.ranked(all, release: release, season: query.isSeries ? query.season : nil, episode: episode)

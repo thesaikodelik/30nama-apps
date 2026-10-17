@@ -5,6 +5,10 @@ import Compression
 /// Apple TV has no unzip tool to call, so the few hundred lines of format a subtitle needs are read
 /// here: stored and deflated entries, through the central directory.
 enum Zip {
+    /// Larger than any subtitle file; an entry that says it is bigger is not unpacked. The size is
+    /// what the archive claims, and an archive from a stranger may claim anything.
+    static let largest = 20 * 1024 * 1024
+
     /// Name and contents of every file in `data`. Folders are left out, and so is anything that
     /// cannot be read; names keep only their last part, so nothing points outside where it is put.
     static func files(in data: Data) -> [(name: String, data: Data)] {
@@ -23,7 +27,7 @@ enum Zip {
             guard nameEnd <= bytes.count else { break }
             let name = String(decoding: bytes[(at + 46)..<nameEnd], as: UTF8.self)
             at = nameEnd + extra + comment
-            guard !name.hasSuffix("/"), local + 30 <= bytes.count, u32(bytes, local) == 0x0403_4B50 else { continue }
+            guard !name.hasSuffix("/"), size <= largest, local + 30 <= bytes.count, u32(bytes, local) == 0x0403_4B50 else { continue }
             let start = local + 30 + Int(u16(bytes, local + 26)) + Int(u16(bytes, local + 28))
             guard start + packed <= bytes.count else { continue }
             let body = Data(bytes[start..<(start + packed)])

@@ -14,6 +14,15 @@ final class SubSourceTests: XCTestCase {
         XCTAssertTrue(Zip.files(in: Data("not a zip".utf8)).isEmpty)
     }
 
+    func testRefusesAnEntryThatClaimsToBeHuge() throws {
+        // The stored archive with its one entry rewritten to claim 4 GB unpacked.
+        var bytes = [UInt8](try zip("subsource_stored"))
+        let end = bytes.count - 22
+        let directory = Int(bytes[end + 16]) | Int(bytes[end + 17]) << 8 | Int(bytes[end + 18]) << 16 | Int(bytes[end + 19]) << 24
+        for i in 0..<4 { bytes[directory + 24 + i] = 0xFF }
+        XCTAssertTrue(Zip.files(in: Data(bytes)).isEmpty, "nothing is allocated for it")
+    }
+
     func testTakesTheEpisodesFileOutOfAnArchive() throws {
         let text = SubSource.text(from: try zip("subsource_deflated"), season: 1, episode: 3)
         XCTAssertEqual(text?.contains("فقط قسمت سه"), true)
