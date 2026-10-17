@@ -4,7 +4,7 @@ namespace Nama.App.Shell;
 
 /// <summary>
 /// The sections of the bar, in the Mac app's order: search first, as most apps have it; the
-/// user's own page last, by settings. Only those the Windows app has so far are on the bar.
+/// user's own page last, by settings.
 /// </summary>
 public enum Section { Search, Home, Movies, Series, Anime, Browse, Profile, Settings }
 
@@ -32,7 +32,7 @@ public sealed class Nav
 
     public event Action? Changed;
 
-    public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Settings];
+    public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Profile, Section.Settings];
 
     public static string Symbol(Section s) => s switch
     {
