@@ -40,6 +40,9 @@ public static class Images
         // shows as a thin line round the frame. Drawn a pixel larger on every side, that edge falls
         // outside the frame and is cut away.
         var bleed = stretch == Stretch.UniformToFill ? new Thickness(-1) : new Thickness(0);
+        // Cut to its own place, so the pixel drawn past it never shows outside, whatever holds it.
+        if (stretch == Stretch.UniformToFill)
+            host.SizeChanged += (_, e) => host.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
         if (Wash(blurhash) is { } wash) host.Children.Add(new Image { Source = wash, Stretch = Stretch.Fill, Margin = bleed });
         if (url is not null)
         {
