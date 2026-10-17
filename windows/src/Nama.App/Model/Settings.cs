@@ -45,6 +45,8 @@ public sealed record Settings
     public static readonly int[] LimitChoices = [0, 256, 512, 1024, 2048, 5120, 10240];
     /// <summary>Closing the window leaves the app beside the clock, as 30nama's own desktop app does by default.</summary>
     public bool KeepInTray { get; init; } = true;
+    /// <summary>The user's own SubSource key, if they made one. Kept on this computer only.</summary>
+    public string? SubsourceKey { get; init; }
     public double Volume { get; init; } = 1;
 
     public static readonly int[] SubtitleSizes = [38, 46, 54];

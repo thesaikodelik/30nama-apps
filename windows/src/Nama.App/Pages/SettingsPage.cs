@@ -56,6 +56,7 @@ public sealed class SettingsPage : Grid
             account.Add(Row(loc[S.account], Value(loc[S.guestAccount])));
             account.Add(Action(Kit.Glass(loc[S.signInQR], null, App.RequestSignIn, height: 38)));
         }
+        if (!App.Ratings.IsEmpty) account.Add(Row(loc[S.yourRating], Kit.Glass(loc[S.exportRatings], null, ExportRatings, height: 34)));
         Group(loc[S.account], account);
 
         Group(loc[S.language], [Row(loc[S.language], Choice(LangExtensions.All.Select(l => (l.Name(), (object)l)), s.Lang, v => App.Update(x => x with { Lang = (Lang)v })))]);
@@ -90,11 +91,14 @@ public sealed class SettingsPage : Grid
             Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 
+        Group(loc[S.services], [KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => App.Update(x => x with { SubsourceKey = v }))]);
+
         var version = typeof(SettingsPage).Assembly.GetName().Version;
         Group(loc[S.about],
         [
             Row(loc[S.version], Value(version is null ? "—" : $"{version.Major}.{version.Minor}.{version.Build}", ltr: true)),
             Row(loc[S.apiHost], Value(App.ApiHost is { } host && Uri.TryCreate(host, UriKind.Absolute, out var u) ? u.Host : "—", ltr: true)),
+            Row(loc[S.reportProblem], Kit.Glass(loc[S.reportProblem], null, ReportProblem, height: 34)),
         ]);
     }
 
@@ -157,6 +161,56 @@ public sealed class SettingsPage : Grid
         var toggle = new ToggleSwitch { IsOn = on, OnContent = "", OffContent = "", MinWidth = 0 };
         toggle.Toggled += (_, _) => set(toggle.IsOn);
         return toggle;
+    }
+
+    /// <summary>The user's own key for a service, kept on this computer: a field and what it is for.</summary>
+    private static FrameworkElement KeyField(string label, string hint, string? value, Action<string?> set)
+    {
+        var box = new PasswordBox { Password = value ?? "", Width = 252, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono,Consolas"), FlowDirection = FlowDirection.LeftToRight };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, label);
+        box.LostFocus += (_, _) => set(string.IsNullOrWhiteSpace(box.Password) ? null : box.Password.Trim());
+        var column = new StackPanel { Spacing = 2 };
+        column.Children.Add(Row(label, box));
+        var note = Theme.Text(hint, 12, color: Theme.Text3, lines: 2);
+        note.Margin = new Thickness(0, 0, 0, 8);
+        column.Children.Add(note);
+        return column;
+    }
+
+    /// <summary>The ratings as a file Letterboxd's importer reads: the app cannot send them to 30nama, so this is how they leave it.</summary>
+    private async void ExportRatings()
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "30nama-ratings" };
+        picker.FileTypeChoices.Add("CSV", [".csv"]);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSaveFileAsync() is not { } file) return;
+        try
+        {
+            await File.WriteAllTextAsync(file.Path, App.Ratings.Csv(), new System.Text.UTF8Encoding(false));
+            App.ShowToast(App.Loc[S.exportDone]);
+        }
+        catch (Exception) { App.ShowToast(App.Loc[S.error]); }
+    }
+
+    /// <summary>
+    /// A new issue on the project's GitHub page, with what a report needs to be acted on already
+    /// filled in. Nothing about the account goes with it.
+    /// </summary>
+    private void ReportProblem()
+    {
+        var version = typeof(SettingsPage).Assembly.GetName().Version?.ToString(3) ?? "?";
+        var body = $"""
+            **What happened / چه اتفاقی افتاد:**
+
+
+            **What I expected / چه انتظاری داشتم:**
+
+
+            ---
+            30nama for Windows {version} · {Environment.OSVersion.VersionString} · {App.Settings.Lang.Code()}
+            """;
+        var url = "https://github.com/thesaikodelik/30nama-apps/issues/new?body=" + Uri.EscapeDataString(body);
+        _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));
     }
 
     private async void ChooseFolder()

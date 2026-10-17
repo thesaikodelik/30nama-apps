@@ -46,6 +46,9 @@ public sealed class AppModel
     public event Action<string>? Changed;
 
     public Loc Loc => new(Settings.Lang);
+
+    /// <summary>Persian subtitles from SubSource, for what 30nama has none for; through the user's key when there is one.</summary>
+    public SubtitleFinder Subtitles { get; }
     public bool IsLoggedIn => User is not null;
 
     private (HomeFeed Feed, DateTime At, Lang Lang)? _homeCache;
@@ -63,6 +66,7 @@ public sealed class AppModel
     {
         _ui = ui;
         Shared = this;
+        Subtitles = new SubtitleFinder(ApiClient.HttpTransport(), () => Settings.SubsourceKey?.Trim());
     }
 
     private void Tell(string what) => Changed?.Invoke(what);
