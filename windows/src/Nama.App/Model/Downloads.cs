@@ -83,7 +83,7 @@ public sealed partial class Downloads
     private const int AtOnce = 3;
     private readonly AppModel _app;
     private readonly DispatcherQueue _ui;
-    private readonly Transport _network = ApiClient.HttpTransport();
+    private readonly Transport _network = ApiClient.HttpTransport(decompress: false);
     private readonly Dictionary<string, CancellationTokenSource> _running = [];
     private readonly Dictionary<string, DateTime> _lastShown = [];
     private readonly SubtitleFinder _subtitles;
@@ -323,50 +323,89 @@ public sealed partial class Downloads
             Begin(waiting);
     }
 
+    /// <summary>A transfer that ended with this HTTP status, and the wait the server asked for, if any.</summary>
+    private sealed class Refused(int status, TimeSpan? retryAfter) : Exception($"HTTP {status}")
+    {
+        public int Status { get; } = status;
+        public TimeSpan? RetryAfter { get; } = retryAfter;
+    }
+
+    /// <summary>
+    /// Fetches the file, from where the part already here ends. A dropped connection or a busy
+    /// server is tried again a few times, a little later each time, from wherever it got to; a
+    /// refusal, such as a link that has expired, fails the download at once.
+    /// </summary>
     private async Task FetchAsync(DownloadItem item, CancellationToken stop)
     {
         var partial = Partial(item);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(partial)!);
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            var have = System.IO.File.Exists(partial) ? new FileInfo(partial).Length : 0;
-            using var request = new HttpRequestMessage(HttpMethod.Get, item.Address);
-            request.Headers.TryAddWithoutValidation("User-Agent", _app.Api.Config.UserAgent);
-            if (have > 0) request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(have, null);
-            using var response = await _network(request, stop);
-            if ((int)response.StatusCode >= 400) throw new HttpRequestException($"HTTP {(int)response.StatusCode}");
-            // A server that ignores the range sends the whole file again: start the copy over.
-            if (have > 0 && response.StatusCode != System.Net.HttpStatusCode.PartialContent) have = 0;
-            var expected = response.Content.Headers.ContentLength is { } length ? have + length : 0;
-            _ui.TryEnqueue(() => Change(item.Id, i => i with { Expected = expected > 0 ? expected : i.Expected, Received = have }));
-            await using (var source = await response.Content.ReadAsStreamAsync(stop))
-            await using (var target = new FileStream(partial, have > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true))
+            try
             {
-                var buffer = new byte[1 << 16];
-                var received = have;
-                int n;
-                while ((n = await source.ReadAsync(buffer, stop)) > 0)
-                {
-                    await target.WriteAsync(buffer.AsMemory(0, n), stop);
-                    received += n;
-                    await _throttle.TakeAsync(n, stop);
-                    Progressed(item.Id, received);
-                }
+                await TransferAsync(item, partial, stop);
+                _ui.TryEnqueue(() => Arrived(item.Id, partial));
+                return;
             }
-            _ui.TryEnqueue(() => Arrived(item.Id, partial));
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception)
-        {
-            _ui.TryEnqueue(() =>
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
+            catch (Exception e)
             {
-                if (!_running.Remove(item.Id) || Items.All(i => i.Id != item.Id)) return;
-                Change(item.Id, i => i with { State = DownloadItem.States.Failed });
-                Save();
-                _app.ShowToast(_app.Loc[S.downloadFailed]);
-                Next();
-            });
+                var refused = e as Refused;
+                if (RetryPolicy.Next(attempt, refused?.Status, refused?.RetryAfter, Random.Shared.NextDouble()) is { } wait)
+                {
+                    try { await Task.Delay(wait, stop); }
+                    catch (OperationCanceledException) { return; }
+                    continue;
+                }
+                break;
+            }
         }
+        // Given up: the download is marked failed, and its place goes to the next one.
+        _ui.TryEnqueue(() =>
+        {
+            if (!_running.Remove(item.Id) || Items.All(i => i.Id != item.Id)) return;
+            Change(item.Id, i => i with { State = DownloadItem.States.Failed });
+            Save();
+            _app.ShowToast(_app.Loc[S.downloadFailed]);
+            Next();
+        });
+    }
+
+    /// <summary>One try at the rest of the file. Returns once it has all arrived; throws otherwise.</summary>
+    private async Task TransferAsync(DownloadItem item, string partial, CancellationToken stop)
+    {
+        var have = System.IO.File.Exists(partial) ? new FileInfo(partial).Length : 0;
+        using var request = new HttpRequestMessage(HttpMethod.Get, item.Address);
+        request.Headers.TryAddWithoutValidation("User-Agent", _app.Api.Config.UserAgent);
+        if (have > 0) request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(have, null);
+        // Nothing heard for a while is a connection that has gone, even if it was never closed.
+        using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stop);
+        quiet.CancelAfter(TimeSpan.FromSeconds(45));
+        using var response = await _network(request, quiet.Token);
+        if ((int)response.StatusCode >= 400)
+            throw new Refused((int)response.StatusCode, response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow));
+        // A server that ignores the range sends the whole file again: start the copy over.
+        if (have > 0 && response.StatusCode != System.Net.HttpStatusCode.PartialContent) have = 0;
+        var expected = response.Content.Headers.ContentLength is { } length ? have + length : 0;
+        _ui.TryEnqueue(() => Change(item.Id, i => i with { Expected = expected > 0 ? expected : i.Expected, Received = have }));
+        var received = have;
+        await using (var source = await response.Content.ReadAsStreamAsync(quiet.Token))
+        await using (var target = new FileStream(partial, have > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true))
+        {
+            var buffer = new byte[1 << 16];
+            int n;
+            while (true)
+            {
+                quiet.CancelAfter(TimeSpan.FromSeconds(45));
+                if ((n = await source.ReadAsync(buffer, quiet.Token)) <= 0) break;
+                await target.WriteAsync(buffer.AsMemory(0, n), stop);
+                received += n;
+                await _throttle.TakeAsync(n, stop);
+                Progressed(item.Id, received);
+            }
+        }
+        // A connection that ended early is not a finished file: the next try goes on from here.
+        if (expected > 0 && received < expected) throw new IOException($"ended at {received} of {expected}");
     }
 
     /// <summary>A few times a second is plenty for a bar; every packet would redraw the list all day.</summary>
