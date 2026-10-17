@@ -29,6 +29,7 @@ public static class Program
             return 0;
         }
         instance.Activated += (_, _) => App.BringToFront();
+        Model.EpisodeWatch.Register();
         Application.Start(callback =>
         {
             SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));

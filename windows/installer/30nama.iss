@@ -57,6 +57,10 @@ Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 ; What an older version left that this one no longer has.
 Type: filesandordirs; Name: "{app}\*.pdb"
 
+[Registry]
+; The name the app's notifications go by (EpisodeWatch.AppId); the app writes it, the uninstaller takes it away.
+Root: HKCU; Subkey: "Software\Classes\AppUserModelId\thesaikodelik.30nama"; Flags: uninsdeletekey
+
 [Icons]
 Name: "{autoprograms}\30nama"; Filename: "{app}\Win - 30nama.exe"
 Name: "{autodesktop}\30nama"; Filename: "{app}\Win - 30nama.exe"; Tasks: desktopicon

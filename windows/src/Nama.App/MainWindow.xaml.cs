@@ -30,6 +30,10 @@ public sealed partial class MainWindow : Window
     private Border? _toast;
     private UpdatePill? _update;
     private CommandPalette? _palette;
+    /// <summary>A title a notification asked for, opened once the app is signed in and showing.</summary>
+    private int? _pendingPost;
+    /// <summary>Asks now and then whether a followed series has a new episode.</summary>
+    private readonly DispatcherTimer _episodeTimer = new() { Interval = TimeSpan.FromHours(1) };
     /// <summary>Holds the card a poster opens and the poster flying to a title's page, in window pixels left to right.</summary>
     private readonly Grid _effects = new() { FlowDirection = FlowDirection.LeftToRight };
     /// <summary>Asks now and then whether a newer version is out; the updater itself keeps to every few hours.</summary>
@@ -69,6 +73,18 @@ public sealed partial class MainWindow : Window
         _ = new Downloads(_app, DispatcherQueue);
         new Updater(DispatcherQueue).Changed += ShowUpdate;
         _updateTimer.Tick += (_, _) => _ = Updater.Shared.LookAsync();
+        _episodeTimer.Tick += (_, _) =>
+        {
+            // The first look a minute in, once the home page has had its requests; then hourly.
+            _episodeTimer.Interval = TimeSpan.FromHours(1);
+            _ = EpisodeWatch.LookAsync(_app);
+        };
+        EpisodeWatch.Opened += post => DispatcherQueue.TryEnqueue(() =>
+        {
+            _pendingPost = post;
+            ShowAgain();
+            OpenPending();
+        });
         _nav.Picking += ShowPicker;
         _nav.Trailering += ShowTrailer;
         Content = _root;
@@ -185,6 +201,12 @@ public sealed partial class MainWindow : Window
                 ShowUpdate();
                 _ = Updater.Shared.LookAsync();
                 _updateTimer.Start();
+                if (!_episodeTimer.IsEnabled)
+                {
+                    _episodeTimer.Interval = TimeSpan.FromMinutes(1);
+                    _episodeTimer.Start();
+                }
+                OpenPending();
 #if DEBUG
                 _ = DebugLaunchAsync();
 #endif
@@ -212,6 +234,12 @@ public sealed partial class MainWindow : Window
     private async Task DebugLaunchAsync()
     {
         if (Environment.GetEnvironmentVariable("NAMA_SECTION") is { } name && Enum.TryParse<Section>(name, true, out var section)) _nav.Go(section);
+        // NAMA_NOTIFY_TEST=1: the new-episode notification for the first title on Home, at once.
+        if (Environment.GetEnvironmentVariable("NAMA_NOTIFY_TEST") == "1" && (await _app.HomeAsync()).Heroes.FirstOrDefault() is { } shown)
+        {
+            Environment.SetEnvironmentVariable("NAMA_NOTIFY_TEST", null);
+            EpisodeWatch.Show(shown, _app.Loc);
+        }
         if (Environment.GetEnvironmentVariable("NAMA_OPEN") is not { } target) return;
         Environment.SetEnvironmentVariable("NAMA_OPEN", null); // once, not again after a sign-in
         try
@@ -268,6 +296,15 @@ public sealed partial class MainWindow : Window
         _route.Children.Add(page);
         page.Loaded += (_, _) => page.Opacity = 1;
         if (flight is { } launch && top is Route.Title flown) Fly(flown.Post, launch.From, launch.Picture);
+    }
+
+    private void OpenPending()
+    {
+        if (_pendingPost is not { } id || _app.Phase != AppModel.Phases.Main) return;
+        _pendingPost = null;
+        if (_app.Playback is not null) _app.ClosePlayer();
+        // Only the id is known; the page asks for the rest itself.
+        if (Post.Parse(Json.From(new Dictionary<string, object?> { ["id"] = id })) is { } post) _nav.Open(post);
     }
 
     // MARK: Poster effects

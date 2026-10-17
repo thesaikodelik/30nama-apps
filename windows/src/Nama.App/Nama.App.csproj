@@ -32,6 +32,7 @@
     <Content Include="..\..\..\30nama\Shared\Fonts\Vazirmatn-*.ttf" Link="Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\30nama\Mac\Assets.xcassets\Logo.imageset\logo@2x.png" Link="Assets\Logo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\30nama.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\30nama-256.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Fetched by windows/tools/fetch-libmpv.ps1. -->
