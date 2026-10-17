@@ -133,7 +133,8 @@ struct RootView: View {
 }
 
 struct MainView: View {
-    enum Tab: Hashable { case profile, home, movies, series, anime, browse, search, settings }
+    // Search first, as most apps have it; the user's own page last, by settings.
+    enum Tab: Hashable { case search, home, movies, series, anime, browse, profile, settings }
 
     @Environment(AppModel.self) private var app
     @Environment(\.loc) private var loc
@@ -141,9 +142,9 @@ struct MainView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { ProfileView().withRoutes() }
-                .tabItem { iconTab(loc(.profile), "person.crop.circle") }
-                .tag(Tab.profile)
+            NavigationStack { SearchView().withRoutes() }
+                .tabItem { iconTab(loc(.search), "magnifyingglass", titled: roomy) }
+                .tag(Tab.search)
             NavigationStack { HomeView().withRoutes() }
                 .tabItem { Text(loc(.home)) }
                 .tag(Tab.home)
@@ -159,15 +160,24 @@ struct MainView: View {
             NavigationStack { BrowseView().withRoutes() }
                 .tabItem { Text(loc(.browse)) }
                 .tag(Tab.browse)
-            NavigationStack { SearchView().withRoutes() }
-                .tabItem { iconTab(loc(.search), "magnifyingglass", titled: roomy) }
-                .tag(Tab.search)
+            NavigationStack { ProfileView().withRoutes() }
+                .tabItem { iconTab(loc(.profile), "person.crop.circle") }
+                .tag(Tab.profile)
             NavigationStack { SettingsView() }
                 .tabItem { iconTab(loc(.settings), "gearshape", titled: roomy) }
                 .tag(Tab.settings)
         }
         // A new language or account means a different catalogue: rebuild every tab.
         .id(app.contentVersion)
+        // Home's rows of films, series and anime end in a card that leads to the whole tab.
+        .environment(\.openTab) { key in
+            switch key {
+            case "movies": tab = .movies
+            case "series": tab = .series
+            case "anime": tab = .anime
+            default: break
+            }
+        }
     }
 
     /// Persian titles are short enough for all eight tabs to fit the bar. English and Arabic ones
@@ -201,5 +211,17 @@ struct MainView: View {
         }.withRenderingMode(.alwaysTemplate)
         image.accessibilityLabel = title
         return image
+    }
+}
+
+private struct OpenTabKey: EnvironmentKey {
+    static let defaultValue: (String) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Moves to the tab for a section of the catalogue: "movies", "series" or "anime".
+    var openTab: (String) -> Void {
+        get { self[OpenTabKey.self] }
+        set { self[OpenTabKey.self] = newValue }
     }
 }
