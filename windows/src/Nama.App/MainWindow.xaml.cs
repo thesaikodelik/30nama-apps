@@ -30,6 +30,23 @@ public sealed partial class MainWindow : Window
     private Border? _toast;
     private Section? _shownSection;
     private Route? _shownRoute;
+    private readonly Tray _tray;
+    private bool _quitting;
+
+    /// <summary>The window again, from the notification area or from a second start of the program.</summary>
+    public void ShowAgain()
+    {
+        AppWindow.Show();
+        _tray.Hide();
+        Activate();
+        Native.SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
+    }
+
+    private void Quit()
+    {
+        _quitting = true;
+        Close();
+    }
 
     /// <summary>The window is the one in use: things that move only for someone watching can rest otherwise.</summary>
     public static bool IsActive { get; private set; } = true;
@@ -56,6 +73,21 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "30nama.ico"));
         Resize(1440, 900);
         Activated += (_, e) => IsActive = e.WindowActivationState != WindowActivationState.Deactivated;
+        _tray = new Tray(Path.Combine(AppContext.BaseDirectory, "Assets", "30nama.ico"))
+        {
+            Labels = () => (_app.Loc[Extra.openApp], _app.Loc[Extra.quit]),
+        };
+        _tray.OpenRequested += () => DispatcherQueue.TryEnqueue(ShowAgain);
+        _tray.QuitRequested += () => DispatcherQueue.TryEnqueue(Quit);
+        AppWindow.Closing += (_, e) =>
+        {
+            if (_quitting || !_app.Settings.KeepInTray) { _tray.Dispose(); return; }
+            // Kept beside the clock: the window goes, the app and its downloads stay.
+            e.Cancel = true;
+            if (_app.Playback is not null) _app.ClosePlayer();
+            AppWindow.Hide();
+            _tray.Show("30nama");
+        };
 
         _root.Children.Add(_page);
         _root.Children.Add(_route);
@@ -297,4 +329,8 @@ internal static partial class Native
 {
     [System.Runtime.InteropServices.LibraryImport("user32.dll")]
     public static partial uint GetDpiForWindow(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    public static partial bool SetForegroundWindow(IntPtr hwnd);
 }

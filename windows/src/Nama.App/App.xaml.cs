@@ -22,6 +22,9 @@ public partial class App : Application
         catch (Exception) { }
     }
 
+    /// <summary>Another start of the program asked for this one: its window comes forward.</summary>
+    public static void BringToFront() => MainWindow.Shared?.DispatcherQueue.TryEnqueue(MainWindow.Shared.ShowAgain);
+
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();

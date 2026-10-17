@@ -43,6 +43,8 @@ public sealed record Settings
     /// </summary>
     public int DownloadLimit { get; init; }
     public static readonly int[] LimitChoices = [0, 256, 512, 1024, 2048, 5120, 10240];
+    /// <summary>Closing the window leaves the app beside the clock, as 30nama's own desktop app does by default.</summary>
+    public bool KeepInTray { get; init; } = true;
     public double Volume { get; init; } = 1;
 
     public static readonly int[] SubtitleSizes = [38, 46, 54];
