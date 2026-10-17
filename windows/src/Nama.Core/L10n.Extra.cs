@@ -10,7 +10,7 @@ namespace Nama.Core;
 public enum Extra
 {
     imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages,
-    bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace, keepInTray, keepInTrayHint, openApp, quit,
+    bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace, keepInTray, keepInTrayHint, openApp, quit, notifications, markAllRead, noNotifications, unread, earlier,
 }
 #pragma warning restore IDE1006
 
@@ -21,6 +21,11 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.notifications] = "Notifications",
+        [Extra.markAllRead] = "Mark all as read",
+        [Extra.noNotifications] = "No notifications",
+        [Extra.unread] = "New",
+        [Extra.earlier] = "Earlier",
         [Extra.keepInTray] = "Keep running in the notification area",
         [Extra.keepInTrayHint] = "Closing the window leaves the app beside the clock, so downloads go on.",
         [Extra.openApp] = "Open 30nama",
@@ -45,6 +50,11 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.notifications] = "اعلان‌ها",
+        [Extra.markAllRead] = "همه خوانده شد",
+        [Extra.noNotifications] = "اعلانی نیست",
+        [Extra.unread] = "تازه",
+        [Extra.earlier] = "قبلی",
         [Extra.keepInTray] = "ماندن در کنار ساعت ویندوز",
         [Extra.keepInTrayHint] = "با بستن پنجره، برنامه کنار ساعت می‌ماند تا دانلودها ادامه پیدا کنند.",
         [Extra.openApp] = "باز کردن ۳۰نما",
@@ -69,6 +79,11 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.notifications] = "الإشعارات",
+        [Extra.markAllRead] = "تعليم الكل كمقروء",
+        [Extra.noNotifications] = "لا توجد إشعارات",
+        [Extra.unread] = "جديدة",
+        [Extra.earlier] = "سابقة",
         [Extra.keepInTray] = "البقاء في منطقة الإشعارات",
         [Extra.keepInTrayHint] = "إغلاق النافذة يُبقي التطبيق بجانب الساعة لتستمر التنزيلات.",
         [Extra.openApp] = "فتح 30nama",

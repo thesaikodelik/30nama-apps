@@ -97,6 +97,7 @@ public sealed class AppModel
             Api.SetToken(saved.Token);
             _ = RefreshProfileAsync();
             _ = RefreshListsAsync();
+            _ = RefreshNotificationsAsync();
         }
         Phase = User is not null || Settings.Guest ? Phases.Main : Phases.Login;
         Tell("phase");
@@ -139,6 +140,7 @@ public sealed class AppModel
         Tell("phase");
         Tell("content");
         await RefreshListsAsync();
+        await RefreshNotificationsAsync();
     }
 
     public void ContinueAsGuest()
@@ -364,6 +366,46 @@ public sealed class AppModel
         }
         catch (Exception) { return []; }
         return Post.Upcoming(posts);
+    }
+
+    // MARK: Notifications
+
+    /// <summary>The messages 30nama has for the account, newest first; null until asked, and for a guest.</summary>
+    public NotificationPage? Notifications { get; private set; }
+    private Microsoft.UI.Xaml.DispatcherTimer? _notificationTimer;
+
+    /// <summary>Asked for on sign-in and every quarter of an hour after, as 30nama's own desktop app does.</summary>
+    public async Task RefreshNotificationsAsync()
+    {
+        if (_notificationTimer is null)
+        {
+            _notificationTimer = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
+            _notificationTimer.Tick += (_, _) => _ = RefreshNotificationsAsync();
+            _notificationTimer.Start();
+        }
+        if (!IsLoggedIn) { Notifications = null; Tell("notifications"); return; }
+        try
+        {
+            Notifications = new NotificationPage(await Api.GetAsync("notification", new Dictionary<string, string> { ["page"] = "1" }, background: true));
+            Tell("notifications");
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>Marks one message read, or all of them with "all".</summary>
+    public async Task MarkReadAsync(string id)
+    {
+        if (Notifications is { } page)
+        {
+            var items = page.Items.Select(n => id == "all" || n.Id == id ? n with { Read = true } : n).ToList();
+            Notifications = new NotificationPage(Json.From(new Dictionary<string, object?>
+            {
+                ["total_unread"] = items.Count(n => !n.Read),
+            }), items);
+            Tell("notifications");
+        }
+        try { await Api.CallAsync("notification_read", new Dictionary<string, string> { ["notification_id"] = id }, background: true); }
+        catch (Exception) { }
     }
 
     // MARK: Lists
