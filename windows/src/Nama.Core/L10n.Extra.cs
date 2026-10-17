@@ -10,7 +10,7 @@ namespace Nama.Core;
 public enum Extra
 {
     imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages,
-    bufferTime, seconds,
+    bufferTime, seconds, streamOnly,
 }
 #pragma warning restore IDE1006
 
@@ -32,6 +32,7 @@ public sealed partial class Loc
         [Extra.otherLanguages] = "Other languages",
         [Extra.bufferTime] = "Buffer ahead",
         [Extra.seconds] = "seconds",
+        [Extra.streamOnly] = "Streaming only",
     };
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
@@ -47,6 +48,7 @@ public sealed partial class Loc
         [Extra.otherLanguages] = "زبان‌های دیگر",
         [Extra.bufferTime] = "پیش‌بارگذاری",
         [Extra.seconds] = "ثانیه",
+        [Extra.streamOnly] = "فقط پخش آنلاین",
     };
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
@@ -62,5 +64,6 @@ public sealed partial class Loc
         [Extra.otherLanguages] = "لغات أخرى",
         [Extra.bufferTime] = "التحميل المسبق",
         [Extra.seconds] = "ثانية",
+        [Extra.streamOnly] = "البث فقط",
     };
 }

@@ -201,8 +201,8 @@ public sealed class HomePage : Grid
             IEnumerable<FrameworkElement> cards = section.Key == "top_10"
                 ? posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p)))
                 : posts.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p)));
-            // The rows will lead to the catalogue pages of their section once the Windows app has them.
-            _shelves.Children.Add(Kit.Shelf(loc.TitleForSection(section.Key), cards));
+            Section? target = section.Key switch { "movies" => Section.Movies, "series" => Section.Series, "anime" => Section.Anime, _ => null };
+            _shelves.Children.Add(Kit.Shelf(loc.TitleForSection(section.Key), cards, target is { } t ? () => _nav.Go(t) : null));
             // The two top tens sit under the first shelf, before the long lists begin.
             if (section == feed.Sections[0] && feed.Posts("top_10").Count == 0)
             {

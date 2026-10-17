@@ -12,6 +12,15 @@ public enum Section { Search, Home, Movies, Series, Anime, Browse, Profile, Sett
 public abstract record Route
 {
     public sealed record Title(Post Post, bool Playing = false) : Route;
+    public sealed record Catalog(string Slug, string Name) : Route;
+
+    /// <summary>The same page: a title by its id, a catalogue by its slug.</summary>
+    public bool Same(Route other) => (this, other) switch
+    {
+        (Title a, Title b) => a.Post.Id == b.Post.Id,
+        (Catalog a, Catalog b) => a.Slug == b.Slug,
+        _ => false,
+    };
 }
 
 /// <summary>Where the user is: a section, and what has been opened on top of it.</summary>
@@ -23,7 +32,7 @@ public sealed class Nav
 
     public event Action? Changed;
 
-    public static IReadOnlyList<Section> OnBar { get; } = [Section.Home, Section.Settings];
+    public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Settings];
 
     public static string Symbol(Section s) => s switch
     {
@@ -53,7 +62,7 @@ public sealed class Nav
 
     public void Open(Route route)
     {
-        if (_opened.Count > 0 && _opened[^1] is Route.Title a && route is Route.Title b && a.Post.Id == b.Post.Id) return;
+        if (_opened.Count > 0 && _opened[^1].Same(route)) return;
         _opened.Add(route);
         Changed?.Invoke();
     }
