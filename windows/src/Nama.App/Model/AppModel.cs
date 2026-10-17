@@ -249,6 +249,27 @@ public sealed class AppModel
         }
     }
 
+    /// <summary>
+    /// What is trending on TMDB this week and can be watched on 30nama, in TMDB's order. Through
+    /// the user's TMDB key when there is one, else TMDB's public page. Each title costs a 30nama
+    /// search the first time, so the answers are kept on disk (see <see cref="Trending"/>).
+    /// </summary>
+    public async Task<List<Post>> TrendingThisWeekAsync()
+    {
+        var key = TmdbStore.Key;
+        if (_trending is not { } t || t.Key != key)
+        {
+            var file = Path.Combine(Storage.Folder, key is null ? "trending-public.json" : "trending.json");
+            _trending = t = (key, new Trending(key, query => Api.GetAsync("search", new Dictionary<string, string>
+            {
+                ["query"] = query, ["streamonly"] = "0", ["page"] = "1",
+            }, background: true), file));
+        }
+        return await t.Service.RowAsync(TrendingRow.Trend);
+    }
+
+    private (string? Key, Trending Service)? _trending;
+
     public async Task<List<Post>> ContinueWatchingAsync() => await ContinueWatchingIfReachableAsync() ?? [];
 
     /// <summary>Null when 30nama could not be asked, as against an empty list.</summary>

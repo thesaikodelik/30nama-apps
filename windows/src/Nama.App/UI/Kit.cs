@@ -19,7 +19,8 @@ public static class Glyph
         Person = "\uE77B", Close = "\uE711", Heart = "\uEB51", HeartFill = "\uEB52", Bookmark = "\uE8A4", BookmarkFill = "\uE735",
         Star = "\uE734", StarFill = "\uE735", Globe = "\uE774", Volume = "\uE767", Mute = "\uE74F", FullScreen = "\uE740",
         ExitFullScreen = "\uE73F", Captions = "\uE7F0", Rewind = "\uED3C", FastForward = "\uED3D", Next = "\uE893",
-        Speed = "\uEC4A", Wifi = "\uE871", Check = "\uE73E", List = "\uE8FD", Audio = "\uE8D6", Quality = "\uE9E9";
+        Speed = "\uEC4A", Wifi = "\uE871", Check = "\uE73E", List = "\uE8FD", Audio = "\uE8D6", Quality = "\uE9E9",
+        Video = "\uE714";
 
     public static FontIcon Icon(string glyph, double size, Color? color = null) => new()
     {

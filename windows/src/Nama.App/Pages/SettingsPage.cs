@@ -91,7 +91,11 @@ public sealed class SettingsPage : Grid
             Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 
-        Group(loc[S.services], [KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => App.Update(x => x with { SubsourceKey = v }))]);
+        Group(loc[S.services],
+        [
+            KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => App.Update(x => x with { SubsourceKey = v })),
+            KeyField(loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => App.Update(x => x with { TmdbKey = v })),
+        ]);
 
         var version = typeof(SettingsPage).Assembly.GetName().Version;
         Group(loc[S.about],

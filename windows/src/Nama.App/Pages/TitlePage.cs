@@ -45,8 +45,27 @@ public sealed class TitlePage : Grid
         _stage.Show(Post);
         Render();
         App.Changed += OnChanged;
-        Unloaded += (_, _) => App.Changed -= OnChanged;
+        TmdbStore.Shared.TrailerFound += OnTrailer;
+        Unloaded += (_, _) =>
+        {
+            App.Changed -= OnChanged;
+            TmdbStore.Shared.TrailerFound -= OnTrailer;
+        };
         _ = LoadAsync();
+        _ = LoadTmdbAsync();
+    }
+
+    private void OnTrailer(int post)
+    {
+        if (post == Post.Id) Render();
+    }
+
+    /// <summary>The logo, trailer, crew and reviews TMDB has; the page is drawn again when they come.</summary>
+    private async Task LoadTmdbAsync()
+    {
+        var known = TmdbStore.Shared.Known(_preview.Id);
+        var info = await TmdbStore.Shared.InfoAsync(_preview, App.Loc.Lang);
+        if (info is not null && !ReferenceEquals(info, known)) Render();
     }
 
     private void OnChanged(string what)
@@ -122,6 +141,12 @@ public sealed class TitlePage : Grid
         _column.Children.Add(Header());
         if (Post.IsSeries && _stream is { Items.Count: > 1 } stream) _column.Children.Add(Episodes(stream));
         if (Post.Cast.Count > 0) _column.Children.Add(Cast());
+        // From TMDB, with the user's own key: the people behind the camera, and reviews.
+        if (TmdbStore.Shared.Known(Post.Id) is { } extra)
+        {
+            if (extra.Crew.Count > 0) _column.Children.Add(Crew(extra.Crew));
+            if (extra.Reviews.Count > 0) _column.Children.Add(Reviews(extra.Reviews));
+        }
         _column.Children.Add(Facts());
     }
 
@@ -144,7 +169,7 @@ public sealed class TitlePage : Grid
 
         var info = new StackPanel { Spacing = 14 };
         info.Children.Add(Theme.Text(loc.KindLine(post), 14, FontWeights.SemiBold, Theme.Text2));
-        info.Children.Add(HomePage.TitleArt(post, 48));
+        info.Children.Add(new TitleArt(post, 48));
         var meta = Kit.MetaRow(post);
         meta.Margin = new Thickness(0, 2, 0, 0);
         info.Children.Add(meta);
@@ -166,6 +191,9 @@ public sealed class TitlePage : Grid
             var download = Kit.Glass(App.Loc[S.download], Glyph.Download, () => _nav.Pick(Post), rim: Hue);
             buttons.Add(download);
         }
+        // Only once a trailer has been found, so there is never a button that leads nowhere.
+        if (TmdbStore.Shared.Known(post.Id)?.Trailer is { } video)
+            buttons.Add(Kit.Glass(loc[S.trailer], Glyph.Video, () => _nav.Trailer(post.Title(loc.Lang), video), rim: Hue));
         buttons.Add(Rating());
         if (App.IsLoggedIn)
         {
@@ -388,6 +416,82 @@ public sealed class TitlePage : Grid
             VerticalScrollMode = ScrollMode.Disabled,
         });
         return column;
+    }
+
+    /// <summary>A row that scrolls sideways under a heading, as the cast does.</summary>
+    private static FrameworkElement Strip(string heading, IEnumerable<FrameworkElement> items, double spacing)
+    {
+        var column = new StackPanel { Spacing = 14 };
+        column.Children.Add(Theme.Text(heading, 20, FontWeights.Bold));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = spacing };
+        foreach (var item in items) row.Children.Add(item);
+        column.Children.Add(new ScrollViewer
+        {
+            Content = row, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled,
+            VerticalScrollMode = ScrollMode.Disabled,
+        });
+        return column;
+    }
+
+    private static FrameworkElement Crew(IReadOnlyList<TMDB.Person> people)
+    {
+        var loc = App.Loc;
+        return Strip(loc[S.crew], people.Select(person =>
+        {
+            var card = new StackPanel { Width = 112, Spacing = 8 };
+            var face = new Grid { Width = 96, Height = 96, CornerRadius = new CornerRadius(48), Background = Theme.Brush(Theme.Surface2), HorizontalAlignment = HorizontalAlignment.Center };
+            var silhouette = Glyph.Icon(Glyph.Person, 30, Theme.Text3);
+            silhouette.HorizontalAlignment = HorizontalAlignment.Center;
+            face.Children.Add(silhouette);
+            if (person.Photo is { } photo) face.Children.Add(Images.Remote(photo, null, 96 * 1.5));
+            card.Children.Add(face);
+            var name = Theme.Text(person.Name, 13, FontWeights.SemiBold);
+            name.HorizontalAlignment = HorizontalAlignment.Center;
+            card.Children.Add(name);
+            var job = Theme.Text(loc.Job(person.Job), 12, color: Theme.Text3);
+            job.HorizontalAlignment = HorizontalAlignment.Center;
+            card.Children.Add(job);
+            return (FrameworkElement)card;
+        }), 20);
+    }
+
+    /// <summary>Reviews from TMDB, in the language they were written in (mostly English), cut short; the whole of one opens on TMDB.</summary>
+    private static FrameworkElement Reviews(IReadOnlyList<TMDB.Review> reviews)
+    {
+        var loc = App.Loc;
+        return Strip(loc[S.reviews], reviews.Select(review =>
+        {
+            var face = new Grid { Width = 340, Height = 180, Padding = new Thickness(16), CornerRadius = new CornerRadius(18), Background = Theme.White(0.06), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.1), RowSpacing = 10 };
+            face.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            face.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            var top = new Grid { ColumnSpacing = 8 };
+            top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            top.Children.Add(Theme.Text(review.Author, 14, FontWeights.Bold));
+            if (review.Rating is { } rating)
+            {
+                var score = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+                var star = Glyph.Icon(Glyph.StarFill, 10, Color.FromArgb(255, 0xF5, 0xC5, 0x18));
+                star.VerticalAlignment = VerticalAlignment.Center;
+                score.Children.Add(star);
+                score.Children.Add(Theme.Text($"{loc.Num(Fmt.Score(rating))}/{loc.Num(10)}", 12, FontWeights.Bold, Theme.Text2));
+                Grid.SetColumn(score, 1);
+                top.Children.Add(score);
+            }
+            face.Children.Add(top);
+            var text = Theme.Text(review.Text, 13, color: Theme.Text2, lines: 6);
+            text.LineHeight = 19;
+            // Written left to right whatever the interface reads in.
+            text.FlowDirection = FlowDirection.LeftToRight;
+            text.TextAlignment = TextAlignment.Left;
+            Grid.SetRow(text, 1);
+            face.Children.Add(text);
+            var button = Theme.Bare(face, () => { if (review.Link is { } link) _ = Windows.System.Launcher.LaunchUriAsync(link); });
+            button.PointerEntered += (_, _) => face.Background = Theme.White(0.1);
+            button.PointerExited += (_, _) => face.Background = Theme.White(0.06);
+            Kit.AutomationName(button, $"{review.Author}: {review.Text}");
+            return (FrameworkElement)button;
+        }), 16);
     }
 
     /// <summary>
