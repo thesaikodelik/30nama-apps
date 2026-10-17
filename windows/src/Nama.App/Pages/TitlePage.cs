@@ -228,7 +228,10 @@ public sealed class TitlePage : Grid
         poster.Children.Add(Images.Remote(post.Poster.Url(Theme.PosterWidth * 1.1 * 1.5), post.Poster.Blurhash, Theme.PosterWidth * 1.5));
         poster.Children.Add(Images.Remote(post.Poster.Big ?? post.Poster.Large, null, PosterWidth * 1.5));
         poster.Children.Add(new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.14) });
-        var lifted = new Border { Child = poster, CornerRadius = new CornerRadius(16), Translation = new System.Numerics.Vector3(0, 0, 48), Shadow = new ThemeShadow(), VerticalAlignment = VerticalAlignment.Top };
+        // As on the Mac: the poster leans 3 degrees to the pointer, and throws a glow in the title's colour.
+        PosterEffects.Lean(poster, poster, poster, 3);
+        var lifted = Glow.Behind(poster, new Glow(new Glow.Look(Hue, 0.4f, 56, 18)));
+        lifted.VerticalAlignment = VerticalAlignment.Top;
         if (_held) lifted.Opacity = 0;
         _poster = lifted;
         row.Children.Add(lifted);
@@ -383,11 +386,11 @@ public sealed class TitlePage : Grid
             var pills = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             foreach (var number in stream.Seasons)
                 pills.Children.Add(Kit.Pill($"{loc[S.season]} {loc.Num(number)}", _season == number, () => { _season = number; Render(); }));
-            heading.Children.Add(new ScrollViewer
+            heading.Children.Add(Kit.Sideways(new ScrollViewer
             {
                 Content = pills, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled,
                 VerticalScrollMode = ScrollMode.Disabled, VerticalAlignment = VerticalAlignment.Center,
-            });
+            }));
         }
         column.Children.Add(heading);
         var grid = new WrapRow(12);
@@ -481,11 +484,11 @@ public sealed class TitlePage : Grid
             }
             row.Children.Add(card);
         }
-        column.Children.Add(new ScrollViewer
+        column.Children.Add(Kit.Sideways(new ScrollViewer
         {
             Content = row, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled,
             VerticalScrollMode = ScrollMode.Disabled,
-        });
+        }));
         return column;
     }
 
@@ -496,11 +499,11 @@ public sealed class TitlePage : Grid
         column.Children.Add(Theme.Text(heading, 20, FontWeights.Bold));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = spacing };
         foreach (var item in items) row.Children.Add(item);
-        column.Children.Add(new ScrollViewer
+        column.Children.Add(Kit.Sideways(new ScrollViewer
         {
             Content = row, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled,
             VerticalScrollMode = ScrollMode.Disabled,
-        });
+        }));
         return column;
     }
 
