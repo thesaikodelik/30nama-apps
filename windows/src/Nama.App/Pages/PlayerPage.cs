@@ -500,6 +500,21 @@ public sealed partial class PlayerPage : Grid
             menu.Items.Add(Radio(Loc[language == "fa" ? S.persian : S.english], "sub", current == language, () => _engine.SelectSubtitle(language, remember: true)));
         if (_engine.SubtitleFileName is { } name)
             menu.Items.Add(Radio(name, "sub", current == PlayerEngine.FileSubtitle, () => _engine.SelectSubtitle(PlayerEngine.FileSubtitle, remember: false)));
+        // 30nama has no Persian subtitle for this one: those found on SubSource, best first.
+        if (_engine.FindingSubtitles) menu.Items.Add(new MenuFlyoutItem { Text = Loc[S.findingSubtitles], IsEnabled = false });
+        else if (_engine.FoundSubtitles.Count > 0)
+        {
+            var found = new MenuFlyoutSubItem { Text = Loc[S.fromSubSource] };
+            for (var i = 0; i < _engine.FoundSubtitles.Count; i++)
+            {
+                var candidate = _engine.FoundSubtitles[i];
+                // The same release name twice gets a number, so the two can be told apart.
+                var earlier = _engine.FoundSubtitles.Take(i).Count(c => c.Name == candidate.Name);
+                var tag = PlayerEngine.Found + candidate.Id;
+                found.Items.Add(Radio(earlier > 0 ? $"{candidate.Name} ({Loc.Num(earlier + 1)})" : candidate.Name, "sub", current == tag, () => _engine.SelectSubtitle(tag, remember: true)));
+            }
+            menu.Items.Add(found);
+        }
         var file = new MenuFlyoutItem { Text = Loc[S.subtitleFile] };
         file.Click += async (_, _) => await ChooseSubtitleFileAsync();
         menu.Items.Add(file);

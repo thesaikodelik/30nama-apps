@@ -17,6 +17,8 @@ public sealed class PlayerEngine
 
     /// <summary>The subtitle choice that is neither a language nor "off": a file the user picked.</summary>
     public const string FileSubtitle = "file";
+    /// <summary>The subtitle choice for one found on SubSource: this, followed by the candidate's id.</summary>
+    public const string Found = "found:";
     public static readonly double[] Speeds = [0.5, 0.75, 0.9, 1, 1.05, 1.1, 1.25, 1.5, 1.75, 2];
     /// <summary>What [ and ] change the speed by: small enough to catch up with a slow scene unnoticed.</summary>
     public const double SpeedStep = 0.05;
@@ -76,6 +78,11 @@ public sealed class PlayerEngine
     private CancellationTokenSource? _sleepTimer;
     /// <summary>The stretch last jumped over by itself, so that one the user goes back into is left alone.</summary>
     private string? _skippedOn;
+
+    /// <summary>Persian subtitles found on SubSource for an item 30nama gives none for, best first.</summary>
+    public IReadOnlyList<SubSource.Candidate> FoundSubtitles { get; private set; } = [];
+    public bool FindingSubtitles { get; private set; }
+    private CancellationTokenSource? _finding;
 
     private ContinueWatching? _resume;
     private SubtitleTrack _track = new();
@@ -206,7 +213,9 @@ public sealed class PlayerEngine
         // A file belongs to the episode it was picked for.
         _fileTrack = null;
         SubtitleFileName = null;
-        SelectSubtitle(SubtitleLanguage == FileSubtitle ? _app.Settings.DefaultSubtitle : SubtitleLanguage, remember: false);
+        var kept = SubtitleLanguage == FileSubtitle || SubtitleLanguage.StartsWith(Found);
+        SelectSubtitle(kept ? _app.Settings.DefaultSubtitle : SubtitleLanguage, remember: false);
+        LookForSubtitles();
         Changed?.Invoke();
     }
 
@@ -510,14 +519,63 @@ public sealed class PlayerEngine
     /// <summary>Languages the stream offers, in the order they are listed.</summary>
     public IReadOnlyList<string> SubtitleLanguages => new[] { "fa", "en" }.Where(Current.Subtitles.ContainsKey).ToList();
 
+    /// <summary>
+    /// 30nama has no Persian subtitle for this item: look on SubSource, and show the best one at
+    /// once if Persian is what the user watches with.
+    /// </summary>
+    private void LookForSubtitles()
+    {
+        _finding?.Cancel();
+        FoundSubtitles = [];
+        FindingSubtitles = false;
+        if (Current.Subtitles.ContainsKey("fa") || Current.Token == Downloads.LocalToken) return;
+        var finding = _finding = new CancellationTokenSource();
+        var item = Index;
+        var query = new SubSource.Query(Post.TitleEnglish ?? Post.Title(Lang.En), Post.Year, Post.ImdbId, Post.IsSeries, Post.IsSeries ? Current.Season : null);
+        var release = string.Join(' ', new[] { Current.Title(Lang.En), Quality?.Label }.OfType<string>());
+        int? episode = Post.IsSeries ? Current.EpisodeNumber : null;
+        FindingSubtitles = true;
+        _ = FindAsync();
+
+        async Task FindAsync()
+        {
+            var list = await _app.Subtitles.CandidatesAsync(query, release, episode);
+            if (finding.IsCancellationRequested || _closed || Index != item) return;
+            FindingSubtitles = false;
+            FoundSubtitles = list.Take(8).ToList();
+            if (list.Count > 0 && SubtitleLanguage == "fa") SelectSubtitle(Found + list[0].Id, remember: false);
+            Changed?.Invoke();
+        }
+    }
+
     public void SelectSubtitle(string language, bool remember)
     {
         SubtitleLanguage = language;
-        if (remember && language != FileSubtitle) _app.Update(s => s with { DefaultSubtitle = language });
+        // A subtitle found for this title is remembered as Persian, which is what it is.
+        if (remember && language != FileSubtitle) _app.Update(s => s with { DefaultSubtitle = language.StartsWith(Found) ? "fa" : language });
         _subtitleLoad?.Cancel();
         _track = new SubtitleTrack();
         Cue = "";
         Changed?.Invoke();
+        if (language.StartsWith(Found))
+        {
+            var id = language[Found.Length..];
+            if (FoundSubtitles.FirstOrDefault(c => c.Id == id) is not { } candidate) return;
+            var found = _subtitleLoad = new CancellationTokenSource();
+            int? season = Post.IsSeries ? Current.Season : null, episode = Post.IsSeries ? Current.EpisodeNumber : null;
+            _ = Task.Run(async () =>
+            {
+                var text = await _app.Subtitles.TextAsync(candidate, season, episode);
+                var parsed = text is null ? null : SubtitleTrack.FromVtt(text);
+                _ui.TryEnqueue(() =>
+                {
+                    if (found.IsCancellationRequested || SubtitleLanguage != language) return;
+                    if (parsed is null) _app.ShowToast(Loc[S.subFailed]);
+                    else _track = parsed;
+                });
+            });
+            return;
+        }
         if (language == FileSubtitle)
         {
             _track = _fileTrack ?? new SubtitleTrack();

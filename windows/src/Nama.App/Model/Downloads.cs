@@ -103,7 +103,7 @@ public sealed partial class Downloads
         _app = app;
         _ui = ui;
         Shared = this;
-        _subtitles = new SubtitleFinder(_network, () => null);
+        _subtitles = app.Subtitles;
         try { Items = Storage.Read(File) is { } text ? JsonSerializer.Deserialize<List<DownloadItem>>(text, Options) ?? [] : []; }
         catch (Exception) { Items = []; }
         _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L;
