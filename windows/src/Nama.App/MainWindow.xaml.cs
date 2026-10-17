@@ -25,11 +25,13 @@ public sealed partial class MainWindow : Window
     private readonly Grid _page = new();
     private readonly Grid _route = new();
     private readonly Grid _overlay = new();
-    private readonly Border _dragStrip = new() { Height = 72, VerticalAlignment = VerticalAlignment.Top, Background = Theme.White(0) };
+    private readonly Border _dragStrip = new() { Height = 82, VerticalAlignment = VerticalAlignment.Top, Background = Theme.White(0) };
     private NavBar? _bar;
     private Border? _toast;
     private UpdatePill? _update;
     private CommandPalette? _palette;
+    private SplashCurtain? _splash;
+    private readonly System.Diagnostics.Stopwatch _splashClock = new();
     /// <summary>A title a notification asked for, opened once the app is signed in and showing.</summary>
     private int? _pendingPost;
     /// <summary>Asks now and then whether a followed series has a new episode.</summary>
@@ -119,6 +121,7 @@ public sealed partial class MainWindow : Window
         _root.Children.Add(_dragStrip);
         _root.Children.Add(_overlay);
         _root.Children.Add(_effects);
+        StartSplash();
         PosterEffects.Peeking += ShowPeek;
         _app.Changed += OnChanged;
         _nav.Changed += ShowNav;
@@ -184,7 +187,8 @@ public sealed partial class MainWindow : Window
         switch (_app.Phase)
         {
             case AppModel.Phases.Booting:
-                _page.Children.Add(Splash());
+                // Under the opening title the glass is enough; a spinner shows only once it has gone.
+                _page.Children.Add(_splash is null ? Splash() : Kit.Ambient());
                 break;
             case AppModel.Phases.Failed:
                 _page.Children.Add(Kit.Ambient());
@@ -194,7 +198,7 @@ public sealed partial class MainWindow : Window
                 _page.Children.Add(new LoginPage());
                 break;
             case AppModel.Phases.Main:
-                _bar = new NavBar(_nav) { Margin = new Thickness(0, 14, 0, 0) };
+                _bar = new NavBar(_nav) { Margin = new Thickness(0, Theme.BarTop, 0, 0) };
                 _overlay.Children.Add(_bar);
                 _bar.SizeChanged += (_, _) => UpdateDragRegions();
                 ShowNav();
@@ -213,6 +217,44 @@ public sealed partial class MainWindow : Window
                 break;
         }
         UpdateDragRegions();
+    }
+
+    /// <summary>
+    /// The glass opening title over the app, as on the Mac. It plays its course once, then waits a
+    /// little at most for the home page to come behind it, and parts. Not with reduced motion.
+    /// </summary>
+    private void StartSplash()
+    {
+        if (_app.Settings.ReduceMotion) return;
+        _splash = new SplashCurtain();
+        _root.Children.Add(_splash);
+        // The app behind settles into place as the glass parts.
+        foreach (var layer in new[] { _page, _route })
+        {
+            layer.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromSeconds(0.9) };
+            layer.Scale = new System.Numerics.Vector3(1.03f, 1.03f, 1);
+            layer.SizeChanged += (_, e) => layer.CenterPoint = new System.Numerics.Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
+        }
+        var watch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        _splash.Loaded += (_, _) => _splashClock.Start();
+        watch.Tick += (_, _) =>
+        {
+            if (_splash is not { } splash) { watch.Stop(); return; }
+            var phase = _app.Phase;
+            if (phase != AppModel.Phases.Booting) splash.Ready();
+            var played = _splashClock.Elapsed.TotalSeconds;
+            var waiting = phase == AppModel.Phases.Booting || (phase == AppModel.Phases.Main && !_app.HomeLoaded);
+            if (played < 2.8 || (waiting && played < 5.3)) return;
+            watch.Stop();
+            foreach (var layer in new[] { _page, _route }) layer.Scale = System.Numerics.Vector3.One;
+            splash.Leave(() =>
+            {
+                _root.Children.Remove(splash);
+                _splash = null;
+                if (_app.Phase == AppModel.Phases.Booting) ShowPhase();
+            });
+        };
+        watch.Start();
     }
 
     /// <summary>The opening title: the logo over the dark, while a server is found.</summary>

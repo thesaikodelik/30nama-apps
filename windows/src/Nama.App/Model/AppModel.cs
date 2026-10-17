@@ -227,6 +227,9 @@ public sealed class AppModel
         catch (Exception) { return null; }
     }
 
+    /// <summary>A fresh home page has come, the first sight the opening title waits for.</summary>
+    public bool HomeLoaded { get; private set; }
+
     /// <summary>Home feed, cached for 90 seconds. If the network fails, the last good feed is served instead.</summary>
     public async Task<HomeFeed> HomeAsync()
     {
@@ -240,6 +243,7 @@ public sealed class AppModel
             if (feed.IsEmpty) throw new ApiException(ApiException.Kinds.Server, "empty");
             _homeCache = (feed, DateTime.UtcNow, lang);
             Storage.Write(HomeFile(lang), result.Serialize());
+            HomeLoaded = true;
             return feed;
         }
         catch (Exception)

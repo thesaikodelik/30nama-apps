@@ -22,7 +22,7 @@ public sealed class ProfilePage : Grid
 
     private readonly Nav _nav;
     private readonly Stage _stage = new(dim: 0.5);
-    private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(0, 100, 0, 60) };
+    private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(0, 110, 0, 60) };
     private List<Post> _picks = [], _starters = [], _watchlist = [], _favorites = [], _upcoming = [];
     private Dictionary<string, int> _listSizes = [];
 
@@ -111,6 +111,15 @@ public sealed class ProfilePage : Grid
         if (stats.Children.Count > 0) column.Children.Add(stats);
         // For the user's own eyes, and not the point of the page: kept small and quiet.
         if (user is not null && loc.SubscriptionLine(user) is { } line) column.Children.Add(Theme.Text(line, 13, color: Theme.Text3));
+        // A guest's way in, where they would look for their account.
+        if (!App.IsLoggedIn)
+        {
+            column.Children.Add(Theme.Text(loc[Extra.signInHint], 15, color: Theme.Text2, lines: 2));
+            var signIn = Kit.Primary(loc[S.signIn], Glyph.Person, App.RequestSignIn);
+            signIn.HorizontalAlignment = HorizontalAlignment.Left;
+            signIn.Margin = new Thickness(0, 4, 0, 0);
+            column.Children.Add(signIn);
+        }
         row.Children.Add(column);
         return row;
     }

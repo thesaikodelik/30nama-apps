@@ -31,6 +31,8 @@ public static class Theme
 
     /// <summary>Horizontal inset of content from the window edge.</summary>
     public const double Edge = 48;
+    /// <summary>How far the bar of sections sits below the top of the window, clear of its edge.</summary>
+    public const double BarTop = 24;
     public const double PosterWidth = 156;
     public const double Radius = 12;
 

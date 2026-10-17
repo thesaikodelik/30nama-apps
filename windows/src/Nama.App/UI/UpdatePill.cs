@@ -16,7 +16,7 @@ namespace Nama.App.UI;
 public sealed class UpdatePill : Grid
 {
     /// <summary>Where its top sits: just clear of the bar's lower edge.</summary>
-    public const double Below = 14 + 48 + 6;
+    public const double Below = Theme.BarTop + 48 + 6;
 
     private static Updater Updater => Updater.Shared;
     private static Loc Loc => AppModel.Shared.Loc;
