@@ -88,6 +88,7 @@ public sealed class SettingsPage : Grid
         [
             Row(loc[S.downloadFolder], folderRow),
             Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
+            Hours(s),
             Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 
@@ -145,6 +146,38 @@ public sealed class SettingsPage : Grid
         var t = Theme.Text(text, 15, color: Theme.Text2);
         if (ltr) t.FlowDirection = FlowDirection.LeftToRight;
         return t;
+    }
+
+    /// <summary>
+    /// The hours downloads may run in: any time, or from one hour to another. The second choice
+    /// shows only once the first is made.
+    /// </summary>
+    private static FrameworkElement Hours(Settings s)
+    {
+        var loc = App.Loc;
+        string Hour(int h) => loc.Num($"{h:00}:00");
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        var from = Choice(new (string, object)[] { (loc[Extra.anyTime], -1) }.Concat(Enumerable.Range(0, 24).Select(h => (Hour(h), (object)h))),
+            s.DownloadFrom ?? -1, v => App.Update(x => (int)v < 0
+                ? x with { DownloadFrom = null, DownloadTo = null }
+                : x with { DownloadFrom = (int)v, DownloadTo = x.DownloadTo ?? ((int)v + 6) % 24 }));
+        from.MinWidth = 150;
+        controls.Children.Add(from);
+        if (s.DownloadFrom is not null)
+        {
+            var to = Theme.Text(loc[Extra.hoursTo], 15, color: Theme.Text2);
+            to.VerticalAlignment = VerticalAlignment.Center;
+            controls.Children.Add(to);
+            var until = Choice(Enumerable.Range(0, 24).Select(h => (Hour(h), (object)h)), s.DownloadTo ?? 0, v => App.Update(x => x with { DownloadTo = (int)v }));
+            until.MinWidth = 120;
+            controls.Children.Add(until);
+        }
+        var column = new StackPanel { Spacing = 2 };
+        column.Children.Add(Row(loc[Extra.downloadHours], controls));
+        var note = Theme.Text(loc[Extra.downloadHoursHint], 12, color: Theme.Text3, lines: 2);
+        note.Margin = new Thickness(0, 0, 0, 8);
+        column.Children.Add(note);
+        return column;
     }
 
     private static ComboBox Choice(IEnumerable<(string Label, object Value)> options, object current, Action<object> pick)

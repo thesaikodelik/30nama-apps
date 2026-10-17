@@ -88,6 +88,9 @@ public sealed partial class Downloads
     private readonly Dictionary<string, DateTime> _lastShown = [];
     private readonly SubtitleFinder _subtitles;
     private readonly Throttle _throttle = new();
+    /// <summary>Notices the download hours opening and closing.</summary>
+    private readonly Microsoft.UI.Xaml.DispatcherTimer _hours = new() { Interval = TimeSpan.FromSeconds(30) };
+    private bool _wasOpen = true;
 
     public List<DownloadItem> Items { get; private set; } = [];
     /// <summary>The downloads a subtitle is being looked for right now.</summary>
@@ -107,12 +110,41 @@ public sealed partial class Downloads
         try { Items = Storage.Read(File) is { } text ? JsonSerializer.Deserialize<List<DownloadItem>>(text, Options) ?? [] : []; }
         catch (Exception) { Items = []; }
         _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L;
-        app.Changed += what => { if (what == "settings") _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L; };
+        app.Changed += what =>
+        {
+            if (what != "settings") return;
+            _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L;
+            CheckHours();
+        };
+        _wasOpen = !OutsideHours;
+        _hours.Tick += (_, _) => CheckHours();
+        _hours.Start();
         // What was being fetched when the app closed goes on now.
         foreach (var item in Items.Where(i => i.State == DownloadItem.States.Running).ToList()) Begin(item);
     }
 
     public int RunningCount => Items.Count(i => i.State == DownloadItem.States.Running);
+
+    /// <summary>It is outside the hours set for downloads: those not paused wait for them.</summary>
+    public bool OutsideHours => !DownloadHours.Open(_app.Settings.DownloadFrom, _app.Settings.DownloadTo, DateTime.Now);
+
+    /// <summary>Whether this download's bytes are coming in right now, rather than waiting its turn or its hours.</summary>
+    public bool IsActive(string id) => _running.ContainsKey(id);
+
+    /// <summary>The hours have opened: what waited starts. They have closed: what runs stops where it is, to go on later.</summary>
+    private void CheckHours()
+    {
+        var open = !OutsideHours;
+        if (open == _wasOpen) return;
+        _wasOpen = open;
+        if (open) Next();
+        else
+        {
+            foreach (var stop in _running.Values) stop.Cancel();
+            _running.Clear();
+        }
+        Changed?.Invoke();
+    }
 
     /// <summary>Where finished files go: the folder chosen in Settings, or the user's Downloads.</summary>
     public string Folder
@@ -278,7 +310,7 @@ public sealed partial class Downloads
     /// <summary>Starts the transfer when there is room for it; otherwise it waits its turn.</summary>
     private void Begin(DownloadItem item)
     {
-        if (_running.ContainsKey(item.Id) || _running.Count >= AtOnce) return;
+        if (_running.ContainsKey(item.Id) || _running.Count >= AtOnce || OutsideHours) return;
         var stop = new CancellationTokenSource();
         _running[item.Id] = stop;
         _ = Task.Run(() => FetchAsync(item, stop.Token));

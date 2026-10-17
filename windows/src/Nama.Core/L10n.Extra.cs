@@ -11,6 +11,7 @@ public enum Extra
 {
     imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages,
     bufferTime, seconds, streamOnly, showInFolder, downloadSpeed, unlimited, freeSpace, keepInTray, keepInTrayHint, openApp, quit, notifications, markAllRead, noNotifications, unread, earlier,
+    downloadHours, downloadHoursHint, anyTime, hoursTo, waitingForHours,
 }
 #pragma warning restore IDE1006
 
@@ -34,6 +35,11 @@ public sealed partial class Loc
         [Extra.downloadSpeed] = "Download speed",
         [Extra.unlimited] = "Unlimited",
         [Extra.freeSpace] = "free",
+        [Extra.downloadHours] = "Download hours",
+        [Extra.downloadHoursHint] = "Downloads run only between these hours, for a line that is cheaper at night. Outside them they wait, and go on from where they stopped.",
+        [Extra.anyTime] = "Any time",
+        [Extra.hoursTo] = "to",
+        [Extra.waitingForHours] = "Waiting for the download hours",
         [Extra.imdbTop250] = "IMDb Top 250",
         [Extra.siteTop100] = "30nama Top 100",
         [Extra.votes] = "votes",
@@ -63,6 +69,11 @@ public sealed partial class Loc
         [Extra.downloadSpeed] = "سرعت دانلود",
         [Extra.unlimited] = "بدون محدودیت",
         [Extra.freeSpace] = "فضای خالی",
+        [Extra.downloadHours] = "ساعت دانلود",
+        [Extra.downloadHoursHint] = "دانلودها فقط بین این ساعت‌ها انجام می‌شوند، برای اینترنتی که شب‌ها ارزان‌تر است. بیرون از این ساعت‌ها صبر می‌کنند و بعد از همان‌جا ادامه می‌دهند.",
+        [Extra.anyTime] = "هر ساعتی",
+        [Extra.hoursTo] = "تا",
+        [Extra.waitingForHours] = "در انتظار ساعت دانلود",
         [Extra.imdbTop250] = "۲۵۰ فیلم برتر IMDb",
         [Extra.siteTop100] = "۱۰۰ عنوان برتر ۳۰نما",
         [Extra.votes] = "رأی",
@@ -92,6 +103,11 @@ public sealed partial class Loc
         [Extra.downloadSpeed] = "سرعة التنزيل",
         [Extra.unlimited] = "بلا حد",
         [Extra.freeSpace] = "مساحة فارغة",
+        [Extra.downloadHours] = "ساعات التنزيل",
+        [Extra.downloadHoursHint] = "تعمل التنزيلات بين هذه الساعات فقط، لخط أرخص ليلًا. خارجها تنتظر، ثم تكمل من حيث توقفت.",
+        [Extra.anyTime] = "في أي وقت",
+        [Extra.hoursTo] = "إلى",
+        [Extra.waitingForHours] = "بانتظار ساعات التنزيل",
         [Extra.imdbTop250] = "أفضل 250 في IMDb",
         [Extra.siteTop100] = "أفضل 100 في 30nama",
         [Extra.votes] = "صوتًا",
