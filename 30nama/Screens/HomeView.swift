@@ -7,6 +7,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.loc) private var loc
+    @Environment(\.openTab) private var openTab
     @Environment(\.calm) private var calm
 
     @State private var feed: HomeFeed?
@@ -294,6 +295,12 @@ struct HomeView: View {
                         card(post, in: section, rank: index + 1, loads: index < 10 || opened.contains(section.key))
                             .focused($focus, equals: .card(row: section.key, id: post.id))
                     }
+                    if ["movies", "series", "anime"].contains(section.key) {
+                        SeeAllCard(title: loc.title(forSection: section.key)) { openTab(section.key) }
+                    }
+                    if ["movies", "series", "anime"].contains(section.key) {
+                        SeeAllCard(title: loc.title(forSection: section.key)) { openTab(section.key) }
+                    }
                 }
                 .padding(.horizontal, Theme.edge)
             }
@@ -459,5 +466,27 @@ private struct ContinueCard: View {
             parts.append("\(loc.num(left)) \(loc(.minLeft))")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// The last card of a row that is a whole section of the catalogue: it leads to that section's tab.
+private struct SeeAllCard: View {
+    let title: String
+    let action: () -> Void
+
+    @Environment(\.loc) private var loc
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 16) {
+                Image(systemName: "square.grid.2x2").font(.system(size: 40, weight: .semibold))
+                Text(loc(.seeAll)).font(.app(24, .bold))
+                Text(title).font(.app(20, .medium)).foregroundStyle(Theme.text2)
+            }
+            .foregroundStyle(Theme.text1)
+            .frame(width: Theme.posterWidth, height: Theme.posterWidth * 1.5)
+            .background(Color.white.opacity(0.08))
+        }
+        .buttonStyle(CardButtonStyle())
     }
 }
