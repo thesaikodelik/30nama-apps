@@ -113,8 +113,7 @@ public sealed class PeekCard : Grid
     private void ShowActions()
     {
         _actions.Children.Clear();
-        var play = Kit.Primary(Loc[_post.Resume is not null ? S.resume : S.play], Glyph.Play, () => Open(playing: true), _post.Tint());
-        _actions.Children.Add(play);
+        _actions.Children.Add(PlayButton());
         if (!App.IsLoggedIn) return;
         foreach (var (empty, filled, group, help) in new[] { (Glyph.Bookmark, Glyph.BookmarkFill, "watchlist", Loc[S.watchlist]), (Glyph.Heart, Glyph.HeartFill, "favorite", Loc[S.favorites]) })
         {
@@ -123,10 +122,32 @@ public sealed class PeekCard : Grid
         }
     }
 
+    /// <summary>The same height as the round buttons beside it, as on the Mac: a white capsule, 38 high.</summary>
+    private Button PlayButton()
+    {
+        var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        var icon = Glyph.Icon(Glyph.Play, 12, Theme.FocusInk);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        label.Children.Add(icon);
+        var text = Theme.Text(Loc[_post.Resume is not null ? S.resume : S.play], 14, FontWeights.Bold, Theme.FocusInk);
+        text.VerticalAlignment = VerticalAlignment.Center;
+        label.Children.Add(text);
+        var face = new Border { Height = 38, Padding = new Thickness(18, 0, 18, 0), CornerRadius = new CornerRadius(19), Background = Theme.White(0.92), Child = label };
+        var button = Theme.Bare(face, () => Open(playing: true));
+        button.Tag = "button";
+        button.PointerEntered += (_, _) => face.Background = Theme.White(1);
+        button.PointerExited += (_, _) => face.Background = Theme.White(0.92);
+        Kit.AutomationName(button, text.Text);
+        return button;
+    }
+
     private Button Round(string glyph, bool lit, string help, Action click)
     {
         var face = new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(19), Background = Theme.White(0.12) };
         var icon = Glyph.Icon(glyph, 14, lit ? _post.Tint() : Theme.Text1);
+        // "Forward" points the way the language reads.
+        icon.MirroredWhenRightToLeft = true;
+        icon.VerticalAlignment = VerticalAlignment.Center;
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         face.Child = icon;
         var button = Theme.Bare(face, click);
