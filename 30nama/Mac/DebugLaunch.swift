@@ -6,7 +6,7 @@ import Foundation
 ///
 /// - `NAMA_SECTION=movies` opens that section (the names of `MacSection`).
 /// - `NAMA_OPEN=first` opens the first featured title, `NAMA_OPEN=continue` the title last watched,
-///   and `NAMA_OPEN=<post id>` one from the home feed.
+///   and `NAMA_OPEN=<post id>` any title by its number.
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
 /// - `NAMA_MPV_LOG=<file>` has mpv write its full log there.
 /// - `NAMA_GUEST=1` opens as a guest, leaving the saved session as it is.

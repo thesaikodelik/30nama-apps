@@ -68,7 +68,6 @@ struct DetailsView: View {
                         if !extra.crew.isEmpty { crew(extra.crew) }
                         if !extra.reviews.isEmpty { reviews(extra.reviews) }
                     }
-                    if post.updates.count > 1 { updates }
                     facts
                 }
                 .padding(.horizontal, Mac.edge)
@@ -92,7 +91,7 @@ struct DetailsView: View {
             }
             _ = await trailerLook
             guard !Task.isCancelled else { return }
-            for step in 1...6 {
+            for step in 1...7 {
                 withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.82)) { revealed = step }
                 if !calm { try? await Task.sleep(for: .milliseconds(70)) }
             }
@@ -268,6 +267,10 @@ struct DetailsView: View {
                     }
                 }
                 .padding(.top, 10)
+                if !post.updates.isEmpty {
+                    UpdatesTicker(updates: post.updates)
+                        .comingIn(at: 7, revealed)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -449,29 +452,6 @@ struct DetailsView: View {
         }
     }
 
-    /// What 30nama has added or mended on the title lately, newest first, with the day of each.
-    private var updates: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(loc(.titleUpdates)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
-            VStack(alignment: .leading, spacing: 9) {
-                ForEach(Array(post.updates.prefix(6).enumerated()), id: \.offset) { _, update in
-                    HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        Text(loc.num(update.day(persian: loc.lang == .fa) ?? ""))
-                            .font(.app(13, .medium))
-                            .foregroundStyle(Theme.text3)
-                            .environment(\.layoutDirection, .leftToRight)
-                            // Against the start of the row: the right in Persian and Arabic.
-                            .frame(width: 110, alignment: loc.lang == .en ? .leading : .trailing)
-                        Text(update.title).font(.app(15, .semibold)).foregroundStyle(Theme.text1)
-                        if let content = update.content {
-                            Text(content).font(.app(15)).foregroundStyle(Theme.text2)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private var facts: some View {
         let rows: [(S, String)] = [
             (.director, post.directors), (.creator, post.creators), (.writer, post.writers),
@@ -496,6 +476,55 @@ struct DetailsView: View {
                         Text(value).font(.app(15)).foregroundStyle(Theme.text1)
                     }
                 }
+            }
+        }
+    }
+}
+
+/// What 30nama has lately added or mended on the title, in a thin strip under its buttons: one
+/// change at a time with its day, the next coming in every few seconds, round and round. Still
+/// when there is one, when motion is turned down, and when the window is not the one in use.
+private struct UpdatesTicker: View {
+    let updates: [TitleUpdate]
+
+    @Environment(\.loc) private var loc
+    @Environment(\.calm) private var calm
+    @Environment(\.controlActiveState) private var windowState
+    @State private var index = 0
+
+    var body: some View {
+        let update = updates[min(index, updates.count - 1)]
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.text3)
+            HStack(spacing: 10) {
+                if let day = update.day(persian: loc.lang == .fa) {
+                    Text(loc.num(day)).foregroundStyle(Theme.text3).environment(\.layoutDirection, .leftToRight)
+                }
+                Text(loc.num(update.title)).font(.app(13, .semibold)).foregroundStyle(Theme.text1)
+                if let content = update.content {
+                    Text(loc.num(content)).foregroundStyle(Theme.text2)
+                }
+            }
+            .lineLimit(1)
+            .id(index)
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 9)),
+                                    removal: .opacity.combined(with: .offset(y: -9))))
+            Spacer(minLength: 0)
+        }
+        .font(.app(13))
+        .padding(.horizontal, 14)
+        .frame(maxWidth: 640, minHeight: 32, maxHeight: 32, alignment: .leading)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        .clipShape(Capsule(style: .continuous))
+        .task(id: "\(updates.count)|\(windowState == .key)|\(calm)") {
+            guard updates.count > 1, !calm, windowState == .key else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.5)) { index = (index + 1) % updates.count }
             }
         }
     }
@@ -538,7 +567,7 @@ private struct Standing: View {
             post.inFavorites.map { [Fmt.count($0, lang: loc.lang), loc(.inFavorites)] },
         ].compactMap { $0 }
         let ranked = post.imdbTop250 != nil || post.siteTop100 != nil || post.exclusiveSubtitle
-        if ranked || !counts.isEmpty || post.latestUpdate != nil {
+        if ranked || !counts.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 if ranked {
                     HStack(spacing: 8) {
@@ -563,13 +592,6 @@ private struct Standing: View {
                     }
                     .font(.app(13))
                     .foregroundStyle(Theme.text3)
-                }
-                if let update = post.latestUpdate {
-                    // Held to the interface's direction: left to itself, the line was laid out
-                    // left to right, and in Persian the label and its colon ended up at the wrong end.
-                    Text(loc.isolated("\(loc(.latestUpdate)): " + [update.title, update.content].compactMap { $0 }.joined(separator: loc.lang == .en ? ", " : "، ")))
-                        .font(.app(13))
-                        .foregroundStyle(Theme.text3)
                 }
             }
         }
