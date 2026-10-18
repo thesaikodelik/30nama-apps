@@ -6,7 +6,6 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.loc) private var loc
 
-    @State private var confirmingSignOut = false
 
     var body: some View {
         ZStack {
@@ -15,7 +14,8 @@ struct SettingsView: View {
                 HStack(alignment: .top, spacing: 56) {
                     identity
                     VStack(alignment: .leading, spacing: 22) {
-                        account
+                        // No account part: the account and signing out are on the profile, and
+                        // iCloud is not open to a Mac build signed without an Apple developer account.
                         group(loc(.language)) {
                             row(loc(.language)) {
                                 picker(Lang.allCases, selection: app.settings.lang, name: \.name) { value in app.update { $0.lang = value } }
@@ -53,12 +53,6 @@ struct SettingsView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .alert(loc(.signOutTitle), isPresented: $confirmingSignOut) {
-            Button(loc(.signOut), role: .destructive) { app.signOut() }
-            Button(loc(.cancel), role: .cancel) {}
-        } message: {
-            Text(loc(.signOutBody))
-        }
     }
 
     // MARK: Panes
@@ -74,34 +68,6 @@ struct SettingsView: View {
         }
         .frame(width: 320, alignment: .leading)
         .padding(.top, 30)
-    }
-
-    private var account: some View {
-        group(loc(.account)) {
-            if let user = app.user {
-                fact(loc(.account), user.name ?? "—")
-                if let type = user.type { fact(loc(.accountType), loc.accountType(type)) }
-                if let expiry = user.expiry { fact(loc(.expires), loc.num(expiry)) }
-            } else {
-                fact(loc(.account), loc(.guestAccount))
-            }
-            fact(loc(.cloudRatings), loc(cloudLabel))
-            if !app.ratings.isEmpty {
-                row(loc(.yourRating)) {
-                    Button(loc(.exportRatings)) { exportRatings() }.buttonStyle(GlassButtonStyle(height: 34))
-                }
-            }
-            row("") {
-                if app.user != nil {
-                    Button(loc(.signOut)) { confirmingSignOut = true }.buttonStyle(GlassButtonStyle(height: 34))
-                } else {
-                    Button { app.requestSignIn() } label: {
-                        Label(loc(.signInQR), systemImage: "qrcode")
-                    }
-                    .buttonStyle(GlassButtonStyle(height: 34))
-                }
-            }
-        }
     }
 
     private var playback: some View {
@@ -299,28 +265,6 @@ struct SettingsView: View {
     }
 
     /// Saves the ratings as a CSV wherever the user says. Letterboxd's importer reads the file as it is.
-    private func exportRatings() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "30nama-ratings.csv"
-        panel.allowedContentTypes = [.commaSeparatedText]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try app.ratings.csv().write(to: url, atomically: true, encoding: .utf8)
-            app.showToast(loc(.exportDone))
-        } catch {
-            app.showToast(loc(.error))
-        }
-    }
-
-    private var cloudLabel: S {
-        switch app.cloud {
-        case .idle, .syncing: return .cloudSyncing
-        case .synced: return .cloudSynced
-        case .signedOut: return .cloudSignedOut
-        case .failed: return .cloudFailed
-        }
-    }
-
     private var hostName: String {
         guard let host = app.apiHost, let name = URL(string: host)?.host else { return "—" }
         return name

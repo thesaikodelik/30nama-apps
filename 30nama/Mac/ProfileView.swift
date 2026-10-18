@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The user's own page: who they are, what their stars say about their taste, the lists they keep
 /// on 30nama, and what all that suggests they watch next.
@@ -23,6 +24,8 @@ struct ProfileView: View {
     private var backdrop: Post? {
         favorites.first ?? watchlist.first ?? app.ratings.newestFirst.first?.post
     }
+
+    @State private var confirmingSignOut = false
 
     var body: some View {
         ZStack {
@@ -56,7 +59,27 @@ struct ProfileView: View {
             .scrollIndicators(.hidden)
         }
         .task(id: app.ratings) { await refresh() }
+        .alert(loc(.signOutTitle), isPresented: $confirmingSignOut) {
+            Button(loc(.signOut), role: .destructive) { app.signOut() }
+            Button(loc(.cancel), role: .cancel) {}
+        } message: {
+            Text(loc(.signOutBody))
+        }
         .task(id: "\(app.user?.id ?? "")|\(app.listVersion)") { await loadLists() }
+    }
+
+    /// The user's own ratings as a spreadsheet, to keep or take elsewhere.
+    private func exportRatings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "30nama-ratings.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try app.ratings.csv().write(to: url, atomically: true, encoding: .utf8)
+            app.showToast(loc(.exportDone))
+        } catch {
+            app.showToast(loc(.error))
+        }
     }
 
     // MARK: Header
@@ -93,6 +116,23 @@ struct ProfileView: View {
                 // For the user's own eyes, and not the point of the page: kept small and quiet.
                 if let user = app.user, let line = loc.subscriptionLine(user) {
                     Text(line).font(.app(13)).foregroundStyle(Theme.text3)
+                }
+                if app.user != nil || !app.ratings.isEmpty {
+                    HStack(spacing: 10) {
+                        if !app.ratings.isEmpty {
+                            Button { exportRatings() } label: {
+                                Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(GlassButtonStyle(height: 34))
+                        }
+                        if app.user != nil {
+                            Button { confirmingSignOut = true } label: {
+                                Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")
+                            }
+                            .buttonStyle(GlassButtonStyle(height: 34))
+                        }
+                    }
+                    .padding(.top, 4)
                 }
                 // A guest otherwise had no way in from here but the settings.
                 if app.user == nil {
