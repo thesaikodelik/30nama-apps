@@ -8,6 +8,7 @@ import Foundation
 /// - `NAMA_OPEN=first` opens the first featured title, `NAMA_OPEN=continue` the title last watched,
 ///   and `NAMA_OPEN=<post id>` one from the home feed.
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
+/// - `NAMA_GUEST=1` opens as a guest, leaving the saved session as it is.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
 /// - `NAMA_UPDATE_FEED=<url>` reads releases from there instead of GitHub, and `NAMA_VERSION=1.1.0`
 ///   makes the app take itself for that version, to walk through an update before one is published.

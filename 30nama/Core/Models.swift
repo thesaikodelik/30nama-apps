@@ -811,7 +811,9 @@ struct Filter: Equatable {
     /// - Parameter type: "movie", "series" or "anime", to stay inside one catalogue.
     func parameters(type: String?) -> String {
         var fields: [String: Any] = ["stream": "true"]
-        if let type { fields["type"] = type }
+        // As a list: the server ignores a type given as a single value, and the catalogue of films
+        // filled up with series.
+        if let type { fields["type"] = [type] }
         if let genre { fields["genre"] = genre }
         if let country { fields["country"] = country }
         if let score, let floor = Double(score) { fields["imdb_rate"] = floor }

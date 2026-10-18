@@ -297,13 +297,18 @@ final class AppModel {
             phase = .failed
             return
         }
-        if let saved = SessionStore.load() {
+        var asGuest = false
+        #if DEBUG
+        // `NAMA_GUEST=1`: opens as a guest, to see what one sees, without signing the account out.
+        asGuest = ProcessInfo.processInfo.environment["NAMA_GUEST"] == "1"
+        #endif
+        if !asGuest, let saved = SessionStore.load() {
             user = saved
             await api.setToken(saved.token)
             Task { await refreshProfile() }
             Task { await refreshLists() }
         }
-        phase = (user != nil || settings.guest) ? .main : .login
+        phase = (user != nil || settings.guest || asGuest) ? .main : .login
         syncRatings()
     }
 
