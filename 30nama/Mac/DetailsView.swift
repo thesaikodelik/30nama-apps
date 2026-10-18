@@ -13,6 +13,10 @@ struct DetailsView: View {
     @State private var stream: StreamResult?
     /// The stream is being asked for; the play button waits on it.
     @State private var streamPending = false
+    /// The first look for the stream is over, found or not: the Play button's label is settled.
+    @State private var streamTried = false
+    /// How many of the buttons under the plot are in, counted from Play.
+    @State private var revealed = 0
     /// Why 30nama would not hand over the stream, in its own words.
     @State private var refusal: String?
     @State private var season = 1
@@ -76,9 +80,27 @@ struct DetailsView: View {
         }
         .environment(\.hue, sceneTint ?? post.tint)
         .task(id: post.id) { sceneTint = await SceneTint.shared.colour(for: post) }
+        // The buttons come in once what changes their size is known: Play's label ("Resume ·
+        // S3 · E3" once the stream is in) and whether there is a trailer. Coming as each was
+        // ready, they pushed each other along. Then one after another, Play first.
+        .task(id: preview.id) {
+            revealed = 0
+            async let trailerLook = TMDBStore.shared.trailer(for: preview, lang: loc.lang, patience: .milliseconds(1500))
+            let start = ContinuousClock.now
+            while !streamTried, ContinuousClock.now - start < .seconds(2) {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            _ = await trailerLook
+            guard !Task.isCancelled else { return }
+            for step in 1...6 {
+                withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.82)) { revealed = step }
+                if !calm { try? await Task.sleep(for: .milliseconds(70)) }
+            }
+        }
         .task {
             loaded = (try? await app.api.get("single", ["post_id": String(preview.id)])).flatMap { Post($0) }
             await loadStream(quietly: false)
+            streamTried = true
             // Opened by a play button elsewhere: start without asking again.
             if nav.autoplay == preview.id {
                 nav.autoplay = nil
@@ -87,6 +109,12 @@ struct DetailsView: View {
             #if DEBUG
             if DebugLaunch.play { play() }
             #endif
+            // Missed once, as among the requests of an app just opened, the page would keep only
+            // what the card it came from knew: asked again in a moment.
+            if loaded == nil {
+                try? await Task.sleep(for: .seconds(2))
+                if !Task.isCancelled { loaded = (try? await app.api.get("single", ["post_id": String(preview.id)], background: true)).flatMap { Post($0) } }
+            }
         }
         // A few seconds on the page with nothing else going on: let the film itself play behind it.
         .task(id: "\(stream != nil)|\(app.playback == nil)|\(windowState == .key)|\(nav.opened.last == .title(preview))|\(trailerFailed)") { await runTeaser() }
@@ -259,11 +287,13 @@ struct DetailsView: View {
         }
         .buttonStyle(PrimaryButtonStyle())
         .disabled(streamPending)
+        .comingIn(at: 1, revealed)
         if app.isLoggedIn {
             Button { nav.picking = post } label: {
                 Label(loc(.download), systemImage: "arrow.down.to.line")
             }
             .buttonStyle(GlassButtonStyle())
+            .comingIn(at: 2, revealed)
         }
         // Only once a trailer has been found, so there is never a button that leads nowhere.
         if let video = TMDBStore.shared.known[post.id]?.trailer {
@@ -278,6 +308,7 @@ struct DetailsView: View {
             }
             .buttonStyle(GlassButtonStyle())
             .transition(.opacity)
+            .comingIn(at: 3, revealed)
         }
     }
 
@@ -295,13 +326,16 @@ struct DetailsView: View {
         .glass(Capsule(style: .continuous))
         .hueRim(Capsule(style: .continuous))
         .fixedSize()
+        .comingIn(at: 4, revealed)
         if app.isLoggedIn {
             ListToggle(symbol: "bookmark", on: app.isListed(post, "watchlist"), help: loc(.watchlist)) {
                 Task { await app.toggleList(post, "watchlist") }
             }
+            .comingIn(at: 5, revealed)
             ListToggle(symbol: "heart", on: app.isListed(post, "favorite"), help: loc(.favorites)) {
                 Task { await app.toggleList(post, "favorite") }
             }
+            .comingIn(at: 6, revealed)
         }
     }
 
@@ -531,7 +565,9 @@ private struct Standing: View {
                     .foregroundStyle(Theme.text3)
                 }
                 if let update = post.latestUpdate {
-                    Text("\(loc(.latestUpdate)): \([update.title, update.content].compactMap { $0 }.joined(separator: loc.lang == .en ? ", " : "، "))")
+                    // Held to the interface's direction: left to itself, the line was laid out
+                    // left to right, and in Persian the label and its colon ended up at the wrong end.
+                    Text(loc.isolated("\(loc(.latestUpdate)): " + [update.title, update.content].compactMap { $0 }.joined(separator: loc.lang == .en ? ", " : "، ")))
                         .font(.app(13))
                         .foregroundStyle(Theme.text3)
                 }
@@ -798,5 +834,14 @@ private struct ReviewCard: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
         .accessibilityLabel("\(review.author): \(review.text)")
+    }
+}
+
+private extension View {
+    /// In its place from the start, so nothing moves when it shows; seen once `revealed` reaches `order`.
+    func comingIn(at order: Int, _ revealed: Int) -> some View {
+        opacity(revealed >= order ? 1 : 0)
+            .offset(y: revealed >= order ? 0 : 10)
+            .allowsHitTesting(revealed >= order)
     }
 }
