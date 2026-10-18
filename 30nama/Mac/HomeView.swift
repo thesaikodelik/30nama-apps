@@ -21,13 +21,8 @@ struct HomeView: View {
     @State private var hero = 0
     /// The pointer is on the billboard: someone is reading it, so it should not move on.
     @State private var paused = false
-    /// How much of the featured title's turn has run, 0...1. It holds while the billboard rests.
-    @State private var turn = 0.0
     /// The billboard is on screen, not scrolled away above the shelves.
     @State private var inSight = true
-
-    /// How long each featured title is shown.
-    private static let turnLength = 12.0
 
     /// Each featured title's colour, taken from its scene.
     @State private var tints: [Int: Color] = [:]
@@ -66,7 +61,6 @@ struct HomeView: View {
         .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
             if feed != nil { continuing = await app.continueWatching() }
         }
-        .task(id: "\(hero)|\(resting)|\(feed == nil)") { await rotate() }
         .environment(\.hue, light)
         .task(id: featured?.id) {
             // This title's colour, and the next one's ahead of its turn: that fetches its picture
@@ -116,64 +110,17 @@ struct HomeView: View {
                 .transition(.opacity.combined(with: .offset(y: 10)))
                 .onHover { paused = $0 }
             }
-            dots(feed.heroes.count)
+            Pager(count: feed.heroes.count, hero: $hero, resting: resting, light: light)
         }
         .padding(.horizontal, Mac.edge)
         .padding(.bottom, 30)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Story-style pager, as on the Apple TV: the current segment fills as its turn runs out.
-    private func dots(_ count: Int) -> some View {
-        HStack(spacing: 6) {
-            ForEach(0..<count, id: \.self) { index in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.45)) {
-                        hero = index
-                        turn = 0
-                    }
-                } label: {
-                    Capsule()
-                        .fill(Color.white.opacity(0.28))
-                        .frame(width: index == hero ? 44 : 12, height: 4)
-                        .overlay(alignment: .leading) {
-                            // With motion reduced nothing moves on, so the segment is simply lit.
-                            Capsule().fill(light ?? .white)
-                                .frame(width: index == hero ? (calm ? 44 : max(4, 44 * turn)) : 0, height: 4)
-                        }
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(loc(.featured)) \(loc.num(index + 1))")
-                .accessibilityAddTraits(index == hero ? .isSelected : [])
-            }
-        }
-        .animation(Theme.focusSpring, value: hero)
-    }
-
     /// The billboard has no audience: something covers it, the window is not the one in use, or
     /// the user is reading it. It costs nothing while it rests.
     private var resting: Bool {
         calm || paused || !inSight || !nav.opened.isEmpty || app.playback != nil || windowState != .key
-    }
-
-    /// Runs the featured title's turn and moves the billboard on when it is over. The turn is
-    /// counted in steps, so it can stop where it is when the billboard rests and go on from
-    /// there. A Mac that takes motion in its stride gets steps fine enough to read as a smooth
-    /// fill; any other gets one a second, so the window is not redrawn all the time for a bar.
-    private func rotate() async {
-        guard !resting, let count = feed?.heroes.count, count > 1 else { return }
-        let step = lively ? 0.1 : 1.0
-        while turn < 1 {
-            try? await Task.sleep(for: .seconds(step))
-            guard !Task.isCancelled else { return }
-            withAnimation(.linear(duration: lively ? step : 0.3)) { turn = min(1, turn + step / HomeView.turnLength) }
-        }
-        withAnimation(.easeInOut(duration: 0.55)) {
-            hero = (hero + 1) % count
-            turn = 0
-        }
     }
 
     /// The section a row of the home feed stands for, when it is a whole one.
@@ -271,5 +218,71 @@ struct HomeView: View {
             top[slug] = Array(PostPage(result).posts.prefix(10))
         }
         HomeView.topCache = top
+    }
+}
+
+/// Story-style pager under the billboard, as on the Apple TV: the current segment fills as its
+/// turn runs out, and then the billboard moves on. The turn is its own state, so the bar filling
+/// redraws the bar and not the whole home page with every row on it.
+private struct Pager: View {
+    let count: Int
+    @Binding var hero: Int
+    /// Nobody is watching the billboard: the turn holds where it is.
+    let resting: Bool
+    let light: Color?
+
+    @Environment(\.loc) private var loc
+    @Environment(\.calm) private var calm
+    @Environment(\.lively) private var lively
+    /// How much of the featured title's turn has run, 0...1.
+    @State private var turn = 0.0
+
+    /// How long each featured title is shown.
+    private static let turnLength = 12.0
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<count, id: \.self) { index in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.45)) {
+                        hero = index
+                        turn = 0
+                    }
+                } label: {
+                    Capsule()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: index == hero ? 44 : 12, height: 4)
+                        .overlay(alignment: .leading) {
+                            // With motion reduced nothing moves on, so the segment is simply lit.
+                            Capsule().fill(light ?? .white)
+                                .frame(width: index == hero ? (calm ? 44 : max(4, 44 * turn)) : 0, height: 4)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(loc(.featured)) \(loc.num(index + 1))")
+                .accessibilityAddTraits(index == hero ? .isSelected : [])
+            }
+        }
+        .task(id: "\(hero)|\(resting)") { await rotate() }
+    }
+
+    /// Runs the featured title's turn and moves the billboard on when it is over. The turn is
+    /// counted in steps, so it can stop where it is when the billboard rests and go on from
+    /// there. A Mac that takes motion in its stride gets steps fine enough to read as a smooth
+    /// fill; any other gets one a second, so the window is not redrawn all the time for a bar.
+    private func rotate() async {
+        guard !resting, count > 1 else { return }
+        let step = lively ? 0.1 : 1.0
+        while turn < 1 {
+            try? await Task.sleep(for: .seconds(step))
+            guard !Task.isCancelled else { return }
+            withAnimation(.linear(duration: lively ? step : 0.3)) { turn = min(1, turn + step / Pager.turnLength) }
+        }
+        withAnimation(.easeInOut(duration: 0.55)) {
+            hero = (hero + 1) % count
+            turn = 0
+        }
     }
 }
