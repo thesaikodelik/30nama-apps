@@ -15,9 +15,15 @@ public sealed class CatalogPage : Grid
 {
     private static AppModel App => AppModel.Shared;
 
-    private enum Sort { Newest, Popular, Updated }
-    private static string Order(Sort s) => s switch { Sort.Popular => "favorite", Sort.Updated => "update", _ => "date" };
-    private static S Label(Sort s) => s switch { Sort.Popular => S.popular, Sort.Updated => S.updated, _ => S.newest };
+    /// <summary>
+    /// The orders 30nama's app API keeps to. It has no "newest" (the website gets it by post id,
+    /// through an action this API answers with 404); any other value brings one fixed list, which
+    /// was shown as "newest". Recently updated is the website's own first choice, and for films it
+    /// is the newest too. "year" puts titles still to come, years ahead, first.
+    /// </summary>
+    private enum Sort { Updated, Popular }
+    private static string Order(Sort s) => s == Sort.Popular ? "favorite" : "update";
+    private static S Label(Sort s) => s == Sort.Popular ? S.popular : S.updated;
 
     private readonly string _slug;
     private readonly string _title;
@@ -29,7 +35,7 @@ public sealed class CatalogPage : Grid
     private readonly List<Post> _posts = [];
     private int _page, _pages = 1;
     private int? _total;
-    private Sort _sort = Sort.Newest;
+    private Sort _sort = Sort.Updated;
     private Filter _filter = new();
     private FilterOptions? _options;
     private bool _loading, _failed;
@@ -57,7 +63,7 @@ public sealed class CatalogPage : Grid
         // Near the end of the wall is the cue to fetch the next page.
         _scroller.ViewChanged += (_, _) =>
         {
-            if (_scroller.VerticalOffset > _scroller.ScrollableHeight - 900) _ = LoadNextAsync();
+            if (_scroller.ScrollableHeight - _scroller.VerticalOffset < Theme.Prefetch) _ = LoadNextAsync();
         };
         RenderHeader();
         _ = Restart();
@@ -224,7 +230,7 @@ public sealed class CatalogPage : Grid
             RenderFooter();
         }
         // A wall shorter than the window gives nothing to scroll: the next page is fetched at once.
-        if (generation == _generation && !_failed && _scroller.ScrollableHeight < 200 && _page < _pages) await LoadNextAsync();
+        if (generation == _generation && !_failed && _scroller.ScrollableHeight < Theme.Prefetch && _page < _pages) await LoadNextAsync();
     }
 
     private void RenderFooter()
@@ -288,8 +294,8 @@ public sealed class BrowsePage : Grid
         icon.VerticalAlignment = VerticalAlignment.Center;
         face.Children.Add(icon);
         var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Theme.Text(loc[Extra.advancedSearch], 19, FontWeights.Bold));
-        text.Children.Add(Theme.Text(loc[Extra.advancedHint], 13, color: Theme.Text2, lines: 2));
+        text.Children.Add(Theme.Text(loc[S.advancedSearch], 19, FontWeights.Bold));
+        text.Children.Add(Theme.Text(loc[S.advancedHint], 13, color: Theme.Text2, lines: 2));
         Grid.SetColumn(text, 1);
         face.Children.Add(text);
         var arrow = Glyph.Icon(Glyph.ChevronEnd, 14, Theme.Text3);
@@ -297,7 +303,7 @@ public sealed class BrowsePage : Grid
         Grid.SetColumn(arrow, 2);
         face.Children.Add(arrow);
         var button = Theme.Bare(face, () => _nav.Open(new Route.Advanced()));
-        Kit.AutomationName(button, loc[Extra.advancedSearch]);
+        Kit.AutomationName(button, loc[S.advancedSearch]);
         return Kit.Hovering(button, face, 1.02);
     }
 
@@ -380,7 +386,8 @@ public sealed class SearchPage : Grid
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, HorizontalAlignment = HorizontalAlignment.Center };
         var capsule = new Grid { Width = 640, Height = 54 };
         capsule.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(27), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
-        var inner = new Grid { Margin = new Thickness(20, 0, 20, 0), ColumnSpacing = 12 };
+        // Left to right in every language: titles are searched by their English names.
+        var inner = new Grid { Margin = new Thickness(20, 0, 20, 0), ColumnSpacing = 12, FlowDirection = FlowDirection.LeftToRight };
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var mark = new Grid { VerticalAlignment = VerticalAlignment.Center };
@@ -401,10 +408,10 @@ public sealed class SearchPage : Grid
         inner.Children.Add(_field);
         capsule.Children.Add(inner);
         row.Children.Add(capsule);
-        var only = new ToggleSwitch { IsOn = _streamOnly, OnContent = App.Loc[Extra.streamOnly], OffContent = App.Loc[Extra.streamOnly], VerticalAlignment = VerticalAlignment.Center };
+        var only = new ToggleSwitch { IsOn = _streamOnly, OnContent = App.Loc[S.streamOnly], OffContent = App.Loc[S.streamOnly], VerticalAlignment = VerticalAlignment.Center };
         only.Toggled += (_, _) => { _streamOnly = only.IsOn; Schedule(now: true); };
         row.Children.Add(only);
-        var filters = Kit.Glass(loc[Extra.advancedSearch], "", () => _nav.Open(new Route.Advanced()), height: 40);
+        var filters = Kit.Glass(loc[S.advancedSearch], "", () => _nav.Open(new Route.Advanced()), height: 40);
         filters.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(filters);
         return row;

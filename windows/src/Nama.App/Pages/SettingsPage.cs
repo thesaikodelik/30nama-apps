@@ -67,7 +67,7 @@ public sealed class SettingsPage : Grid
             Row(loc[S.audio], Choice([(loc[S.audioStereo], AudioMix.Stereo), (loc[S.audioSurround], AudioMix.Surround), (loc[S.audioOriginal], (object)AudioMix.Original)], s.AudioMix, v => App.Update(x => x with { AudioMix = (AudioMix)v }))),
             Row(loc[S.autoplay], Toggle(s.AutoplayNext, v => App.Update(x => x with { AutoplayNext = v }))),
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),
-            Row(loc[Extra.bufferTime], Choice(Settings.BufferChoices.Select(n => (n == 0 ? loc[S.qualityAuto] : $"{loc.Num(n)} {loc[Extra.seconds]}", (object)n)), s.BufferSeconds, v => App.Update(x => x with { BufferSeconds = (int)v }))),
+            Row(loc[S.bufferTime], Choice(Settings.BufferChoices.Select(n => (n == 0 ? loc[S.qualityAuto] : $"{loc.Num(n)} {loc[S.seconds]}", (object)n)), s.BufferSeconds, v => App.Update(x => x with { BufferSeconds = (int)v }))),
             Row(loc[S.reduceMotion], Toggle(s.ReduceMotion, v => App.Update(x => x with { ReduceMotion = v }))),
         ]);
 
@@ -89,7 +89,7 @@ public sealed class SettingsPage : Grid
             Row(loc[S.downloadFolder], folderRow),
             Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
             Hours(s),
-            Row(loc[Extra.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[Extra.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
+            Row(loc[S.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[S.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 
         Group(loc[S.services],
@@ -157,7 +157,7 @@ public sealed class SettingsPage : Grid
         var loc = App.Loc;
         string Hour(int h) => loc.Num($"{h:00}:00");
         var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        var from = Choice(new (string, object)[] { (loc[Extra.anyTime], -1) }.Concat(Enumerable.Range(0, 24).Select(h => (Hour(h), (object)h))),
+        var from = Choice(new (string, object)[] { (loc[S.anyTime], -1) }.Concat(Enumerable.Range(0, 24).Select(h => (Hour(h), (object)h))),
             s.DownloadFrom ?? -1, v => App.Update(x => (int)v < 0
                 ? x with { DownloadFrom = null, DownloadTo = null }
                 : x with { DownloadFrom = (int)v, DownloadTo = x.DownloadTo ?? ((int)v + 6) % 24 }));
@@ -165,7 +165,7 @@ public sealed class SettingsPage : Grid
         controls.Children.Add(from);
         if (s.DownloadFrom is not null)
         {
-            var to = Theme.Text(loc[Extra.hoursTo], 15, color: Theme.Text2);
+            var to = Theme.Text(loc[S.hoursTo], 15, color: Theme.Text2);
             to.VerticalAlignment = VerticalAlignment.Center;
             controls.Children.Add(to);
             var until = Choice(Enumerable.Range(0, 24).Select(h => (Hour(h), (object)h)), s.DownloadTo ?? 0, v => App.Update(x => x with { DownloadTo = (int)v }));
@@ -173,8 +173,8 @@ public sealed class SettingsPage : Grid
             controls.Children.Add(until);
         }
         var column = new StackPanel { Spacing = 2 };
-        column.Children.Add(Row(loc[Extra.downloadHours], controls));
-        var note = Theme.Text(loc[Extra.downloadHoursHint], 12, color: Theme.Text3, lines: 2);
+        column.Children.Add(Row(loc[S.downloadHours], controls));
+        var note = Theme.Text(loc[S.downloadHoursHint], 12, color: Theme.Text3, lines: 2);
         note.Margin = new Thickness(0, 0, 0, 8);
         column.Children.Add(note);
         return column;

@@ -107,7 +107,7 @@ public sealed class DownloadPicker : Grid
         place.Children.Add(path);
         // How much room is left there, as 30nama's own desktop app shows.
         if (Downloads.FreeSpace is { } free)
-            place.Children.Add(Theme.Text($"· {Size(free)} {Loc[Extra.freeSpace]}", 13, color: Theme.Text3));
+            place.Children.Add(Theme.Text($"· {Size(free)} {Loc[S.freeSpace]}", 13, color: Theme.Text3));
         _footer.Children.Add(place);
         if (ChosenPack is { } chosen)
         {

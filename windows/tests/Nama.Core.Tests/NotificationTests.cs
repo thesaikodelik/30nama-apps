@@ -3,9 +3,18 @@ using Xunit;
 
 namespace Nama.Core.Tests;
 
-/// <summary>The shape 30nama's own desktop app reads; not yet checked against a live answer.</summary>
+/// <summary>The shape 30nama's own desktop app reads; of the server's own, only an empty answer has been seen.</summary>
 public class NotificationTests
 {
+    [Fact]
+    public void ReadsTheServersAnswerForAnAccountWithNone()
+    {
+        var page = new NotificationPage(Json.Parse("""{"notifications":[],"page":1,"pages":0,"total":0,"total_unread":0}"""));
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.Unread);
+        Assert.Equal(1, page.Page);
+    }
+
     [Fact]
     public void ReadsTheShapeTheOfficialAppReads()
     {
