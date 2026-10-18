@@ -34,7 +34,7 @@ enum S: String, CaseIterable {
     case subFailed, playError
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
-    case notifications, markAllRead, noNotifications, unread, earlier, downloadSpeed, unlimited, freeSpace, downloadHours, downloadHoursHint, anyTime, hoursTo, waitingForHours, advancedSearch, advancedHint, kind, ageRating, years, relevance, byYear, noMatches, directorName, signInHint, imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages, bufferTime, seconds, streamOnly, queued, downloadsAtOnce
+    case notifications, markAllRead, noNotifications, unread, earlier, downloadSpeed, unlimited, freeSpace, downloadHours, downloadHoursHint, anyTime, hoursTo, waitingForHours, advancedSearch, advancedHint, kind, ageRating, years, relevance, byYear, noMatches, directorName, signInHint, imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages, bufferTime, seconds, streamOnly, queued, downloadsAtOnce, titleUpdates
 }
 
 struct Loc: Equatable {
@@ -193,6 +193,7 @@ struct Loc: Equatable {
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
+        .titleUpdates: "What changed",
         .queued: "In queue", .downloadsAtOnce: "Downloads at once",
         .notifications: "Notifications", .markAllRead: "Mark all as read", .noNotifications: "No notifications", .unread: "New", .earlier: "Earlier", .downloadSpeed: "Download speed", .unlimited: "Unlimited", .freeSpace: "free", .downloadHours: "Download hours", .downloadHoursHint: "Downloads run only between these hours, for a line that is cheaper at night. Outside them they wait, and go on from where they stopped.", .anyTime: "Any time", .hoursTo: "to", .waitingForHours: "Waiting for the download hours", .advancedSearch: "Advanced search", .advancedHint: "Narrow 30nama's catalogue by genre, network, language, years and more.", .kind: "Type", .ageRating: "Age rating", .years: "Years", .relevance: "Best match", .byYear: "Year", .noMatches: "Nothing matches these filters.", .directorName: "Director's name", .signInHint: "Sign in to your 30nama account for your lists, suggestions and where you left off.", .imdbTop250: "IMDb Top 250", .siteTop100: "30nama Top 100", .votes: "votes", .inWatchlists: "on watchlists", .inFavorites: "among favourites", .budget: "Budget", .exclusiveSub: "Exclusive Persian subtitles", .latestUpdate: "Latest update", .otherLanguages: "Other languages", .bufferTime: "Buffer ahead", .seconds: "seconds", .streamOnly: "Streaming only",
         .director: "Director", .writer: "Writer", .creator: "Creator", .network: "Network",
@@ -267,6 +268,7 @@ struct Loc: Equatable {
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
+        .titleUpdates: "تغییرات این عنوان",
         .queued: "در صف", .downloadsAtOnce: "دانلود هم‌زمان",
         .notifications: "اعلان‌ها", .markAllRead: "همه خوانده شد", .noNotifications: "اعلانی نیست", .unread: "تازه", .earlier: "قبلی", .downloadSpeed: "سرعت دانلود", .unlimited: "بدون محدودیت", .freeSpace: "فضای خالی", .downloadHours: "ساعت دانلود", .downloadHoursHint: "دانلودها فقط بین این ساعت‌ها انجام می‌شوند، برای اینترنتی که شب‌ها ارزان‌تر است. بیرون از این ساعت‌ها صبر می‌کنند و بعد از همان‌جا ادامه می‌دهند.", .anyTime: "هر ساعتی", .hoursTo: "تا", .waitingForHours: "در انتظار ساعت دانلود", .advancedSearch: "جستجوی پیشرفته", .advancedHint: "فهرست ۳۰نما را با ژانر، شبکه، زبان، سال و چیزهای دیگر محدود کنید.", .kind: "نوع", .ageRating: "ردهٔ سنی", .years: "سال ساخت", .relevance: "مرتبط‌ترین", .byYear: "سال", .noMatches: "چیزی با این فیلترها پیدا نشد.", .directorName: "نام کارگردان", .signInHint: "برای دیدن لیست‌ها، پیشنهادها و ادامهٔ تماشا وارد حساب ۳۰نما شوید.", .imdbTop250: "۲۵۰ فیلم برتر IMDb", .siteTop100: "۱۰۰ عنوان برتر ۳۰نما", .votes: "رأی", .inWatchlists: "در لیست تماشای کاربران", .inFavorites: "در علاقه‌مندی‌های کاربران", .budget: "بودجه", .exclusiveSub: "زیرنویس فارسی اختصاصی", .latestUpdate: "آخرین به‌روزرسانی", .otherLanguages: "زبان‌های دیگر", .bufferTime: "پیش‌بارگذاری", .seconds: "ثانیه", .streamOnly: "فقط پخش آنلاین",
         .director: "کارگردان", .writer: "نویسنده", .creator: "سازنده", .network: "شبکه",
@@ -341,6 +343,7 @@ struct Loc: Equatable {
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",
+        .titleUpdates: "ما الذي تغيّر",
         .queued: "في قائمة الانتظار", .downloadsAtOnce: "التنزيلات المتزامنة",
         .notifications: "الإشعارات", .markAllRead: "تعليم الكل كمقروء", .noNotifications: "لا توجد إشعارات", .unread: "جديدة", .earlier: "سابقة", .downloadSpeed: "سرعة التنزيل", .unlimited: "بلا حد", .freeSpace: "مساحة فارغة", .downloadHours: "ساعات التنزيل", .downloadHoursHint: "تعمل التنزيلات بين هذه الساعات فقط، لخط أرخص ليلًا. خارجها تنتظر، ثم تكمل من حيث توقفت.", .anyTime: "في أي وقت", .hoursTo: "إلى", .waitingForHours: "بانتظار ساعات التنزيل", .advancedSearch: "البحث المتقدم", .advancedHint: "ضيّق فهرس 30nama حسب النوع والشبكة واللغة والسنوات وغير ذلك.", .kind: "النوع", .ageRating: "التصنيف العمري", .years: "سنوات الإنتاج", .relevance: "الأكثر صلة", .byYear: "السنة", .noMatches: "لا شيء يطابق هذه المرشحات.", .directorName: "اسم المخرج", .signInHint: "سجّل الدخول إلى حسابك في 30nama لقوائمك والاقتراحات ومتابعة المشاهدة.", .imdbTop250: "أفضل 250 في IMDb", .siteTop100: "أفضل 100 في 30nama", .votes: "صوتًا", .inWatchlists: "في قوائم المشاهدة", .inFavorites: "في المفضّلة", .budget: "الميزانية", .exclusiveSub: "ترجمة فارسية حصرية", .latestUpdate: "آخر تحديث", .otherLanguages: "لغات أخرى", .bufferTime: "التحميل المسبق", .seconds: "ثانية", .streamOnly: "البث فقط",
         .director: "المخرج", .writer: "الكاتب", .creator: "المبتكر", .network: "الشبكة",
