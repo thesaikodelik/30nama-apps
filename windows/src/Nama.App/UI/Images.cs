@@ -36,23 +36,28 @@ public static class Images
     public static Grid Remote(Uri? url, string? blurhash, double decodeWidth, Stretch stretch = Stretch.UniformToFill)
     {
         var host = new Grid { FlowDirection = FlowDirection.LeftToRight };
-        // A picture is drawn with its outermost pixel half see-through; whatever is under it then
-        // shows as a thin line round the frame. Drawn a pixel larger on every side, that edge falls
-        // outside the frame and is cut away.
-        var bleed = stretch == Stretch.UniformToFill ? new Thickness(-1) : new Thickness(0);
-        // Cut to its own place, so the pixel drawn past it never shows outside, whatever holds it.
-        if (stretch == Stretch.UniformToFill)
-            host.SizeChanged += (_, e) => host.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+        // Every layer is drawn inside its own frame; nothing is drawn past it.
         Image? stand = null;
-        if (Wash(blurhash) is { } wash) host.Children.Add(stand = new Image { Source = wash, Stretch = Stretch.Fill, Margin = bleed });
+        if (Wash(blurhash) is { } wash) host.Children.Add(stand = new Image { Source = wash, Stretch = Stretch.Fill });
         if (url is not null)
         {
-            // Shown at once, not faded in: the last steps of a fade left the outermost row of a
-            // wall of posters undrawn, a light line along its top and left until something redrew it.
-            var image = new Image { Stretch = stretch, Margin = bleed };
+            var image = new Image { Stretch = stretch, Opacity = 0 }.Springy(0.35);
             var bitmap = new BitmapImage { DecodePixelWidth = (int)Math.Max(1, decodeWidth), DecodePixelType = DecodePixelType.Physical };
-            // The blurred stand-in is done once the picture is in.
-            bitmap.ImageOpened += (_, _) => { if (stand is not null) host.Children.Remove(stand); };
+            bitmap.ImageOpened += (_, _) =>
+            {
+                image.Opacity = 1;
+                if (stand is null) return;
+                // The stand-in goes once the picture is fully in. 30nama sends the same few hashes for
+                // many posters, so its colour is often not the poster's, and under the picture's soft
+                // outer pixel it showed as a coloured line.
+                var gone = new DispatcherTimer { Interval = TimeSpan.FromSeconds(0.4) };
+                gone.Tick += (_, _) =>
+                {
+                    gone.Stop();
+                    host.Children.Remove(stand);
+                };
+                gone.Start();
+            };
             bitmap.UriSource = url;
             image.Source = bitmap;
             host.Children.Add(image);

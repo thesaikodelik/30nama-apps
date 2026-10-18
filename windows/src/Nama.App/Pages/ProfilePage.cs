@@ -254,7 +254,7 @@ public sealed class ProfilePage : Grid
     {
         var column = new StackPanel { Spacing = 16, Padding = new Thickness(Theme.Edge, 0, Theme.Edge, 0) };
         column.Children.Add(Theme.Text(App.Loc[S.yourRating], 20, FontWeights.Bold));
-        var wall = new WrapRow(20);
+        var wall = new WrapRow(20, unmirrored: true);
         foreach (var rating in App.Ratings.NewestFirst)
         {
             if (rating.ToPost() is { } post) wall.Add(Kit.Poster(post, () => _nav.Open(post), stars: rating.Stars));

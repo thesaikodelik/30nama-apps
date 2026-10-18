@@ -24,7 +24,7 @@ public sealed class CatalogPage : Grid
     private readonly Nav _nav;
     private readonly ScrollViewer _scroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled };
     private readonly StackPanel _header = new() { Spacing = 18 };
-    private readonly WrapRow _wall = new(20);
+    private readonly WrapRow _wall = new(20, unmirrored: true);
     private readonly Grid _footer = new() { MinHeight = 60 };
     private readonly List<Post> _posts = [];
     private int _page, _pages = 1;
@@ -355,7 +355,7 @@ public sealed class SearchPage : Grid
     private readonly ProgressRing _busy = new() { Width = 18, Height = 18, IsActive = false, Foreground = Theme.Brush(Theme.Text2) };
     private readonly TextBlock _note = Theme.Text("", 16, FontWeights.Medium, Theme.Text2, lines: 2);
     private readonly TextBlock _heading = Theme.Text("", 22, FontWeights.Bold);
-    private readonly WrapRow _results = new(20);
+    private readonly WrapRow _results = new(20, unmirrored: true);
     private bool _streamOnly;
     private CancellationTokenSource? _typing;
 

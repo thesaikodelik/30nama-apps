@@ -207,6 +207,10 @@ public static class Kit
         // The grey tile only when there is no blurred stand-in to hold the place: under a picture it
         // shows through the rounded edge as a light line.
         var face = new Grid { Width = width, Height = height, CornerRadius = new CornerRadius(Theme.Radius), Background = post.Poster.Blurhash is null ? Theme.Brush(Theme.Surface2) : null }.Springy(0.22);
+        // Left to right whatever holds it, so it looks the same on a mirrored shelf and on a wall
+        // that is not mirrored (WrapRow); what has a direction inside is given its own.
+        var rtl = loc.Lang.IsRtl();
+        face.FlowDirection = FlowDirection.LeftToRight;
         face.Children.Add(Images.Remote(post.Poster.Url(width * 1.1 * 1.5), post.Poster.Blurhash, width * 1.5));
 
         var caption = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(10, 26, 10, 10), Spacing = 2, Opacity = 0 }.Springy(0.18);
@@ -217,6 +221,13 @@ public static class Kit
         };
         caption.Children.Add(Theme.Text(post.Title(loc.Lang), 13, FontWeights.Bold, Colors.White, lines: 2));
         if (post.Year is { } year) caption.Children.Add(Theme.Text(loc.Num(year), 11, FontWeights.Medium, Theme.Hex(0xFFFFFF, 0.7)));
+        // Its words take their direction from themselves, not from a mirrored panel: the caption
+        // fades, and a fade under a mirror leaves its edge undrawn.
+        foreach (var text in caption.Children.OfType<TextBlock>())
+        {
+            text.TextReadingOrder = TextReadingOrder.DetectFromContent;
+            text.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
+        }
         face.Children.Add(caption);
 
         if (note is not null)
@@ -230,13 +241,13 @@ public static class Kit
         }
         if (stars is { } rated)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center, FlowDirection = rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight };
             row.Children.Add(Centered(Glyph.Icon(Glyph.StarFill, 10, Theme.Hex(0xF5C518))));
             row.Children.Add(Centered(Theme.Text(loc.Num(Fmt.Score(rated)), 12, FontWeights.Bold, Colors.White)));
             face.Children.Add(new Border
             {
                 Height = 22, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(8), CornerRadius = new CornerRadius(11),
-                Background = Theme.Black(0.72), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Child = row,
+                Background = Theme.Black(0.72), HorizontalAlignment = rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Child = row,
             });
         }
         else if (post.ComingSoon)
@@ -244,7 +255,7 @@ public static class Kit
             var badge = new Border
             {
                 Height = 22, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(8), CornerRadius = new CornerRadius(11),
-                Background = Theme.Black(0.65), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+                Background = Theme.Black(0.65), HorizontalAlignment = rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
                 Child = Centered(Theme.Text(loc[S.soon], 11, FontWeights.Bold)),
             };
             face.Children.Add(badge);

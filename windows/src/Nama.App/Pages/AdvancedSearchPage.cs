@@ -23,7 +23,7 @@ public sealed class AdvancedSearchPage : Grid
     private readonly Nav _nav;
     private readonly ScrollViewer _scroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled };
     private readonly StackPanel _header = new() { Spacing = 18 };
-    private readonly WrapRow _wall = new(20);
+    private readonly WrapRow _wall = new(20, unmirrored: true);
     private readonly Grid _footer = new() { MinHeight = 60 };
     private readonly List<Post> _posts = [];
     private AdvancedQuery _query = new();
