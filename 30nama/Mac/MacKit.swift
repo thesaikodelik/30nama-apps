@@ -269,9 +269,9 @@ struct PosterCard: View {
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
                 .tilting(shape)
-                // A shadow only under the pointer: a resting one under every poster is the dearest
+                // A glow only under the pointer: a resting one under every poster is the dearest
                 // thing to draw while a wall scrolls, and at 120 frames a second it showed.
-                .shadow(color: hovering ? post.tint.opacity(0.55) : .clear, radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
+                .posterGlow(post, on: hovering, opacity: 0.55, radius: 24, y: 14)
                 .scaleEffect(hovering ? 1.07 : 1)
                 .contentShape(shape)
         }
@@ -441,7 +441,7 @@ struct PeekCard: View {
         .background(.ultraThinMaterial)
         .clipShape(shape)
         .hueRim(shape)
-        .shadow(color: post.tint.opacity(0.35), radius: 40, y: 20)
+        .posterGlow(post, on: true, opacity: 0.35, radius: 40, y: 20)
         .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
         .contentShape(shape)
         .onTapGesture { nav.open(post, from: peek.frame) }
@@ -500,7 +500,7 @@ struct FlyingPoster: View {
         RemoteImage(url: flight.post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: flight.post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
             .frame(width: rect.width, height: rect.height)
             .clipShape(RoundedRectangle(cornerRadius: landed ? 16 : Mac.radius, style: .continuous))
-            .shadow(color: flight.post.tint.opacity(0.4), radius: 40, y: 18)
+            .posterGlow(flight.post, on: true, opacity: 0.4, radius: 40, y: 18)
             .position(x: rect.midX, y: rect.midY)
             .allowsHitTesting(false)
             .task {
@@ -563,7 +563,35 @@ private struct Tilt<S: Shape>: ViewModifier {
     @State private var size = CGSize.zero
 }
 
+/// The glow behind a card, in the colour of the title's own poster. Worked out the first time
+/// the card glows, from the poster picture the shelves already have, and kept for the title.
+private struct PosterGlow: ViewModifier {
+    let post: Post
+    let on: Bool
+    let opacity: Double
+    let radius: CGFloat
+    let y: CGFloat
+
+    @State private var colour: Color?
+
+    func body(content: Content) -> some View {
+        let glow = colour ?? SceneTint.shared.knownPoster(for: post)
+        content
+            .shadow(color: on ? (glow ?? .clear).opacity(opacity) : .clear, radius: on ? radius : 0, y: on ? y : 0)
+            .task(id: on) {
+                guard on, glow == nil else { return }
+                colour = await SceneTint.shared.posterColour(for: post, url: post.poster.url(forWidth: Mac.posterWidth * 1.1),
+                                                             maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
+            }
+    }
+}
+
 extension View {
+    /// A glow behind a card in its poster's colour, while `on`. See `PosterGlow`.
+    func posterGlow(_ post: Post, on: Bool, opacity: Double, radius: CGFloat, y: CGFloat) -> some View {
+        modifier(PosterGlow(post: post, on: on, opacity: opacity, radius: radius, y: y))
+    }
+
     /// Makes a card lean to the pointer and catch the light. See `Tilt`.
     func tilting<S: Shape>(_ shape: S, degrees: Double = 4) -> some View { modifier(Tilt(shape: shape, degrees: degrees)) }
 }
@@ -642,7 +670,7 @@ struct ContinueCard: View {
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
                 .tilting(shape, degrees: 3)
-                .shadow(color: post.tint.opacity(hovering ? 0.5 : 0), radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
+                .posterGlow(post, on: hovering, opacity: 0.5, radius: 24, y: 14)
                 .scaleEffect(hovering ? 1.04 : 1)
                 .contentShape(shape)
         }
