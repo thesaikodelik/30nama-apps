@@ -91,11 +91,15 @@ struct RemoteImage: View {
     var maxPixel: Int
 
     @State private var image: PlatformImage?
+    /// The picture is fully in: the blur under it goes. The server sends the same few blur codes
+    /// for many posters, so its colour is often not the poster's, and left underneath it showed
+    /// through the soft edge of a rounded corner.
+    @State private var settled = false
 
     var body: some View {
         Color.clear
             .overlay {
-                if let placeholder = BlurPlaceholder.image(blurhash) {
+                if !settled, let placeholder = BlurPlaceholder.image(blurhash) {
                     Image(platformImage: placeholder).resizable().scaledToFill()
                 }
             }
@@ -106,15 +110,26 @@ struct RemoteImage: View {
             }
             .clipped()
             .task(id: url) {
-                guard let url else { image = nil; return }
+                guard let url else {
+                    image = nil
+                    settled = false
+                    return
+                }
                 if let hit = ImagePipeline.shared.cached(url, maxPixel: maxPixel) {
                     image = hit
+                    settled = true
                     return
                 }
                 image = nil
+                settled = false
                 let loaded = await ImagePipeline.shared.image(url, maxPixel: maxPixel)
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeOut(duration: 0.24)) { image = loaded }
+                guard loaded != nil else { return }
+                // After the fade, so the blur is never seen leaving.
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                settled = true
             }
     }
 }
