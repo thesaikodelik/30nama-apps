@@ -423,7 +423,7 @@ private struct ContinueCard: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Theme.surface
-            RemoteImage(url: post.cover ?? post.poster.big, blurhash: post.poster.blurhash, maxPixel: Int(400 * UIScreen.main.scale))
+            RemoteImage(url: post.cover ?? post.poster.big, blurhash: post.poster.blurhash, fallback: post.poster.big, maxPixel: Int(400 * UIScreen.main.scale))
             LinearGradient(colors: [.black.opacity(0.85), .clear], startPoint: .bottom, endPoint: .center)
             VStack(alignment: .leading, spacing: 10) {
                 Text(post.title(loc.lang))

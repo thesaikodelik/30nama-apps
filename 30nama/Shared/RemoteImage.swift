@@ -87,6 +87,8 @@ enum BlurPlaceholder {
 struct RemoteImage: View {
     let url: URL?
     var blurhash: String? = nil
+    /// Shown when `url` gives nothing: the server lists scene pictures that are not there.
+    var fallback: URL? = nil
     /// Longest side, in pixels, the image is decoded to.
     var maxPixel: Int
 
@@ -122,7 +124,10 @@ struct RemoteImage: View {
                 }
                 image = nil
                 settled = false
-                let loaded = await ImagePipeline.shared.image(url, maxPixel: maxPixel)
+                var loaded = await ImagePipeline.shared.image(url, maxPixel: maxPixel)
+                if loaded == nil, let fallback, fallback != url {
+                    loaded = await ImagePipeline.shared.image(fallback, maxPixel: maxPixel)
+                }
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeOut(duration: 0.24)) { image = loaded }
                 guard loaded != nil else { return }

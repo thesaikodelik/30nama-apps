@@ -23,6 +23,10 @@ final class SceneTint {
         if let url = post.cover, let image = await ImagePipeline.shared.image(url, maxPixel: 1920) {
             found = SceneTint.lively(image)
         }
+        // No scene, or one the server lists but does not have: the poster, at the size the backdrop takes it.
+        if found == nil, let url = post.poster.big ?? post.poster.large, let image = await ImagePipeline.shared.image(url, maxPixel: 640) {
+            found = SceneTint.lively(image)
+        }
         known[post.id] = found
         return found ?? post.tint
     }
