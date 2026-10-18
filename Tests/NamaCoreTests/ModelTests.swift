@@ -168,6 +168,10 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(series.otherLanguages.contains("Mandarin"), "the primary language is not repeated")
         XCTAssertEqual(series.latestUpdate?.title, "اضافه شدن قسمت جدید")
         XCTAssertEqual(series.latestUpdate?.content, "اپیزود 10 فصل 3")
+        XCTAssertEqual(series.updates.count, 2, "the whole history, newest first")
+        XCTAssertEqual(series.updates.last?.content, "اپیزود 9 فصل 3")
+        XCTAssertEqual(series.updates.first?.day(persian: true), "۱۴۰۵-۰۷-۱۷")
+        XCTAssertEqual(series.updates.first?.day(persian: false), "2026-10-09")
         XCTAssertEqual(Post(JSON(["id": 1, "score": ["imdb": ["top_250": "12"]]] as [String: Any]))?.imdbTop250, 12)
     }
 

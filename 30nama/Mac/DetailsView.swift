@@ -64,6 +64,7 @@ struct DetailsView: View {
                         if !extra.crew.isEmpty { crew(extra.crew) }
                         if !extra.reviews.isEmpty { reviews(extra.reviews) }
                     }
+                    if post.updates.count > 1 { updates }
                     facts
                 }
                 .padding(.horizontal, Mac.edge)
@@ -414,6 +415,29 @@ struct DetailsView: View {
             }
             .scrollIndicators(.hidden)
             .scrollClipDisabled()
+        }
+    }
+
+    /// What 30nama has added or mended on the title lately, newest first, with the day of each.
+    private var updates: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(loc(.titleUpdates)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
+            VStack(alignment: .leading, spacing: 9) {
+                ForEach(Array(post.updates.prefix(6).enumerated()), id: \.offset) { _, update in
+                    HStack(alignment: .firstTextBaseline, spacing: 16) {
+                        Text(loc.num(update.day(persian: loc.lang == .fa) ?? ""))
+                            .font(.app(13, .medium))
+                            .foregroundStyle(Theme.text3)
+                            .environment(\.layoutDirection, .leftToRight)
+                            // Against the start of the row: the right in Persian and Arabic.
+                            .frame(width: 110, alignment: loc.lang == .en ? .leading : .trailing)
+                        Text(update.title).font(.app(15, .semibold)).foregroundStyle(Theme.text1)
+                        if let content = update.content {
+                            Text(content).font(.app(15)).foregroundStyle(Theme.text2)
+                        }
+                    }
+                }
+            }
         }
     }
 

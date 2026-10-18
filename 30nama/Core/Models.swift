@@ -107,8 +107,10 @@ struct Post: Identifiable, Hashable {
     var inFavorites: Int?
     var budget: String?
     var exclusiveSubtitle = false
-    /// The last change 30nama made to the title ("new episode"), with what it was.
-    var latestUpdate: (title: String, content: String?)?
+    /// What 30nama has changed on the title ("new episode", "subtitle fixed"), newest first.
+    var updates: [TitleUpdate] = []
+    /// The last of them, with what it was.
+    var latestUpdate: (title: String, content: String?)? { updates.first.map { ($0.title, $0.content) } }
 
     var cast: [Person] = []
     var directors: [String] = []
@@ -175,7 +177,7 @@ struct Post: Identifiable, Hashable {
         inFavorites = positive(j["list"]["favorite"])
         budget = info["budget"].text
         exclusiveSubtitle = o["exclusive_subtitle"].bool
-        if let note = j["note"]["update"][0]["title"].text { latestUpdate = (note, j["note"]["update"][0]["content"].text) }
+        updates = j["note"]["update"].array.compactMap(TitleUpdate.init)
 
         cast = j["cast"].array.compactMap { c in
             guard let name = c["name"].text else { return nil }
@@ -947,5 +949,28 @@ struct User: Equatable {
         f.timeZone = TimeZone(identifier: "UTC")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date(timeIntervalSince1970: n))
+    }
+}
+
+/// One change 30nama made to a title, as its notes list them.
+struct TitleUpdate: Equatable {
+    let title: String
+    let content: String?
+    /// "2026-10-09 22:41:36" and its Persian-calendar twin, as sent.
+    let gregorian: String?
+    let jalali: String?
+
+    init?(_ j: JSON) {
+        guard let title = j["title"].text else { return nil }
+        self.title = title
+        content = j["content"].text
+        gregorian = j["date"]["g"].text
+        jalali = j["date"]["j"].text
+    }
+
+    /// The day it was made, without the hour: in the Persian calendar for Persian.
+    func day(persian: Bool) -> String? {
+        let full = persian ? jalali ?? gregorian : gregorian ?? jalali
+        return full?.split(separator: " ").first.map(String.init)
     }
 }
