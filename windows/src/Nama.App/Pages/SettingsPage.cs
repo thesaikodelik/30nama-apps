@@ -89,6 +89,7 @@ public sealed class SettingsPage : Grid
             Row(loc[S.downloadFolder], folderRow),
             Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
             Hours(s),
+            Row(loc[S.downloadsAtOnce], Choice(Settings.AtOnceChoices.Select(n => (loc.Num(n), (object)n)), s.DownloadsAtOnce, v => App.Update(x => x with { DownloadsAtOnce = (int)v }))),
             Row(loc[S.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[S.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 

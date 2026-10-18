@@ -82,19 +82,20 @@ public sealed partial class Downloads
 {
     public static Downloads Shared { get; private set; } = null!;
 
-    private const int AtOnce = 3;
     /// <summary>
-    /// Connections per file. Measured on 30nama's own server: one gave 11 to 18 MB/s, four 33,
-    /// eight 28, so four is where more stops helping.
+    /// Connections per file, at most. Measured on 30nama's own server: one gave 11 to 18 MB/s, four
+    /// 33, eight 28, so four is where more stops helping. A server that takes fewer gets fewer.
     /// </summary>
-    private const int Connections = 4;
+    private const int MostConnections = 4;
+    /// <summary>How long a connection may go without an answer, or without a byte, before it counts as dropped.</summary>
+    private static readonly TimeSpan Silence = TimeSpan.FromSeconds(30);
     private readonly AppModel _app;
     private readonly DispatcherQueue _ui;
     private readonly Transport _network = ApiClient.HttpTransport(decompress: false);
     private readonly Dictionary<string, CancellationTokenSource> _running = [];
     private readonly Dictionary<string, DateTime> _lastShown = [];
     private readonly SubtitleFinder _subtitles;
-    private readonly Throttle _throttle = new();
+    private readonly RateLimit _limit = new();
     /// <summary>Notices the download hours opening and closing.</summary>
     private readonly Microsoft.UI.Xaml.DispatcherTimer _hours = new() { Interval = TimeSpan.FromSeconds(30) };
     private bool _wasOpen = true;
@@ -116,18 +117,34 @@ public sealed partial class Downloads
         _subtitles = app.Subtitles;
         try { Items = Storage.Read(File) is { } text ? JsonSerializer.Deserialize<List<DownloadItem>>(text, Options) ?? [] : []; }
         catch (Exception) { Items = []; }
-        _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L;
+        _limit.BytesPerSecond = app.Settings.DownloadLimit * 1024.0;
         app.Changed += what =>
         {
             if (what != "settings") return;
-            _throttle.BytesPerSecond = app.Settings.DownloadLimit * 1024L;
+            _limit.BytesPerSecond = app.Settings.DownloadLimit * 1024.0;
             CheckHours();
+            ApplyQueue();
         };
         _wasOpen = !OutsideHours;
         _hours.Tick += (_, _) => CheckHours();
         _hours.Start();
-        // What was being fetched when the app closed goes on now.
-        foreach (var item in Items.Where(i => i.State == DownloadItem.States.Running).ToList()) Begin(item);
+        // What was being fetched when the app closed goes on now, oldest first.
+        foreach (var item in Items.Where(i => i.State == DownloadItem.States.Running).OrderBy(i => i.Added).ToList()) Begin(item);
+#if DEBUG
+        // NAMA_DOWNLOAD_TEST=<address>[ <address>...]: files of any server, for the engine to be tried on.
+        foreach (var address in (Environment.GetEnvironmentVariable("NAMA_DOWNLOAD_TEST") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var url = new Uri(address);
+            var test = new DownloadItem
+            {
+                Id = Guid.NewGuid().ToString(), Title = "Test " + url.Host, Detail = url.AbsolutePath, FileName = "test-" + System.IO.Path.GetFileName(url.AbsolutePath),
+                Address = url, State = DownloadItem.States.Running, Added = DateTime.UtcNow.AddMilliseconds(Items.Count),
+            };
+            Items.Insert(0, test);
+            Save();
+            Begin(test);
+        }
+#endif
     }
 
     public int RunningCount => Items.Count(i => i.State == DownloadItem.States.Running);
@@ -137,6 +154,22 @@ public sealed partial class Downloads
 
     /// <summary>Whether this download's bytes are coming in right now, rather than waiting its turn or its hours.</summary>
     public bool IsActive(string id) => _running.ContainsKey(id);
+
+    /// <summary>How many files come in at once (Settings); the rest wait in the order they were added.</summary>
+    private int AtOnce => Math.Max(1, _app.Settings.DownloadsAtOnce);
+
+    /// <summary>
+    /// After the number allowed at once changed: past it, the ones added last go back to waiting,
+    /// from where they got to; under it, the next ones waiting start.
+    /// </summary>
+    private void ApplyQueue()
+    {
+        var extra = Items.Where(i => _running.ContainsKey(i.Id)).OrderBy(i => i.Added).Skip(AtOnce).ToList();
+        foreach (var item in extra)
+            if (_running.Remove(item.Id, out var stop)) stop.Cancel();
+        Next();
+        Changed?.Invoke();
+    }
 
     /// <summary>The hours have opened: what waited starts. They have closed: what runs stops where it is, to go on later.</summary>
     private void CheckHours()
@@ -326,7 +359,7 @@ public sealed partial class Downloads
     /// <summary>Gives a waiting download the slot one has left.</summary>
     private void Next()
     {
-        foreach (var waiting in Items.Where(i => i.State == DownloadItem.States.Running && !_running.ContainsKey(i.Id)).Reverse().ToList())
+        foreach (var waiting in Items.Where(i => i.State == DownloadItem.States.Running && !_running.ContainsKey(i.Id)).OrderBy(i => i.Added).ToList())
             Begin(waiting);
     }
 
@@ -346,6 +379,7 @@ public sealed partial class Downloads
     {
         var partial = Partial(item);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(partial)!);
+        Note(item.Id, $"started {item.FileName}");
         for (var attempt = 1; ; attempt++)
         {
             try
@@ -427,7 +461,7 @@ public sealed partial class Downloads
                     if ((n = await source.ReadAsync(buffer, quiet.Token)) <= 0) break;
                     await target.WriteAsync(buffer.AsMemory(0, n), stop);
                     received += n;
-                    await _throttle.TakeAsync(n, stop);
+                    await HoldAsync(n, stop);
                     Progressed(item.Id, received);
                 }
             }
@@ -452,10 +486,28 @@ public sealed partial class Downloads
             throw new Refused((int)response.StatusCode, response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow));
     }
 
+    /// <summary>Waits as long as the speed limit says for bytes just read: the whole debt they leave.</summary>
+    private async Task HoldAsync(long bytes, CancellationToken stop)
+    {
+        var wait = _limit.Take(bytes);
+        if (wait > TimeSpan.Zero) await Task.Delay(wait, stop);
+    }
+
+    /// <summary>What a test reads of a transfer: a line now and then, in a build being worked on.</summary>
+    [Conditional("DEBUG")]
+    private static void Note(string id, string line)
+    {
+        try { System.IO.File.AppendAllText(System.IO.Path.Combine(Storage.Folder, "downloads-debug.log"), $"{DateTime.Now:HH:mm:ss.fff} {id[..8]} {line}{Environment.NewLine}"); }
+        catch (Exception) { }
+    }
+
     /// <summary>
-    /// The file over several connections until every part is in. The first may come with its
-    /// answer already open; the others join a little apart, so the server is not hit all at once.
-    /// Where each part has got to is kept every few seconds, and when it stops for any reason.
+    /// The file over several connections until every part is in. Up to four work at once, joining
+    /// a little apart so the server is not hit all at once; a server that takes fewer from one
+    /// address (it leaves the rest unanswered, or says 429 or 503) gets fewer: such a connection,
+    /// while others work, gives its part back and the most allowed comes down to those working. A
+    /// connection waiting to try again still counts, or new ones would join in its place. Where
+    /// each part has got to is kept every few seconds, and when it stops for any reason.
     /// </summary>
     private async Task PartsAsync(string id, string partial, SegmentMap map, HttpResponseMessage? opened, CancellationToken stop)
     {
@@ -468,23 +520,54 @@ public sealed partial class Downloads
                 Progressed(id, map.Downloaded);
             }
         });
+        var crew = new Crew { Cap = MostConnections };
+        var running = new List<Task>();
         Exception? failure = null;
-        var workers = Enumerable.Range(0, Connections).Select(async n =>
+        var launched = 0;
+        void Fill()
         {
-            try
+            lock (crew)
             {
-                if (n > 0) await Task.Delay(TimeSpan.FromMilliseconds(400 * n), all.Token);
-                await WorkerAsync(id, partial, map, n == 0 ? opened : null, all.Token);
+                while (crew.Busy < crew.Cap && !all.IsCancellationRequested)
+                {
+                    var first = opened is not null;
+                    var segment = first ? map.TakeUnowned() : map.NextWork();
+                    if (segment is null) return;
+                    crew.Busy++;
+                    // The first few join a little apart; one that replaces another joins at once.
+                    var index = launched++;
+                    var delay = index < MostConnections ? TimeSpan.FromMilliseconds(400 * index) : TimeSpan.Zero;
+                    var answer = opened;
+                    opened = null;
+                    running.Add(Task.Run(async () =>
+                    {
+                        try { await ConnectionAsync(id, partial, map, segment, answer, delay, crew, all.Token); }
+                        catch (OperationCanceledException) { }
+                        catch (Exception e)
+                        {
+                            // A refusal, or one connection giving up for good, ends the try for all of them.
+                            failure ??= e;
+                            all.Cancel();
+                        }
+                        finally { lock (crew) crew.Busy--; }
+                    }));
+                }
             }
-            catch (OperationCanceledException) { }
-            catch (Exception e)
+        }
+        while (true)
+        {
+            Fill();
+            Task[] now;
+            lock (crew) now = running.ToArray();
+            if (now.Length == 0) break;
+            var done = await Task.WhenAny(now);
+            lock (crew) running.Remove(done);
+            if (failure is not null || all.IsCancellationRequested)
             {
-                // A refusal, or one connection giving up for good, ends the try for all of them.
-                failure ??= e;
-                all.Cancel();
+                await Task.WhenAll(now);
+                break;
             }
-        }).ToList();
-        await Task.WhenAll(workers);
+        }
         all.Cancel();
         await keeper;
         var snapshot = map.Snapshot();
@@ -494,51 +577,86 @@ public sealed partial class Downloads
         if (!map.IsComplete) throw new IOException("parts missing");
     }
 
-    /// <summary>One connection: takes a part, fetches it to its end or until another takes its tail, and takes the next.</summary>
-    private async Task WorkerAsync(string id, string partial, SegmentMap map, HttpResponseMessage? opened, CancellationToken stop)
+    /// <summary>The connections of one file: how many may work, how many hold a part, how many are bringing bytes in.</summary>
+    private sealed class Crew
+    {
+        public int Cap;
+        public int Busy;
+        public int Working;
+    }
+
+    /// <summary>
+    /// One connection: fetches its part to its end, or until another connection takes its tail. A
+    /// drop is tried again after a wait, keeping the part meanwhile; one that brought nothing
+    /// while others work gives the part back and lowers the most allowed instead.
+    /// </summary>
+    private async Task ConnectionAsync(string id, string partial, SegmentMap map, SegmentMap.Segment segment, HttpResponseMessage? opened,
+        TimeSpan delay, Crew crew, CancellationToken stop)
     {
         var item = Items.FirstOrDefault(i => i.Id == id) ?? throw new OperationCanceledException();
+        if (delay > TimeSpan.Zero) await Task.Delay(delay, stop);
         await using var file = new FileStream(partial, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
         var buffer = new byte[1 << 16];
-        var segment = opened is not null ? map.TakeUnowned() : null;
         for (var attempt = 1; ; )
         {
-            segment ??= map.NextWork();
-            if (segment is null) return;
+            var received = 0L;
+            int? status = null;
+            lock (crew) crew.Working++;
+            var working = true;
             try
             {
-                var response = opened ?? await _network(Request(item, segment.Pos, segment.End - 1), stop);
+                using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stop);
+                quiet.CancelAfter(Silence);
+                var response = opened ?? await _network(Request(item, segment.Pos, segment.End - 1), quiet.Token);
                 opened = null;
                 using (response)
                 {
+                    status = (int)response.StatusCode;
                     Check(response);
-                    using var quiet = CancellationTokenSource.CreateLinkedTokenSource(stop);
-                    await using var source = await response.Content.ReadAsStreamAsync(stop);
+                    await using var source = await response.Content.ReadAsStreamAsync(quiet.Token);
                     while (!segment.IsComplete)
                     {
-                        quiet.CancelAfter(TimeSpan.FromSeconds(45));
+                        quiet.CancelAfter(Silence);
                         var n = await source.ReadAsync(buffer, quiet.Token);
                         if (n <= 0) break;
                         var kept = segment.Write(file, buffer.AsSpan(0, n));
-                        await _throttle.TakeAsync(kept, stop);
+                        received += kept;
                         attempt = 1;
                         // Another connection took the rest of this part.
                         if (kept < n) break;
+                        await HoldAsync(kept, stop);
                     }
                 }
-                if (!segment.IsComplete) throw new IOException("part ended early");
-                segment = null;
+                if (!segment.IsComplete && segment.Pos < segment.End) throw new IOException("part ended early");
+                return;
             }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested) { segment?.Release(); throw; }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { segment.Release(); throw; }
             catch (Exception e)
             {
+                lock (crew) { crew.Working--; working = false; }
                 var refused = e as Refused;
-                if (RetryPolicy.Next(attempt++, refused?.Status, refused?.RetryAfter, Random.Shared.NextDouble()) is not { } wait)
+                var code = refused?.Status ?? (status >= 400 ? status : null);
+                int others;
+                lock (crew) others = crew.Working;
+                if (Connections.GivesWay(code, received, others))
                 {
-                    segment?.Release();
+                    lock (crew) crew.Cap = Math.Max(1, others);
+                    segment.Release();
+                    Note(id, $"a connection {(code is { } c ? $"got {c}" : "went unanswered")}; going on with {Math.Max(1, others)}");
+                    return;
+                }
+                if (RetryPolicy.Next(attempt++, code, refused?.RetryAfter, Random.Shared.NextDouble()) is not { } wait)
+                {
+                    segment.Release();
                     throw;
                 }
+                Note(id, $"part at {segment.Pos / 1_048_576} MB: {(code is { } c2 ? $"HTTP {c2}" : e.GetType().Name)}; again in {wait.TotalSeconds:0} s");
+                // The part stays this connection's while it waits, and the connection still counts.
                 await Task.Delay(wait, stop);
+            }
+            finally
+            {
+                if (working) lock (crew) crew.Working--;
             }
         }
     }
@@ -557,6 +675,7 @@ public sealed partial class Downloads
     /// <summary>The whole file is here: it moves into the download folder under its own name.</summary>
     private void Arrived(string id, string partial)
     {
+        Note(id, "arrived");
         _running.Remove(id);
         if (Items.FirstOrDefault(i => i.Id == id) is not { } item) { TryDelete(partial); return; }
         try
@@ -699,35 +818,6 @@ public sealed partial class Downloads
         var ext = System.IO.Path.GetExtension(wanted);
         for (var n = 2; System.IO.File.Exists(candidate); n++) candidate = System.IO.Path.Combine(folder, $"{name} {n}{ext}");
         return candidate;
-    }
-
-    /// <summary>Keeps all downloads together under the speed the user set, by making each wait its turn for bytes.</summary>
-    private sealed class Throttle
-    {
-        private readonly object _lock = new();
-        private double _allowance;
-        private DateTime _last = DateTime.UtcNow;
-
-        public long BytesPerSecond { get; set; }
-
-        public async Task TakeAsync(int bytes, CancellationToken stop)
-        {
-            while (true)
-            {
-                TimeSpan wait;
-                lock (_lock)
-                {
-                    var rate = BytesPerSecond;
-                    if (rate <= 0) return;
-                    var now = DateTime.UtcNow;
-                    _allowance = Math.Min(rate, _allowance + (now - _last).TotalSeconds * rate);
-                    _last = now;
-                    if (_allowance >= bytes) { _allowance -= bytes; return; }
-                    wait = TimeSpan.FromSeconds((bytes - _allowance) / rate);
-                }
-                await Task.Delay(wait, stop);
-            }
-        }
     }
 
     private static partial class Native
