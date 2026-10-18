@@ -98,6 +98,17 @@ struct Post: Identifiable, Hashable {
     var metacritic: Int?
     /// MyAnimeList (anime) or MyDramaList (Asian drama) score out of 10, whichever the title has.
     var fanScore: (source: String, value: Double)?
+    // Shown by 30nama's own apps beside the scores: places on the top lists, votes, list counts.
+    var imdbTop250: Int?
+    var siteTop100: Int?
+    var imdbVotes: Int?
+    /// How many of 30nama's users keep it on their watchlist, and among their favourites.
+    var inWatchlists: Int?
+    var inFavorites: Int?
+    var budget: String?
+    var exclusiveSubtitle = false
+    /// The last change 30nama made to the title ("new episode"), with what it was.
+    var latestUpdate: (title: String, content: String?)?
 
     var cast: [Person] = []
     var directors: [String] = []
@@ -106,6 +117,8 @@ struct Post: Identifiable, Hashable {
     var networks: [String] = []
     var countries: [String] = []
     var language: String?
+    /// Spoken besides `language`, without repeating it.
+    var otherLanguages: [String] = []
     var airStatus: String?
     var nextEpisodeCaption: String?
     var nextEpisodeDate: (gregorian: String?, jalali: String?) = (nil, nil)
@@ -154,6 +167,15 @@ struct Post: Identifiable, Hashable {
         for (key, label) in [("myanimelist", "MAL"), ("mydramalist", "MDL")] {
             if let v = j["score"][key]["score"].double, v > 0 { fanScore = (label, v); break }
         }
+        func positive(_ v: JSON) -> Int? { v.int.flatMap { $0 > 0 ? $0 : nil } }
+        imdbTop250 = positive(j["score"]["imdb"]["top_250"])
+        siteTop100 = positive(j["score"]["30nama"]["top_100"])
+        imdbVotes = positive(j["score"]["imdb"]["votes"])
+        inWatchlists = positive(j["list"]["watchlist"])
+        inFavorites = positive(j["list"]["favorite"])
+        budget = info["budget"].text
+        exclusiveSubtitle = o["exclusive_subtitle"].bool
+        if let note = j["note"]["update"][0]["title"].text { latestUpdate = (note, j["note"]["update"][0]["content"].text) }
 
         cast = j["cast"].array.compactMap { c in
             guard let name = c["name"].text else { return nil }
@@ -167,6 +189,11 @@ struct Post: Identifiable, Hashable {
         networks = j["network"].array.compactMap(\.text)
         countries = names(j["country"])
         language = j["language"]["primary"]["name"].text
+        var spoken: [String] = []
+        for name in j["language"]["others"].array.compactMap({ $0["name"].text }) where name != language && !spoken.contains(name) {
+            spoken.append(name)
+        }
+        otherLanguages = spoken
         airStatus = j["air"]["air_status"].text
         nextEpisodeCaption = j["air"]["next_episode_caption"].text
         nextEpisodeDate = (j["air"]["next_episode_date"]["g"].text, j["air"]["next_episode_date"]["j"].text)

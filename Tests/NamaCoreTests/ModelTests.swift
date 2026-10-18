@@ -159,6 +159,16 @@ final class ModelTests: XCTestCase {
         let series = try XCTUnwrap(Post(try fixture("single_series")["result"]))
         XCTAssertNotNil(series.airStatus)
         XCTAssertNotNil(series.nextEpisodeDate.jalali)
+        // What 30nama's own apps show beside the scores.
+        XCTAssertEqual(series.imdbVotes, 7639)
+        XCTAssertEqual(series.inWatchlists, 195)
+        XCTAssertEqual(series.inFavorites, 184)
+        XCTAssertNil(series.imdbTop250, "sent as an empty string: not on the list")
+        XCTAssertEqual(series.otherLanguages.first, "Chinese")
+        XCTAssertFalse(series.otherLanguages.contains("Mandarin"), "the primary language is not repeated")
+        XCTAssertEqual(series.latestUpdate?.title, "اضافه شدن قسمت جدید")
+        XCTAssertEqual(series.latestUpdate?.content, "اپیزود 10 فصل 3")
+        XCTAssertEqual(Post(JSON(["id": 1, "score": ["imdb": ["top_250": "12"]]] as [String: Any]))?.imdbTop250, 12)
     }
 
     func testCriticScores() throws {

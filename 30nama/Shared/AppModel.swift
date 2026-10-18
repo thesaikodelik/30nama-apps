@@ -266,6 +266,7 @@ final class AppModel {
     private(set) var homeLoaded = false
     @ObservationIgnored private var menuCache: (menu: Menu, lang: Lang)?
     @ObservationIgnored private var filterCache: (options: FilterOptions, lang: Lang)?
+    @ObservationIgnored private var choicesCache: (choices: SearchChoices, lang: Lang)?
     /// The ids of the titles in each of the user's 30nama lists ("watchlist", "favorite", "notify").
     private(set) var lists: [String: Set<Int>] = [:]
     /// Bumped when a title was put on a list or taken off one.
@@ -495,6 +496,27 @@ final class AppModel {
         return (result.object ?? [:]).mapValues { $0["post"].array.count }
     }
 
+    // MARK: Notifications
+
+    /// The messages 30nama has for the account, newest first: nil for a guest, and until asked.
+    private(set) var notifications: NotificationPage?
+
+    /// Asked for on opening and every quarter of an hour after, as 30nama's own desktop app does.
+    func refreshNotifications() async {
+        guard user != nil else {
+            notifications = nil
+            return
+        }
+        guard let result = try? await api.get("notification", ["page": "1"], background: true) else { return }
+        notifications = NotificationPage(result)
+    }
+
+    /// Marks one message read, or every one with "all": here at once, on the server after.
+    func markNotificationRead(_ id: String) {
+        notifications?.markRead(id)
+        Task { _ = try? await api.call("notification_read", ["notification_id": id], background: true) }
+    }
+
     // MARK: Lists
 
     /// Reads which titles are on the user's lists, so a title page can show where it stands.
@@ -555,6 +577,14 @@ final class AppModel {
         let options = FilterOptions(try await api.get("advanced_search_parameters"))
         filterCache = (options, settings.lang)
         return options
+    }
+
+    /// Everything the advanced search can be narrowed by, in the current language.
+    func searchChoices() async throws -> SearchChoices {
+        if let c = choicesCache, c.lang == settings.lang { return c.choices }
+        let choices = SearchChoices(try await api.get("advanced_search_parameters"))
+        choicesCache = (choices, settings.lang)
+        return choices
     }
 
     // MARK: Watched
