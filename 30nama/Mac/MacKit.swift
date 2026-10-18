@@ -956,3 +956,137 @@ struct CardStandIn: View {
             .accessibilityHidden(true)
     }
 }
+
+// MARK: - The liquid pill
+
+/// Where each tab of a bar is, by its id, in the bar's own space ("liquidBar").
+struct LiquidTabFrames: PreferenceKey {
+    static var defaultValue: [AnyHashable: CGRect] = [:]
+    static func reduce(value: inout [AnyHashable: CGRect], nextValue: () -> [AnyHashable: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+extension View {
+    /// Tells the bar's liquid pill where this tab is.
+    func liquidTab(_ id: AnyHashable) -> some View {
+        background {
+            GeometryReader { geo in
+                Color.clear.preference(key: LiquidTabFrames.self, value: [id: geo.frame(in: .named("liquidBar"))])
+            }
+        }
+    }
+
+    /// A bar whose selected tab sits on a white pill that flows from tab to tab like a drop of
+    /// liquid. The tabs mark themselves with `liquidTab(_:)`; `selected` nil hides the pill.
+    func liquidPill(selected: AnyHashable?) -> some View {
+        modifier(LiquidPillBar(selected: selected))
+    }
+}
+
+private struct LiquidPillBar: ViewModifier {
+    let selected: AnyHashable?
+    @State private var frames: [AnyHashable: CGRect] = [:]
+
+    func body(content: Content) -> some View {
+        content
+            .onPreferenceChange(LiquidTabFrames.self) { frames = $0 }
+            .background { LiquidPill(selected: selected, frames: frames) }
+            .coordinateSpace(name: "liquidBar")
+    }
+}
+
+/// The pill itself, of glass. Moving to another tab, it stretches toward it, leading edge first, thinning
+/// in the middle as it goes, while a drop of it stays behind joined by a neck that thins and
+/// snaps; then it settles on the new tab.
+///
+/// After the "+" of the Takin app (CaptureMenu), and the classic metaball trick it uses: every
+/// piece is drawn into one layer that is blurred and then cut back to a hard edge by its alpha,
+/// so pieces close together merge into one shape with a bridge between them, and pieces apart
+/// are clean shapes again. The words of the tabs are drawn above, so they never blur.
+private struct LiquidPill: View {
+    let selected: AnyHashable?
+    let frames: [AnyHashable: CGRect]
+
+    @Environment(\.calm) private var calm
+    @State private var from: AnyHashable?
+    @State private var progress = 1.0
+
+    var body: some View {
+        let target = selected.flatMap { frames[$0] }
+        // Glass, cut to the liquid's shape: the goo needs a solid colour to find its edge, so it
+        // is drawn as the mask, and what shows through it is frosted glass a little brighter than
+        // the bar's, with light falling on it from above.
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial)
+            Color.white.opacity(0.16)
+            LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.03)], startPoint: .top, endPoint: .bottom)
+        }
+        .mask(Goo(from: from.flatMap { frames[$0] }, to: target, progress: progress))
+        .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+            .opacity(target == nil ? 0 : 1)
+            .animation(.easeOut(duration: 0.2), value: target == nil)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onChange(of: selected) { old, new in
+                // From nothing (a page that is no tab was open), it only fades back in.
+                guard let old, new != nil else {
+                    from = nil
+                    progress = 1
+                    return
+                }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) {
+                    from = old
+                    progress = 0
+                }
+                withAnimation(calm ? .easeOut(duration: 0.18) : .spring(response: 0.55, dampingFraction: 0.78)) { progress = 1 }
+            }
+    }
+}
+
+private struct Goo: View, Animatable {
+    var from: CGRect?
+    var to: CGRect?
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        Canvas { context, _ in
+            guard let to else { return }
+            // Blurred, then cut back to an edge where the blur is about half there.
+            context.addFilter(.alphaThreshold(min: 0.5, color: .white))
+            context.addFilter(.blur(radius: 5))
+            context.drawLayer { layer in
+                for piece in pieces(to: to) {
+                    layer.fill(Capsule(style: .continuous).path(in: piece), with: .color(.white))
+                }
+            }
+        }
+    }
+
+    private func pieces(to: CGRect) -> [CGRect] {
+        guard let from, from != to, progress < 1 else { return [to] }
+        let p = max(0, progress)
+        let settled = min(1, p)
+        // The leading edge runs ahead, the trailing one follows late: the pill stretches.
+        let lead = 1 - pow(1 - settled, 3) + (p - settled)
+        let trail = settled * settled
+        let right = to.midX > from.midX
+        let minX = from.minX + (to.minX - from.minX) * (right ? trail : lead)
+        let maxX = from.maxX + (to.maxX - from.maxX) * (right ? lead : trail)
+        // Thinner in the middle of its run, as liquid is when it is pulled.
+        let height = to.height * (1 - 0.32 * sin(.pi * settled))
+        let body = CGRect(x: minX, y: to.midY - height / 2, width: max(height, maxX - minX), height: height)
+        // What stays behind where it was, shrinking until the neck to it snaps.
+        let left = pow(1 - settled, 1.6)
+        let drop = CGRect(x: from.midX - from.width * left / 2, y: from.midY - from.height * left / 2,
+                          width: from.width * left, height: from.height * left)
+        return left > 0.02 ? [body, drop] : [body]
+    }
+}

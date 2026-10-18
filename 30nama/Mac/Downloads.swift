@@ -522,8 +522,6 @@ struct DownloadsView: View {
     @State private var chosen: DownloadItem.Shelf?
     /// The series whose episodes are folded out.
     @State private var unfolded: Set<String> = []
-    /// The white pill of the open part, one piece that slides between the three, as in the top bar.
-    @Namespace private var pill
     @State private var settled = false
 
     private var shelf: DownloadItem.Shelf { chosen ?? downloads.items.first?.shelf ?? .movies }
@@ -589,26 +587,22 @@ struct DownloadsView: View {
                                     .font(.app(12, .bold))
                                     .padding(.horizontal, 7)
                                     .frame(height: 20)
-                                    .background(Capsule().fill(shelf == part ? Color.black.opacity(0.12) : Color.white.opacity(0.14)))
+                                    .background(Capsule().fill(Color.white.opacity(shelf == part ? 0.22 : 0.14)))
                             }
                         }
-                        .foregroundStyle(shelf == part ? Theme.focusInk : Theme.text1.opacity(0.8))
+                        .foregroundStyle(shelf == part ? Theme.text1 : Theme.text1.opacity(0.7))
                         // Dark words on the dark glass until the pill is under them.
                         .animation(.easeOut(duration: 0.18).delay(shelf == part ? 0.14 : 0), value: shelf)
                         .padding(.horizontal, 18)
                         .frame(height: 40)
-                        .matchedGeometryEffect(id: part, in: pill)
                         .contentShape(Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .liquidTab(part)
                 }
             }
-            .background {
-                Capsule(style: .continuous)
-                    .fill(Color.white)
-                    .matchedGeometryEffect(id: shelf, in: pill, isSource: false)
-            }
-            .animation(.spring(response: 0.38, dampingFraction: 0.74), value: shelf)
+            // The open part's white pill flows to the next like a drop of liquid, as in the top bar.
+            .liquidPill(selected: AnyHashable(shelf))
             .padding(4)
             .glass(Capsule(style: .continuous))
             .fixedSize()
