@@ -10,17 +10,20 @@ struct HomeView: View {
     @Environment(\.controlActiveState) private var windowState
 
     @State private var feed: HomeFeed?
-    @State private var continuing: [Post] = []
-    /// The row's list and the pictures of its first cards are in: the stand-ins give way.
-    @State private var continueReady = false
-    /// How many of its cards are in, counted from the first.
-    @State private var continueShown = 0
+    /// Nil while the row is on its way.
+    @State private var continuing: [Post]?
     /// TMDB's week, as far as 30nama has it; filled in after the page is up.
-    @State private var trending: [Post] = []
+    /// Nil while the row is on its way.
+    @State private var trending: [Post]?
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own,
     /// so these are the first ten of the catalogue's "most popular" order.
     @State private var top: [String: [Post]] = HomeView.topCache
     private static var topCache: [String: [Post]] = [:]
+    /// The week's trending row came the last time it was asked for.
+    private static var trendingCame: Bool {
+        get { UserDefaults.standard.bool(forKey: "trendingCame") }
+        set { UserDefaults.standard.set(newValue, forKey: "trendingCame") }
+    }
     @State private var failed = false
     @State private var hero = 0
     /// The pointer is on the billboard: someone is reading it, so it should not move on.
@@ -64,7 +67,7 @@ struct HomeView: View {
         .task(id: app.contentVersion) { await load() }
         .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
             // Once the row is up; the first time is `load`'s, with its stand-ins.
-            if feed != nil, continueReady { await loadContinuing() }
+            if feed != nil, continuing != nil { continuing = await app.continueWatching() }
         }
         .environment(\.hue, light)
         .task(id: featured?.id) {
@@ -142,32 +145,24 @@ struct HomeView: View {
 
     private func shelves(_ feed: HomeFeed) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            if app.isLoggedIn, !continueReady {
-                // Stand-ins of the cards' own size in the row's own place, so the page does not
-                // jump when the row arrives.
-                Shelf(title: loc(.continueWatching), posts: CardStandIn.posts, step: 3) { _ in
-                    CardStandIn(size: ContinueCard.size)
-                }
-                .allowsHitTesting(false)
-            } else if !continuing.isEmpty {
-                Shelf(title: loc(.continueWatching), posts: continuing, step: 3) { post in
-                    let order = continuing.firstIndex { $0.id == post.id } ?? 0
+            if app.isLoggedIn {
+                ArrivingShelf(title: loc(.continueWatching), posts: continuing, step: 3, card: .wide) { post in
                     ContinueCard(post: post, remove: {
                         app.dismissContinue(post)
-                        withAnimation(Theme.glide) { continuing.removeAll { $0.id == post.id } }
+                        withAnimation(Theme.glide) { continuing?.removeAll { $0.id == post.id } }
                     }) { nav.open(post) }
-                    .opacity(order < continueShown ? 1 : 0)
-                    .offset(y: order < continueShown ? 0 : 10)
                 }
             }
-            if !trending.isEmpty {
-                Shelf(title: loc(.trendingWeek), posts: trending) { post in
+            // Its stand-ins only where it came last time: from where TMDB cannot be reached it
+            // never comes, and stand-ins that then went would move every row under them.
+            if trending != nil || HomeView.trendingCame {
+                ArrivingShelf(title: loc(.trendingWeek), posts: trending, card: .poster) { post in
                     PosterCard(post: post) { nav.open(post) }
                 }
-                .transition(.opacity)
             }
             ForEach(feed.sections) { section in
-                Shelf(title: loc.title(forSection: section.key), posts: section.posts, more: HomeView.section(for: section.key).map { target in { nav.go(target) } }) { post in
+                ArrivingShelf(title: loc.title(forSection: section.key), posts: section.posts, more: HomeView.section(for: section.key).map { target in { nav.go(target) } },
+                              card: section.key == "top_10" ? .ranked : .poster) { post in
                     if section.key == "top_10" {
                         RankedCard(rank: (section.posts.firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
                     } else {
@@ -176,8 +171,8 @@ struct HomeView: View {
                 }
                 // The two top tens sit under the first shelf, before the long lists begin.
                 if section.id == feed.sections.first?.id, feed.posts("top_10").isEmpty {
-                    ranked(loc(.topFilms), top["movies"] ?? [])
-                    ranked(loc(.topSeries), top["series"] ?? [])
+                    ranked(loc(.topFilms), top["movies"])
+                    ranked(loc(.topSeries), top["series"])
                 }
             }
         }
@@ -194,50 +189,13 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func ranked(_ title: String, _ posts: [Post]) -> some View {
-        if !posts.isEmpty {
-            Shelf(title: title, posts: posts, step: 4) { post in
-                RankedCard(rank: (posts.firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
-            }
+    private func ranked(_ title: String, _ posts: [Post]?) -> some View {
+        ArrivingShelf(title: title, posts: posts, step: 4, card: .ranked) { post in
+            RankedCard(rank: ((posts ?? []).firstIndex { $0.id == post.id } ?? 0) + 1, post: post) { nav.open(post) }
         }
     }
 
     // MARK: Data
-
-    /// The row's list, then the pictures of the cards that are in sight, then the cards one after
-    /// another. Only the first time: a later refresh changes the cards in place.
-    private func loadContinuing() async {
-        let list = await app.continueWatching()
-        if continueReady {
-            continuing = list
-            continueShown = list.count
-            return
-        }
-        // The pictures of the cards in sight, at the size the cards ask for, so they are in memory
-        // when the cards come; but a slow one holds the row up for three seconds at most.
-        let pictures = Task { @MainActor in
-            await withTaskGroup(of: Void.self) { group in
-                for post in list.prefix(5) {
-                    guard let url = post.cover ?? post.poster.big ?? post.poster.large else { continue }
-                    group.addTask { @MainActor in
-                        _ = await ImagePipeline.shared.image(url, maxPixel: Int(ContinueCard.size.width * Display.scale))
-                    }
-                }
-            }
-        }
-        await withTaskGroup(of: Void.self) { race in
-            race.addTask { await pictures.value }
-            race.addTask { try? await Task.sleep(for: .seconds(3)) }
-            _ = await race.next()
-            race.cancelAll()
-        }
-        continuing = list
-        withAnimation(.easeOut(duration: 0.2)) { continueReady = true }
-        for count in 1...max(1, list.count) {
-            withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.84)) { continueShown = count }
-            if !calm, count < 8 { try? await Task.sleep(for: .milliseconds(70)) }
-        }
-    }
 
     private func load() async {
         // Last time's page at once, so there is something to see from the first frame; the fresh
@@ -248,14 +206,16 @@ struct HomeView: View {
             feed = fresh
             failed = false
             hero = min(hero, max(0, fresh.heroes.count - 1))
-            await loadContinuing()
+            continuing = await app.continueWatching()
         } catch {
             if feed == nil { failed = true }
         }
         await loadTop()
-        if trending.isEmpty {
+        if trending == nil {
             let found = await app.trendingThisWeek()
-            if !Task.isCancelled { withAnimation(Theme.glide) { trending = found } }
+            guard !Task.isCancelled else { return }
+            trending = found
+            HomeView.trendingCame = !found.isEmpty
         }
     }
 
@@ -264,7 +224,11 @@ struct HomeView: View {
     private func loadTop() async {
         guard top.isEmpty else { return }
         for slug in ["movies", "series"] {
-            guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": "1", "page": "1", "orderby": "favorite", "order": "desc"], background: true) else { continue }
+            // Empty, not missing, when it could not be had: a missing row keeps its stand-ins.
+            guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": "1", "page": "1", "orderby": "favorite", "order": "desc"], background: true) else {
+                top[slug] = []
+                continue
+            }
             top[slug] = Array(PostPage(result).posts.prefix(10))
         }
         HomeView.topCache = top
@@ -333,6 +297,105 @@ private struct Pager: View {
         withAnimation(.easeInOut(duration: 0.55)) {
             hero = (hero + 1) % count
             turn = 0
+        }
+    }
+}
+
+/// A home row that arrives whole. Until its list and the pictures of the cards in sight are in, it
+/// stands as grey cards of its own cards' size in its own place, so nothing on the page moves when
+/// it comes; then its cards come one after another. A row with nothing in it leaves.
+private struct ArrivingShelf<Card: View>: View {
+    enum Kind {
+        case poster, ranked, wide
+
+        var size: CGSize {
+            switch self {
+            case .poster: return CGSize(width: Mac.posterWidth, height: Mac.posterWidth * 1.5)
+            case .ranked: return CGSize(width: Mac.posterWidth + 60, height: Mac.posterWidth * 1.5)
+            case .wide: return ContinueCard.size
+            }
+        }
+
+        /// The picture each kind of card shows, at the size it asks for it.
+        @MainActor
+        func picture(of post: Post) -> (url: URL?, pixels: Int) {
+            switch self {
+            case .poster, .ranked:
+                return (post.poster.url(forWidth: Mac.posterWidth * 1.1), Int(Mac.posterWidth * 1.5 * Display.scale))
+            case .wide:
+                return (post.cover ?? post.poster.big ?? post.poster.large, Int(ContinueCard.size.width * Display.scale))
+            }
+        }
+    }
+
+    let title: String
+    /// Nil while it is on its way.
+    let posts: [Post]?
+    var step = 5
+    var more: (() -> Void)? = nil
+    let card: Kind
+    @ViewBuilder let content: (Post) -> Card
+
+    @Environment(\.calm) private var calm
+    @State private var ready = false
+    /// How many of its cards are in, counted from the first.
+    @State private var shown = 0
+
+    init(title: String, posts: [Post]?, step: Int = 5, more: (() -> Void)? = nil, card: Kind, @ViewBuilder content: @escaping (Post) -> Card) {
+        self.title = title
+        self.posts = posts
+        self.step = step
+        self.more = more
+        self.card = card
+        self.content = content
+    }
+
+    var body: some View {
+        Group {
+            if !ready {
+                Shelf(title: title, posts: CardStandIn.posts, step: step) { _ in CardStandIn(size: card.size) }
+                    .allowsHitTesting(false)
+            } else if let posts, !posts.isEmpty {
+                Shelf(title: title, posts: posts, step: step, more: more) { post in
+                    let order = posts.firstIndex { $0.id == post.id } ?? 0
+                    content(post)
+                        .opacity(order < shown ? 1 : 0)
+                        .offset(y: order < shown ? 0 : 10)
+                }
+            }
+        }
+        .task(id: posts?.map(\.id)) { await arrive() }
+    }
+
+    private func arrive() async {
+        guard let posts else { return }
+        // Already up: a fresh list changes the cards where they are.
+        if ready {
+            shown = posts.count
+            return
+        }
+        let kind = card
+        let pictures = Task { @MainActor in
+            await withTaskGroup(of: Void.self) { group in
+                for post in posts.prefix(7) {
+                    let picture = kind.picture(of: post)
+                    guard let url = picture.url else { continue }
+                    group.addTask { @MainActor in _ = await ImagePipeline.shared.image(url, maxPixel: picture.pixels) }
+                }
+            }
+        }
+        // A slow picture holds the row up for three seconds at most.
+        await withTaskGroup(of: Void.self) { race in
+            race.addTask { await pictures.value }
+            race.addTask { try? await Task.sleep(for: .seconds(3)) }
+            _ = await race.next()
+            race.cancelAll()
+        }
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.2)) { ready = true }
+        for count in 1...max(1, posts.count) {
+            withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.84)) { shown = count }
+            if !calm, count < 9 { try? await Task.sleep(for: .milliseconds(60)) }
         }
     }
 }
