@@ -452,9 +452,43 @@ struct DetailsView: View {
             ForEach(rows, id: \.0) { key, value in
                 HStack(alignment: .firstTextBaseline, spacing: 16) {
                     Text(loc(key)).font(.app(14, .medium)).foregroundStyle(Theme.text3).frame(width: 110, alignment: .leading)
-                    Text(value).font(.app(15)).foregroundStyle(Theme.text1)
+                    if key == .director {
+                        // Each director leads to their other titles: 30nama's search takes a
+                        // director's name (not an actor's: it ignores the cast it lists).
+                        HStack(spacing: 0) {
+                            ForEach(Array(post.directors.enumerated()), id: \.offset) { index, name in
+                                if index > 0 { Text(loc.lang == .en ? ", " : "، ").font(.app(15)).foregroundStyle(Theme.text1) }
+                                PersonLink(name: name) { nav.open(.advancedSearch(AdvancedQuery(director: name, sort: "year"))) }
+                            }
+                        }
+                    } else {
+                        Text(value).font(.app(15)).foregroundStyle(Theme.text1)
+                    }
                 }
             }
+        }
+    }
+}
+
+/// A name that opens the titles of the person it names: underlined under the pointer, like a link.
+private struct PersonLink: View {
+    let name: String
+    let action: () -> Void
+
+    @Environment(\.hue) private var hue
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(name)
+                .font(.app(15))
+                .foregroundStyle(hovering ? (hue ?? Theme.accent) : Theme.text1)
+                .underline(hovering)
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            hovering = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
     }
 }

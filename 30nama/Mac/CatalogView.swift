@@ -313,7 +313,7 @@ struct SearchView: View {
                         field
                         HStack(spacing: 8) {
                             PillChoice(title: loc(.streamOnly), selected: streamOnly) { streamOnly.toggle() }
-                            Button { nav.open(.advancedSearch) } label: {
+                            Button { nav.open(.advancedSearch()) } label: {
                                 Label(loc(.advancedSearch), systemImage: "slider.horizontal.3")
                             }
                             .buttonStyle(GlassButtonStyle(height: 30))
