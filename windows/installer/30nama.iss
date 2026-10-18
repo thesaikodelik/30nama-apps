@@ -68,3 +68,69 @@ Name: "{autodesktop}\30nama"; Filename: "{app}\Win - 30nama.exe"; Tasks: desktop
 [Run]
 ; Also after a quiet install by the updater, which is how the new version opens again.
 Filename: "{app}\Win - 30nama.exe"; Description: "{cm:LaunchProgram,30nama}"; Flags: nowait postinstall
+
+[Code]
+// Files are replaced one by one, and Inno Setup cannot put back a file it has already replaced. A
+// file held open (an antivirus scanning it, the app still closing) used to stop it halfway, with
+// new and old files mixed and the new version number on them. So every file is checked before any
+// is touched: one still held after a wait leaves the copy as it was.
+
+function Held(const Path: String): Boolean;
+var
+  Stream: TFileStream;
+begin
+  Result := False;
+  try
+    Stream := TFileStream.Create(Path, fmOpenReadWrite or fmShareExclusive);
+    Stream.Free;
+  except
+    Result := True;
+  end;
+end;
+
+// The first file under Folder that cannot be opened for writing by this installer alone, or ''.
+function FirstHeld(const Folder: String): String;
+var
+  Found: TFindRec;
+begin
+  Result := '';
+  if not FindFirst(AddBackslash(Folder) + '*', Found) then Exit;
+  try
+    repeat
+      if (Found.Name <> '.') and (Found.Name <> '..') then
+      begin
+        if Found.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+          Result := FirstHeld(AddBackslash(Folder) + Found.Name)
+        else if Held(AddBackslash(Folder) + Found.Name) then
+          Result := AddBackslash(Folder) + Found.Name;
+      end;
+    until (Result <> '') or not FindNext(Found);
+  finally
+    FindClose(Found);
+  end;
+end;
+
+// After the apps using these files were closed (CloseApplications), before any file is copied.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Folder, Blocked: String;
+  Tries, Code: Integer;
+begin
+  if CurStep <> ssInstall then Exit;
+  Folder := ExpandConstant('{app}');
+  if not DirExists(Folder) then Exit;
+  // Fifteen seconds: the app quitting for the update, or a scan, lets go in that time.
+  for Tries := 1 to 30 do
+  begin
+    Blocked := FirstHeld(Folder);
+    if Blocked = '' then Exit;
+    Sleep(500);
+  end;
+  Log('Not installed, nothing was replaced: ' + Blocked + ' is held open by another program');
+  if not WizardSilent then
+    MsgBox('A file of 30nama is in use by another program, so nothing was changed:' + #13#10 + Blocked, mbError, MB_OK)
+  else
+    // The updater quit for this; the old version opens again, and tells of the failure itself.
+    ExecAsOriginalUser(ExpandConstant('{app}\Win - 30nama.exe'), '', Folder, SW_SHOWNORMAL, ewNoWait, Code);
+  Abort;
+end;
