@@ -49,7 +49,7 @@ Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; BeforeInstall: CheckHeld
 Source: "{#Repo}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -110,13 +110,17 @@ begin
   end;
 end;
 
-// After the apps using these files were closed (CloseApplications), before any file is copied.
-procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Checked: Boolean;
+
+// Before the first file is copied, once the apps using these files were closed (CloseApplications).
+procedure CheckHeld;
 var
   Folder, Blocked: String;
   Tries, Code: Integer;
 begin
-  if CurStep <> ssInstall then Exit;
+  if Checked then Exit;
+  Checked := True;
   Folder := ExpandConstant('{app}');
   if not DirExists(Folder) then Exit;
   // Fifteen seconds: the app quitting for the update, or a scan, lets go in that time.
@@ -127,10 +131,8 @@ begin
     Sleep(500);
   end;
   Log('Not installed, nothing was replaced: ' + Blocked + ' is held open by another program');
-  if not WizardSilent then
-    MsgBox('A file of 30nama is in use by another program, so nothing was changed:' + #13#10 + Blocked, mbError, MB_OK)
-  else
-    // The updater quit for this; the old version opens again, and tells of the failure itself.
+  // The updater quit for this; the old version opens again, and tells of the failure itself.
+  if WizardSilent then
     ExecAsOriginalUser(ExpandConstant('{app}\Win - 30nama.exe'), '', Folder, SW_SHOWNORMAL, ewNoWait, Code);
-  Abort;
+  RaiseException('A file of 30nama is in use by another program, so nothing was changed: ' + Blocked);
 end;
