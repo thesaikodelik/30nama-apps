@@ -8,8 +8,8 @@ struct AdvancedSearchView: View {
     @Environment(\.loc) private var loc
 
     @State private var choices: SearchChoices?
-    @State private var query = AdvancedQuery()
-    @State private var director = ""
+    @State private var query: AdvancedQuery
+    @State private var director: String
     @State private var posts: [Post] = []
     @State private var page = 0
     @State private var pages = 1
@@ -18,6 +18,13 @@ struct AdvancedSearchView: View {
     @State private var failed = false
 
     private let columns = [GridItem(.adaptive(minimum: Mac.posterWidth, maximum: Mac.posterWidth + 40), spacing: 20)]
+
+    /// - Parameter start: What the search opens with: nothing chosen, or a director whose name
+    ///   was clicked. Set before the page is first drawn, so only that search is sent.
+    init(start: AdvancedQuery = AdvancedQuery()) {
+        _query = State(initialValue: start)
+        _director = State(initialValue: start.director ?? "")
+    }
 
     var body: some View {
         ZStack {

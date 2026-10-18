@@ -44,7 +44,7 @@ struct SearchChoices {
 }
 
 /// An advanced search: the fields chosen, and the order the titles come in.
-struct AdvancedQuery: Equatable {
+struct AdvancedQuery: Hashable {
     static let sorts = ["relevant", "update", "year", "imdb-rate", "favorite"]
 
     var genres: [String] = []
