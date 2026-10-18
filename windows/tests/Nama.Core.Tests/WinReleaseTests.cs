@@ -91,5 +91,19 @@ public class WinReleaseTests
     }
 
     [Fact]
+    public void PendingUpdate()
+    {
+        var pending = new PendingUpdate("1.0.1", new Uri("https://example.com/r/win-v1.0.1"), new DateTime(2026, 10, 18, 9, 0, 0, DateTimeKind.Utc));
+        var read = Nama.Core.PendingUpdate.Parse(pending.ToJson())!;
+        Assert.Equal(pending, read);
+        Assert.False(read.ArrivedIn("1.0.0")); // the installer failed: the old version opened again
+        Assert.True(read.ArrivedIn("1.0.1"));
+        Assert.True(read.ArrivedIn("1.1.0"));
+        Assert.Null(Nama.Core.PendingUpdate.Parse("not json"));
+        Assert.Null(Nama.Core.PendingUpdate.Parse("{}"));
+        Assert.Null(Nama.Core.PendingUpdate.Parse(null));
+    }
+
+    [Fact]
     public void TheAppHasAKey() => Assert.Equal(32, Convert.FromBase64String(UpdateSignature.PublicKey).Length);
 }
