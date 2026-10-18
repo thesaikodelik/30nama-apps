@@ -223,7 +223,12 @@ struct MainView: View {
         }
         guard let target = DebugLaunch.open, let feed = try? await app.home() else { return }
         let pool = feed.heroes + feed.sections.flatMap(\.posts)
-        if let post = target == "first" ? pool.first : pool.first(where: { String($0.id) == target }) { nav.open(post) }
+        if let post = target == "first" ? pool.first : pool.first(where: { String($0.id) == target }) {
+            nav.open(post)
+        } else if let post = (try? await app.api.get("single", ["post_id": target])).flatMap({ Post($0) }) {
+            // Any title by its number, not only one on the home page.
+            nav.open(post)
+        }
     }
     #endif
 
