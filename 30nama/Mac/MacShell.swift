@@ -274,8 +274,6 @@ struct MainView: View {
 private struct NavBar: View {
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
-    /// The white pill of the open section is one piece that moves from tab to tab.
-    @Namespace private var pill
 
     var body: some View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
@@ -301,24 +299,15 @@ private struct NavBar: View {
             HStack(spacing: 2) {
                 // Downloads are not a place in the catalogue; they have a disc of their own beside the bar.
                 ForEach(MacSection.allCases.filter { $0 != .downloads }, id: \.self) { section in
-                    NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty, pill: pill) {
+                    NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty) {
                         nav.go(section)
                     }
+                    .liquidTab(section)
                 }
             }
-            // One pill behind all the tabs, taking the frame of the open one: it slides across
-            // and settles on the new tab, and the words change colour as it arrives.
-            .background {
-                // Only over a tab that is in the bar. Downloads has its own disc beside it, and a
-                // pill told to follow a tab the bar does not have spread over the whole bar.
-                if nav.opened.isEmpty, nav.section != .downloads {
-                    Capsule(style: .continuous)
-                        .fill(Color.white)
-                        .matchedGeometryEffect(id: nav.section, in: pill, isSource: false)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.spring(response: 0.38, dampingFraction: 0.74), value: nav.section)
+            // The open tab's white pill flows to the next like a drop of liquid. Only over a tab
+            // in the bar: Downloads has its own disc beside it.
+            .liquidPill(selected: nav.opened.isEmpty && nav.section != .downloads ? AnyHashable(nav.section) : nil)
             .padding(4)
             .glass(Capsule(style: .continuous))
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
@@ -331,7 +320,6 @@ private struct NavBar: View {
 private struct NavItem: View {
     let section: MacSection
     let selected: Bool
-    let pill: Namespace.ID
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -347,14 +335,13 @@ private struct NavItem: View {
                     Text(loc(section.title)).font(.app(15.5, .semibold))
                 }
             }
-            .foregroundStyle(selected ? Theme.focusInk : Theme.text1.opacity(hovering ? 1 : 0.78))
+            // Light on the glass pill, as on the glass around it.
+            .foregroundStyle(selected ? Theme.text1 : Theme.text1.opacity(hovering ? 1 : 0.7))
             .padding(.horizontal, section.iconOnly ? 13 : 17)
             .frame(height: 40)
             .background {
                 Capsule(style: .continuous).fill(Color.white.opacity(selected || !hovering ? 0 : 0.12))
             }
-            // Where the bar's one pill goes when this is the open tab.
-            .matchedGeometryEffect(id: section, in: pill)
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
