@@ -228,7 +228,6 @@ struct PosterCard: View {
     let action: () -> Void
 
     @Environment(\.loc) private var loc
-    @Environment(\.lively) private var lively
     @Environment(MacNav.self) private var nav: MacNav?
     @State private var hovering = false
     /// Where the card is in the window. Kept outside the view's state: it changes with every
@@ -270,21 +269,30 @@ struct PosterCard: View {
                 .clipShape(shape)
                 .overlay { shape.strokeBorder(Color.white.opacity(hovering ? 0.9 : 0.08), lineWidth: hovering ? 2 : 1) }
                 .tilting(shape)
-                // A row of resting shadows is the dearest thing to draw while a shelf scrolls, so a
-                // slow Mac gets a shadow only under the pointer.
-                .shadow(color: hovering ? post.tint.opacity(0.55) : .black.opacity(lively ? 0.4 : 0), radius: hovering ? 24 : lively ? 8 : 0, y: hovering ? 14 : lively ? 4 : 0)
+                // A shadow only under the pointer: a resting one under every poster is the dearest
+                // thing to draw while a wall scrolls, and at 120 frames a second it showed.
+                .shadow(color: hovering ? post.tint.opacity(0.55) : .clear, radius: hovering ? 24 : 0, y: hovering ? 14 : 0)
                 .scaleEffect(hovering ? 1.07 : 1)
                 .contentShape(shape)
         }
         .buttonStyle(.plain)
         // The poster is a picture: say what it is a picture of.
         .accessibilityLabel(post.year.map { "\(post.title(loc.lang)), \(loc.num($0))" } ?? post.title(loc.lang))
-        .onHover { hovering = $0 }
+        // Posters passing under a still pointer while the page scrolls do not light up one
+        // after another; the one it rests on does once the scrolling stops and the pointer moves.
+        .onHover { inside in
+            if inside, let nav, Date().timeIntervalSince(nav.lastScroll) < 0.2 { return }
+            hovering = inside
+        }
         .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { spot.frame = geo.frame(in: .named(MainView.space)) }
-                    .onChange(of: geo.frame(in: .named(MainView.space))) { _, new in spot.frame = new }
+            // Only the card under the pointer keeps track of where it is: that is the one a card
+            // opens over or a click flies from. Every card doing so ran on every frame of a scroll.
+            if hovering {
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { spot.frame = geo.frame(in: .named(MainView.space)) }
+                        .onChange(of: geo.frame(in: .named(MainView.space))) { _, new in spot.frame = new }
+                }
             }
         }
         // The pointer has come to rest here: open the card that says more about the title. Not
@@ -519,6 +527,7 @@ private struct Tilt<S: Shape>: ViewModifier {
     let degrees: Double
 
     @Environment(\.calm) private var calm
+    @Environment(MacNav.self) private var nav: MacNav?
     /// Where the pointer is on the card, 0...1 each way; nil when it is elsewhere.
     @State private var at: UnitPoint?
 
@@ -539,7 +548,10 @@ private struct Tilt<S: Shape>: ViewModifier {
             .onContinuousHover(coordinateSpace: .local) { phase in
                 guard !calm else { return }
                 switch phase {
-                case .active(let point): at = UnitPoint(x: point.x / max(1, size.width), y: point.y / max(1, size.height))
+                case .active(let point):
+                    // Not while the page scrolls under a still pointer: see `PosterCard`.
+                    if at == nil, let nav, Date().timeIntervalSince(nav.lastScroll) < 0.2 { return }
+                    at = UnitPoint(x: point.x / max(1, size.width), y: point.y / max(1, size.height))
                 case .ended: at = nil
                 }
             }
