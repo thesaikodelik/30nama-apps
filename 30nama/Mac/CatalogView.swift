@@ -156,7 +156,7 @@ struct CatalogView: View {
 }
 
 /// One filter: a pill that names the choice made, and opens the list of choices.
-private struct FilterMenu: View {
+struct FilterMenu: View {
     let title: String
     let choices: [FilterOptions.Choice]
     @Binding var selection: String?
@@ -295,6 +295,8 @@ struct SearchView: View {
     @State private var note: String?
     @State private var searching = false
     @FocusState private var typing: Bool
+    /// Only what can be watched here and now, as 30nama's own apps offer.
+    @AppStorage("searchStreamOnly") private var streamOnly = false
 
     private let columns = [GridItem(.adaptive(minimum: Mac.posterWidth, maximum: Mac.posterWidth + 40), spacing: 20)]
 
@@ -303,7 +305,17 @@ struct SearchView: View {
             AmbientBackground()
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 26) {
-                    field.frame(maxWidth: .infinity)
+                    VStack(spacing: 14) {
+                        field
+                        HStack(spacing: 8) {
+                            PillChoice(title: loc(.streamOnly), selected: streamOnly) { streamOnly.toggle() }
+                            Button { nav.open(.advancedSearch) } label: {
+                                Label(loc(.advancedSearch), systemImage: "slider.horizontal.3")
+                            }
+                            .buttonStyle(GlassButtonStyle(height: 30))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                     if let note {
                         Text(note).font(.app(16, .medium)).foregroundStyle(Theme.text2)
                     }
@@ -322,7 +334,7 @@ struct SearchView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .task(id: query) { await run(query.trimmingCharacters(in: .whitespaces)) }
+        .task(id: "\(query)|\(streamOnly)") { await run(query.trimmingCharacters(in: .whitespaces)) }
         .onAppear { typing = true }
     }
 
@@ -363,7 +375,7 @@ struct SearchView: View {
         searching = true
         defer { searching = false }
         do {
-            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": "0", "page": "1"]))
+            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": streamOnly ? "1" : "0", "page": "1"]))
             guard !Task.isCancelled else { return }
             if page.posts.isEmpty {
                 await showPopular(note: "\(loc(.nothingFor)) «\(text)»")

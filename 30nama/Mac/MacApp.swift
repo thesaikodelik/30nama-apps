@@ -32,6 +32,15 @@ struct NamaMacApp: App {
                         try? await Task.sleep(for: .seconds(3600))
                     }
                 }
+                // The account's messages, a little after the home page's requests, then every quarter
+                // of an hour; asked again at once when someone signs in or out.
+                .task(id: app.user?.id) {
+                    try? await Task.sleep(for: .seconds(10))
+                    while !Task.isCancelled {
+                        await app.refreshNotifications()
+                        try? await Task.sleep(for: .seconds(900))
+                    }
+                }
                 // A minute in, once the app is signed in and the home page has had its requests.
                 .task {
                     try? await Task.sleep(for: .seconds(60))

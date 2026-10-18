@@ -219,6 +219,7 @@ struct DetailsView: View {
                     .foregroundStyle(Theme.text2)
                 TitleArt(post: post, size: 48)
                 MetaRow(post: post).padding(.top, 2)
+                Standing(post: post)
                 Text(post.plot(loc.lang))
                     .font(.app(16))
                     .foregroundStyle(Theme.text2)
@@ -420,6 +421,8 @@ struct DetailsView: View {
         let rows: [(S, String)] = [
             (.director, post.directors), (.creator, post.creators), (.writer, post.writers),
             (.network, post.networks), (.country, post.countries),
+            (.originalLanguage, post.language.map { [$0] } ?? []), (.otherLanguages, post.otherLanguages),
+            (.budget, post.budget.map { [$0] } ?? []),
         ].compactMap { key, names in names.isEmpty ? nil : (key, names.joined(separator: loc.lang == .en ? ", " : "، ")) }
         return VStack(alignment: .leading, spacing: 10) {
             ForEach(rows, id: \.0) { key, value in
@@ -427,6 +430,66 @@ struct DetailsView: View {
                     Text(loc(key)).font(.app(14, .medium)).foregroundStyle(Theme.text3).frame(width: 110, alignment: .leading)
                     Text(value).font(.app(15)).foregroundStyle(Theme.text1)
                 }
+            }
+        }
+    }
+}
+
+/// Where the title stands, as 30nama's own apps show it: places on the top lists, an exclusive
+/// subtitle, how many people voted and keep it, and the last thing 30nama added to it.
+private struct Standing: View {
+    let post: Post
+    @Environment(\.loc) private var loc
+
+    var body: some View {
+        // Each a run of its own: Latin, digits and Persian in one string fall out of order.
+        let counts: [[String]] = [
+            post.imdbVotes.map { ["IMDb", Fmt.count($0, lang: loc.lang), loc(.votes)] },
+            post.inWatchlists.map { [Fmt.count($0, lang: loc.lang), loc(.inWatchlists)] },
+            post.inFavorites.map { [Fmt.count($0, lang: loc.lang), loc(.inFavorites)] },
+        ].compactMap { $0 }
+        let ranked = post.imdbTop250 != nil || post.siteTop100 != nil || post.exclusiveSubtitle
+        if ranked || !counts.isEmpty || post.latestUpdate != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                if ranked {
+                    HStack(spacing: 8) {
+                        if let place = post.imdbTop250 { rank(loc(.imdbTop250), place, Color(hex: 0xF5C518)) }
+                        if let place = post.siteTop100 { rank(loc(.siteTop100), place, Theme.accent) }
+                        if post.exclusiveSubtitle {
+                            Chip {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "captions.bubble.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.good)
+                                    Text(loc(.exclusiveSub))
+                                }
+                            }
+                        }
+                    }
+                }
+                if !counts.isEmpty {
+                    HStack(spacing: 10) {
+                        ForEach(counts.indices, id: \.self) { i in
+                            if i > 0 { Text("·") }
+                            HStack(spacing: 4) { ForEach(counts[i], id: \.self) { Text($0) } }
+                        }
+                    }
+                    .font(.app(13))
+                    .foregroundStyle(Theme.text3)
+                }
+                if let update = post.latestUpdate {
+                    Text("\(loc(.latestUpdate)): \([update.title, update.content].compactMap { $0 }.joined(separator: loc.lang == .en ? ", " : "، "))")
+                        .font(.app(13))
+                        .foregroundStyle(Theme.text3)
+                }
+            }
+        }
+    }
+
+    private func rank(_ list: String, _ place: Int, _ tint: Color) -> some View {
+        Chip {
+            HStack(spacing: 5) {
+                Image(systemName: "trophy.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(tint)
+                Text(list)
+                Text(loc.num("#\(place)")).environment(\.layoutDirection, .leftToRight)
             }
         }
     }

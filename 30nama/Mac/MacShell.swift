@@ -40,6 +40,7 @@ enum MacSection: Hashable, CaseIterable {
 enum MacRoute: Hashable {
     case title(Post)
     case catalog(slug: String, title: String)
+    case advancedSearch
 }
 
 /// The card that opens over a poster the pointer has rested on: the title, and where its poster
@@ -118,6 +119,7 @@ struct MainView: View {
                     switch route {
                     case .title(let post): DetailsView(preview: post)
                     case .catalog(let slug, let title): CatalogView(slug: slug, title: title)
+                    case .advancedSearch: AdvancedSearchView()
                     }
                 }
                 .id(route)
@@ -269,9 +271,11 @@ private struct NavBar: View {
 
     var body: some View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
-        // and the downloads disc of the same size balances it on the other side. So the bar stays
+        // and the downloads disc of the same size balances it on the other side (the bell, too). So the bar stays
         // centred and its items do not shift when the button comes and goes.
         HStack(spacing: 10) {
+            // Room the size of the bell on the other side, so the bar stays centred.
+            Color.clear.frame(width: 48, height: 48)
             Button { nav.back() } label: {
                 Image(systemName: "chevron.backward")
                     .font(.system(size: 15, weight: .bold))
@@ -297,6 +301,7 @@ private struct NavBar: View {
             .padding(4)
             .glass(Capsule(style: .continuous))
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
+            NotificationBell()
         }
         .animation(Theme.focusSpring, value: nav.opened.isEmpty)
     }
