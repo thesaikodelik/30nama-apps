@@ -49,7 +49,7 @@ Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; BeforeInstall: CheckHeld
+Source: "{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Repo}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -71,24 +71,28 @@ Filename: "{app}\Win - 30nama.exe"; Description: "{cm:LaunchProgram,30nama}"; Fl
 
 [Code]
 // Files are replaced one by one, and Inno Setup cannot put back a file it has already replaced. A
-// file held open (an antivirus scanning it, the app still closing) used to stop it halfway, with
-// new and old files mixed and the new version number on them. So every file is checked before any
-// is touched: one still held after a wait leaves the copy as it was.
+// file held (the app still closing, a program holding it shut to others) used to stop it halfway,
+// with new and old files mixed and the new version number on them. So every file is checked before
+// any is touched, and one still held after a wait leaves the copy as it was. Restart Manager is no
+// help here: it closes all the programs using the files or none, and an antivirus it cannot close
+// (Norton, on the computer this was tried on) makes it close none.
 
+// The file cannot be opened for writing even while sharing it with everyone: it is a running
+// program, or another program holds it shut. Antivirus handles, which share, do not count.
 function Held(const Path: String): Boolean;
 var
   Stream: TFileStream;
 begin
   Result := False;
   try
-    Stream := TFileStream.Create(Path, fmOpenReadWrite or fmShareExclusive);
+    Stream := TFileStream.Create(Path, fmOpenReadWrite or fmShareDenyNone);
     Stream.Free;
   except
     Result := True;
   end;
 end;
 
-// The first file under Folder that cannot be opened for writing by this installer alone, or ''.
+// The first file under Folder that is held, or ''.
 function FirstHeld(const Folder: String): String;
 var
   Found: TFindRec;
@@ -110,29 +114,25 @@ begin
   end;
 end;
 
-var
-  Checked: Boolean;
-
-// Before the first file is copied, once the apps using these files were closed (CloseApplications).
-procedure CheckHeld;
+// A message here stops Setup before anything is changed.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Folder, Blocked: String;
   Tries, Code: Integer;
 begin
-  if Checked then Exit;
-  Checked := True;
+  Result := '';
   Folder := ExpandConstant('{app}');
   if not DirExists(Folder) then Exit;
-  // Fifteen seconds: the app quitting for the update, or a scan, lets go in that time.
+  // Fifteen seconds: the app quitting for the update lets go in that time.
   for Tries := 1 to 30 do
   begin
     Blocked := FirstHeld(Folder);
     if Blocked = '' then Exit;
     Sleep(500);
   end;
-  Log('Not installed, nothing was replaced: ' + Blocked + ' is held open by another program');
+  Log('Not installed, nothing was replaced: ' + Blocked + ' is in use');
+  Result := 'Close 30nama (also beside the clock) and run Setup again. Nothing was changed. In use: ' + Blocked;
   // The updater quit for this; the old version opens again, and tells of the failure itself.
   if WizardSilent then
     ExecAsOriginalUser(ExpandConstant('{app}\Win - 30nama.exe'), '', Folder, SW_SHOWNORMAL, ewNoWait, Code);
-  RaiseException('A file of 30nama is in use by another program, so nothing was changed: ' + Blocked);
 end;
