@@ -43,12 +43,16 @@ public static class Images
         // Cut to its own place, so the pixel drawn past it never shows outside, whatever holds it.
         if (stretch == Stretch.UniformToFill)
             host.SizeChanged += (_, e) => host.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
-        if (Wash(blurhash) is { } wash) host.Children.Add(new Image { Source = wash, Stretch = Stretch.Fill, Margin = bleed });
+        Image? stand = null;
+        if (Wash(blurhash) is { } wash) host.Children.Add(stand = new Image { Source = wash, Stretch = Stretch.Fill, Margin = bleed });
         if (url is not null)
         {
-            var image = new Image { Stretch = stretch, Opacity = 0, Margin = bleed }.Springy(0.35);
+            // Shown at once, not faded in: the last steps of a fade left the outermost row of a
+            // wall of posters undrawn, a light line along its top and left until something redrew it.
+            var image = new Image { Stretch = stretch, Margin = bleed };
             var bitmap = new BitmapImage { DecodePixelWidth = (int)Math.Max(1, decodeWidth), DecodePixelType = DecodePixelType.Physical };
-            bitmap.ImageOpened += (_, _) => image.Opacity = 1;
+            // The blurred stand-in is done once the picture is in.
+            bitmap.ImageOpened += (_, _) => { if (stand is not null) host.Children.Remove(stand); };
             bitmap.UriSource = url;
             image.Source = bitmap;
             host.Children.Add(image);
