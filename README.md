@@ -7,7 +7,7 @@
 <p dir="rtl">برنامهٔ غیررسمی، بومی و به‌روز ۳۰نما برای مک و Apple TV، نوشته‌شده با SwiftUI.</p>
 
 <p>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.0-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.1-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
 </p>
 
 <p>
@@ -55,7 +55,7 @@
 
 ### نصب
 
-آخرین نسخه را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید (فایل `30nama-mac-2.0.0.dmg`).
+آخرین نسخه را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید (فایل `30nama-mac-2.0.1.dmg`).
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
