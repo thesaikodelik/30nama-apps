@@ -112,7 +112,9 @@ public sealed class CatalogPage : Grid
         Grid.SetColumn(sorts, 1);
         top.Children.Add(sorts);
         _header.Children.Add(top);
-        if (Type is not null && _options is { } options) _header.Children.Add(Filters(options));
+        // The filters' place is kept until they come, so the wall does not jump down under them:
+        // posters moved after they were drawn kept a light line along the wall's top and left edges.
+        if (Type is not null) _header.Children.Add(_options is { } options ? Filters(options) : new Border { Height = 30 });
     }
 
     /// <summary>
