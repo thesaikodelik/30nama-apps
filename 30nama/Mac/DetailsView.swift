@@ -481,7 +481,7 @@ struct DetailsView: View {
     }
 }
 
-/// What 30nama has lately added or mended on the title, in a thin strip under its buttons: one
+/// What 30nama has lately added or mended on the title, in a line under its buttons: one
 /// change at a time with its day, the next coming in every few seconds, round and round. Still
 /// when there is one, when motion is turned down, and when the window is not the one in use.
 private struct UpdatesTicker: View {
@@ -495,9 +495,6 @@ private struct UpdatesTicker: View {
     var body: some View {
         let update = updates[min(index, updates.count - 1)]
         HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.text3)
             HStack(spacing: 10) {
                 if let day = update.day(persian: loc.lang == .fa) {
                     Text(loc.num(day)).foregroundStyle(Theme.text3).environment(\.layoutDirection, .leftToRight)
@@ -514,11 +511,9 @@ private struct UpdatesTicker: View {
             Spacer(minLength: 0)
         }
         .font(.app(13))
-        .padding(.horizontal, 14)
-        .frame(maxWidth: 640, minHeight: 32, maxHeight: 32, alignment: .leading)
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
-        .clipShape(Capsule(style: .continuous))
+        // Just the words: the same height every time, so the page below does not move as they change.
+        .frame(maxWidth: 640, minHeight: 22, maxHeight: 22, alignment: .leading)
+        .clipped()
         .task(id: "\(updates.count)|\(windowState == .key)|\(calm)") {
             guard updates.count > 1, !calm, windowState == .key else { return }
             while !Task.isCancelled {
