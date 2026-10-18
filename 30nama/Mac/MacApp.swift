@@ -13,6 +13,7 @@ struct NamaMacApp: App {
         AppFont.register()
         #if DEBUG
         DebugLaunch.probeIfAsked()
+        DebugLaunch.fetchIfAsked()
         #endif
     }
 

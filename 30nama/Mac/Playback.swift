@@ -89,6 +89,9 @@ final class SystemPlayback: Playback {
 
     func load(_ url: URL, at position: Double?) {
         let item = AVPlayerItem(url: url)
+        // Settings' "buffer ahead"; left alone, the system picks.
+        let ahead = UserDefaults.standard.integer(forKey: "bufferAhead")
+        if ahead > 0 { item.preferredForwardBufferDuration = TimeInterval(ahead) }
         let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
             // Taller than the picture's shape: the rows are what black bars are looked for in.
@@ -433,12 +436,24 @@ final class MPVPlayback: Playback {
             // The app draws its own controls and its own subtitles, and takes the keys itself.
             ("osc", "no"), ("osd-level", "0"), ("input-default-bindings", "no"), ("input-vo-keyboard", "no"),
             ("sid", "no"), ("sub-auto", "no"), ("ytdl", "no"),
+            // Nor does it look beside the file for cover art or sound: listing the folder (the
+            // user's Downloads) asks macOS for leave, and the file waited behind the question.
+            ("cover-art-auto", "no"), ("audio-file-auto", "no"),
             // Stay alive between files, and say so when one ends.
             ("idle", "yes"), ("keep-open", "no"), ("force-window", "no"),
         ] {
             mpv_set_option_string(handle, name, value)
         }
+        // Settings' "buffer ahead": how far mpv reads past the moment on screen.
+        let ahead = UserDefaults.standard.integer(forKey: "bufferAhead")
+        if ahead > 0 {
+            for (name, value) in [("cache", "yes"), ("cache-secs", String(ahead)), ("demuxer-readahead-secs", String(ahead))] {
+                mpv_set_option_string(handle, name, value)
+            }
+        }
         #if DEBUG
+        // `NAMA_MPV_LOG=<file>`: mpv's own full log, for when it says nothing in the app's.
+        if let file = ProcessInfo.processInfo.environment["NAMA_MPV_LOG"] { mpv_set_option_string(handle, "log-file", file) }
         mpv_request_log_messages(handle, "warn")
         #else
         mpv_request_log_messages(handle, "no")
