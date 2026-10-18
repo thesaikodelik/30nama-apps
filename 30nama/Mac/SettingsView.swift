@@ -197,6 +197,12 @@ struct SettingsView: View {
                     Button(loc(.reset)) { app.update { $0.downloadFolder = nil } }.buttonStyle(GlassButtonStyle(height: 30))
                 }
             }
+            row(loc(.downloadsAtOnce)) {
+                picker([1, 2, 3, 5], selection: app.settings.downloadsAtOnce, name: { loc.num($0) }) { value in
+                    app.update { $0.downloadsAtOnce = value }
+                    downloads.applyRules()
+                }
+            }
             row(loc(.downloadSpeed)) {
                 picker([0, 1, 2, 5, 10, 20], selection: app.settings.downloadLimit,
                        name: { $0 == 0 ? loc(.unlimited) : "\(loc.num($0)) MB/s" }) { value in

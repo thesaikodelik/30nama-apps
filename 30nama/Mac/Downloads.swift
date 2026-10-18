@@ -21,6 +21,8 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var path: String?
     /// Paused by the download hours, to go on by itself when they come round.
     var held: Bool?
+    /// Waiting for its turn: only so many files come in at once (Settings), the oldest first.
+    var queued: Bool?
 
     // What it is a file of. Missing in items saved by the first version, which knew less.
     var postID: Int?
@@ -143,9 +145,14 @@ final class Downloads {
                 }
             }
         }
-        // What was coming in when the app was quit goes on now, within the rules.
+        // What was coming in when the app was quit goes on now, within the rules and in its turn.
+        for item in items where item.state == .running {
+            change(item.id) {
+                $0.state = .paused
+                $0.queued = true
+            }
+        }
         applyRules()
-        for item in items where item.state == .running && transfers[item.id] == nil { begin(item) }
         Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
@@ -168,11 +175,40 @@ final class Downloads {
                     $0.held = true
                 }
             } else if open, item.held == true {
-                change(item.id) { $0.held = nil }
-                if item.state == .paused { resume(item.id) }
+                change(item.id) {
+                    $0.held = nil
+                    $0.queued = true
+                }
             }
         }
-        save()
+        pump()
+    }
+
+    /// Starts the files waiting their turn while there is room, the one asked for first going
+    /// first: so a whole season comes in an episode at a time, in order. Stops the newest ones
+    /// again when there are more coming in than Settings now allows.
+    private func pump() {
+        defer { save() }
+        guard hoursOpen else { return }
+        let allowed = max(1, app?.settings.downloadsAtOnce ?? 1)
+        let running = items.filter { $0.state == .running }.sorted { ($0.added ?? .distantPast) < ($1.added ?? .distantPast) }
+        for extra in running.dropFirst(allowed) {
+            transfers.removeValue(forKey: extra.id)?.stop()
+            change(extra.id) {
+                $0.state = .paused
+                $0.queued = true
+            }
+        }
+        var room = allowed - min(running.count, allowed)
+        let waiting = items.filter { $0.queued == true && $0.state == .paused }.sorted { ($0.added ?? .distantPast) < ($1.added ?? .distantPast) }
+        for item in waiting where room > 0 {
+            change(item.id) {
+                $0.queued = nil
+                $0.state = .running
+            }
+            begin(item)
+            room -= 1
+        }
     }
 
     var hoursOpen: Bool {
@@ -203,14 +239,10 @@ final class Downloads {
         item.added = Date()
         item.subtitlePage = post.subtitlePages.first { $0.persian && ($0.season == nil || $0.season == file.season) }?.link
         items.removeAll { $0.fileName == file.fileName }
-        if hoursOpen {
-            items.insert(item, at: 0)
-            begin(item)
-        } else {
-            item.state = .paused
-            item.held = true
-            items.insert(item, at: 0)
-        }
+        item.state = .paused
+        item.queued = true
+        items.insert(item, at: 0)
+        pump()
         // 30nama's own subtitle when it has one; otherwise the one on the subtitle site that fits this copy.
         if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) } else { findSubtitle(item.id, quietly: true) }
         save()
@@ -241,27 +273,21 @@ final class Downloads {
         change(id) {
             $0.state = .paused
             $0.held = nil
+            $0.queued = nil
         }
-        save()
+        // Its turn goes to the next one waiting.
+        pump()
     }
 
+    /// Back in line: it starts when there is room, and outside the download hours when they come round.
     func resume(_ id: String) {
-        guard let item = items.first(where: { $0.id == id }) else { return }
-        // Outside the download hours it waits for them, as one started then would.
-        guard hoursOpen else {
-            change(id) {
-                $0.state = .paused
-                $0.held = true
-            }
-            save()
-            return
-        }
-        begin(item)
+        guard items.contains(where: { $0.id == id }) else { return }
         change(id) {
-            $0.state = .running
+            $0.state = .paused
             $0.held = nil
+            $0.queued = true
         }
-        save()
+        pump()
     }
 
     /// Stops a transfer and forgets it, or just forgets one that has ended. A finished file stays where it is.
@@ -283,7 +309,7 @@ final class Downloads {
             }
         }
         items.removeAll { $0.id == id }
-        save()
+        pump()
     }
 
     func reveal(_ item: DownloadItem) {
@@ -366,7 +392,7 @@ final class Downloads {
 
     private func ended(_ id: String, _ outcome: Transfer.Outcome) {
         guard transfers.removeValue(forKey: id) != nil, let item = items.first(where: { $0.id == id }) else { return }
-        defer { save() }
+        defer { pump() }
         switch outcome {
         case .done(let partial):
             let target = free(folder.appendingPathComponent(item.fileName))
@@ -728,7 +754,7 @@ private struct DownloadRow: View {
             }
             Spacer(minLength: 8)
             Text(status).font(.app(13, .medium)).foregroundStyle(item.state == .failed ? Theme.accent : Theme.text2).lineLimit(1)
-                .environment(\.layoutDirection, item.held == true ? (loc.lang == .en ? .leftToRight : .rightToLeft) : .leftToRight)
+                .environment(\.layoutDirection, item.held == true || item.queued == true ? (loc.lang == .en ? .leftToRight : .rightToLeft) : .leftToRight)
             if asking {
                 HStack(spacing: 6) {
                     RowChoice(title: loc(.removeFromList)) { downloads.remove(item.id) }
@@ -740,6 +766,9 @@ private struct DownloadRow: View {
             HStack(spacing: 4) {
                 switch item.state {
                 case .running:
+                    RowButton(symbol: "pause.fill", help: loc(.pause)) { downloads.pause(item.id) }
+                case .paused where item.queued == true || item.held == true:
+                    // Waiting already: the button takes it out of the line.
                     RowButton(symbol: "pause.fill", help: loc(.pause)) { downloads.pause(item.id) }
                 case .paused, .failed:
                     RowButton(symbol: "arrow.clockwise", help: loc(.resume)) { downloads.resume(item.id) }
@@ -813,7 +842,8 @@ private struct DownloadRow: View {
         switch item.state {
         case .done: return item.expected > 0 ? size(item.expected) : ""
         case .failed: return loc(.downloadFailed)
-        case .paused where item.held == true: return loc(.waitingForHours)
+        case .paused where item.held == true || (item.queued == true && !downloads.hoursOpen): return loc(.waitingForHours)
+        case .paused where item.queued == true: return loc(.queued)
         case .running, .paused:
             return item.expected > 0 ? "\(size(item.received)) / \(size(item.expected))" : size(item.received)
         }
