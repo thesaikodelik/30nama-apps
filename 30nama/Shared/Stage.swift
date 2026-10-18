@@ -73,11 +73,16 @@ struct StageView: View {
             // The first image appears as soon as it is decoded; later ones wait for focus to settle.
             if shown != nil { try? await Task.sleep(for: settle) }
             guard !Task.isCancelled, shown?.id != post.id else { return }
-            let cover = post.cover
-            guard let url = cover ?? post.poster.big ?? post.poster.large,
-                  let image = await ImagePipeline.shared.image(url, maxPixel: cover == nil ? 640 : 1920),
-                  !Task.isCancelled else { return }
-            shown = Backdrop(id: post.id, image: image, blurred: cover == nil)
+            // A scene picture the server lists may not be there; then the poster, as for a title without one.
+            var image: PlatformImage?
+            var blurred = false
+            if let cover = post.cover { image = await ImagePipeline.shared.image(cover, maxPixel: 1920) }
+            if image == nil, let poster = post.poster.big ?? post.poster.large {
+                image = await ImagePipeline.shared.image(poster, maxPixel: 640)
+                blurred = true
+            }
+            guard let image, !Task.isCancelled else { return }
+            shown = Backdrop(id: post.id, image: image, blurred: blurred)
         }
     }
 }

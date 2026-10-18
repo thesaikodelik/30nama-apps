@@ -677,7 +677,7 @@ private struct Curtain: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Color.black
-            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: 1920)
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, fallback: post.poster.big ?? post.poster.large, maxPixel: 1920)
                 .scaleEffect(near ? 1.07 : 1)
                 .clipped()
             LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
@@ -869,7 +869,7 @@ private struct EpisodePanel: View {
     private var header: some View {
         let post = engine.post
         return ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: 800)
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, fallback: post.poster.big ?? post.poster.large, maxPixel: 800)
                 .frame(height: 118)
                 .frame(maxWidth: .infinity)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24, style: .continuous))

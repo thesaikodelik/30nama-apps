@@ -379,7 +379,7 @@ struct PeekCard: View {
         let post = peek.post
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
-            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(PeekCard.size.width * Display.scale))
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, fallback: post.poster.big ?? post.poster.large, maxPixel: Int(PeekCard.size.width * Display.scale))
                 .frame(width: PeekCard.size.width, height: 194)
                 .clipped()
                 .overlay { LinearGradient(colors: [.clear, Theme.bg1.opacity(0.95)], startPoint: .center, endPoint: .bottom) }
@@ -642,7 +642,7 @@ struct ContinueCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Mac.radius + 2, style: .continuous)
         Button(action: action) {
-            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(size.width * Display.scale))
+            RemoteImage(url: post.cover ?? post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, fallback: post.poster.big ?? post.poster.large, maxPixel: Int(size.width * Display.scale))
                 .frame(width: size.width, height: size.height)
                 .overlay { LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom) }
                 .overlay(alignment: .bottomLeading) {

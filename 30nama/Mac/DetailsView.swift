@@ -319,17 +319,14 @@ struct DetailsView: View {
 
     private func episodes(_ stream: StreamResult) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                Text(loc(.episodes)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
-                if stream.seasons.count > 1 {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(stream.seasons, id: \.self) { number in
-                                PillChoice(title: "\(loc(.season)) \(loc.num(number))", selected: season == number) { season = number }
-                            }
-                        }
+            Text(loc(.episodes)).font(.app(20, .bold)).foregroundStyle(Theme.text1)
+            // On lines of their own that wrap, so every season is in sight. In a scrolling row
+            // beside the heading, a long series had its seasons cut off at the row's ends.
+            if stream.seasons.count > 1 {
+                FlowLayout(spacing: 8) {
+                    ForEach(stream.seasons, id: \.self) { number in
+                        PillChoice(title: "\(loc(.season)) \(loc.num(number))", selected: season == number) { season = number }
                     }
-                    .scrollIndicators(.hidden)
                 }
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 12)], alignment: .leading, spacing: 12) {
