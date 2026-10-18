@@ -249,8 +249,12 @@ public sealed class DownloadsPage : Grid
         DownloadItem.States.Done => item.Expected > 0 ? DownloadPicker.Size(item.Expected) : "",
         DownloadItem.States.Failed => Loc[S.downloadFailed],
         DownloadItem.States.Running when Downloads.OutsideHours && !Downloads.IsActive(item.Id) => Loc[S.waitingForHours],
-        _ => item.Expected > 0 ? $"{DownloadPicker.Size(item.Received)} / {DownloadPicker.Size(item.Expected)}" : DownloadPicker.Size(item.Received),
+        DownloadItem.States.Running when !Downloads.IsActive(item.Id) => item.Received > 0 ? $"{Loc[S.queued]} · {Progress(item)}" : Loc[S.queued],
+        _ => Progress(item),
     };
+
+    private static string Progress(DownloadItem item) =>
+        item.Expected > 0 ? $"{DownloadPicker.Size(item.Received)} / {DownloadPicker.Size(item.Expected)}" : DownloadPicker.Size(item.Received);
 
     private static Button RowButton(string glyph, string help, Action action, bool bright = false, Windows.UI.Color? tint = null)
     {

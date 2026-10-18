@@ -43,6 +43,9 @@ public sealed record Settings
     /// </summary>
     public int DownloadLimit { get; init; }
     public static readonly int[] LimitChoices = [0, 256, 512, 1024, 2048, 5120, 10240];
+    /// <summary>How many files come in at once; the rest wait their turn, in the order they were added.</summary>
+    public int DownloadsAtOnce { get; init; } = 1;
+    public static readonly int[] AtOnceChoices = [1, 2, 3, 5];
     /// <summary>Closing the window leaves the app beside the clock, as 30nama's own desktop app does by default.</summary>
     public bool KeepInTray { get; init; } = true;
     /// <summary>The hours downloads may run in, From to To in local time; none for any time. From 30nama's own desktop app.</summary>
