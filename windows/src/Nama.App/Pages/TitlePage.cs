@@ -620,9 +620,12 @@ public sealed class WrapRow : Panel
     private readonly bool _unmirrored;
 
     /// <param name="unmirrored">
-    /// Laid out left to right, with a right-to-left order placed by hand. WinUI, drawing a mirrored
-    /// panel, redraws a changed child a pixel short at its top and left: a poster fading in kept a
-    /// line there. Its children are then left to right too, and see to their own direction.
+    /// For a wall of posters, all one size. Laid out as the Mac's adaptive grid: as many columns as
+    /// fit, widened to fill the row (up to 40 points more), each poster in the middle of its column,
+    /// so the space left over is shared out and both sides of the wall match. And left to right,
+    /// with a right-to-left order placed by hand: WinUI, drawing a mirrored panel, redraws a changed
+    /// child a pixel short at its top and left, and a poster fading in kept a line there. Its
+    /// children are then left to right too, and see to their own direction.
     /// </param>
     public WrapRow(double spacing, bool unmirrored = false)
     {
@@ -633,8 +636,23 @@ public sealed class WrapRow : Panel
 
     public void Add(UIElement child) => Children.Add(child);
 
+    /// <summary>The wall's columns for a width: how many, and how wide each is.</summary>
+    private (int Count, double Width) Columns(double width, double item)
+    {
+        var count = Math.Max(1, (int)Math.Floor((width + _spacing) / (item + _spacing)));
+        return (count, Math.Min(item + 40, (width - (count - 1) * _spacing) / count));
+    }
+
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size available)
     {
+        if (_unmirrored && Children.Count > 0 && !double.IsInfinity(available.Width))
+        {
+            foreach (var child in Children) child.Measure(new Windows.Foundation.Size(available.Width, double.PositiveInfinity));
+            var item = Children[0].DesiredSize;
+            var (count, _) = Columns(available.Width, item.Width);
+            var rows = (Children.Count + count - 1) / count;
+            return new Windows.Foundation.Size(available.Width, rows * item.Height + (rows - 1) * _spacing);
+        }
         double x = 0, y = 0, rowHeight = 0, width = 0;
         foreach (var child in Children)
         {
@@ -650,13 +668,27 @@ public sealed class WrapRow : Panel
 
     protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size final)
     {
+        if (_unmirrored && Children.Count > 0)
+        {
+            var item = Children[0].DesiredSize;
+            var (count, column) = Columns(final.Width, item.Width);
+            var fromRight = AppModel.Shared.Loc.Lang.IsRtl();
+            for (var i = 0; i < Children.Count; i++)
+            {
+                var size = Children[i].DesiredSize;
+                var slot = fromRight ? count - 1 - i % count : i % count;
+                // Whole pixels: a poster half a pixel off is drawn with soft edges.
+                var left = Math.Round(slot * (column + _spacing) + (column - size.Width) / 2);
+                Children[i].Arrange(new Windows.Foundation.Rect(left, i / count * (item.Height + _spacing), size.Width, size.Height));
+            }
+            return final;
+        }
         double x = 0, y = 0, rowHeight = 0;
-        var fromRight = _unmirrored && AppModel.Shared.Loc.Lang.IsRtl();
         foreach (var child in Children)
         {
             var size = child.DesiredSize;
             if (x > 0 && x + size.Width > final.Width) { y += rowHeight + _spacing; x = 0; rowHeight = 0; }
-            child.Arrange(new Windows.Foundation.Rect(fromRight ? final.Width - x - size.Width : x, y, size.Width, size.Height));
+            child.Arrange(new Windows.Foundation.Rect(x, y, size.Width, size.Height));
             x += size.Width + _spacing;
             rowHeight = Math.Max(rowHeight, size.Height);
         }
