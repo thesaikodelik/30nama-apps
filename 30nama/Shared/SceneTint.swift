@@ -27,6 +27,25 @@ final class SceneTint {
         return found ?? post.tint
     }
 
+    /// What each title's poster gave, nil where it had no colour worth taking.
+    private var posters: [Int: Color?] = [:]
+
+    /// The poster's colour, if it has been worked out already.
+    func knownPoster(for post: Post) -> Color? { posters[post.id] ?? nil }
+
+    /// The colour of the title's own poster, for the glow behind a card that shows it: taken
+    /// from the picture the card has in memory. The blur code's colour will not do, as the
+    /// server sends the same few codes for many posters.
+    func posterColour(for post: Post, url: URL?, maxPixel: Int) async -> Color {
+        if let found = posters[post.id] { return found ?? post.tint }
+        var found: Color?
+        if let url, let image = await ImagePipeline.shared.image(url, maxPixel: maxPixel) {
+            found = SceneTint.lively(image)
+        }
+        posters[post.id] = found
+        return found ?? post.tint
+    }
+
     /// The liveliest colour in a picture: the hue that most of its bright, saturated parts share,
     /// made as vivid as the app's other lights. Nil for a picture that is all greys and shadow.
     private static func lively(_ image: PlatformImage) -> Color? {

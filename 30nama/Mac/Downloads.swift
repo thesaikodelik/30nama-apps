@@ -522,6 +522,8 @@ struct DownloadsView: View {
     @State private var chosen: DownloadItem.Shelf?
     /// The series whose episodes are folded out.
     @State private var unfolded: Set<String> = []
+    /// The white pill of the open part, one piece that slides between the three, as in the top bar.
+    @Namespace private var pill
     @State private var settled = false
 
     private var shelf: DownloadItem.Shelf { chosen ?? downloads.items.first?.shelf ?? .movies }
@@ -591,19 +593,26 @@ struct DownloadsView: View {
                             }
                         }
                         .foregroundStyle(shelf == part ? Theme.focusInk : Theme.text1.opacity(0.8))
+                        // Dark words on the dark glass until the pill is under them.
+                        .animation(.easeOut(duration: 0.18).delay(shelf == part ? 0.14 : 0), value: shelf)
                         .padding(.horizontal, 18)
                         .frame(height: 40)
-                        .background(Capsule(style: .continuous).fill(shelf == part ? Color.white : Color.clear))
+                        .matchedGeometryEffect(id: part, in: pill)
                         .contentShape(Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.white)
+                    .matchedGeometryEffect(id: shelf, in: pill, isSource: false)
+            }
+            .animation(.spring(response: 0.38, dampingFraction: 0.74), value: shelf)
             .padding(4)
             .glass(Capsule(style: .continuous))
             .fixedSize()
             .padding(.leading, 10)
-            .animation(Theme.focusSpring, value: shelf)
             Spacer(minLength: 0)
             if let free = downloads.freeSpace {
                 HStack(spacing: 4) {
