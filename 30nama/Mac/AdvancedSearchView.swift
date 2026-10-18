@@ -29,7 +29,7 @@ struct AdvancedSearchView: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
                         ForEach(posts) { post in
                             PosterCard(post: post) { nav.open(post) }
-                                .onAppear { if post.id == posts.last?.id { Task { await loadNext() } } }
+                                .onAppear { if posts.suffix(Mac.prefetch).contains(where: { $0.id == post.id }) { Task { await loadNext() } } }
                         }
                     }
                     footer

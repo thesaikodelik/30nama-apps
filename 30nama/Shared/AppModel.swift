@@ -23,6 +23,8 @@ struct Settings: Equatable {
     var downloadFolder: String?
     /// Mac only: a cap on download speed in megabytes a second; zero is none.
     var downloadLimit = 0
+    /// Mac only: how many files come in at once; the rest wait their turn, oldest first.
+    var downloadsAtOnce = 1
     /// Mac only: the hours downloads may run in (see `DownloadHours`); nil is any time.
     var downloadFrom: Int?
     var downloadTo: Int?
@@ -48,6 +50,7 @@ struct Settings: Equatable {
         if let v = d.string(forKey: "effects").flatMap(Effects.init(rawValue:)) { s.effects = v }
         s.downloadFolder = d.string(forKey: "downloadFolder")
         s.downloadLimit = max(0, d.integer(forKey: "downloadLimit"))
+        if let v = d.object(forKey: "downloadsAtOnce") as? Int, v > 0 { s.downloadsAtOnce = v }
         s.downloadFrom = (d.object(forKey: "downloadFrom") as? Int).flatMap { (0..<24).contains($0) ? $0 : nil }
         s.downloadTo = (d.object(forKey: "downloadTo") as? Int).flatMap { (0..<24).contains($0) ? $0 : nil }
         s.bufferAhead = max(0, d.integer(forKey: "bufferAhead"))
@@ -69,6 +72,7 @@ struct Settings: Equatable {
         d.set(effects.rawValue, forKey: "effects")
         d.set(downloadFolder, forKey: "downloadFolder")
         d.set(downloadLimit, forKey: "downloadLimit")
+        d.set(downloadsAtOnce, forKey: "downloadsAtOnce")
         d.set(downloadFrom, forKey: "downloadFrom")
         d.set(downloadTo, forKey: "downloadTo")
         d.set(bufferAhead, forKey: "bufferAhead")

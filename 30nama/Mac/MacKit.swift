@@ -4,6 +4,8 @@ import SwiftUI
 enum Mac {
     static let edge: CGFloat = 48
     static let posterWidth: CGFloat = 156
+    /// How many posters from the end of a wall the next page is asked for: about three rows.
+    static let prefetch = 21
     static let radius: CGFloat = 12
 }
 

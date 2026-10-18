@@ -12,15 +12,18 @@ struct CatalogView: View {
     @State private var page = 0
     @State private var pages = 1
     @State private var total: Int?
-    @State private var sort = Sort.newest
+    @State private var sort = Sort.updated
     @State private var loading = false
     @State private var failed = false
 
+    /// The orders 30nama's app API keeps to. It has no "newest" (the website's own API has, by
+    /// post id, through an action this API does not offer); any other value it is given brings
+    /// one fixed list, which was shown as "newest" until 1.2.4. Recently updated is the website's
+    /// own first choice, and for films it is the newest too.
     enum Sort: String, CaseIterable {
-        case newest = "date", popular = "favorite", updated = "update"
+        case updated = "update", popular = "favorite"
         var label: S {
             switch self {
-            case .newest: return .newest
             case .popular: return .popular
             case .updated: return .updated
             }

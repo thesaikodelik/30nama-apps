@@ -55,6 +55,8 @@ struct CommandPalette: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.1)))
                 }
                 .padding(.horizontal, 20)
+                // Left to right in every language: titles are searched by their English names.
+                .environment(\.layoutDirection, .leftToRight)
                 .frame(height: 62)
                 if !rows.isEmpty {
                     Divider().overlay(Color.white.opacity(0.1))
