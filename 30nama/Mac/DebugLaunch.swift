@@ -8,6 +8,7 @@ import Foundation
 /// - `NAMA_OPEN=first` opens the first featured title, `NAMA_OPEN=continue` the title last watched,
 ///   and `NAMA_OPEN=<post id>` one from the home feed.
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
+/// - `NAMA_MPV_LOG=<file>` has mpv write its full log there.
 /// - `NAMA_GUEST=1` opens as a guest, leaving the saved session as it is.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
 /// - `NAMA_UPDATE_FEED=<url>` reads releases from there instead of GitHub, and `NAMA_VERSION=1.1.0`
@@ -17,6 +18,57 @@ import Foundation
 ///   the file and quits without showing a window. For finding out what an action returns.
 enum DebugLaunch {
     private static let environment = ProcessInfo.processInfo.environment
+
+    /// `NAMA_FETCH=<url>` with `NAMA_FETCH_OUT=<folder>`: fetches that one file with the download
+    /// engine into the folder, writes how it went (speed every second, the end) to fetch.log
+    /// there, and ends the process. `NAMA_FETCH_LIMIT=<MB/s>` sets the speed limit.
+    static func fetchIfAsked() {
+        guard let address = environment["NAMA_FETCH"].flatMap(URL.init(string:)),
+              let out = environment["NAMA_FETCH_OUT"].map({ URL(fileURLWithPath: $0, isDirectory: true) }) else { return }
+        Transfer.limit.bytesPerSecond = (environment["NAMA_FETCH_LIMIT"].flatMap(Double.init) ?? 0) * 1_048_576
+        let log = out.appendingPathComponent("fetch.log")
+        try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: log.path, contents: nil)
+        let handle = try? FileHandle(forWritingTo: log)
+        let started = Date()
+        let lock = NSLock()
+        var last: (time: Date, bytes: Int64) = (started, 0)
+        func write(_ line: String) {
+            lock.withLock {
+                _ = try? handle?.seekToEnd()
+                try? handle?.write(contentsOf: Data((String(format: "%7.1fs ", Date().timeIntervalSince(started)) + line + "\n").utf8))
+            }
+        }
+        let transfer = Transfer(id: "fetch", address: address, folder: out, progress: { received, expected in
+            let now = Date()
+            let (since, bytes) = lock.withLock { last }
+            guard now.timeIntervalSince(since) >= 1 else { return }
+            lock.withLock { last = (now, received) }
+            let speed = Double(received - bytes) / now.timeIntervalSince(since) / 1_048_576
+            write(String(format: "%.1f / %.1f MB  %.1f MB/s", Double(received) / 1_048_576, Double(expected) / 1_048_576, speed))
+        }, finished: { outcome in
+            switch outcome {
+            case .done(let file):
+                let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? -1
+                let seconds = Date().timeIntervalSince(started)
+                write(String(format: "done: %lld bytes in %.1f s, %.1f MB/s on average", size, seconds, Double(size) / seconds / 1_048_576))
+            case .failed(let why):
+                write("failed: \(why)")
+            }
+            exit(0)
+        })
+        write("fetching \(address.host ?? "?")")
+        transfer.note = { write($0) }
+        transfer.start()
+        if let stopAfter = environment["NAMA_FETCH_STOP"].flatMap(Double.init) {
+            // Stops part way, as quitting the app would, to try going on from the record.
+            DispatchQueue.main.asyncAfter(deadline: .now() + stopAfter) {
+                transfer.stop()
+                write("stopped")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { exit(0) }
+            }
+        }
+    }
 
     /// Runs the probe, if one was asked for, and ends the process when it is done.
     static func probeIfAsked() {

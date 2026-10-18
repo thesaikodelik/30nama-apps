@@ -21,6 +21,13 @@ struct Settings: Equatable {
     var effects = Effects.auto
     /// Mac only: where downloads are put. Nil is the user's Downloads folder.
     var downloadFolder: String?
+    /// Mac only: a cap on download speed in megabytes a second; zero is none.
+    var downloadLimit = 0
+    /// Mac only: the hours downloads may run in (see `DownloadHours`); nil is any time.
+    var downloadFrom: Int?
+    var downloadTo: Int?
+    /// Mac only: how many seconds of a stream to hold ahead; zero leaves it to the player.
+    var bufferAhead = 0
     /// Use the adaptive stream instead of the highest fixed rendition.
     var preferAdaptive = false
     var reduceMotion = false
@@ -40,6 +47,10 @@ struct Settings: Equatable {
         if let v = d.string(forKey: "audioMix").flatMap(AudioMix.init(rawValue:)) { s.audioMix = v }
         if let v = d.string(forKey: "effects").flatMap(Effects.init(rawValue:)) { s.effects = v }
         s.downloadFolder = d.string(forKey: "downloadFolder")
+        s.downloadLimit = max(0, d.integer(forKey: "downloadLimit"))
+        s.downloadFrom = (d.object(forKey: "downloadFrom") as? Int).flatMap { (0..<24).contains($0) ? $0 : nil }
+        s.downloadTo = (d.object(forKey: "downloadTo") as? Int).flatMap { (0..<24).contains($0) ? $0 : nil }
+        s.bufferAhead = max(0, d.integer(forKey: "bufferAhead"))
         s.preferAdaptive = d.bool(forKey: "adaptive")
         s.reduceMotion = d.bool(forKey: "calm")
         return s
@@ -57,6 +68,10 @@ struct Settings: Equatable {
         d.set(audioMix.rawValue, forKey: "audioMix")
         d.set(effects.rawValue, forKey: "effects")
         d.set(downloadFolder, forKey: "downloadFolder")
+        d.set(downloadLimit, forKey: "downloadLimit")
+        d.set(downloadFrom, forKey: "downloadFrom")
+        d.set(downloadTo, forKey: "downloadTo")
+        d.set(bufferAhead, forKey: "bufferAhead")
         d.set(preferAdaptive, forKey: "adaptive")
         d.set(reduceMotion, forKey: "calm")
     }

@@ -19,6 +19,8 @@ struct DownloadItem: Identifiable, Codable, Equatable {
     var expected: Int64 = 0
     /// Where the finished file is.
     var path: String?
+    /// Paused by the download hours, to go on by itself when they come round.
+    var held: Bool?
 
     // What it is a file of. Missing in items saved by the first version, which knew less.
     var postID: Int?
@@ -76,8 +78,9 @@ struct DownloadItem: Identifiable, Codable, Equatable {
 
 /// Fetches files from 30nama into a folder on this Mac.
 ///
-/// The work is given to the system's background transfer service, so a download goes on while
-/// the app is closed and is picked up again when it is next opened.
+/// Each file comes over several connections at once (`Transfer`), within the speed limit and the
+/// download hours set in Settings. A download stops when the app is quit and goes on from where
+/// it was when the app is next opened.
 @MainActor
 @Observable
 final class Downloads {
@@ -90,13 +93,21 @@ final class Downloads {
     }
 
     private(set) var items: [DownloadItem] = []
-    @ObservationIgnored private var session: URLSession!
-    @ObservationIgnored private var tasks: [String: URLSessionDownloadTask] = [:]
-    @ObservationIgnored private var resumeData: [String: Data] = [:]
-    @ObservationIgnored private var lastShown: [String: Date] = [:]
+    @ObservationIgnored private var transfers: [String: Transfer] = [:]
     @ObservationIgnored private var playersByType: [String: [Player]] = [:]
-    @ObservationIgnored private let relay = Relay()
     @ObservationIgnored private weak var app: AppModel?
+
+    /// Where files are kept while they come in, with a record of which parts are here.
+    nonisolated static var partsFolder: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "30nama", isDirectory: true)
+            .appendingPathComponent("Partial downloads", isDirectory: true)
+    }
+
+    /// Room left on the disk the downloads go to, for the list to show.
+    var freeSpace: Int64? {
+        (try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+    }
 
     var running: Int { items.filter { $0.state == .running }.count }
 
@@ -117,34 +128,56 @@ final class Downloads {
                 return item
             }
         }
-        relay.owner = self
-        let configuration = URLSessionConfiguration.background(withIdentifier: (Bundle.main.bundleIdentifier ?? "30nama") + ".downloads")
-        configuration.isDiscretionary = false
-        configuration.sessionSendsLaunchEvents = false
-        session = URLSession(configuration: configuration, delegate: relay, delegateQueue: .main)
-        // Transfers the system kept going while the app was away.
-        session.getAllTasks { [weak self] found in
-            Task { @MainActor in self?.adopt(found.compactMap { $0 as? URLSessionDownloadTask }) }
+        // Versions before 1.2.5 gave downloads to the system's background service. Anything it
+        // still has would come in twice; it is stopped, and fetched here from the start.
+        let legacy = URLSession(configuration: .background(withIdentifier: (Bundle.main.bundleIdentifier ?? "30nama") + ".downloads"))
+        legacy.getAllTasks { found in
+            found.forEach { $0.cancel() }
+            legacy.invalidateAndCancel()
+        }
+        for item in items where item.state == .running || item.state == .paused {
+            if let saved = Transfer.saved(item.id, in: Downloads.partsFolder) {
+                change(item.id) {
+                    $0.received = saved.received
+                    if saved.expected > 0 { $0.expected = saved.expected }
+                }
+            }
+        }
+        // What was coming in when the app was quit goes on now, within the rules.
+        applyRules()
+        for item in items where item.state == .running && transfers[item.id] == nil { begin(item) }
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                self?.applyRules()
+            }
         }
     }
 
-    private func adopt(_ found: [URLSessionDownloadTask]) {
-        for task in found {
-            guard let id = task.taskDescription, items.contains(where: { $0.id == id }) else {
-                task.cancel()
-                continue
-            }
-            tasks[id] = task
-            change(id) {
-                $0.state = task.state == .suspended ? .paused : .running
-                $0.received = task.countOfBytesReceived
-                if task.countOfBytesExpectedToReceive > 0 { $0.expected = task.countOfBytesExpectedToReceive }
+    /// The speed limit and the download hours, as Settings has them now: called every half
+    /// minute, and at once when they are changed.
+    func applyRules() {
+        guard let settings = app?.settings else { return }
+        Transfer.limit.bytesPerSecond = Double(settings.downloadLimit) * 1_048_576
+        let open = DownloadHours.open(from: settings.downloadFrom, to: settings.downloadTo, at: Date())
+        for item in items {
+            if !open, item.state == .running {
+                transfers.removeValue(forKey: item.id)?.stop()
+                change(item.id) {
+                    $0.state = .paused
+                    $0.held = true
+                }
+            } else if open, item.held == true {
+                change(item.id) { $0.held = nil }
+                if item.state == .paused { resume(item.id) }
             }
         }
-        // Marked as running but unknown to the system: it was lost, and can be started again.
-        for item in items where item.state == .running && tasks[item.id] == nil {
-            change(item.id) { $0.state = .failed }
-        }
+        save()
+    }
+
+    var hoursOpen: Bool {
+        guard let settings = app?.settings else { return true }
+        return DownloadHours.open(from: settings.downloadFrom, to: settings.downloadTo, at: Date())
     }
 
     // MARK: Actions
@@ -170,8 +203,14 @@ final class Downloads {
         item.added = Date()
         item.subtitlePage = post.subtitlePages.first { $0.persian && ($0.season == nil || $0.season == file.season) }?.link
         items.removeAll { $0.fileName == file.fileName }
-        items.insert(item, at: 0)
-        begin(item)
+        if hoursOpen {
+            items.insert(item, at: 0)
+            begin(item)
+        } else {
+            item.state = .paused
+            item.held = true
+            items.insert(item, at: 0)
+        }
         // 30nama's own subtitle when it has one; otherwise the one on the subtitle site that fits this copy.
         if let subtitle = file.subtitle { fetchSubtitle(subtitle, for: item) } else { findSubtitle(item.id, quietly: true) }
         save()
@@ -184,27 +223,44 @@ final class Downloads {
     }
 
     private func begin(_ item: DownloadItem) {
-        let task = resumeData[item.id].map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: item.address)
-        resumeData[item.id] = nil
-        task.taskDescription = item.id
-        tasks[item.id] = task
-        task.resume()
+        transfers.removeValue(forKey: item.id)?.stop()
+        let id = item.id
+        let transfer = Transfer(id: id, address: item.address, folder: Downloads.partsFolder,
+                                progress: { received, expected in
+                                    Task { @MainActor [weak self] in self?.progressed(id, received: received, expected: expected) }
+                                },
+                                finished: { outcome in
+                                    Task { @MainActor [weak self] in self?.ended(id, outcome) }
+                                })
+        transfers[id] = transfer
+        transfer.start()
     }
 
     func pause(_ id: String) {
-        tasks[id]?.suspend()
-        change(id) { $0.state = .paused }
+        transfers.removeValue(forKey: id)?.stop()
+        change(id) {
+            $0.state = .paused
+            $0.held = nil
+        }
         save()
     }
 
     func resume(_ id: String) {
         guard let item = items.first(where: { $0.id == id }) else { return }
-        if let task = tasks[id], task.state == .suspended {
-            task.resume()
-        } else {
-            begin(item)
+        // Outside the download hours it waits for them, as one started then would.
+        guard hoursOpen else {
+            change(id) {
+                $0.state = .paused
+                $0.held = true
+            }
+            save()
+            return
         }
-        change(id) { $0.state = .running }
+        begin(item)
+        change(id) {
+            $0.state = .running
+            $0.held = nil
+        }
         save()
     }
 
@@ -212,9 +268,10 @@ final class Downloads {
     /// Takes a download off the list. A finished file stays where it is unless `trashing` says
     /// it should go too; then it and its subtitles are moved to the Trash, where they can be had back.
     func remove(_ id: String, trashing: Bool = false) {
-        tasks[id]?.cancel()
-        tasks[id] = nil
-        resumeData[id] = nil
+        transfers.removeValue(forKey: id)?.stop()
+        // Stopping writes its record once more; the folder is cleared after that.
+        let folder = Downloads.partsFolder
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) { Transfer.discard(id, in: folder) }
         if let item = items.first(where: { $0.id == id }) {
             if item.state != .done, let subtitle = item.subtitlePath {
                 // Subtitles fetched for a film that never arrived would only be litter in the folder.
@@ -298,48 +355,37 @@ final class Downloads {
 
     // MARK: What the system reports
 
-    fileprivate func progressed(_ id: String, received: Int64, expected: Int64) {
-        // A few times a second is plenty for a bar; every packet would redraw the list all day.
-        if let last = lastShown[id], Date().timeIntervalSince(last) < 0.5 { return }
-        lastShown[id] = Date()
+    private func progressed(_ id: String, received: Int64, expected: Int64) {
+        // Only from a transfer still wanted: one stopped a moment ago may still have a word in flight.
+        guard transfers[id] != nil else { return }
         change(id) {
             $0.received = received
             if expected > 0 { $0.expected = expected }
         }
     }
 
-    /// The file has arrived in a temporary place that is cleared as soon as this returns.
-    fileprivate func arrived(_ id: String, at temporary: URL, status: Int) {
-        guard let item = items.first(where: { $0.id == id }) else { return }
-        guard status < 400 else {
-            change(id) { $0.state = .failed }
-            return
-        }
-        let target = free(folder.appendingPathComponent(item.fileName))
-        do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try FileManager.default.moveItem(at: temporary, to: target)
-            change(id) {
-                $0.state = .done
-                $0.path = target.path
-                if $0.expected > 0 { $0.received = $0.expected }
-            }
-            if let app { app.showToast("\(app.loc(.downloadDone)): \(item.title)") }
-        } catch {
-            change(id) { $0.state = .failed }
-        }
-    }
-
-    fileprivate func ended(_ id: String, error: Error?) {
-        tasks[id] = nil
+    private func ended(_ id: String, _ outcome: Transfer.Outcome) {
+        guard transfers.removeValue(forKey: id) != nil, let item = items.first(where: { $0.id == id }) else { return }
         defer { save() }
-        guard let error else { return }
-        let failure = error as NSError
-        // Removing an item cancels its transfer; that is not a failure to report.
-        guard failure.code != NSURLErrorCancelled, items.contains(where: { $0.id == id }) else { return }
-        resumeData[id] = failure.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
-        change(id) { $0.state = .failed }
-        if let app { app.showToast(app.loc(.downloadFailed)) }
+        switch outcome {
+        case .done(let partial):
+            let target = free(folder.appendingPathComponent(item.fileName))
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try FileManager.default.moveItem(at: partial, to: target)
+                change(id) {
+                    $0.state = .done
+                    $0.path = target.path
+                    if $0.expected > 0 { $0.received = $0.expected }
+                }
+                if let app { app.showToast("\(app.loc(.downloadDone)): \(item.title)") }
+            } catch {
+                change(id) { $0.state = .failed }
+            }
+        case .failed:
+            change(id) { $0.state = .failed }
+            if let app { app.showToast(app.loc(.downloadFailed)) }
+        }
     }
 
     // MARK: Helpers
@@ -438,28 +484,6 @@ final class Downloads {
     }
 }
 
-/// The transfer service speaks to an Objective-C delegate; this passes what it says on.
-private final class Relay: NSObject, URLSessionDownloadDelegate {
-    @MainActor weak var owner: Downloads?
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
-                    totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let id = downloadTask.taskDescription else { return }
-        MainActor.assumeIsolated { owner?.progressed(id, received: totalBytesWritten, expected: totalBytesExpectedToWrite) }
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let id = downloadTask.taskDescription else { return }
-        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 200
-        MainActor.assumeIsolated { owner?.arrived(id, at: location, status: status) }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let id = task.taskDescription else { return }
-        MainActor.assumeIsolated { owner?.ended(id, error: error) }
-    }
-}
-
 // MARK: - The list
 
 /// Everything being fetched and everything fetched, in three parts: films, series and anime.
@@ -551,9 +575,20 @@ struct DownloadsView: View {
             }
             .padding(4)
             .glass(Capsule(style: .continuous))
+            .fixedSize()
             .padding(.leading, 10)
             .animation(Theme.focusSpring, value: shelf)
             Spacer(minLength: 0)
+            if let free = downloads.freeSpace {
+                HStack(spacing: 4) {
+                    Text(ByteCountFormatter.string(fromByteCount: free, countStyle: .file)).environment(\.layoutDirection, .leftToRight)
+                    Text(loc(.freeSpace))
+                }
+                .font(.app(13, .medium))
+                .foregroundStyle(Theme.text3)
+                .lineLimit(1)
+                .fixedSize()
+            }
             Button { NSWorkspace.shared.open(downloads.folder) } label: {
                 Label(downloads.folder.lastPathComponent, systemImage: "folder")
             }
@@ -693,7 +728,7 @@ private struct DownloadRow: View {
             }
             Spacer(minLength: 8)
             Text(status).font(.app(13, .medium)).foregroundStyle(item.state == .failed ? Theme.accent : Theme.text2).lineLimit(1)
-                .environment(\.layoutDirection, .leftToRight)
+                .environment(\.layoutDirection, item.held == true ? (loc.lang == .en ? .leftToRight : .rightToLeft) : .leftToRight)
             if asking {
                 HStack(spacing: 6) {
                     RowChoice(title: loc(.removeFromList)) { downloads.remove(item.id) }
@@ -778,6 +813,7 @@ private struct DownloadRow: View {
         switch item.state {
         case .done: return item.expected > 0 ? size(item.expected) : ""
         case .failed: return loc(.downloadFailed)
+        case .paused where item.held == true: return loc(.waitingForHours)
         case .running, .paused:
             return item.expected > 0 ? "\(size(item.received)) / \(size(item.expected))" : size(item.received)
         }

@@ -126,6 +126,13 @@ struct SettingsView: View {
             row(loc(.aroundPicture)) {
                 picker([false, true], selection: ambientLight, name: { loc($0 ? .sceneGlow : .blackBars) }) { ambientLight = $0 }
             }
+            // Read when a stream is opened, so it counts from the next one.
+            row(loc(.bufferTime)) {
+                picker([0, 15, 30, 60, 120], selection: app.settings.bufferAhead,
+                       name: { $0 == 0 ? loc(.qualityAuto) : "\(loc.num($0)) \(loc(.seconds))" }) { value in
+                    app.update { $0.bufferAhead = value }
+                }
+            }
         }
     }
 
@@ -190,6 +197,30 @@ struct SettingsView: View {
                     Button(loc(.reset)) { app.update { $0.downloadFolder = nil } }.buttonStyle(GlassButtonStyle(height: 30))
                 }
             }
+            row(loc(.downloadSpeed)) {
+                picker([0, 1, 2, 5, 10, 20], selection: app.settings.downloadLimit,
+                       name: { $0 == 0 ? loc(.unlimited) : "\(loc.num($0)) MB/s" }) { value in
+                    app.update { $0.downloadLimit = value }
+                    downloads.applyRules()
+                }
+            }
+            row(loc(.downloadHours)) {
+                hourPicker(app.settings.downloadFrom) { value in app.update { $0.downloadFrom = value } }
+                if app.settings.downloadFrom != nil || app.settings.downloadTo != nil {
+                    Text(loc(.hoursTo)).font(.app(13)).foregroundStyle(Theme.text3)
+                    hourPicker(app.settings.downloadTo) { value in app.update { $0.downloadTo = value } }
+                }
+            }
+            .help(loc(.downloadHoursHint))
+        }
+    }
+
+    /// An hour of the day, or none: any time.
+    private func hourPicker(_ selection: Int?, set: @escaping (Int?) -> Void) -> some View {
+        picker([-1] + Array(0..<24), selection: selection ?? -1,
+               name: { $0 < 0 ? loc(.anyTime) : loc.num(String(format: "%02d:00", $0)) }) { value in
+            set(value < 0 ? nil : value)
+            downloads.applyRules()
         }
     }
 
