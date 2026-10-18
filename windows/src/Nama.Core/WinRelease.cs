@@ -49,6 +49,35 @@ public sealed record WinRelease(string Version, Uri Page, Uri Installer, Uri Sig
 /// the public half of the key is here. The private half stays on the maintainer's Windows computer,
 /// apart from the Mac's key (see windows/tools/sign-update).
 /// </summary>
+/// <summary>
+/// An update handed to its installer, written down before the app quits for it. The installer runs
+/// with the app closed, so a failure there is seen only by the version that opens next: still the
+/// old one, it finds this note and knows the update did not arrive.
+/// </summary>
+public sealed record PendingUpdate(string Version, Uri Page, DateTime Started)
+{
+    /// <summary>The app now running is the update, or a later one.</summary>
+    public bool ArrivedIn(string current) => !WinRelease.IsNewer(Version, current);
+
+    public string ToJson() => System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
+    {
+        ["version"] = Version, ["page"] = Page.ToString(), ["started"] = Started.ToString("O"),
+    });
+
+    public static PendingUpdate? Parse(string? text)
+    {
+        if (text is null) return null;
+        try
+        {
+            var j = Json.Parse(System.Text.Encoding.UTF8.GetBytes(text));
+            if (j["version"].Text is not { } version || j["page"].Url is not { } page) return null;
+            var started = DateTime.TryParse(j["started"].Text, null, System.Globalization.DateTimeStyles.RoundtripKind, out var at) ? at : DateTime.MinValue;
+            return new PendingUpdate(version, page, started);
+        }
+        catch (Exception) { return null; }
+    }
+}
+
 public static class UpdateSignature
 {
     public const string PublicKey = "xRjuyDIiqPcFUhhBurXtGWMmrrwMewTZaBXAGzhEKdQ=";
