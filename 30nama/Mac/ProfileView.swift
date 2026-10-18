@@ -94,6 +94,17 @@ struct ProfileView: View {
                 if let user = app.user, let line = loc.subscriptionLine(user) {
                     Text(line).font(.app(13)).foregroundStyle(Theme.text3)
                 }
+                // A guest otherwise had no way in from here but the settings.
+                if app.user == nil {
+                    Text(loc(.signInHint))
+                        .font(.app(14))
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { app.requestSignIn() } label: {
+                        Label(loc(.signIn), systemImage: "person.crop.circle.badge.checkmark")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
             }
             Spacer(minLength: 0)
         }

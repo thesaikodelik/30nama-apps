@@ -42,4 +42,23 @@ final class MacReleaseTests: XCTestCase {
         XCTAssertFalse(UpdateSignature.isValid(signature, for: data), "signed with another key than the app's")
         XCTAssertFalse(UpdateSignature.isValid("not base64", for: data, publicKey: publicKey))
     }
+
+    func testPendingUpdate() throws {
+        let pending = PendingUpdate(version: "1.2.4", page: URL(string: "https://example.com/r/mac-v1.2.4")!)
+        let read = try XCTUnwrap(PendingUpdate(data: pending.data))
+        XCTAssertEqual(read, pending)
+        XCTAssertTrue(read.arrived(in: "1.2.4"))
+        XCTAssertTrue(read.arrived(in: "1.3.0"), "a later version came in the meantime")
+        XCTAssertFalse(read.arrived(in: "1.2.3"), "still the old app: the update did not arrive")
+        XCTAssertNil(PendingUpdate(data: Data("not json".utf8)))
+        XCTAssertNil(PendingUpdate(data: Data("{}".utf8)))
+        XCTAssertNil(PendingUpdate(data: nil))
+    }
+
+    func testMountPointFromHdiutil() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "hdiutil_attach", withExtension: "plist", subdirectory: "Fixtures"))
+        let mount = DiskImage.mountPoint(inAttachOutput: try Data(contentsOf: url))
+        XCTAssertEqual(mount?.path, "/Volumes/30nama 1", "the name hdiutil chose, not the one asked for")
+        XCTAssertNil(DiskImage.mountPoint(inAttachOutput: Data("hdiutil: attach failed".utf8)))
+    }
 }

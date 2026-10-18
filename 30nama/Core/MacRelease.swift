@@ -48,3 +48,39 @@ enum UpdateSignature {
         return key.isValidSignature(signature, for: data)
     }
 }
+
+/// An update swapped in just before the app quit for it, written down first. The version that
+/// opens next can then tell whether it arrived: if that is still the old one, the update went
+/// wrong after the app was gone, with nothing open to say so.
+struct PendingUpdate: Equatable {
+    let version: String
+    let page: URL
+
+    /// The app now running is the update, or a later one.
+    func arrived(in current: String) -> Bool { !MacRelease.isNewer(version, than: current) }
+
+    var data: Data {
+        (try? JSONSerialization.data(withJSONObject: ["version": version, "page": page.absoluteString])) ?? Data()
+    }
+
+    init(version: String, page: URL) {
+        self.version = version
+        self.page = page
+    }
+
+    init?(data: Data?) {
+        guard let data, let j = try? JSON.parse(data), let version = j["version"].text, let page = j["page"].url else { return nil }
+        self.init(version: version, page: page)
+    }
+}
+
+enum DiskImage {
+    /// Where `hdiutil attach -plist` says the image's volume went. Not a fixed place: a volume
+    /// of the same name already open (the user's own copy of the image) makes it "30nama 1".
+    static func mountPoint(inAttachOutput data: Data) -> URL? {
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let entities = plist["system-entities"] as? [[String: Any]],
+              let path = entities.lazy.compactMap({ $0["mount-point"] as? String }).first else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+}
