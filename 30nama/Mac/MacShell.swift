@@ -304,10 +304,14 @@ private struct NavBar: View {
             // One pill behind all the tabs, taking the frame of the open one: it slides across
             // and settles on the new tab, and the words change colour as it arrives.
             .background {
-                Capsule(style: .continuous)
-                    .fill(Color.white)
-                    .matchedGeometryEffect(id: nav.section, in: pill, isSource: false)
-                    .opacity(nav.opened.isEmpty ? 1 : 0)
+                // Only over a tab that is in the bar. Downloads has its own disc beside it, and a
+                // pill told to follow a tab the bar does not have spread over the whole bar.
+                if nav.opened.isEmpty, nav.section != .downloads {
+                    Capsule(style: .continuous)
+                        .fill(Color.white)
+                        .matchedGeometryEffect(id: nav.section, in: pill, isSource: false)
+                        .transition(.opacity)
+                }
             }
             .animation(.spring(response: 0.38, dampingFraction: 0.74), value: nav.section)
             .padding(4)
