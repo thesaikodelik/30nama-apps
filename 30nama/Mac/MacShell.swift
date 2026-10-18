@@ -268,6 +268,8 @@ struct MainView: View {
 private struct NavBar: View {
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
+    /// The white pill of the open section is one piece that moves from tab to tab.
+    @Namespace private var pill
 
     var body: some View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
@@ -293,11 +295,20 @@ private struct NavBar: View {
             HStack(spacing: 2) {
                 // Downloads are not a place in the catalogue; they have a disc of their own beside the bar.
                 ForEach(MacSection.allCases.filter { $0 != .downloads }, id: \.self) { section in
-                    NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty) {
+                    NavItem(section: section, selected: nav.section == section && nav.opened.isEmpty, pill: pill) {
                         nav.go(section)
                     }
                 }
             }
+            // One pill behind all the tabs, taking the frame of the open one: it slides across
+            // and settles on the new tab, and the words change colour as it arrives.
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.white)
+                    .matchedGeometryEffect(id: nav.section, in: pill, isSource: false)
+                    .opacity(nav.opened.isEmpty ? 1 : 0)
+            }
+            .animation(.spring(response: 0.38, dampingFraction: 0.74), value: nav.section)
             .padding(4)
             .glass(Capsule(style: .continuous))
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
@@ -310,6 +321,7 @@ private struct NavBar: View {
 private struct NavItem: View {
     let section: MacSection
     let selected: Bool
+    let pill: Namespace.ID
     let action: () -> Void
 
     @Environment(\.loc) private var loc
@@ -329,14 +341,17 @@ private struct NavItem: View {
             .padding(.horizontal, section.iconOnly ? 13 : 17)
             .frame(height: 40)
             .background {
-                Capsule(style: .continuous).fill(selected ? Color.white : Color.white.opacity(hovering ? 0.12 : 0))
+                Capsule(style: .continuous).fill(Color.white.opacity(selected || !hovering ? 0 : 0.12))
             }
+            // Where the bar's one pill goes when this is the open tab.
+            .matchedGeometryEffect(id: section, in: pill)
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.16), value: hovering)
-        .animation(Theme.focusSpring, value: selected)
+        // Dark words on the dark bar until the pill is under them: the new tab's change waits for it.
+        .animation(.easeOut(duration: 0.18).delay(selected ? 0.14 : 0), value: selected)
         .help(loc(section.title))
         .accessibilityLabel(loc(section.title))
         .accessibilityAddTraits(selected ? .isSelected : [])
