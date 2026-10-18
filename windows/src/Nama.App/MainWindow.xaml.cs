@@ -229,11 +229,13 @@ public sealed partial class MainWindow : Window
         _splash = new SplashCurtain();
         _root.Children.Add(_splash);
         // The app behind settles into place as the glass parts.
+        void Centre(object sender, SizeChangedEventArgs e) =>
+            ((UIElement)sender).CenterPoint = new System.Numerics.Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
         foreach (var layer in new[] { _page, _route })
         {
             layer.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromSeconds(0.9) };
             layer.Scale = new System.Numerics.Vector3(1.03f, 1.03f, 1);
-            layer.SizeChanged += (_, e) => layer.CenterPoint = new System.Numerics.Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
+            layer.SizeChanged += Centre;
         }
         var watch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _splash.Loaded += (_, _) => _splashClock.Start();
@@ -247,6 +249,23 @@ public sealed partial class MainWindow : Window
             if (played < 2.8 || (waiting && played < 5.3)) return;
             watch.Stop();
             foreach (var layer in new[] { _page, _route }) layer.Scale = System.Numerics.Vector3.One;
+            // Once settled, the layers carry no transform at all. Left with one, even at a scale of 1
+            // about a centre on a half pixel (an odd window height), the whole app was drawn half a
+            // pixel off: edges came out half covered, and a change inside a card redrew only whole
+            // pixels, leaving a line along the top and left of a wall of posters.
+            var settled = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            settled.Tick += (_, _) =>
+            {
+                settled.Stop();
+                foreach (var layer in new[] { _page, _route })
+                {
+                    layer.SizeChanged -= Centre;
+                    layer.ScaleTransition = null;
+                    layer.Scale = System.Numerics.Vector3.One;
+                    layer.CenterPoint = default;
+                }
+            };
+            settled.Start();
             splash.Leave(() =>
             {
                 _root.Children.Remove(splash);

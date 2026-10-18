@@ -617,8 +617,19 @@ public sealed class TitlePage : Grid
 public sealed class WrapRow : Panel
 {
     private readonly double _spacing;
+    private readonly bool _unmirrored;
 
-    public WrapRow(double spacing) => _spacing = spacing;
+    /// <param name="unmirrored">
+    /// Laid out left to right, with a right-to-left order placed by hand. WinUI, drawing a mirrored
+    /// panel, redraws a changed child a pixel short at its top and left: a poster fading in kept a
+    /// line there. Its children are then left to right too, and see to their own direction.
+    /// </param>
+    public WrapRow(double spacing, bool unmirrored = false)
+    {
+        _spacing = spacing;
+        _unmirrored = unmirrored;
+        if (unmirrored) FlowDirection = FlowDirection.LeftToRight;
+    }
 
     public void Add(UIElement child) => Children.Add(child);
 
@@ -640,11 +651,12 @@ public sealed class WrapRow : Panel
     protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size final)
     {
         double x = 0, y = 0, rowHeight = 0;
+        var fromRight = _unmirrored && AppModel.Shared.Loc.Lang.IsRtl();
         foreach (var child in Children)
         {
             var size = child.DesiredSize;
             if (x > 0 && x + size.Width > final.Width) { y += rowHeight + _spacing; x = 0; rowHeight = 0; }
-            child.Arrange(new Windows.Foundation.Rect(x, y, size.Width, size.Height));
+            child.Arrange(new Windows.Foundation.Rect(fromRight ? final.Width - x - size.Width : x, y, size.Width, size.Height));
             x += size.Width + _spacing;
             rowHeight = Math.Max(rowHeight, size.Height);
         }
