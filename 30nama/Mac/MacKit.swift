@@ -637,7 +637,8 @@ struct ContinueCard: View {
     @Environment(\.loc) private var loc
     @State private var hovering = false
 
-    private let size = CGSize(width: 288, height: 162)
+    static let size = CGSize(width: 288, height: 162)
+    private var size: CGSize { ContinueCard.size }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Mac.radius + 2, style: .continuous)
@@ -930,5 +931,28 @@ private struct Arrival: ViewModifier {
             .opacity(shown ? 1 : 0)
             .blur(radius: shown ? 0 : 12)
             .offset(y: shown ? 0 : 14)
+    }
+}
+
+/// A grey card of a real card's size, standing in its place while the row is on its way.
+struct CardStandIn: View {
+    let size: CGSize
+
+    @Environment(\.lively) private var lively
+    @State private var bright = false
+
+    /// Titles that are no titles, for a row of stand-ins to be laid out like a real one.
+    static let posts: [Post] = (1...5).compactMap { Post(JSON(["id": -$0] as [String: Any])) }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: Mac.radius + 2, style: .continuous)
+            .fill(Color.white.opacity(bright ? 0.09 : 0.05))
+            .frame(width: size.width, height: size.height)
+            // A slow breath where motion is affordable; elsewhere it holds still.
+            .onAppear {
+                guard lively else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { bright = true }
+            }
+            .accessibilityHidden(true)
     }
 }

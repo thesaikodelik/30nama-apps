@@ -11,6 +11,10 @@ struct HomeView: View {
 
     @State private var feed: HomeFeed?
     @State private var continuing: [Post] = []
+    /// The row's list and the pictures of its first cards are in: the stand-ins give way.
+    @State private var continueReady = false
+    /// How many of its cards are in, counted from the first.
+    @State private var continueShown = 0
     /// TMDB's week, as far as 30nama has it; filled in after the page is up.
     @State private var trending: [Post] = []
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own,
@@ -59,7 +63,8 @@ struct HomeView: View {
         }
         .task(id: app.contentVersion) { await load() }
         .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
-            if feed != nil { continuing = await app.continueWatching() }
+            // Once the row is up; the first time is `load`'s, with its stand-ins.
+            if feed != nil, continueReady { await loadContinuing() }
         }
         .environment(\.hue, light)
         .task(id: featured?.id) {
@@ -137,12 +142,22 @@ struct HomeView: View {
 
     private func shelves(_ feed: HomeFeed) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            if !continuing.isEmpty {
+            if app.isLoggedIn, !continueReady {
+                // Stand-ins of the cards' own size in the row's own place, so the page does not
+                // jump when the row arrives.
+                Shelf(title: loc(.continueWatching), posts: CardStandIn.posts, step: 3) { _ in
+                    CardStandIn(size: ContinueCard.size)
+                }
+                .allowsHitTesting(false)
+            } else if !continuing.isEmpty {
                 Shelf(title: loc(.continueWatching), posts: continuing, step: 3) { post in
+                    let order = continuing.firstIndex { $0.id == post.id } ?? 0
                     ContinueCard(post: post, remove: {
                         app.dismissContinue(post)
                         withAnimation(Theme.glide) { continuing.removeAll { $0.id == post.id } }
                     }) { nav.open(post) }
+                    .opacity(order < continueShown ? 1 : 0)
+                    .offset(y: order < continueShown ? 0 : 10)
                 }
             }
             if !trending.isEmpty {
@@ -189,6 +204,41 @@ struct HomeView: View {
 
     // MARK: Data
 
+    /// The row's list, then the pictures of the cards that are in sight, then the cards one after
+    /// another. Only the first time: a later refresh changes the cards in place.
+    private func loadContinuing() async {
+        let list = await app.continueWatching()
+        if continueReady {
+            continuing = list
+            continueShown = list.count
+            return
+        }
+        // The pictures of the cards in sight, at the size the cards ask for, so they are in memory
+        // when the cards come; but a slow one holds the row up for three seconds at most.
+        let pictures = Task { @MainActor in
+            await withTaskGroup(of: Void.self) { group in
+                for post in list.prefix(5) {
+                    guard let url = post.cover ?? post.poster.big ?? post.poster.large else { continue }
+                    group.addTask { @MainActor in
+                        _ = await ImagePipeline.shared.image(url, maxPixel: Int(ContinueCard.size.width * Display.scale))
+                    }
+                }
+            }
+        }
+        await withTaskGroup(of: Void.self) { race in
+            race.addTask { await pictures.value }
+            race.addTask { try? await Task.sleep(for: .seconds(3)) }
+            _ = await race.next()
+            race.cancelAll()
+        }
+        continuing = list
+        withAnimation(.easeOut(duration: 0.2)) { continueReady = true }
+        for count in 1...max(1, list.count) {
+            withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.84)) { continueShown = count }
+            if !calm, count < 8 { try? await Task.sleep(for: .milliseconds(70)) }
+        }
+    }
+
     private func load() async {
         // Last time's page at once, so there is something to see from the first frame; the fresh
         // one replaces it when it comes.
@@ -198,7 +248,7 @@ struct HomeView: View {
             feed = fresh
             failed = false
             hero = min(hero, max(0, fresh.heroes.count - 1))
-            continuing = await app.continueWatching()
+            await loadContinuing()
         } catch {
             if feed == nil { failed = true }
         }
