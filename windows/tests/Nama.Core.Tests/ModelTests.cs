@@ -183,6 +183,10 @@ public class ModelTests
         Assert.DoesNotContain("Mandarin", series.OtherLanguages); // the primary language is not repeated
         Assert.Equal("اضافه شدن قسمت جدید", series.LatestUpdate?.Title);
         Assert.Equal("اپیزود 10 فصل 3", series.LatestUpdate?.Content);
+        Assert.Equal(2, series.Updates.Count); // the whole history, newest first
+        Assert.Equal("اپیزود 9 فصل 3", series.Updates[^1].Content);
+        Assert.Equal("۱۴۰۵-۰۷-۱۷", series.Updates[0].Day(persian: true));
+        Assert.Equal("2026-10-09", series.Updates[0].Day(persian: false));
         Assert.Equal(12, Post.Parse(Json.Parse("""{"id":1,"score":{"imdb":{"top_250":"12"}}}"""))!.ImdbTop250);
     }
 

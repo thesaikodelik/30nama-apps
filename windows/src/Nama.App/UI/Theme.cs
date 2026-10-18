@@ -34,6 +34,11 @@ public static class Theme
     /// <summary>How far the bar of sections sits below the top of the window, clear of its edge.</summary>
     public const double BarTop = 24;
     public const double PosterWidth = 156;
+    /// <summary>
+    /// How far from the end of a wall of posters the next page is asked for: about three rows, so
+    /// it is in by the time the wall runs out.
+    /// </summary>
+    public const double Prefetch = 3 * (PosterWidth * 1.5 + 20);
     public const double Radius = 12;
 
     public static Color Hex(uint hex, double alpha = 1) =>

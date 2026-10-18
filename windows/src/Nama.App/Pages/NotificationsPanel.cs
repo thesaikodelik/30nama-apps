@@ -47,8 +47,8 @@ public sealed class NotificationsPanel : Grid
         var row = new Grid { ColumnSpacing = 10 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Children.Add(Theme.Text(Loc[Extra.notifications], 18, FontWeights.Bold));
-        var mark = Kit.Glass(Loc[Extra.markAllRead], null, () => { _ = App.MarkReadAsync("all"); Render(); }, height: 30);
+        row.Children.Add(Theme.Text(Loc[S.notifications], 18, FontWeights.Bold));
+        var mark = Kit.Glass(Loc[S.markAllRead], null, () => { _ = App.MarkReadAsync("all"); Render(); }, height: 30);
         SetColumn(mark, 1);
         row.Children.Add(mark);
         return row;
@@ -58,13 +58,13 @@ public sealed class NotificationsPanel : Grid
     {
         _list.Children.Clear();
         var pills = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 6) };
-        pills.Children.Add(Kit.Pill(Loc[Extra.unread], !_earlier, () => { _earlier = false; Render(); }));
-        pills.Children.Add(Kit.Pill(Loc[Extra.earlier], _earlier, () => { _earlier = true; Render(); }));
+        pills.Children.Add(Kit.Pill(Loc[S.unread], !_earlier, () => { _earlier = false; Render(); }));
+        pills.Children.Add(Kit.Pill(Loc[S.earlier], _earlier, () => { _earlier = true; Render(); }));
         _list.Children.Add(pills);
         var shown = App.Notifications?.Items.Where(n => n.Read == _earlier).ToList() ?? [];
         if (shown.Count == 0)
         {
-            var none = Theme.Text(Loc[Extra.noNotifications], 15, FontWeights.Medium, Theme.Text3);
+            var none = Theme.Text(Loc[S.noNotifications], 15, FontWeights.Medium, Theme.Text3);
             none.HorizontalAlignment = HorizontalAlignment.Center;
             none.Margin = new Thickness(0, 30, 0, 30);
             _list.Children.Add(none);

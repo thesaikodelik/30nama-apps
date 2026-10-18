@@ -4,8 +4,9 @@ namespace Nama.Core;
 /// A message 30nama sends to the account: news, a title that arrived, an offer.
 ///
 /// The shape is read from what 30nama's own desktop app reads (`notification`, answered with
-/// <c>{notifications, total_unread, page}</c>); no answer of the server's own has been seen yet,
-/// so every field is optional and the date is taken in any of the forms the API uses elsewhere.
+/// <c>{notifications, total_unread, page}</c>). The server's own answer has been seen only for an
+/// account with none (<c>{notifications: [], page, pages, total, total_unread}</c>), so every
+/// field of a message is optional and the date is taken in any of the forms the API uses elsewhere.
 /// </summary>
 public sealed record AccountNotification
 {

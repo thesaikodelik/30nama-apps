@@ -34,9 +34,11 @@ public sealed class AdvancedSearchPage : Grid
     /// <summary>Bumped when the query changes, so an answer to the old one is dropped.</summary>
     private int _generation;
 
-    public AdvancedSearchPage(Nav nav)
+    /// <param name="start">What the search opens with: nothing chosen, or a director whose name was clicked.</param>
+    public AdvancedSearchPage(Nav nav, AdvancedQuery? start = null)
     {
         _nav = nav;
+        _query = start ?? new AdvancedQuery();
         Children.Add(Kit.Ambient());
         var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
         column.Children.Add(_header);
@@ -47,7 +49,7 @@ public sealed class AdvancedSearchPage : Grid
         // Near the end of the wall is the cue to fetch the next page.
         _scroller.ViewChanged += (_, _) =>
         {
-            if (_scroller.VerticalOffset > _scroller.ScrollableHeight - 900) _ = LoadNextAsync();
+            if (_scroller.ScrollableHeight - _scroller.VerticalOffset < Theme.Prefetch) _ = LoadNextAsync();
         };
         RenderHeader();
         _ = LoadChoicesAsync();
@@ -77,7 +79,7 @@ public sealed class AdvancedSearchPage : Grid
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var name = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        name.Children.Add(Theme.Text(Loc[Extra.advancedSearch], 34, FontWeights.Bold));
+        name.Children.Add(Theme.Text(Loc[S.advancedSearch], 34, FontWeights.Bold));
         if (_total is { } total)
         {
             var count = Theme.Text($"{Fmt.Count(total, Loc.Lang)} {Loc[S.results]}", 15, FontWeights.Medium, Theme.Text3);
@@ -92,7 +94,7 @@ public sealed class AdvancedSearchPage : Grid
         Grid.SetColumn(sorts, 1);
         top.Children.Add(sorts);
         _header.Children.Add(top);
-        var hint = Theme.Text(Loc[Extra.advancedHint], 14, color: Theme.Text3);
+        var hint = Theme.Text(Loc[S.advancedHint], 14, color: Theme.Text3);
         hint.Margin = new Thickness(0, -10, 0, 0);
         _header.Children.Add(hint);
         if (_choices is { } choices) _header.Children.Add(Filters(choices));
@@ -101,23 +103,23 @@ public sealed class AdvancedSearchPage : Grid
     private static string SortName(string sort) => sort switch
     {
         "update" => Loc[S.updated],
-        "year" => Loc[Extra.byYear],
+        "year" => Loc[S.byYear],
         "imdb-rate" => "IMDb",
         "favorite" => Loc[S.popular],
-        _ => Loc[Extra.relevance],
+        _ => Loc[S.relevance],
     };
 
     private FrameworkElement Filters(SearchChoices choices)
     {
         var rows = new StackPanel { Spacing = 12 };
         var menus = new WrapRow(8);
-        menus.Add(Menu(Loc[Extra.kind], choices.Types, _query.Type, v => q => q with { Type = v }));
+        menus.Add(Menu(Loc[S.kind], choices.Types, _query.Type, v => q => q with { Type = v }));
         menus.Add(GenreMenu(choices.Genres));
         menus.Add(Menu(Loc[S.country], choices.Countries, _query.Country, v => q => q with { Country = v }));
         menus.Add(Menu(Loc[S.language], choices.Languages, _query.Language, v => q => q with { Language = v }));
         menus.Add(Menu(Loc[S.network], choices.Networks, _query.Network, v => q => q with { Network = v }));
         menus.Add(Menu(Loc[S.minScore], choices.Scores, _query.Score, v => q => q with { Score = v }));
-        menus.Add(Menu(Loc[Extra.ageRating], choices.Ages, _query.Age, v => q => q with { Age = v }));
+        menus.Add(Menu(Loc[S.ageRating], choices.Ages, _query.Age, v => q => q with { Age = v }));
         rows.Children.Add(menus);
 
         var more = new WrapRow(14);
@@ -125,7 +127,7 @@ public sealed class AdvancedSearchPage : Grid
         more.Add(Director());
         more.Add(Switch("x265", _query.X265, on => q => q with { X265 = on }));
         more.Add(Switch("3D", _query.ThreeD, on => q => q with { ThreeD = on }));
-        more.Add(Switch(Loc[Extra.streamOnly], _query.StreamOnly, on => q => q with { StreamOnly = on }));
+        more.Add(Switch(Loc[S.streamOnly], _query.StreamOnly, on => q => q with { StreamOnly = on }));
         if (_query.Count > 0)
         {
             var reset = Kit.Glass(Loc[S.reset], null, () => Change(q => new AdvancedQuery { Sort = q.Sort, StreamOnly = q.StreamOnly }), height: 34);
@@ -210,11 +212,11 @@ public sealed class AdvancedSearchPage : Grid
     private FrameworkElement Years()
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        var label = Theme.Text(Loc[Extra.years], 13, FontWeights.SemiBold, Theme.Text2);
+        var label = Theme.Text(Loc[S.years], 13, FontWeights.SemiBold, Theme.Text2);
         label.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(label);
         row.Children.Add(YearBox(_query.FromYear, "1950", y => q => q with { FromYear = y }));
-        var to = Theme.Text(Loc[Extra.hoursTo], 13, color: Theme.Text3);
+        var to = Theme.Text(Loc[S.hoursTo], 13, color: Theme.Text3);
         to.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(to);
         row.Children.Add(YearBox(_query.ToYear, DateTime.Now.Year.ToString(), y => q => q with { ToYear = y }));
@@ -240,7 +242,7 @@ public sealed class AdvancedSearchPage : Grid
 
     private TextBox Director()
     {
-        var box = Field(_query.Director ?? "", Loc[Extra.directorName], 200);
+        var box = Field(_query.Director ?? "", Loc[S.directorName], 200);
         void Apply()
         {
             var name = string.IsNullOrWhiteSpace(box.Text) ? null : box.Text.Trim();
@@ -313,7 +315,7 @@ public sealed class AdvancedSearchPage : Grid
             RenderFooter();
         }
         // A wall shorter than the window gives nothing to scroll: the next page is fetched at once.
-        if (generation == _generation && !_failed && _scroller.ScrollableHeight < 200 && _page < _pages) await LoadNextAsync();
+        if (generation == _generation && !_failed && _scroller.ScrollableHeight < Theme.Prefetch && _page < _pages) await LoadNextAsync();
     }
 
     private void RenderFooter()
@@ -328,7 +330,7 @@ public sealed class AdvancedSearchPage : Grid
         else if (_loading) _footer.Children.Add(Kit.Spinner());
         else if (_posts.Count == 0)
         {
-            var none = Theme.Text(Loc[Extra.noMatches], 16, FontWeights.Medium, Theme.Text2);
+            var none = Theme.Text(Loc[S.noMatches], 16, FontWeights.Medium, Theme.Text2);
             none.HorizontalAlignment = HorizontalAlignment.Center;
             _footer.Children.Add(none);
         }

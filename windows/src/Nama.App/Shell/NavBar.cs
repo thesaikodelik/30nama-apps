@@ -81,8 +81,8 @@ public sealed class NavBar : StackPanel
         };
         button.PointerEntered += (_, _) => face.Background = Theme.White(0.12);
         button.PointerExited += (_, _) => face.Background = Theme.White(0);
-        ToolTipService.SetToolTip(button, loc[Extra.notifications]);
-        Kit.AutomationName(button, loc[Extra.notifications]);
+        ToolTipService.SetToolTip(button, loc[S.notifications]);
+        Kit.AutomationName(button, loc[S.notifications]);
         return button;
     }
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };

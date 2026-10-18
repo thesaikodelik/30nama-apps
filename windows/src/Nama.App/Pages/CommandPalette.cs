@@ -70,7 +70,8 @@ public sealed class CommandPalette : Grid
 
     private FrameworkElement Field()
     {
-        var row = new Grid { Height = 62, Padding = new Thickness(20, 0, 20, 0), ColumnSpacing = 12 };
+        // Left to right in every language: titles are searched by their English names.
+        var row = new Grid { Height = 62, Padding = new Thickness(20, 0, 20, 0), ColumnSpacing = 12, FlowDirection = FlowDirection.LeftToRight };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

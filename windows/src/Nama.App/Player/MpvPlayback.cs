@@ -45,6 +45,9 @@ public sealed class MpvPlayback : IDisposable
             // The app draws its own controls and its own subtitles, and takes the keys itself.
             ("osc", "no"), ("osd-level", "0"), ("input-default-bindings", "no"), ("input-vo-keyboard", "no"), ("input-cursor", "no"),
             ("sid", "no"), ("sub-auto", "no"), ("ytdl", "no"),
+            // Nothing looked for beside the file: a cover or a second sound track meant listing its
+            // whole folder, and a Downloads folder with thousands of files kept the file waiting.
+            ("cover-art-auto", "no"), ("audio-file-auto", "no"),
             // Stay alive between files, and say so when one ends.
             ("idle", "yes"), ("keep-open", "no"),
         })

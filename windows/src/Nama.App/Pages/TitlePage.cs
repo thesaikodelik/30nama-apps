@@ -211,6 +211,7 @@ public sealed class TitlePage : Grid
             if (extra.Crew.Count > 0) _column.Children.Add(Crew(extra.Crew));
             if (extra.Reviews.Count > 0) _column.Children.Add(Reviews(extra.Reviews));
         }
+        if (Post.Updates.Count > 1) _column.Children.Add(Updates());
         _column.Children.Add(Facts());
     }
 
@@ -577,23 +578,24 @@ public sealed class TitlePage : Grid
         var loc = App.Loc;
         var post = Post;
         string Join(IEnumerable<string> names) => string.Join(loc.Lang == Lang.En ? ", " : "، ", names);
-        var rows = new List<(string Label, string Value)>();
-        foreach (var (key, names) in new[] { (S.director, post.Directors), (S.creator, post.Creators), (S.writer, post.Writers), (S.network, post.Networks), (S.country, post.Countries) })
+        var rows = new List<(string Label, object Value)>();
+        if (post.Directors.Count > 0) rows.Add((loc[S.director], Directors()));
+        foreach (var (key, names) in new[] { (S.creator, post.Creators), (S.writer, post.Writers), (S.network, post.Networks), (S.country, post.Countries) })
             if (names.Count > 0) rows.Add((loc[key], Join(names)));
         if (post.Language is { } language) rows.Add((loc[S.originalLanguage], language));
         // A row of its own: names in English and a label in Persian on one line come out in a jumbled order.
-        if (post.OtherLanguages.Count > 0) rows.Add((loc[Extra.otherLanguages], Join(post.OtherLanguages.Take(5))));
+        if (post.OtherLanguages.Count > 0) rows.Add((loc[S.otherLanguages], Join(post.OtherLanguages.Take(5))));
         if (post.AirStatus is { } status) rows.Add((loc[S.status], post.NextEpisodeLabel(loc.Lang) is { } next ? $"{status} · {post.NextEpisodeCaption ?? loc[S.nextEpisode]}: {next}" : status));
-        if (post.ImdbTop250 is { } top) rows.Add((loc[Extra.imdbTop250], $"#{loc.Num(top)}"));
-        if (post.SiteTop100 is { } siteTop) rows.Add((loc[Extra.siteTop100], $"#{loc.Num(siteTop)}"));
-        if (post.ImdbVotes is { } votes) rows.Add(("IMDb", $"{Fmt.Count(votes, loc.Lang)} {loc[Extra.votes]}"));
+        if (post.ImdbTop250 is { } top) rows.Add((loc[S.imdbTop250], $"#{loc.Num(top)}"));
+        if (post.SiteTop100 is { } siteTop) rows.Add((loc[S.siteTop100], $"#{loc.Num(siteTop)}"));
+        if (post.ImdbVotes is { } votes) rows.Add(("IMDb", $"{Fmt.Count(votes, loc.Lang)} {loc[S.votes]}"));
         var people = new List<string>();
-        if (post.InWatchlists is { } w) people.Add($"{Fmt.Count(w, loc.Lang)} {loc[Extra.inWatchlists]}");
-        if (post.InFavorites is { } f) people.Add($"{Fmt.Count(f, loc.Lang)} {loc[Extra.inFavorites]}");
+        if (post.InWatchlists is { } w) people.Add($"{Fmt.Count(w, loc.Lang)} {loc[S.inWatchlists]}");
+        if (post.InFavorites is { } f) people.Add($"{Fmt.Count(f, loc.Lang)} {loc[S.inFavorites]}");
         if (people.Count > 0) rows.Add(("30nama", string.Join(" · ", people)));
-        if (post.Budget is { } budget) rows.Add((loc[Extra.budget], budget));
-        if (post.ExclusiveSubtitle) rows.Add((loc[S.subtitles], loc[Extra.exclusiveSub]));
-        if (post.LatestUpdate is { } update) rows.Add((loc[Extra.latestUpdate], update.Content is { } c ? $"{update.Title} · {c}" : update.Title));
+        if (post.Budget is { } budget) rows.Add((loc[S.budget], budget));
+        if (post.ExclusiveSubtitle) rows.Add((loc[S.subtitles], loc[S.exclusiveSub]));
+        if (post.LatestUpdate is { } update) rows.Add((loc[S.latestUpdate], update.Content is { } c ? $"{update.Title} · {c}" : update.Title));
 
         var grid = new Grid { ColumnSpacing = 16, RowSpacing = 10 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
@@ -602,7 +604,7 @@ public sealed class TitlePage : Grid
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var label = Theme.Text(rows[i].Label, 14, FontWeights.Medium, Theme.Text3);
-            var value = Theme.Text(rows[i].Value, 15, lines: 2);
+            var value = rows[i].Value as FrameworkElement ?? Theme.Text((string)rows[i].Value, 15, lines: 2);
             Grid.SetRow(label, i);
             Grid.SetRow(value, i);
             Grid.SetColumn(value, 1);
@@ -610,6 +612,52 @@ public sealed class TitlePage : Grid
             grid.Children.Add(value);
         }
         return grid;
+    }
+
+    /// <summary>
+    /// Each director leads to their other titles, newest first: 30nama's search takes a director's
+    /// name (not an actor's: it ignores the cast it lists).
+    /// </summary>
+    private FrameworkElement Directors()
+    {
+        var loc = App.Loc;
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var (name, index) in Post.Directors.Select((n, i) => (n, i)))
+        {
+            if (index > 0) row.Children.Add(Theme.Text(loc.Lang == Lang.En ? ", " : "، ", 15));
+            var text = Theme.Text(name, 15);
+            var link = Theme.Bare(text, () => _nav.Open(new Route.Advanced(new AdvancedQuery { Director = name, Sort = "year" })));
+            link.PointerEntered += (_, _) => { text.Foreground = Theme.Brush(Hue); text.TextDecorations = Windows.UI.Text.TextDecorations.Underline; };
+            link.PointerExited += (_, _) => { text.Foreground = Theme.Brush(Theme.Text1); text.TextDecorations = Windows.UI.Text.TextDecorations.None; };
+            Kit.AutomationName(link, name);
+            row.Children.Add(link);
+        }
+        return row;
+    }
+
+    /// <summary>What 30nama has added or mended on the title lately, newest first, with the day of each.</summary>
+    private FrameworkElement Updates()
+    {
+        var loc = App.Loc;
+        var column = new StackPanel { Spacing = 12 };
+        column.Children.Add(Theme.Text(loc[S.titleUpdates], 20, FontWeights.Bold));
+        var list = new StackPanel { Spacing = 9 };
+        foreach (var update in Post.Updates.Take(6))
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+            var day = Theme.Text(loc.Num(update.Day(persian: loc.Lang == Lang.Fa) ?? ""), 13, FontWeights.Medium, Theme.Text3);
+            day.Width = 110;
+            day.FlowDirection = FlowDirection.LeftToRight;
+            // Against the start of the row: the right in Persian and Arabic.
+            day.TextAlignment = loc.Lang == Lang.En ? TextAlignment.Left : TextAlignment.Right;
+            day.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(day);
+            line.Children.Add(Theme.Text(update.Title, 15, FontWeights.SemiBold));
+            if (update.Content is { } content) line.Children.Add(Theme.Text(content, 15, FontWeights.Normal, Theme.Text2));
+            list.Children.Add(line);
+        }
+        column.Children.Add(list);
+        return column;
     }
 }
 

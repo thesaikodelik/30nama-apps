@@ -114,7 +114,7 @@ public sealed class ProfilePage : Grid
         // A guest's way in, where they would look for their account.
         if (!App.IsLoggedIn)
         {
-            column.Children.Add(Theme.Text(loc[Extra.signInHint], 15, color: Theme.Text2, lines: 2));
+            column.Children.Add(Theme.Text(loc[S.signInHint], 15, color: Theme.Text2, lines: 2));
             var signIn = Kit.Primary(loc[S.signIn], Glyph.Person, App.RequestSignIn);
             signIn.HorizontalAlignment = HorizontalAlignment.Left;
             signIn.Margin = new Thickness(0, 4, 0, 0);

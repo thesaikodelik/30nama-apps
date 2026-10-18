@@ -42,6 +42,17 @@ public sealed record Poster
 
 public sealed record Genre(string Name, string Slug);
 
+/// <summary>One change 30nama made to a title, as its notes list them.</summary>
+/// <param name="Gregorian">"2026-10-09 22:41:36", as sent; <paramref name="Jalali"/> is its Persian-calendar twin.</param>
+public sealed record TitleUpdate(string Title, string? Content, string? Gregorian, string? Jalali)
+{
+    public static TitleUpdate? Parse(Json j) =>
+        j["title"].Text is { } title ? new TitleUpdate(title, j["content"].Text, j["date"]["g"].Text, j["date"]["j"].Text) : null;
+
+    /// <summary>The day it was made, without the hour: in the Persian calendar for Persian.</summary>
+    public string? Day(bool persian) => (persian ? Jalali ?? Gregorian : Gregorian ?? Jalali)?.Split(' ')[0];
+}
+
 public sealed record Person(string Name, string? Role, Poster? Poster)
 {
     public string Id => Name + "|" + (Role ?? "");
@@ -99,8 +110,10 @@ public sealed class Post : IEquatable<Post>
     /// <summary>Persian subtitles made by 30nama itself.</summary>
     public bool ExclusiveSubtitle { get; set; }
     public IReadOnlyList<string> OtherLanguages { get; set; } = [];
-    /// <summary>The newest note on what was added to the title: "اضافه شدن قسمت جدید", "اپیزود 10 فصل 3".</summary>
-    public (string Title, string? Content)? LatestUpdate { get; set; }
+    /// <summary>What 30nama has changed on the title ("new episode", "subtitle fixed"), newest first.</summary>
+    public IReadOnlyList<TitleUpdate> Updates { get; set; } = [];
+    /// <summary>The newest of them: "اضافه شدن قسمت جدید", "اپیزود 10 فصل 3".</summary>
+    public (string Title, string? Content)? LatestUpdate => Updates.Count > 0 ? (Updates[0].Title, Updates[0].Content) : null;
 
     public IReadOnlyList<Person> Cast { get; set; } = [];
     public IReadOnlyList<string> Directors { get; set; } = [];
@@ -167,7 +180,7 @@ public sealed class Post : IEquatable<Post>
         p.Budget = info["budget"].Text;
         p.ExclusiveSubtitle = o["exclusive_subtitle"].Bool;
         p.OtherLanguages = j["language"]["others"].Array.Select(x => x["name"].Text).OfType<string>().Where(x => x != p.Language).Distinct().ToList();
-        if (j["note"]["update"][0]["title"].Text is { } note) p.LatestUpdate = (note, j["note"]["update"][0]["content"].Text);
+        p.Updates = j["note"]["update"].Array.Select(TitleUpdate.Parse).OfType<TitleUpdate>().ToList();
 
         p.Cast = j["cast"].Array.Select(c =>
         {
