@@ -70,4 +70,29 @@ public static class Images
         }
         return host;
     }
+
+    /// <summary>Completes once the pictures from the network inside <paramref name="root"/> are in, or have failed.</summary>
+    public static Task ShownAsync(FrameworkElement root)
+    {
+        var loaded = new TaskCompletionSource();
+        if (root.IsLoaded) loaded.SetResult();
+        else root.Loaded += (_, _) => loaded.TrySetResult();
+        return loaded.Task.ContinueWith(_ =>
+        {
+            var waits = new List<Task>();
+            void Walk(DependencyObject node)
+            {
+                if (node is Image { Source: BitmapImage { UriSource: not null } bitmap } && bitmap.PixelWidth == 0)
+                {
+                    var done = new TaskCompletionSource();
+                    bitmap.ImageOpened += (_, _) => done.TrySetResult();
+                    bitmap.ImageFailed += (_, _) => done.TrySetResult();
+                    waits.Add(done.Task);
+                }
+                for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) Walk(VisualTreeHelper.GetChild(node, i));
+            }
+            Walk(root);
+            return Task.WhenAll(waits);
+        }, TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
+    }
 }
