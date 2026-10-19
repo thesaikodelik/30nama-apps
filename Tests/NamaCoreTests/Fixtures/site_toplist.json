@@ -1,0 +1,205 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "posts": [
+   {
+    "id": "7583",
+    "title_type": "movie",
+    "stream": true,
+    "is_series": false,
+    "coming_soon": false,
+    "free_stream": false,
+    "persian_subtitle": true,
+    "imdb_250": "18",
+    "title": "Interstellar 2014",
+    "persian_title": "میان‌ستاره‌ای",
+    "budget": "USD165,000,000",
+    "persian_plot": "",
+    "english_plot": "",
+    "imdb_id": "tt0816692",
+    "imdb_score": "8.7",
+    "imdb_votes": "2498939",
+    "30nama_score": 8.7,
+    "30nama_votes": "1898",
+    "myanimelist": null,
+    "myanimelist_score": null,
+    "myanimelist_votes": null,
+    "mydramalist": null,
+    "mydramalist_score": null,
+    "mydramalist_votes": null,
+    "image": {
+     "cover": "https://example.com/cover/307583_30NAMA.jpg?",
+     "cover_webp": "https://example.com/cover/307583_30NAMA.webp?",
+     "poster": {
+      "big": "https://example.com/poster/307583-b_30NAMA.jpg?",
+      "big_webp": "https://example.com/poster/307583-b_30NAMA.webp?",
+      "large": "https://example.com/poster/307583-l_30NAMA.jpg?",
+      "large_webp": "https://example.com/poster/307583-l_30NAMA.webp?",
+      "medium": "https://example.com/poster/307583-m_30NAMA.jpg?",
+      "medium_webp": "https://example.com/poster/307583-m_30NAMA.webp?",
+      "small": "https://example.com/poster/307583-s_30NAMA.jpg?",
+      "small_webp": "https://example.com/poster/307583-s_30NAMA.webp?"
+     }
+    },
+    "genre": [
+     {
+      "name": "درام",
+      "slug": "drama"
+     },
+     {
+      "name": "علمی-تخیلی",
+      "slug": "sci-fi"
+     },
+     {
+      "name": "ماجراجویی",
+      "slug": "adventure"
+     }
+    ],
+    "airstatus": {
+     "status": null,
+     "data": null
+    },
+    "nextepisode": {
+     "caption": null,
+     "date": null
+    },
+    "rank": "۱"
+   },
+   {
+    "id": "8863",
+    "title_type": "movie",
+    "stream": true,
+    "is_series": false,
+    "coming_soon": false,
+    "free_stream": false,
+    "persian_subtitle": false,
+    "imdb_250": "14",
+    "title": "Inception 2010",
+    "persian_title": "تلقین",
+    "budget": "USD160,000,000",
+    "persian_plot": "",
+    "english_plot": "",
+    "imdb_id": "tt1375666",
+    "imdb_score": "8.8",
+    "imdb_votes": "2825747",
+    "30nama_score": 8.6,
+    "30nama_votes": "1439",
+    "myanimelist": null,
+    "myanimelist_score": null,
+    "myanimelist_votes": null,
+    "mydramalist": null,
+    "mydramalist_score": null,
+    "mydramalist_votes": null,
+    "image": {
+     "cover": "https://example.com/cover/308863_30NAMA.jpg?",
+     "cover_webp": "https://example.com/cover/308863_30NAMA.webp?",
+     "poster": {
+      "big": "https://example.com/poster/308863-b_30NAMA.jpg?",
+      "big_webp": "https://example.com/poster/308863-b_30NAMA.webp?",
+      "large": "https://example.com/poster/308863-l_30NAMA.jpg?",
+      "large_webp": "https://example.com/poster/308863-l_30NAMA.webp?",
+      "medium": "https://example.com/poster/308863-m_30NAMA.jpg?",
+      "medium_webp": "https://example.com/poster/308863-m_30NAMA.webp?",
+      "small": "https://example.com/poster/308863-s_30NAMA.jpg?",
+      "small_webp": "https://example.com/poster/308863-s_30NAMA.webp?"
+     }
+    },
+    "genre": [
+     {
+      "name": "اکشن",
+      "slug": "action"
+     },
+     {
+      "name": "عاشقانه",
+      "slug": "romance"
+     },
+     {
+      "name": "علمی-تخیلی",
+      "slug": "sci-fi"
+     },
+     {
+      "name": "معمایی",
+      "slug": "mystery"
+     },
+     {
+      "name": "هیجان انگیز",
+      "slug": "thriller"
+     }
+    ],
+    "airstatus": {
+     "status": null,
+     "data": null
+    },
+    "nextepisode": {
+     "caption": null,
+     "date": null
+    },
+    "rank": "۲"
+   },
+   {
+    "id": "7143",
+    "title_type": "movie",
+    "stream": true,
+    "is_series": false,
+    "coming_soon": false,
+    "free_stream": false,
+    "persian_subtitle": false,
+    "imdb_250": "3",
+    "title": "The Dark Knight 2008",
+    "persian_title": "شوالیه تاریکی",
+    "budget": "USD185,000,000",
+    "persian_plot": "",
+    "english_plot": "",
+    "imdb_id": "tt0468569",
+    "imdb_score": "9.1",
+    "imdb_votes": "3184889",
+    "30nama_score": 8.7,
+    "30nama_votes": "1375",
+    "myanimelist": null,
+    "myanimelist_score": null,
+    "myanimelist_votes": null,
+    "mydramalist": null,
+    "mydramalist_score": null,
+    "mydramalist_votes": null,
+    "image": {
+     "cover": "https://example.com/cover/307143_30NAMA.jpg?",
+     "cover_webp": "https://example.com/cover/307143_30NAMA.webp?",
+     "poster": {
+      "big": "https://example.com/poster/307143-b_30NAMA.jpg?",
+      "big_webp": "https://example.com/poster/307143-b_30NAMA.webp?",
+      "large": "https://example.com/poster/307143-l_30NAMA.jpg?",
+      "large_webp": "https://example.com/poster/307143-l_30NAMA.webp?",
+      "medium": "https://example.com/poster/307143-m_30NAMA.jpg?",
+      "medium_webp": "https://example.com/poster/307143-m_30NAMA.webp?",
+      "small": "https://example.com/poster/307143-s_30NAMA.jpg?",
+      "small_webp": "https://example.com/poster/307143-s_30NAMA.webp?"
+     }
+    },
+    "genre": [
+     {
+      "name": "اکشن",
+      "slug": "action"
+     },
+     {
+      "name": "جنایی",
+      "slug": "crime"
+     },
+     {
+      "name": "درام",
+      "slug": "drama"
+     }
+    ],
+    "airstatus": {
+     "status": null,
+     "data": null
+    },
+    "nextepisode": {
+     "caption": null,
+     "date": null
+    },
+    "rank": "۳"
+   }
+  ]
+ }
+}

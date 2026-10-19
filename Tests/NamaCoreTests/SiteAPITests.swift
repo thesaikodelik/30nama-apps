@@ -75,8 +75,88 @@ final class SiteAPITests: XCTestCase {
         XCTAssertTrue(net.calls.isEmpty)
     }
 
-    func testCastMembersKeepTheirImdbId() throws {
+    func testCastMembersKeepTheirImdbAndSiteIds() throws {
         let post = try XCTUnwrap(Post(try fixture("single_movie")["result"]))
         XCTAssertEqual(post.cast.first?.imdb, "nm0000255")
+        XCTAssertEqual(post.cast.first?.siteID, 151521)
+        XCTAssertNil(post.cast[1].siteID)
+    }
+
+    func testAPersonIsAskedBySiteIdAPageAtATime() {
+        XCTAssertEqual(SiteQuery.person(id: 151521, page: 1), "single/id/151521")
+        XCTAssertEqual(SiteQuery.person(id: 151521, page: 3), "single/id/151521/page/3")
+    }
+
+    func testAPersonsFactsBiographyAndTitles() throws {
+        let person = try XCTUnwrap(PersonDetails(site: try fixture("site_person")["result"]))
+        XCTAssertEqual(person.name, "Ben Affleck")
+        XCTAssertEqual(person.fullName, "Benjamin Géza Affleck-Boldt")
+        XCTAssertEqual(person.persianName, "بن افلک")
+        XCTAssertEqual(person.profession, "بازیگر")
+        XCTAssertEqual(person.birthdate, "۲۴ مرداد ۱۳۵۱")
+        XCTAssertNil(person.deathdate)
+        XCTAssertEqual(person.age, "۵۴")
+        XCTAssertEqual(person.imdb?.absoluteString, "https://www.imdb.com/name/nm0000255")
+        XCTAssertEqual(person.picture?.medium?.absoluteString, "https://example.com/person/30151521-m_30NAMA.webp?")
+        XCTAssertEqual(person.biography, ["پیش زمینه", "پاراگراف نمونهٔ اول با «نقل» و \u{2019}.", "پاراگراف نمونهٔ دوم."])
+        XCTAssertEqual(person.titles.page, 1)
+        XCTAssertEqual(person.titles.pages, 4)
+        XCTAssertEqual(person.titles.posts.count, 2)
+    }
+
+    func testSiteTextKeepsParagraphsAndDropsTheEditorsMarkup() {
+        XCTAssertEqual(SiteText.paragraphs("<p>a&amp;b</p><p>&nbsp;</p>line<br>next &#x2019;"), ["a&b", "line", "next \u{2019}"])
+        XCTAssertEqual(SiteText.paragraphs(""), [])
+    }
+
+    func testNewestIsTheSitesListByPostId() {
+        XCTAssertEqual(SiteQuery.newest(kind: "movie", genre: nil, streamOnly: true, page: 2),
+                       "list/type/category/value/movie/page/2/orderby/id/order/desc/streamonly/yes/genre/all")
+        XCTAssertEqual(SiteQuery.newest(kind: "anime", genre: "action", streamOnly: false, page: 1),
+                       "list/type/category/value/anime/page/1/orderby/id/order/desc/streamonly/no/genre/action")
+    }
+
+    func testTopListKeepsItsPlaces() throws {
+        XCTAssertEqual(SiteQuery.topList(.siteMovies), "toplist/list/top-movie-30nama")
+        let entries = TopList.entries(site: try fixture("site_toplist")["result"])
+        XCTAssertEqual(entries.map(\.rank), [1, 2, 3])
+        XCTAssertEqual(entries.map(\.post.id), [7583, 8863, 7143])
+        XCTAssertEqual(entries.first?.post.year, 2014)
+    }
+
+    func testTheScheduleSortsTitlesByTheSitesDays() throws {
+        XCTAssertEqual(SiteQuery.schedule(.anime), "schedule/type/anime")
+        let week = Schedule(site: try fixture("site_schedule")["result"])
+        XCTAssertEqual(week.entries.count, 3, "a title listed twice is kept once")
+        XCTAssertEqual(week.on(0).map(\.id), [721396])
+        XCTAssertEqual(week.on(4).map(\.id), [721194])
+        XCTAssertTrue(week.on(2).isEmpty)
+    }
+
+    func testTheSitesWeekStartsOnSaturday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        calendar.locale = Locale(identifier: "en_US")
+        let saturday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 17)))
+        let tuesday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 20)))
+        XCTAssertEqual(Schedule.day(of: saturday, calendar: calendar), 0)
+        XCTAssertEqual(Schedule.day(of: tuesday, calendar: calendar), 3)
+        XCTAssertEqual(Schedule.week(from: tuesday, calendar: calendar), [3, 4, 5, 6, 0, 1, 2])
+        XCTAssertEqual(calendar.weekdaySymbols[Schedule.symbolIndex(of: 0)], "Saturday")
+        XCTAssertEqual(calendar.weekdaySymbols[Schedule.symbolIndex(of: 1)], "Sunday")
+    }
+
+    func testPersianDigitsBecomeLatin() {
+        XCTAssertEqual(SiteText.latinDigits("۱۲۳"), "123")
+        XCTAssertEqual(SiteText.latinDigits("٤٥"), "45")
+        XCTAssertEqual(SiteText.latinDigits("7a"), "7a")
+    }
+
+    func testPersianTextIsTidiedForReading() {
+        XCTAssertEqual(SiteText.tidyPersian(#"در 4 نوامبر ، 1969 در " Dazed and Confused" بازی کرد ."#),
+                       "در ۴ نوامبر، ۱۹۶۹ در «Dazed and Confused» بازی کرد.")
+        XCTAssertEqual(SiteText.tidyPersian("علاقه ی زیادی داشت و می یافت ولی نمی خواست"),
+                       "علاقه\u{200C}ی زیادی داشت و می\u{200C}یافت ولی نمی\u{200C}خواست")
+        XCTAssertEqual(SiteText.tidyPersian("گفت،سپس رفت"), "گفت، سپس رفت")
     }
 }

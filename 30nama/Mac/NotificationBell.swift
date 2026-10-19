@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The account's messages from 30nama: a bell beside the downloads disc, with how many are new,
-/// opening a panel of them. A guest has none, and the bell keeps its place without showing.
+/// opening a panel of them. The bar shows it only when there are any.
 struct NotificationBell: View {
     @Environment(AppModel.self) private var app
     @Environment(\.loc) private var loc
@@ -45,9 +45,6 @@ struct NotificationBell: View {
                 .environment(\.loc, loc)
                 .environment(\.layoutDirection, loc.lang == .en ? .leftToRight : .rightToLeft)
         }
-        .opacity(app.user == nil ? 0 : 1)
-        .allowsHitTesting(app.user != nil)
-        .accessibilityHidden(app.user == nil)
     }
 }
 

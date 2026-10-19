@@ -1,0 +1,284 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "posts": [
+   {
+    "post": {
+     "id": 721396,
+     "title_type": "anime",
+     "stream": false,
+     "is_series": true,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "Horror Collector (Kyoufu Collector) 2026",
+     "persian_title": "",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt48391033",
+     "imdb_score": "7.2",
+     "imdb_votes": "20",
+     "30nama_score": 0,
+     "30nama_votes": "0",
+     "myanimelist": "/anime/63053/Kyoufu_Collector",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30721396_30NAMA.jpg?1792266522",
+      "cover_webp": "https://example.com/cover/30721396_30NAMA.webp?1792266522",
+      "poster": {
+       "big": "https://example.com/poster/30721396-b_30NAMA.jpg?1792349260",
+       "big_webp": "https://example.com/poster/30721396-b_30NAMA.webp?1792349260",
+       "large": "https://example.com/poster/30721396-l_30NAMA.jpg?1792349260",
+       "large_webp": "https://example.com/poster/30721396-l_30NAMA.webp?1792349260",
+       "medium": "https://example.com/poster/30721396-m_30NAMA.jpg?1792349260",
+       "medium_webp": "https://example.com/poster/30721396-m_30NAMA.webp?1792349260",
+       "small": "https://example.com/poster/30721396-s_30NAMA.jpg?1792349260",
+       "small_webp": "https://example.com/poster/30721396-s_30NAMA.webp?1792349260"
+      }
+     },
+     "genre": [
+      {
+       "name": "ترسناک",
+       "slug": "horror"
+      },
+      {
+       "name": "معمایی",
+       "slug": "mystery"
+      }
+     ],
+     "airstatus": {
+      "status": "در حال پخش",
+      "data": null
+     },
+     "nextepisode": {
+      "caption": "قسمت بعد",
+      "date": "۲ آبان ۱۴۰۵ شنبه"
+     }
+    },
+    "last_update": "۳ روز قبل",
+    "next_update": "۳ روز دیگر",
+    "day": 0,
+    "day_name": "شنبه"
+   },
+   {
+    "post": {
+     "id": 721194,
+     "title_type": "anime",
+     "stream": false,
+     "is_series": true,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "Paws & Palaces 2025",
+     "persian_title": "",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt39104949",
+     "imdb_score": "4",
+     "imdb_votes": "14",
+     "30nama_score": 0,
+     "30nama_votes": "0",
+     "myanimelist": "/anime/61640/Zi_Jin__Yu_Miao_Fang",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30721194_30NAMA.jpg?1792064558",
+      "cover_webp": "https://example.com/cover/30721194_30NAMA.webp?1792064558",
+      "poster": {
+       "big": "https://example.com/poster/30721194-b_30NAMA.jpg?1792064521",
+       "big_webp": "https://example.com/poster/30721194-b_30NAMA.webp?1792064521",
+       "large": "https://example.com/poster/30721194-l_30NAMA.jpg?1792064521",
+       "large_webp": "https://example.com/poster/30721194-l_30NAMA.webp?1792064521",
+       "medium": "https://example.com/poster/30721194-m_30NAMA.jpg?1792064521",
+       "medium_webp": "https://example.com/poster/30721194-m_30NAMA.webp?1792064521",
+       "small": "https://example.com/poster/30721194-s_30NAMA.jpg?1792064521",
+       "small_webp": "https://example.com/poster/30721194-s_30NAMA.webp?1792064521"
+      }
+     },
+     "genre": [
+      {
+       "name": "اکشن",
+       "slug": "action"
+      },
+      {
+       "name": "فانتزی",
+       "slug": "fantasy"
+      },
+      {
+       "name": "کوتاه",
+       "slug": "short"
+      },
+      {
+       "name": "ماجراجویی",
+       "slug": "adventure"
+      }
+     ],
+     "airstatus": {
+      "status": "در حال پخش",
+      "data": null
+     },
+     "nextepisode": {
+      "caption": "قسمت بعد",
+      "date": "۲۹ مهر ۱۴۰۵ چهارشنبه"
+     }
+    },
+    "last_update": "۵ روز قبل",
+    "next_update": "فردا",
+    "day": 4,
+    "day_name": "چهارشنبه"
+   },
+   {
+    "post": {
+     "id": 721012,
+     "title_type": "anime",
+     "stream": false,
+     "is_series": true,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "Full Clearing Another World under a Goddess with Zero Believers 2026",
+     "persian_title": "",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt43650265",
+     "imdb_score": "7.2",
+     "imdb_votes": "10",
+     "30nama_score": 0,
+     "30nama_votes": "0",
+     "myanimelist": "/anime/63292/Shinja_Zero_no_Megami-sama_to_Hajimeru_Isekai_Kouryaku",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30721012_30NAMA.jpg?1791776391",
+      "cover_webp": "https://example.com/cover/30721012_30NAMA.webp?1791776391",
+      "poster": {
+       "big": "https://example.com/poster/30721012-b_30NAMA.jpg?",
+       "big_webp": "https://example.com/poster/30721012-b_30NAMA.webp?",
+       "large": "https://example.com/poster/30721012-l_30NAMA.jpg?",
+       "large_webp": "https://example.com/poster/30721012-l_30NAMA.webp?",
+       "medium": "https://example.com/poster/30721012-m_30NAMA.jpg?",
+       "medium_webp": "https://example.com/poster/30721012-m_30NAMA.webp?",
+       "small": "https://example.com/poster/30721012-s_30NAMA.jpg?",
+       "small_webp": "https://example.com/poster/30721012-s_30NAMA.webp?"
+      }
+     },
+     "genre": [
+      {
+       "name": "اکشن",
+       "slug": "action"
+      },
+      {
+       "name": "علمی-تخیلی",
+       "slug": "sci-fi"
+      },
+      {
+       "name": "فانتزی",
+       "slug": "fantasy"
+      },
+      {
+       "name": "ماجراجویی",
+       "slug": "adventure"
+      }
+     ],
+     "airstatus": {
+      "status": "در حال پخش",
+      "data": null
+     },
+     "nextepisode": {
+      "caption": "قسمت بعد",
+      "date": "۳ آبان ۱۴۰۵ یکشنبه"
+     }
+    },
+    "last_update": "۱ روز قبل",
+    "next_update": "۴ روز دیگر",
+    "day": 1,
+    "day_name": "یکشنبه"
+   },
+   {
+    "post": {
+     "id": 721396,
+     "title_type": "anime",
+     "stream": false,
+     "is_series": true,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "Horror Collector (Kyoufu Collector) 2026",
+     "persian_title": "",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt48391033",
+     "imdb_score": "7.2",
+     "imdb_votes": "20",
+     "30nama_score": 0,
+     "30nama_votes": "0",
+     "myanimelist": "/anime/63053/Kyoufu_Collector",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30721396_30NAMA.jpg?1792266522",
+      "cover_webp": "https://example.com/cover/30721396_30NAMA.webp?1792266522",
+      "poster": {
+       "big": "https://example.com/poster/30721396-b_30NAMA.jpg?1792349260",
+       "big_webp": "https://example.com/poster/30721396-b_30NAMA.webp?1792349260",
+       "large": "https://example.com/poster/30721396-l_30NAMA.jpg?1792349260",
+       "large_webp": "https://example.com/poster/30721396-l_30NAMA.webp?1792349260",
+       "medium": "https://example.com/poster/30721396-m_30NAMA.jpg?1792349260",
+       "medium_webp": "https://example.com/poster/30721396-m_30NAMA.webp?1792349260",
+       "small": "https://example.com/poster/30721396-s_30NAMA.jpg?1792349260",
+       "small_webp": "https://example.com/poster/30721396-s_30NAMA.webp?1792349260"
+      }
+     },
+     "genre": [
+      {
+       "name": "ترسناک",
+       "slug": "horror"
+      },
+      {
+       "name": "معمایی",
+       "slug": "mystery"
+      }
+     ],
+     "airstatus": {
+      "status": "در حال پخش",
+      "data": null
+     },
+     "nextepisode": {
+      "caption": "قسمت بعد",
+      "date": "۲ آبان ۱۴۰۵ شنبه"
+     }
+    },
+    "last_update": "۳ روز قبل",
+    "next_update": "۳ روز دیگر",
+    "day": 0,
+    "day_name": "شنبه"
+   }
+  ]
+ }
+}
