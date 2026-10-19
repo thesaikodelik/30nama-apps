@@ -331,7 +331,7 @@ actor Trending {
         do {
             for query in TitleMatch.queries(for: item) {
                 let entries = Post.rawList(try await search(query)).map { $0["post"].isNull ? $0 : $0["post"] }
-                if let post = TitleMatch.bestPost(in: entries.compactMap(Post.init), for: item),
+                if let post = TitleMatch.bestPost(in: entries.compactMap { Post($0) }, for: item),
                    let raw = entries.first(where: { $0["id"].int == post.id }) {
                     match = .object((raw.object ?? [:]).filter { Trending.keptPostKeys.contains($0.key) })
                     break

@@ -5,3 +5,8 @@ DEVELOPMENT_TEAM =
 
 // Another team cannot register app.30nama.tv. Set your own id here.
 // PRODUCT_BUNDLE_IDENTIFIER = dev.example.30nama
+
+// The key the 30nama website gives every browser for its own API (the c-api-key header of its
+// requests to interface.30nama.com). Without it the apps work, minus what only the site has:
+// a person's titles, the weekly schedule, the top lists.
+NAMA_SITE_KEY =

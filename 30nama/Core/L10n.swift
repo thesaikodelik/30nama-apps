@@ -10,7 +10,7 @@ enum S: String, CaseIterable {
     case continueWatching, newReleases, suggested, top10, featured
     case cloudRatings, cloudSynced, cloudSyncing, cloudSignedOut, cloudFailed
     case watchlist, favorites, yourTaste, howYouRate, subscriptionUntil, daysLeft
-    case play, resume, details, episodes, season, seasonsCount, episode, nowPlaying, cast
+    case play, resume, details, episodes, season, seasonsCount, episode, nowPlaying, cast, filmography
     case persianSub, minLeft, min, free, soon
     case loginToStream, loginToWatch, noStream, comingSoonNote
     case popularNow, topResults, nothingFor, searchPrompt
@@ -142,7 +142,7 @@ struct Loc: Equatable {
         .watchlist: "Watchlist", .favorites: "Favourites", .yourTaste: "Your taste", .howYouRate: "How you rate",
         .subscriptionUntil: "Subscription until", .daysLeft: "days left",
         .play: "Play", .resume: "Resume", .details: "Details", .episodes: "Episodes", .season: "Season",
-        .seasonsCount: "seasons", .episode: "Episode", .nowPlaying: "Now playing", .cast: "Cast",
+        .seasonsCount: "seasons", .episode: "Episode", .nowPlaying: "Now playing", .cast: "Cast", .filmography: "Filmography",
         .persianSub: "Persian subtitles", .minLeft: "min left", .min: "min", .free: "FREE", .soon: "SOON",
         .loginToStream: "Sign in to stream and keep your place", .loginToWatch: "Sign in to watch",
         .noStream: "No stream available for this title", .comingSoonNote: "Coming soon",
@@ -217,7 +217,7 @@ struct Loc: Equatable {
         .watchlist: "لیست تماشا", .favorites: "علاقه‌مندی‌ها", .yourTaste: "سلیقهٔ شما", .howYouRate: "امتیازهای شما در یک نگاه",
         .subscriptionUntil: "اعتبار اشتراک تا", .daysLeft: "روز مانده",
         .play: "پخش", .resume: "ادامه", .details: "جزئیات", .episodes: "قسمت‌ها", .season: "فصل",
-        .seasonsCount: "فصل", .episode: "قسمت", .nowPlaying: "در حال پخش", .cast: "بازیگران",
+        .seasonsCount: "فصل", .episode: "قسمت", .nowPlaying: "در حال پخش", .cast: "بازیگران", .filmography: "آثار",
         .persianSub: "زیرنویس فارسی", .minLeft: "دقیقه مانده", .min: "دقیقه", .free: "رایگان", .soon: "به‌زودی",
         .loginToStream: "برای پخش و ادامهٔ تماشا وارد شوید", .loginToWatch: "برای تماشا وارد شوید",
         .noStream: "پخش این عنوان در دسترس نیست", .comingSoonNote: "به‌زودی",
@@ -292,7 +292,7 @@ struct Loc: Equatable {
         .watchlist: "قائمة المشاهدة", .favorites: "المفضّلة", .yourTaste: "ذوقك", .howYouRate: "كيف تقيّم",
         .subscriptionUntil: "الاشتراك حتى", .daysLeft: "يومًا متبقيًا",
         .play: "تشغيل", .resume: "متابعة", .details: "التفاصيل", .episodes: "الحلقات", .season: "الموسم",
-        .seasonsCount: "مواسم", .episode: "الحلقة", .nowPlaying: "قيد التشغيل", .cast: "طاقم التمثيل",
+        .seasonsCount: "مواسم", .episode: "الحلقة", .nowPlaying: "قيد التشغيل", .cast: "طاقم التمثيل", .filmography: "الأعمال",
         .persianSub: "ترجمة فارسية", .minLeft: "دقيقة متبقية", .min: "دقيقة", .free: "مجاني", .soon: "قريبًا",
         .loginToStream: "سجّل الدخول للمشاهدة وحفظ موضعك", .loginToWatch: "سجّل الدخول للمشاهدة",
         .noStream: "لا يتوفر بث لهذا العنوان", .comingSoonNote: "قريبًا",

@@ -1,0 +1,124 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "page": 1,
+  "pages": 4,
+  "posts": [
+   {
+    "id": 572188,
+    "title_type": "movie",
+    "stream": true,
+    "is_series": false,
+    "coming_soon": false,
+    "free_stream": false,
+    "free_download": false,
+    "persian_subtitle": false,
+    "imdb_250": null,
+    "title": "The Exorcist: Believer 2023",
+    "persian_title": "",
+    "budget": "",
+    "persian_plot": "هنگامی که دو دختر در جنگل ناپدید می شوند و سه روز بعد بدون ه",
+    "english_plot": "When two girls disappear into the woods and return three day",
+    "imdb_id": "tt12921446",
+    "imdb_score": "4.8",
+    "imdb_votes": "40478",
+    "30nama_score": 5.8,
+    "30nama_votes": "17",
+    "myanimelist": null,
+    "myanimelist_score": null,
+    "myanimelist_votes": null,
+    "mydramalist": null,
+    "mydramalist_score": null,
+    "mydramalist_votes": null,
+    "image": {
+     "cover": "https://example.com/cover/30572188_30NAMA.jpg?",
+     "cover_webp": "https://example.com/cover/30572188_30NAMA.webp?",
+     "poster": {
+      "big": "https://example.com/poster/30572188-b_30NAMA.jpg?",
+      "big_webp": "https://example.com/poster/30572188-b_30NAMA.webp?",
+      "large": "https://example.com/poster/30572188-l_30NAMA.jpg?",
+      "large_webp": "https://example.com/poster/30572188-l_30NAMA.webp?",
+      "medium": "https://example.com/poster/30572188-m_30NAMA.jpg?",
+      "medium_webp": "https://example.com/poster/30572188-m_30NAMA.webp?",
+      "small": "https://example.com/poster/30572188-s_30NAMA.jpg?",
+      "small_webp": "https://example.com/poster/30572188-s_30NAMA.webp?"
+     }
+    },
+    "genre": [
+     {
+      "name": "ترسناک",
+      "slug": "horror"
+     }
+    ],
+    "airstatus": {
+     "status": null,
+     "data": null
+    },
+    "nextepisode": {
+     "caption": null,
+     "date": null
+    }
+   },
+   {
+    "id": 612912,
+    "title_type": "series",
+    "stream": false,
+    "is_series": true,
+    "coming_soon": false,
+    "free_stream": false,
+    "free_download": false,
+    "persian_subtitle": false,
+    "imdb_250": null,
+    "title": "Reframed: Marilyn Monroe 2022",
+    "persian_title": "",
+    "budget": "",
+    "persian_plot": "زندگی و میراث مرلین مونرو را از منظری مدرن دنبال کنید.",
+    "english_plot": "Follow the life and legacy of Marilyn Monroe from a modern p",
+    "imdb_id": "tt14719784",
+    "imdb_score": "7.6",
+    "imdb_votes": "303",
+    "30nama_score": 2,
+    "30nama_votes": "1",
+    "myanimelist": null,
+    "myanimelist_score": null,
+    "myanimelist_votes": null,
+    "mydramalist": null,
+    "mydramalist_score": null,
+    "mydramalist_votes": null,
+    "image": {
+     "cover": "https://example.com/cover/30612912_30NAMA.jpg?",
+     "cover_webp": "https://example.com/cover/30612912_30NAMA.webp?",
+     "poster": {
+      "big": "https://example.com/poster/30612912-b_30NAMA.jpg?",
+      "big_webp": "https://example.com/poster/30612912-b_30NAMA.webp?",
+      "large": "https://example.com/poster/30612912-l_30NAMA.jpg?",
+      "large_webp": "https://example.com/poster/30612912-l_30NAMA.webp?",
+      "medium": "https://example.com/poster/30612912-m_30NAMA.jpg?",
+      "medium_webp": "https://example.com/poster/30612912-m_30NAMA.webp?",
+      "small": "https://example.com/poster/30612912-s_30NAMA.jpg?",
+      "small_webp": "https://example.com/poster/30612912-s_30NAMA.webp?"
+     }
+    },
+    "genre": [
+     {
+      "name": "زندگی‌نامه",
+      "slug": "biography"
+     },
+     {
+      "name": "مستند",
+      "slug": "documentary"
+     }
+    ],
+    "airstatus": {
+     "status": "پایان فصل",
+     "data": " 1"
+    },
+    "nextepisode": {
+     "caption": null,
+     "date": null
+    }
+   }
+  ]
+ }
+}
