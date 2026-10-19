@@ -84,33 +84,76 @@ public sealed class DownloadsPage : Grid
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.Children.Add(Theme.Text(Loc[S.downloads], 34, FontWeights.Bold));
-        var parts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(4) };
-        foreach (var part in Enum.GetValues<DownloadItem.Shelves>())
-        {
-            var selected = Shelf == part;
-            var count = Downloads.Items.Count(i => i.Shelf == part);
-            var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center };
-            label.Children.Add(Theme.Text(Loc[part switch { DownloadItem.Shelves.Series => S.series, DownloadItem.Shelves.Anime => S.anime, _ => S.movies }], 15.5, FontWeights.SemiBold, selected ? Theme.FocusInk : Theme.Text1.WithAlpha(0.8)));
-            if (count > 0)
-            {
-                var badge = Theme.Text(Loc.Num(count), 12, FontWeights.Bold, selected ? Theme.FocusInk : Theme.Text1);
-                badge.VerticalAlignment = VerticalAlignment.Center;
-                label.Children.Add(new Border { Height = 20, Padding = new Thickness(7, 0, 7, 0), CornerRadius = new CornerRadius(10), Background = selected ? Theme.Black(0.12) : Theme.White(0.14), Child = badge });
-            }
-            var face = new Border { Height = 40, Padding = new Thickness(18, 0, 18, 0), CornerRadius = new CornerRadius(20), Background = selected ? Theme.Brush(Colors.White) : Theme.White(0), Child = label };
-            parts.Children.Add(Theme.Bare(face, () => { _chosen = part; Render(); }));
-        }
-        var capsule = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        capsule.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(24), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
-        capsule.Children.Add(parts);
+        var capsule = Parts();
         Grid.SetColumn(capsule, 1);
         row.Children.Add(capsule);
+        _partsHolder = row;
         var folder = Kit.Glass(Path.GetFileName(Downloads.Folder.TrimEnd('\\')), "", Downloads.OpenFolder, height: 34);
         folder.VerticalAlignment = VerticalAlignment.Center;
         ToolTipService.SetToolTip(folder, Downloads.Folder);
         Grid.SetColumn(folder, 3);
         row.Children.Add(folder);
         return row;
+    }
+
+    private readonly Grid _partsCapsule = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly StackPanel _parts = new() { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(4) };
+    private readonly LiquidPill _partsPill = new();
+    private readonly Dictionary<object, FrameworkElement> _partFaces = [];
+    /// <summary>The header the tabs are in now; the next drawing takes them out of it (their Parent is not told once it leaves the page).</summary>
+    private Panel? _partsHolder;
+
+    /// <summary>
+    /// Films, series and anime: tabs on a capsule of the bar's glass, the open one on the bar's
+    /// liquid pill, which flows between them. Kept from one drawing of the page to the next, so the
+    /// pill has somewhere to flow from.
+    /// </summary>
+    private Grid Parts()
+    {
+        if (_partsCapsule.Children.Count == 0)
+        {
+            _partsCapsule.Children.Add(GlassLens.Make());
+            _partsCapsule.Children.Add(_parts);
+            var stage = new Canvas { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
+            stage.Children.Add(_partsPill);
+            _partsCapsule.Children.Add(stage);
+            _partsCapsule.SizeChanged += (_, e) => { _partsPill.Width = e.NewSize.Width; _partsPill.Height = e.NewSize.Height; };
+            _partsCapsule.LayoutUpdated += (_, _) =>
+            {
+                if (_partsPill.ActualWidth <= 0) return;
+                Windows.Foundation.Rect Frame(FrameworkElement e) => e.TransformToVisual(_partsPill).TransformBounds(new Windows.Foundation.Rect(0, 0, e.ActualWidth, e.ActualHeight));
+                _partsPill.Place([Frame(_partsCapsule)], _partFaces.Where(f => f.Value.ActualWidth > 0).ToDictionary(f => f.Key, f => Frame(f.Value)));
+            };
+        }
+        _partsHolder?.Children.Remove(_partsCapsule);
+        _partsHolder = null;
+        _parts.Children.Clear();
+        _partFaces.Clear();
+        foreach (var part in Enum.GetValues<DownloadItem.Shelves>())
+        {
+            var selected = Shelf == part;
+            var count = Downloads.Items.Count(i => i.Shelf == part);
+            var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center };
+            label.Children.Add(Theme.Text(Loc[part switch { DownloadItem.Shelves.Series => S.series, DownloadItem.Shelves.Anime => S.anime, _ => S.movies }], 15.5, FontWeights.SemiBold, Theme.Text1.WithAlpha(selected ? 1 : 0.7)));
+            if (count > 0)
+            {
+                var badge = Theme.Text(Loc.Num(count), 12, FontWeights.Bold, Theme.Text1);
+                badge.VerticalAlignment = VerticalAlignment.Center;
+                label.Children.Add(new Border { Height = 20, Padding = new Thickness(7, 0, 7, 0), CornerRadius = new CornerRadius(10), Background = Theme.White(0.14), Child = badge });
+            }
+            var face = new Border { Height = 40, Padding = new Thickness(18, 0, 18, 0), CornerRadius = new CornerRadius(20), Background = Theme.White(0), Child = label };
+            var button = Theme.Bare(face, () => { _chosen = part; Render(); });
+            Kit.AutomationName(button, ((TextBlock)label.Children[0]).Text);
+            if (!selected)
+            {
+                button.PointerEntered += (_, _) => face.Background = Theme.White(0.12);
+                button.PointerExited += (_, _) => face.Background = Theme.White(0);
+            }
+            _parts.Children.Add(button);
+            _partFaces[part] = face;
+        }
+        _partsPill.Select(Shelf);
+        return _partsCapsule;
     }
 
     private static Grid Glass(FrameworkElement content)
