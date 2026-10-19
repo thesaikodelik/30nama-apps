@@ -312,7 +312,7 @@ public sealed partial class PlayerPage : Grid
     {
         var post = _request.Post;
         _curtain.Background = Theme.Brush(Colors.Black);
-        _curtain.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, 1920));
+        _curtain.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, 1920, fallback: post.Poster.Big ?? post.Poster.Large));
         _curtain.Children.Add(new Border
         {
             Background = new LinearGradientBrush

@@ -68,7 +68,12 @@ public sealed class Stage : Grid
         if (_shown == post.Id) return;
         var asked = ++_asked;
         _shown = post.Id;
-        var cover = post.Cover;
+        Load(post.Cover, post, asked);
+    }
+
+    /// <summary>The wide picture, or, when there is none or the one listed is not there, the poster blurred.</summary>
+    private void Load(Uri? cover, Post post, int asked)
+    {
         if ((cover ?? post.Poster.Big ?? post.Poster.Large) is not { } url) return;
         // In the tree from the start, unseen: a bitmap is only fetched once an image shows it.
         var bitmap = new BitmapImage { DecodePixelWidth = cover is null ? 640 : 1920, DecodePixelType = DecodePixelType.Physical };
@@ -97,7 +102,12 @@ public sealed class Stage : Grid
             await Task.Delay(800);
             foreach (var o in old) _pictures.Children.Remove(o);
         };
-        bitmap.ImageFailed += (_, _) => _pictures.Children.Remove(layer);
+        bitmap.ImageFailed += (_, _) =>
+        {
+            _pictures.Children.Remove(layer);
+            // A scene picture the server lists but does not have: the poster, as for a title without one.
+            if (cover is not null && asked == _asked) Load(null, post, asked);
+        };
         _pictures.Children.Add(layer);
         bitmap.UriSource = url;
     }

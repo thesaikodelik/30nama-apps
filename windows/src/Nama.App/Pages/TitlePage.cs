@@ -27,12 +27,18 @@ public sealed class TitlePage : Grid
     private StreamResult? _stream;
     /// <summary>The stream is being asked for; the play button waits on it.</summary>
     private bool _streamPending;
+    /// <summary>
+    /// The buttons wait, unseen, until what they depend on is known (the place to resume, whether
+    /// there is a trailer) or two seconds have gone; then they come in one by one from the first,
+    /// so none comes in later and pushes the others along.
+    /// </summary>
+    private bool _streamKnown, _tmdbKnown, _revealed, _staggering;
     /// <summary>Why 30nama would not hand over the stream, in its own words.</summary>
     private string? _refusal;
     private int _season = 1;
 
     public Post Post => _loaded ?? _preview;
-    private Color Hue => Post.Tint();
+    private Color Hue => PosterColours.Of(Post);
 
     /// <summary>A poster is flying here from the card that was clicked; the page's own waits for it to land.</summary>
     private bool _held;
@@ -66,6 +72,7 @@ public sealed class TitlePage : Grid
         };
         _ = LoadAsync();
         _ = LoadTmdbAsync();
+        _ = Task.Delay(2000).ContinueWith(_ => DispatcherQueue.TryEnqueue(Reveal), TaskScheduler.Default);
         Loaded += (_, _) => _ = RunTeaserAsync();
         Unloaded += (_, _) => EndTeaser();
         _quiet.Tick += (_, _) => { if (!Quiet) EndTeaser(); };
@@ -128,7 +135,18 @@ public sealed class TitlePage : Grid
     {
         var known = TmdbStore.Shared.Known(_preview.Id);
         var info = await TmdbStore.Shared.InfoAsync(_preview, App.Loc.Lang);
-        if (info is not null && !ReferenceEquals(info, known)) Render();
+        _tmdbKnown = true;
+        if (!_revealed && _streamKnown) Reveal();
+        else if (info is not null && !ReferenceEquals(info, known)) Render();
+    }
+
+    private void Reveal()
+    {
+        if (_revealed) return;
+        _revealed = true;
+        _staggering = true;
+        Render();
+        _staggering = false;
     }
 
     private void OnChanged(string what)
@@ -145,6 +163,17 @@ public sealed class TitlePage : Grid
         catch (Exception) { }
         Render();
         await LoadStreamAsync(quietly: false);
+        _streamKnown = true;
+        if (_tmdbKnown) Reveal();
+        // Missed once, as among the requests of an app just opened, the page would keep only what
+        // the card it came from knew: asked again in a moment.
+        if (_loaded is null)
+        {
+            await Task.Delay(2000);
+            try { _loaded = Post.Parse(await App.Api.GetAsync("single", new Dictionary<string, string> { ["post_id"] = _preview.Id.ToString() }, background: true)); }
+            catch (Exception) { }
+            if (_loaded is not null) Render();
+        }
         // Opened by a play button elsewhere: start without asking again.
         if (_autoplay) Play();
     }
@@ -211,7 +240,6 @@ public sealed class TitlePage : Grid
             if (extra.Crew.Count > 0) _column.Children.Add(Crew(extra.Crew));
             if (extra.Reviews.Count > 0) _column.Children.Add(Reviews(extra.Reviews));
         }
-        if (Post.Updates.Count > 1) _column.Children.Add(Updates());
         _column.Children.Add(Facts());
     }
 
@@ -277,6 +305,25 @@ public sealed class TitlePage : Grid
         }
         buttons.Margin = new Thickness(0, 10, 0, 0);
         info.Children.Add(buttons);
+        // What 30nama changed on the title lately, one at a time, under the buttons.
+        UpdatesTicker? ticker = null;
+        if (post.Updates.Count > 0) info.Children.Add(ticker = new UpdatesTicker(post.Updates));
+        var coming = buttons.Children.Cast<UIElement>().Concat(ticker is null ? [] : [ticker]).ToList();
+        if (!_revealed) foreach (var c in coming) c.Opacity = 0;
+        else if (_staggering && !App.Settings.ReduceMotion)
+            for (var i = 0; i < coming.Count; i++)
+            {
+                var c = coming[i];
+                c.Opacity = 0;
+                c.Translation = new System.Numerics.Vector3(0, 8, 0);
+                c.OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromSeconds(0.3) };
+                c.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromSeconds(0.3) };
+                _ = Task.Delay(70 * i + 16).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+                {
+                    c.Opacity = 1;
+                    c.Translation = default;
+                }), TaskScheduler.Default);
+            }
         Grid.SetColumn(info, 1);
         row.Children.Add(info);
         return row;
@@ -380,20 +427,16 @@ public sealed class TitlePage : Grid
     {
         var loc = App.Loc;
         var column = new StackPanel { Spacing = 14 };
-        var heading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        heading.Children.Add(Theme.Text(loc[S.episodes], 20, FontWeights.Bold));
+        column.Children.Add(Theme.Text(loc[S.episodes], 20, FontWeights.Bold));
+        // On lines of their own that wrap, so every season is in sight. In a scrolling row beside
+        // the heading, a long series had its seasons cut off at the row's ends.
         if (stream.Seasons.Count > 1)
         {
-            var pills = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var pills = new WrapRow(8);
             foreach (var number in stream.Seasons)
-                pills.Children.Add(Kit.Pill($"{loc[S.season]} {loc.Num(number)}", _season == number, () => { _season = number; Render(); }));
-            heading.Children.Add(Kit.Sideways(new ScrollViewer
-            {
-                Content = pills, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Enabled,
-                VerticalScrollMode = ScrollMode.Disabled, VerticalAlignment = VerticalAlignment.Center,
-            }));
+                pills.Add(Kit.Pill($"{loc[S.season]} {loc.Num(number)}", _season == number, () => { _season = number; Render(); }));
+            column.Children.Add(pills);
         }
-        column.Children.Add(heading);
         var grid = new WrapRow(12);
         for (var i = 0; i < stream.Items.Count; i++)
         {
@@ -617,7 +660,6 @@ public sealed class TitlePage : Grid
         if (people.Count > 0) rows.Add(("30nama", string.Join(" · ", people)));
         if (post.Budget is { } budget) rows.Add((loc[S.budget], budget));
         if (post.ExclusiveSubtitle) rows.Add((loc[S.subtitles], loc[S.exclusiveSub]));
-        if (post.LatestUpdate is { } update) rows.Add((loc[S.latestUpdate], update.Content is { } c ? $"{update.Title} · {c}" : update.Title));
 
         var grid = new Grid { ColumnSpacing = 16, RowSpacing = 10 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
@@ -657,30 +699,6 @@ public sealed class TitlePage : Grid
         return row;
     }
 
-    /// <summary>What 30nama has added or mended on the title lately, newest first, with the day of each.</summary>
-    private FrameworkElement Updates()
-    {
-        var loc = App.Loc;
-        var column = new StackPanel { Spacing = 12 };
-        column.Children.Add(Theme.Text(loc[S.titleUpdates], 20, FontWeights.Bold));
-        var list = new StackPanel { Spacing = 9 };
-        foreach (var update in Post.Updates.Take(6))
-        {
-            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-            var day = Theme.Text(loc.Num(update.Day(persian: loc.Lang == Lang.Fa) ?? ""), 13, FontWeights.Medium, Theme.Text3);
-            day.Width = 110;
-            day.FlowDirection = FlowDirection.LeftToRight;
-            // Against the start of the row: the right in Persian and Arabic.
-            day.TextAlignment = loc.Lang == Lang.En ? TextAlignment.Left : TextAlignment.Right;
-            day.VerticalAlignment = VerticalAlignment.Center;
-            line.Children.Add(day);
-            line.Children.Add(Theme.Text(update.Title, 15, FontWeights.SemiBold));
-            if (update.Content is { } content) line.Children.Add(Theme.Text(content, 15, FontWeights.Normal, Theme.Text2));
-            list.Children.Add(line);
-        }
-        column.Children.Add(list);
-        return column;
-    }
 }
 
 /// <summary>Lays its children out in rows, moving on to a new row where one is full.</summary>

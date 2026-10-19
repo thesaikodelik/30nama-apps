@@ -31,7 +31,7 @@ public sealed class PeekCard : Grid
         _post = post;
         _nav = nav;
         _close = close;
-        var hue = post.Tint();
+        var hue = PosterColours.Of(post);
         Width = CardWidth;
         Height = CardHeight;
         CornerRadius = new CornerRadius(20);
@@ -40,7 +40,7 @@ public sealed class PeekCard : Grid
 
         var column = new StackPanel();
         var scene = new Grid { Height = 194 };
-        scene.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, CardWidth * 1.5));
+        scene.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, CardWidth * 1.5, fallback: post.Poster.Big ?? post.Poster.Large));
         scene.Children.Add(new Border
         {
             Background = new LinearGradientBrush
