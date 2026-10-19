@@ -211,7 +211,8 @@ public static class Kit
         // that is not mirrored (WrapRow); what has a direction inside is given its own.
         var rtl = loc.Lang.IsRtl();
         face.FlowDirection = FlowDirection.LeftToRight;
-        face.Children.Add(Images.Remote(post.Poster.Url(width * 1.1 * 1.5), post.Poster.Blurhash, width * 1.5));
+        var picture = Images.Remote(post.Poster.Url(width * 1.1 * 1.5), post.Poster.Blurhash, width * 1.5);
+        face.Children.Add(picture);
 
         var caption = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(10, 26, 10, 10), Spacing = 2, Opacity = 0 }.Springy(0.18);
         caption.Background = new LinearGradientBrush
@@ -272,7 +273,7 @@ public static class Kit
         });
         PosterEffects.Tilt(button, face);
         PosterEffects.Peek(button, face, post);
-        PosterEffects.Glow(button, face, post.Tint());
+        PosterEffects.Glow(button, face, post, picture);
         AutomationName(button, post.Year is { } y ? $"{post.Title(loc.Lang)}, {loc.Num(y)}" : post.Title(loc.Lang));
         button.PointerEntered += (_, _) =>
         {
@@ -322,7 +323,9 @@ public static class Kit
         var loc = Loc;
         const double w = 288, h = 162;
         var face = new Grid { Width = w, Height = h, CornerRadius = new CornerRadius(Theme.Radius + 2), Background = post.Poster.Blurhash is null ? Theme.Brush(Theme.Surface2) : null }.Springy(0.22);
-        face.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, w * 1.5));
+        // A scene picture the server lists may not be there; then the poster.
+        var picture = Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, w * 1.5, fallback: post.Poster.Big ?? post.Poster.Large);
+        face.Children.Add(picture);
         face.Children.Add(new Border
         {
             Background = new LinearGradientBrush
@@ -360,7 +363,7 @@ public static class Kit
         // As the Mac's card for something half-watched: it leans 3 degrees to the pointer and
         // glows in the title's colour under it.
         PosterEffects.Tilt(button, face, 4.5);
-        PosterEffects.Glow(button, face, new Glow.Look(Colors.Black, 0, 0, 0), new Glow.Look(post.Tint(), 0.5f, 32, 14), 1.04f);
+        PosterEffects.Glow(button, face, new Glow.Look(Colors.Black, 0, 0, 0), new Glow.Look(post.Tint(), 0.5f, 32, 14), 1.04f, post, picture);
         var host = new Grid();
         host.Children.Add(Hovering(button, face, 1.04));
         Button? close = null;

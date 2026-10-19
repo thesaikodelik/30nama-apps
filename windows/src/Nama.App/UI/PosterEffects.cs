@@ -175,10 +175,11 @@ public static class PosterEffects
     /// The light a poster throws under it, as on the Mac: a faint dark shadow at rest, and under
     /// the pointer a glow in the poster's own colour that grows with it.
     /// </summary>
-    public static void Glow(Button button, FrameworkElement face, Color tint) =>
-        Glow(button, face, new UI.Glow.Look(Colors.Black, 0.4f, 8, 4), new UI.Glow.Look(tint, 0.55f, 32, 14), 1.07f);
+    public static void Glow(Button button, FrameworkElement face, Post post, FrameworkElement picture) =>
+        Glow(button, face, new UI.Glow.Look(Colors.Black, 0.4f, 8, 4), new UI.Glow.Look(post.Tint(), 0.55f, 32, 14), 1.07f, post, picture);
 
-    public static void Glow(Button button, FrameworkElement face, UI.Glow.Look rest, UI.Glow.Look lifted, float grow)
+    /// <param name="post">With <paramref name="picture"/>, the title whose own picture gives the glow its colour, once it is drawn.</param>
+    public static void Glow(Button button, FrameworkElement face, UI.Glow.Look rest, UI.Glow.Look lifted, float grow, Post? post = null, FrameworkElement? picture = null)
     {
         var glow = new UI.Glow(rest, grow);
         var content = (FrameworkElement)button.Content;
@@ -186,8 +187,28 @@ public static class PosterEffects
         content.Width = face.Width;
         content.Height = face.Height;
         button.Content = UI.Glow.Behind(content, glow);
-        button.PointerEntered += (_, _) => glow.To(lifted, lifted: true);
-        button.PointerExited += (_, _) => glow.To(rest, lifted: false);
+        var over = false;
+        button.PointerEntered += async (_, _) =>
+        {
+            over = true;
+            if (post is null || picture is null)
+            {
+                glow.To(lifted, lifted: true);
+                return;
+            }
+            if (PosterColours.Known(post) is { } known)
+            {
+                glow.To(lifted with { Color = known }, lifted: true);
+                return;
+            }
+            var colour = await PosterColours.TakeAsync(post, picture);
+            if (over) glow.To(lifted with { Color = colour }, lifted: true);
+        };
+        button.PointerExited += (_, _) =>
+        {
+            over = false;
+            glow.To(rest, lifted: false);
+        };
     }
 
     /// <summary>

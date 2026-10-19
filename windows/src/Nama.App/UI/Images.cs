@@ -33,7 +33,8 @@ public static class Images
     /// A picture that fills its space. Held left to right: a window laid out right to left would
     /// otherwise show every picture mirrored.
     /// </summary>
-    public static Grid Remote(Uri? url, string? blurhash, double decodeWidth, Stretch stretch = Stretch.UniformToFill)
+    /// <param name="fallback">Shown when <paramref name="url"/> gives nothing: the server lists scene pictures that are not there.</param>
+    public static Grid Remote(Uri? url, string? blurhash, double decodeWidth, Stretch stretch = Stretch.UniformToFill, Uri? fallback = null)
     {
         var host = new Grid { FlowDirection = FlowDirection.LeftToRight };
         // Every layer is drawn inside its own frame; nothing is drawn past it.
@@ -57,6 +58,11 @@ public static class Images
                     host.Children.Remove(stand);
                 };
                 gone.Start();
+            };
+            bitmap.ImageFailed += (_, _) =>
+            {
+                if (fallback is null || fallback == bitmap.UriSource) return;
+                bitmap.UriSource = fallback;
             };
             bitmap.UriSource = url;
             image.Source = bitmap;
