@@ -87,7 +87,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [CustomMessages]
 ; When a file of the installed app is still held open; %1 is the file's name.
 en.AppInUse=Close 30nama (also its icon beside the clock) and run Setup again. Nothing was changed.%n%nIn use: %1
-fa.AppInUse=۳۰نما را ببندید (آیکونش کنار ساعت را هم) و نصب‌کننده را دوباره اجرا کنید. چیزی تغییر نکرد.%n%nدر حال استفاده: %1
+fa.AppInUse=برنامهٔ 30nama را ببندید (آیکونش کنار ساعت را هم) و نصب‌کننده را دوباره اجرا کنید. چیزی تغییر نکرد.%n%nدر حال استفاده: %1
 ar.AppInUse=أغلق 30nama (وأيقونته بجانب الساعة أيضًا) وشغّل برنامج التثبيت مرة أخرى. لم يتغيّر شيء.%n%nقيد الاستخدام: %1
 
 [Files]
