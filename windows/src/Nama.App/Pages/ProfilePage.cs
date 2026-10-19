@@ -80,15 +80,23 @@ public sealed class ProfilePage : Grid
 
     // MARK: Header
 
+    /// <summary>
+    /// One tidy column beside the picture: the name with the subscription's badge, the date it runs
+    /// to (a guest's way in, for a guest), and the counts on one line. The account's buttons are at
+    /// the far end. As the Mac's profile header.
+    /// </summary>
     private FrameworkElement Header()
     {
         var loc = App.Loc;
         var user = App.User;
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 26 };
-        row.Children.Add(Avatar());
-        var column = new StackPanel { Spacing = 12, VerticalAlignment = VerticalAlignment.Center };
+        var grid = new Grid { ColumnSpacing = 24 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(Avatar());
+        var column = new StackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         var name = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        name.Children.Add(Theme.Text(user?.Name ?? loc[S.guestAccount], 38, FontWeights.ExtraBold));
+        name.Children.Add(Theme.Text(user?.Name ?? loc[S.guestAccount], 36, FontWeights.Black));
         if (user?.Type is { } type)
         {
             var badge = Theme.Text(loc.AccountType(type), 13, FontWeights.Bold, Theme.FocusInk);
@@ -100,28 +108,77 @@ public sealed class ProfilePage : Grid
             });
         }
         column.Children.Add(name);
-        var stats = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        if (user is not null && loc.SubscriptionLine(user) is { } line) column.Children.Add(Theme.Text(line, 13, color: Theme.Text3));
+        // A guest otherwise had no way in from here but the settings.
+        else if (user is null)
+        {
+            var hint = Theme.Text(loc[S.signInHint], 14, color: Theme.Text2, lines: 2);
+            hint.MaxWidth = 460;
+            hint.HorizontalAlignment = HorizontalAlignment.Left;
+            column.Children.Add(hint);
+        }
+        var stats = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, Margin = new Thickness(0, 4, 0, 0) };
+        void Stat(string value, string label, bool star = false)
+        {
+            if (stats.Children.Count > 0) stats.Children.Add(Centered(Theme.Text("·", 15, color: Theme.Text3)));
+            var item = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            if (star) item.Children.Add(Centered(Glyph.Icon(Glyph.StarFill, 12, Gold)));
+            item.Children.Add(Centered(Theme.Text(value, 17, FontWeights.Black)));
+            item.Children.Add(Centered(Theme.Text(label, 13, FontWeights.Medium, Theme.Text3)));
+            stats.Children.Add(item);
+        }
         if (!App.Ratings.IsEmpty)
         {
-            stats.Children.Add(Stat(loc.Num(App.Ratings.Count), loc[S.ratedCount]));
-            if (App.Ratings.Average is { } average) stats.Children.Add(Stat(loc.Num(Fmt.Score(average)), loc[S.averageRating], star: true));
+            Stat(loc.Num(App.Ratings.Count), loc[S.ratedCount]);
+            if (App.Ratings.Average is { } average) Stat(loc.Num(Fmt.Score(average)), loc[S.averageRating], star: true);
         }
-        if (_watchlist.Count > 0) stats.Children.Add(Stat(loc.Num(_listSizes.GetValueOrDefault("watchlist", _watchlist.Count)), loc[S.watchlist]));
-        if (_favorites.Count > 0) stats.Children.Add(Stat(loc.Num(_listSizes.GetValueOrDefault("favorite", _favorites.Count)), loc[S.favorites]));
+        if (_watchlist.Count > 0) Stat(loc.Num(_listSizes.GetValueOrDefault("watchlist", _watchlist.Count)), loc[S.watchlist]);
+        if (_favorites.Count > 0) Stat(loc.Num(_listSizes.GetValueOrDefault("favorite", _favorites.Count)), loc[S.favorites]);
         if (stats.Children.Count > 0) column.Children.Add(stats);
-        // For the user's own eyes, and not the point of the page: kept small and quiet.
-        if (user is not null && loc.SubscriptionLine(user) is { } line) column.Children.Add(Theme.Text(line, 13, color: Theme.Text3));
-        // A guest's way in, where they would look for their account.
-        if (!App.IsLoggedIn)
+        Grid.SetColumn(column, 1);
+        grid.Children.Add(column);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        if (user is null) buttons.Children.Add(Kit.Primary(loc[S.signIn], Glyph.Person, App.RequestSignIn));
+        else
         {
-            column.Children.Add(Theme.Text(loc[S.signInHint], 15, color: Theme.Text2, lines: 2));
-            var signIn = Kit.Primary(loc[S.signIn], Glyph.Person, App.RequestSignIn);
-            signIn.HorizontalAlignment = HorizontalAlignment.Left;
-            signIn.Margin = new Thickness(0, 4, 0, 0);
-            column.Children.Add(signIn);
+            if (!App.Ratings.IsEmpty) buttons.Children.Add(Kit.Glass(loc[S.exportRatings], "", ExportRatings, height: 34));
+            buttons.Children.Add(Kit.Glass(loc[S.signOut], "", ConfirmSignOut, height: 34));
         }
-        row.Children.Add(column);
-        return row;
+        Grid.SetColumn(buttons, 2);
+        grid.Children.Add(buttons);
+        return grid;
+    }
+
+    private static FrameworkElement Centered(FrameworkElement element)
+    {
+        element.VerticalAlignment = VerticalAlignment.Center;
+        return element;
+    }
+
+    private async void ExportRatings()
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "30nama-ratings" };
+        picker.FileTypeChoices.Add("CSV", [".csv"]);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSaveFileAsync() is not { } file) return;
+        try
+        {
+            await File.WriteAllTextAsync(file.Path, App.Ratings.Csv(), new System.Text.UTF8Encoding(false));
+            App.ShowToast(App.Loc[S.exportDone]);
+        }
+        catch (Exception) { App.ShowToast(App.Loc[S.error]); }
+    }
+
+    private async void ConfirmSignOut()
+    {
+        var loc = App.Loc;
+        var dialog = new ContentDialog
+        {
+            Title = loc[S.signOutTitle], Content = loc[S.signOutBody], PrimaryButtonText = loc[S.signOut], CloseButtonText = loc[S.cancel],
+            DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot, FlowDirection = loc.Lang.IsRtl() ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary) App.SignOut();
     }
 
     private static LinearGradientBrush Vertical(Color top, Color bottom) => new()
@@ -154,25 +211,6 @@ public sealed class ProfilePage : Grid
         if (App.User?.Avatar is { } url) face.Children.Add(Images.Remote(url, null, 180));
         face.Children.Add(new Border { CornerRadius = new CornerRadius(60), BorderThickness = new Thickness(2), BorderBrush = Vertical(Theme.Hex(0xFFFFFF, 0.7), Theme.Hex(0xFFFFFF, 0.1)) });
         return face;
-    }
-
-    private static FrameworkElement Stat(string value, string label, bool star = false)
-    {
-        var column = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 16, 0) };
-        var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        if (star)
-        {
-            var icon = Glyph.Icon(Glyph.StarFill, 14, Gold);
-            icon.VerticalAlignment = VerticalAlignment.Center;
-            top.Children.Add(icon);
-        }
-        top.Children.Add(Theme.Text(value, 22, FontWeights.ExtraBold));
-        column.Children.Add(top);
-        column.Children.Add(Theme.Text(label, 12, FontWeights.Medium, Theme.Text3));
-        var card = new Grid { MinWidth = 96, MinHeight = 60 };
-        card.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
-        card.Children.Add(column);
-        return card;
     }
 
     // MARK: Taste
