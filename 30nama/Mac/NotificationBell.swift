@@ -12,13 +12,17 @@ struct NotificationBell: View {
         let unread = app.notifications?.unread ?? 0
         Button { open.toggle() } label: {
             ZStack {
-                Circle().fill(Color.white.opacity(open ? 0.18 : hovering ? 0.12 : 0)).padding(4)
+                if open {
+                    GlassLens(shape: Circle(), lit: true).padding(4)
+                } else {
+                    Circle().fill(Color.white.opacity(hovering ? 0.12 : 0)).padding(4)
+                }
                 Image(systemName: unread > 0 ? "bell.badge" : "bell")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Theme.text1.opacity(hovering || open ? 1 : 0.78))
             }
             .frame(width: 48, height: 48)
-            .glass(Circle())
+            .lens(Circle())
             .overlay(alignment: .topTrailing) {
                 if unread > 0 {
                     Text(loc.num(min(unread, 99)))

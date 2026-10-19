@@ -929,9 +929,11 @@ struct DownloadsDisc: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Made as the bar beside it is: the same glass, and inside it the same white pill
-                // when its page is the open one.
-                Circle().fill(selected ? Color.white : Color.white.opacity(hovering ? 0.12 : 0)).padding(4)
+                // A tab of the bar beside it: its glass is drawn under the bar's liquid pill, and
+                // the pill flows into it when its page is the open one.
+                Circle().fill(Color.white.opacity(!selected && hovering ? 0.12 : 0))
+                    .liquidTab(MacSection.downloads)
+                    .padding(4)
                 if !busy.isEmpty {
                     Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 3)
                     Circle()
@@ -943,10 +945,9 @@ struct DownloadsDisc: View {
                 }
                 Image(systemName: busy.isEmpty ? "arrow.down.to.line" : "arrow.down")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(selected ? Theme.focusInk : Theme.text1.opacity(hovering ? 1 : 0.78))
+                    .foregroundStyle(Theme.text1.opacity(selected || hovering ? 1 : 0.78))
             }
             .frame(width: 48, height: 48)
-            .glass(Circle())
             .overlay(alignment: .topTrailing) {
                 if !busy.isEmpty {
                     Text(loc.num(busy.count))
