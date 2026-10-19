@@ -8,12 +8,24 @@ using Nama.Core;
 
 namespace Nama.App.Shell;
 
-/// <summary>The floating bar at the top of the window: the same glass capsule the Mac app has.</summary>
-public sealed class NavBar : StackPanel
+/// <summary>
+/// The floating bar at the top of the window, as the Mac's: a capsule of glass with the sections,
+/// a disc beside it for downloads, the bell, and the back button on the other side. The open tab
+/// sits on a pill of brighter glass that flows from tab to tab like a drop of liquid, out of the
+/// bar and into the downloads disc too (<see cref="LiquidPill"/>).
+/// </summary>
+public sealed class NavBar : Grid
 {
     private readonly Nav _nav;
+    private readonly StackPanel _row = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
+    private readonly Grid _capsule = new();
+    private readonly LiquidPill _pill = new();
+    private readonly Dictionary<Section, FrameworkElement> _tabs = [];
+    private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private readonly Button _back;
     private readonly Button _downloads;
+    private readonly Grid _bellSlot = new() { Width = 48, Height = 48 };
+    private readonly Border _balance = new() { Width = 48, Height = 48 };
     private readonly Border _downloadsFill = new() { Margin = new Thickness(4), CornerRadius = new CornerRadius(20) };
     private readonly FontIcon _downloadsIcon = Glyph.Icon(Glyph.Download, 16, Theme.Text1.WithAlpha(0.78));
     private readonly ProgressRing _downloadsRing = new()
@@ -28,38 +40,36 @@ public sealed class NavBar : StackPanel
     };
     private bool _downloadsLit, _downloadsHover;
 
-    /// <summary>
-    /// A disc beside the bar, made as the bar is: the same glass and rim, and inside it the same
-    /// white pill when its page is the open one. Not the lighter glass of the app's other buttons.
-    /// </summary>
+    /// <summary>A disc beside the bar, of the bar's own glass.</summary>
     private static (Button Button, Grid Face) Disc(UIElement inside, Action click)
     {
         var face = new Grid { Width = 48, Height = 48 };
-        face.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(24) });
-        face.Children.Add(new Border { CornerRadius = new CornerRadius(24), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
+        face.Children.Add(GlassLens.Make());
         face.Children.Add(inside);
         return (Theme.Bare(face, click), face);
     }
 
-    /// <summary>The notifications, with how many are new on it, opening their pane under the bar.</summary>
+    /// <summary>The notifications, with how many are new on it, opening their pane under the bar: a disc of its own, as on the Mac.</summary>
     private Button Bell()
     {
         var loc = AppModel.Shared.Loc;
         var unread = AppModel.Shared.Notifications?.Unread ?? 0;
-        var face = new Grid { Height = 40, Padding = new Thickness(13, 0, 13, 0), CornerRadius = new CornerRadius(20), Background = Theme.White(0) };
-        face.Children.Add(Glyph.Icon("", 16, Theme.Text1.WithAlpha(0.78)));
+        var inside = new Grid { Margin = new Thickness(4), CornerRadius = new CornerRadius(20), Background = Theme.White(0) };
+        var icon = Glyph.Icon("", 16, Theme.Text1.WithAlpha(0.78));
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        inside.Children.Add(icon);
+        var (button, face) = Disc(inside, () => { });
         if (unread > 0)
         {
-            var count = Theme.Text(loc.Num(Math.Min(unread, 99)), 10, Microsoft.UI.Text.FontWeights.Bold, Microsoft.UI.Colors.White);
+            var count = Theme.Text(loc.Num(Math.Min(unread, 99)), 10, FontWeights.Bold, Colors.White);
             count.HorizontalAlignment = HorizontalAlignment.Center;
             count.VerticalAlignment = VerticalAlignment.Center;
             face.Children.Add(new Border
             {
                 MinWidth = 16, Height = 16, CornerRadius = new CornerRadius(8), Background = Theme.Brush(Theme.Accent), Padding = new Thickness(4, 0, 4, 0),
-                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 4, -6, 0), Child = count,
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -2, -2, 0), Child = count,
             });
         }
-        var button = Theme.Bare(face, () => { });
         var flyout = new Flyout
         {
             Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom,
@@ -79,35 +89,33 @@ public sealed class NavBar : StackPanel
             flyout.Content = new Pages.NotificationsPanel(_nav, flyout.Hide) { FlowDirection = FlowDirection };
             flyout.ShowAt(button);
         };
-        button.PointerEntered += (_, _) => face.Background = Theme.White(0.12);
-        button.PointerExited += (_, _) => face.Background = Theme.White(0);
+        button.PointerEntered += (_, _) => { inside.Background = Theme.White(0.12); icon.Foreground = Theme.Brush(Theme.Text1); };
+        button.PointerExited += (_, _) => { inside.Background = Theme.White(0); icon.Foreground = Theme.Brush(Theme.Text1.WithAlpha(0.78)); };
         ToolTipService.SetToolTip(button, loc[S.notifications]);
         Kit.AutomationName(button, loc[S.notifications]);
         return button;
     }
-    private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
 
     public NavBar(Nav nav)
     {
         _nav = nav;
-        Orientation = Orientation.Horizontal;
-        Spacing = 10;
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Top;
+        // Room the size of the bell on the other side, so the bar stays centred.
+        _row.Children.Add(_balance);
         // The back button keeps its place beside the bar while it is hidden, so the bar stays centred.
         var arrow = Glyph.Icon(Glyph.Back, 15, Theme.Text1);
         arrow.HorizontalAlignment = HorizontalAlignment.Center;
         arrow.MirroredWhenRightToLeft = true;
         _back = Disc(arrow, nav.Back).Button.Springy(0.2);
-        Kit.AutomationName(_back, AppModel.Shared.Loc[Core.S.back]);
-        Children.Add(_back);
-        var capsule = new Grid();
-        capsule.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(24), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim });
+        Kit.AutomationName(_back, AppModel.Shared.Loc[S.back]);
+        _row.Children.Add(_back);
+        _capsule.Children.Add(GlassLens.Make());
         _items.Margin = new Thickness(4);
-        capsule.Children.Add(_items);
-        Children.Add(capsule);
+        _capsule.Children.Add(_items);
+        _row.Children.Add(_capsule);
         // Downloads are not a place in the catalogue; they have a disc of their own beside the bar,
-        // which also balances the back button so the bar sits in the middle of the window.
+        // which is a tab of the pill too.
         var inside = new Grid();
         inside.Children.Add(_downloadsFill);
         inside.Children.Add(_downloadsRing);
@@ -122,9 +130,23 @@ public sealed class NavBar : StackPanel
         _downloads = downloads;
         _downloads.PointerEntered += (_, _) => { _downloadsHover = true; ShowDownloads(); };
         _downloads.PointerExited += (_, _) => { _downloadsHover = false; ShowDownloads(); };
-        ToolTipService.SetToolTip(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
-        Kit.AutomationName(_downloads, AppModel.Shared.Loc[Core.S.downloads]);
-        Children.Add(_downloads);
+        ToolTipService.SetToolTip(_downloads, AppModel.Shared.Loc[S.downloads]);
+        Kit.AutomationName(_downloads, AppModel.Shared.Loc[S.downloads]);
+        _row.Children.Add(_downloads);
+        _row.Children.Add(_bellSlot);
+        Children.Add(_row);
+        // Over the glass and the words: the words are white, and the pill's light over them leaves them so.
+        // On a canvas, so it takes the row's size rather than giving the bar one.
+        // Left to right, and measured in its own space: a mirrored bitmap would put the pill at the wrong end.
+        var stage = new Canvas { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
+        stage.Children.Add(_pill);
+        Children.Add(stage);
+        _row.SizeChanged += (_, e) =>
+        {
+            _pill.Width = e.NewSize.Width;
+            _pill.Height = e.NewSize.Height;
+        };
+        _row.LayoutUpdated += (_, _) => PlacePill();
         nav.Changed += Refresh;
         AppModel.Shared.Changed += OnChanged;
         Downloads.Shared.Changed += ShowDownloads;
@@ -136,16 +158,29 @@ public sealed class NavBar : StackPanel
         Refresh();
     }
 
+    /// <summary>Tells the pill where the glass and the tabs are now, in this bar's own space.</summary>
+    private void PlacePill()
+    {
+        if (XamlRoot is null || ActualWidth <= 0 || _pill.ActualWidth <= 0) return;
+        Windows.Foundation.Rect Frame(FrameworkElement e) => e.TransformToVisual(_pill).TransformBounds(new Windows.Foundation.Rect(0, 0, e.ActualWidth, e.ActualHeight));
+        var tabs = new Dictionary<object, Windows.Foundation.Rect>();
+        foreach (var (section, tab) in _tabs) if (tab.ActualWidth > 0) tabs[section] = Frame(tab);
+        var disc = Frame(_downloads);
+        // The pill in the disc is the size of a tab in the bar: four pixels in.
+        tabs[Section.Downloads] = new Windows.Foundation.Rect(disc.X + 4, disc.Y + 4, disc.Width - 8, disc.Height - 8);
+        _pill.Place([Frame(_capsule), disc], tabs);
+    }
+
     /// <summary>
-    /// The downloads disc: white while its page is open, and while files are coming in, a red ring
-    /// of how far they have all got and a count of them, as on the Mac.
+    /// The downloads disc: under the pill while its page is open, and while files are coming in, a
+    /// red ring of how far they have all got and a count of them, as on the Mac.
     /// </summary>
     private void ShowDownloads()
     {
         var busy = Downloads.Shared.Items.Where(i => i.State is DownloadItem.States.Running or DownloadItem.States.Paused).ToList();
-        _downloadsFill.Background = _downloadsLit ? Theme.Brush(Colors.White) : Theme.White(_downloadsHover ? 0.12 : 0);
-        _downloadsIcon.Glyph = busy.Count > 0 ? "\uE74B" : Glyph.Download;
-        _downloadsIcon.Foreground = Theme.Brush(_downloadsLit ? Theme.FocusInk : Theme.Text1.WithAlpha(_downloadsHover ? 1 : 0.78));
+        _downloadsFill.Background = Theme.White(!_downloadsLit && _downloadsHover ? 0.12 : 0);
+        _downloadsIcon.Glyph = busy.Count > 0 ? "" : Glyph.Download;
+        _downloadsIcon.Foreground = Theme.Brush(Theme.Text1.WithAlpha(_downloadsLit || _downloadsHover ? 1 : 0.78));
         _downloadsRing.Visibility = _downloadsCount.Visibility = busy.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (busy.Count == 0) return;
         long expected = busy.Sum(i => i.Expected), received = busy.Sum(i => i.Received);
@@ -165,14 +200,19 @@ public sealed class NavBar : StackPanel
         _back.Opacity = showBack ? 1 : 0;
         _back.IsHitTestVisible = showBack;
         _back.IsTabStop = showBack;
-        // Lit while its section is open, as the bar's own items are.
         _downloadsLit = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
         ShowDownloads();
+        // The bell, for someone signed in, beside the downloads; the room on the other side balances it.
+        _bellSlot.Children.Clear();
+        var signedIn = AppModel.Shared.IsLoggedIn;
+        if (signedIn) _bellSlot.Children.Add(Bell());
+        _bellSlot.Visibility = _balance.Visibility = signedIn ? Visibility.Visible : Visibility.Collapsed;
         _items.Children.Clear();
+        _tabs.Clear();
         foreach (var section in Nav.OnBar)
         {
             var selected = _nav.Section == section && _nav.Opened.Count == 0;
-            var ink = selected ? Theme.FocusInk : Theme.Text1.WithAlpha(0.78);
+            var ink = Theme.Text1.WithAlpha(selected ? 1 : 0.7);
             var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center };
             if (Nav.IconOnly(section) || section == Section.Profile) label.Children.Add(Glyph.Icon(Nav.Symbol(section), 16, ink));
             if (!Nav.IconOnly(section)) label.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, ink));
@@ -181,20 +221,28 @@ public sealed class NavBar : StackPanel
                 Height = 40,
                 Padding = new Thickness(Nav.IconOnly(section) ? 13 : 17, 0, Nav.IconOnly(section) ? 13 : 17, 0),
                 CornerRadius = new CornerRadius(20),
-                Background = selected ? Theme.Brush(Colors.White) : Theme.White(0),
+                Background = Theme.White(0),
                 Child = label,
             };
             var button = Theme.Bare(face, () => _nav.Go(section));
             if (!selected)
             {
-                button.PointerEntered += (_, _) => { face.Background = Theme.White(0.12); ((Microsoft.UI.Xaml.Controls.Panel)face.Child).Opacity = 1; };
-                button.PointerExited += (_, _) => face.Background = Theme.White(0);
+                button.PointerEntered += (_, _) => { face.Background = Theme.White(0.12); label.Opacity = 1; foreach (var c in label.Children) Tint(c, Theme.Text1); };
+                button.PointerExited += (_, _) => { face.Background = Theme.White(0); foreach (var c in label.Children) Tint(c, Theme.Text1.WithAlpha(0.7)); };
             }
             ToolTipService.SetToolTip(button, loc[Nav.Title(section)]);
             Kit.AutomationName(button, loc[Nav.Title(section)]);
             _items.Children.Add(button);
-            // The bell sits before settings, for someone signed in: what 30nama has to tell them.
-            if (section == Section.Profile && AppModel.Shared.IsLoggedIn) _items.Children.Add(Bell());
+            _tabs[section] = face;
         }
+        // No pill while a title or other page is open over the sections.
+        _pill.Select(_nav.Opened.Count == 0 ? _nav.Section : null);
+        PlacePill();
+    }
+
+    private static void Tint(UIElement e, Windows.UI.Color colour)
+    {
+        if (e is TextBlock t) t.Foreground = Theme.Brush(colour);
+        else if (e is FontIcon i) i.Foreground = Theme.Brush(colour);
     }
 }
