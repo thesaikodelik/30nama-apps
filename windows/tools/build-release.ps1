@@ -45,6 +45,9 @@ try {
     tar -xf $tar -C $src
     Remove-Item $tar
     Copy-Item $libmpv (Join-Path $src 'windows\libmpv') -Recurse
+    # The website API's key (git-ignored), for the parts of the app that come from the site.
+    $local = Join-Path $repo 'windows\Local.props'
+    if (Test-Path $local) { Copy-Item $local (Join-Path $src 'windows\Local.props') } else { Write-Host 'No windows/Local.props: the site parts stay hidden in this build' -ForegroundColor Yellow }
 
     Step "Build $Version"
     $app = Join-Path $src 'windows\src\Nama.App'

@@ -1,0 +1,10 @@
+<!--
+  Copy to Local.props (git-ignored) and fill in the key the 30nama website gives every browser: the
+  same value as NAMA_SITE_KEY in the Mac's Config/Local.xcconfig. Without it the app still works in
+  full; only the parts that come from the website's own API (an actor's titles) stay hidden.
+-->
+<Project>
+  <PropertyGroup>
+    <NamaSiteKey></NamaSiteKey>
+  </PropertyGroup>
+</Project>

@@ -15,6 +15,8 @@ public abstract record Route
     public sealed record Catalog(string Slug, string Name) : Route;
     /// <summary>The advanced search, set up beforehand when a name on a title page was clicked.</summary>
     public sealed record Advanced(AdvancedQuery? Start = null) : Route;
+    /// <summary>An actor's titles, from the website's API.</summary>
+    public sealed record Actor(Person Person) : Route;
 
     /// <summary>The same page: a title by its id, a catalogue by its slug.</summary>
     public bool Same(Route other) => (this, other) switch
@@ -22,6 +24,7 @@ public abstract record Route
         (Title a, Title b) => a.Post.Id == b.Post.Id,
         (Catalog a, Catalog b) => a.Slug == b.Slug,
         (Advanced a, Advanced b) => a.Start == b.Start,
+        (Actor a, Actor b) => a.Person.Imdb == b.Person.Imdb,
         _ => false,
     };
 }

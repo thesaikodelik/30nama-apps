@@ -473,6 +473,9 @@ public sealed class TitlePage : Grid
             silhouette.HorizontalAlignment = HorizontalAlignment.Center;
             face.Children.Add(silhouette);
             if (person.Poster is { } p) face.Children.Add(Images.Remote(p.Url(96), p.Blurhash, 96 * 1.5));
+            // A ring in the title's colour under the pointer, when the person's titles can be opened.
+            var ring = new Border { CornerRadius = new CornerRadius(48), BorderThickness = new Thickness(2), BorderBrush = Theme.Brush(Hue), Opacity = 0 }.Springy(0.15);
+            face.Children.Add(ring);
             card.Children.Add(face);
             var name = Theme.Text(person.Name, 13, FontWeights.SemiBold);
             name.HorizontalAlignment = HorizontalAlignment.Center;
@@ -483,7 +486,26 @@ public sealed class TitlePage : Grid
                 r.HorizontalAlignment = HorizontalAlignment.Center;
                 card.Children.Add(r);
             }
-            row.Children.Add(card);
+            // Only the website's API finds a person's titles, by their IMDb id.
+            if (App.Api.HasSite && person.Imdb is not null)
+            {
+                var open = Theme.Bare(card, () => _nav.Open(new Route.Actor(person)));
+                open.PointerEntered += (_, _) =>
+                {
+                    ring.Opacity = 1;
+                    name.Foreground = Theme.Brush(Hue);
+                    name.TextDecorations = Windows.UI.Text.TextDecorations.Underline;
+                };
+                open.PointerExited += (_, _) =>
+                {
+                    ring.Opacity = 0;
+                    name.Foreground = Theme.Brush(Theme.Text1);
+                    name.TextDecorations = Windows.UI.Text.TextDecorations.None;
+                };
+                Kit.AutomationName(open, person.Name);
+                row.Children.Add(open);
+            }
+            else row.Children.Add(card);
         }
         column.Children.Add(Kit.Sideways(new ScrollViewer
         {

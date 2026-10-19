@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- The website API's key, kept out of the repository: copy windows/Local.example.props to windows/Local.props. -->
+  <Import Project="..\..\Local.props" Condition="Exists('..\..\Local.props')" />
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -37,6 +39,9 @@
   <ItemGroup>
     <!-- Fetched by windows/tools/fetch-libmpv.ps1. -->
     <None Include="..\..\libmpv\libmpv-2.dll" Link="libmpv-2.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\libmpv\libmpv-2.dll')" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="NamaSiteKey" Value="$(NamaSiteKey)" />
   </ItemGroup>
   <Target Name="NeedsLibmpv" BeforeTargets="Build" Condition="!Exists('..\..\libmpv\libmpv-2.dll')">
     <Error Text="libmpv-2.dll is missing. Run: pwsh windows/tools/fetch-libmpv.ps1" />

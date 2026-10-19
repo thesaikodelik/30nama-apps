@@ -350,6 +350,7 @@ public sealed partial class MainWindow : Window
             Route.Title title => new TitlePage(title.Post, _nav, title.Playing, held: flight is not null),
             Route.Catalog catalog => new CatalogPage(catalog.Slug, catalog.Name, _nav),
             Route.Advanced advanced => new AdvancedSearchPage(_nav, advanced.Start),
+            Route.Actor actor => new PersonPage(actor.Person, _nav),
             _ => null,
         };
         if (page is null) return;

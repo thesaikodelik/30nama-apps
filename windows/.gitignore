@@ -7,3 +7,5 @@ TestResults/
 libmpv/
 # Built by tools/build-release.ps1.
 dist/
+# The website API's key for this build; copy Local.example.props.
+Local.props
