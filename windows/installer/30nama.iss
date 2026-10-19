@@ -189,6 +189,17 @@ begin
   end;
 end;
 
+// The installing page shows only how far it has got: the name of each file going by is no use to anyone.
+procedure InitializeWizard;
+begin
+  WizardForm.FilenameLabel.Visible := False;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpInstalling then WizardForm.FilenameLabel.Visible := False;
+end;
+
 function InitializeSetup: Boolean;
 var
   Code: Integer;
