@@ -40,7 +40,8 @@ public sealed class DownloadPicker : Grid
         dim.Tapped += (_, e) => { if (ReferenceEquals(e.OriginalSource, dim)) close(); };
         Children.Add(dim);
 
-        var pane = new Grid { Width = 900, MaxHeight = 680, Margin = new Thickness(0, 60, 0, 30), VerticalAlignment = VerticalAlignment.Center, CornerRadius = new CornerRadius(28) };
+        // At most 900 wide, narrower with the window.
+        var pane = new Grid { MaxWidth = 900, MaxHeight = 680, Margin = new Thickness(24, 60, 24, 30), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center, CornerRadius = new CornerRadius(28) };
         pane.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         pane.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         pane.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

@@ -53,7 +53,6 @@ public sealed class UpdatesTicker : Grid
         }
         line.Children.Add(Theme.Text(loc.Num(update.Title), 13, FontWeights.SemiBold, Theme.Text1));
         if (update.Content is { } content) line.Children.Add(Theme.Text(loc.Num(content), 13, color: Theme.Text2));
-        line.Springy(0.5);
         var old = _line;
         _line = line;
         if (!moving)
@@ -61,18 +60,28 @@ public sealed class UpdatesTicker : Grid
             Children.Add(line);
             return;
         }
-        // The new one comes up from below as the old one goes up and out.
+        // One after the other, never two at once: the old line goes up and out, then the new one
+        // comes up from below. Its starting place is set before its transitions are, so it does not
+        // first fade from full to nothing over the old one.
         line.Opacity = 0;
         line.Translation = new System.Numerics.Vector3(0, 9, 0);
-        Children.Add(line);
-        DispatcherQueue.TryEnqueue(() =>
+        line.Springy(0.25);
+        if (old is not null)
         {
-            line.Opacity = 1;
-            line.Translation = default;
-            if (old is null) return;
+            old.Springy(0.25);
             old.Opacity = 0;
             old.Translation = new System.Numerics.Vector3(0, -9, 0);
-            _ = Task.Delay(600).ContinueWith(_ => DispatcherQueue.TryEnqueue(() => Children.Remove(old)), TaskScheduler.Default);
-        });
+        }
+        _ = Task.Delay(260).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (old is not null) Children.Remove(old);
+            if (_line != line) return;
+            Children.Add(line);
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                line.Opacity = 1;
+                line.Translation = default;
+            });
+        }), TaskScheduler.Default);
     }
 }
