@@ -1,0 +1,167 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "id": 151521,
+  "imdb": "https://www.imdb.com/name/nm0000255",
+  "name": "Ben Affleck",
+  "full_name": "Benjamin Géza Affleck-Boldt",
+  "persian_name": "بن افلک",
+  "persian_fullname": "",
+  "first_name": "Ben",
+  "last_name": "Affleck",
+  "gender": "male",
+  "summary": "پیش زمینه\nپاراگراف نمونهٔ اول.",
+  "content": "<p style=\"text-align: justify;\">پیش زمینه\nپاراگراف نمونهٔ اول&nbsp;با &quot;نقل&quot; و &#8217;.</p>\n<p><strong>پاراگراف</strong> نمونهٔ دوم.</p><p>&nbsp;</p>",
+  "profession": "بازیگر",
+  "age": "۵۴",
+  "birthdate": "۲۴ مرداد ۱۳۵۱",
+  "deathdate": null,
+  "total_favorite": "۹۳",
+  "image": {
+   "cover": false,
+   "poster": {
+    "big": "https://example.com/person/30151521-b_30NAMA.jpg?",
+    "big_webp": "https://example.com/person/30151521-b_30NAMA.webp?",
+    "large": "https://example.com/person/30151521-l_30NAMA.jpg?",
+    "large_webp": "https://example.com/person/30151521-l_30NAMA.webp?",
+    "medium": "https://example.com/person/30151521-m_30NAMA.jpg?",
+    "medium_webp": "https://example.com/person/30151521-m_30NAMA.webp?",
+    "small": "https://example.com/person/30151521-s_30NAMA.jpg?",
+    "small_webp": "https://example.com/person/30151521-s_30NAMA.webp?"
+   }
+  },
+  "posts": {
+   "page": 1,
+   "pages": 4,
+   "posts": [
+    {
+     "id": 669546,
+     "title_type": "movie",
+     "stream": true,
+     "is_series": false,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "The Rip 2026",
+     "persian_title": "مصادره",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt32642706",
+     "imdb_score": "6.8",
+     "imdb_votes": "127188",
+     "30nama_score": 7.3,
+     "30nama_votes": "22",
+     "myanimelist": "",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30669546_30NAMA.jpg?",
+      "cover_webp": "https://example.com/cover/30669546_30NAMA.webp?",
+      "poster": {
+       "big": "https://example.com/poster/30669546-b_30NAMA.jpg?",
+       "big_webp": "https://example.com/poster/30669546-b_30NAMA.webp?",
+       "large": "https://example.com/poster/30669546-l_30NAMA.jpg?",
+       "large_webp": "https://example.com/poster/30669546-l_30NAMA.webp?",
+       "medium": "https://example.com/poster/30669546-m_30NAMA.jpg?",
+       "medium_webp": "https://example.com/poster/30669546-m_30NAMA.webp?",
+       "small": "https://example.com/poster/30669546-s_30NAMA.jpg?",
+       "small_webp": "https://example.com/poster/30669546-s_30NAMA.webp?"
+      }
+     },
+     "genre": [
+      {
+       "name": "جنایی",
+       "slug": "crime"
+      },
+      {
+       "name": "هیجان انگیز",
+       "slug": "thriller"
+      }
+     ],
+     "airstatus": {
+      "status": null,
+      "data": null
+     },
+     "nextepisode": {
+      "caption": null,
+      "date": null
+     }
+    },
+    {
+     "id": 685883,
+     "title_type": "movie",
+     "stream": true,
+     "is_series": false,
+     "coming_soon": false,
+     "free_stream": false,
+     "free_download": false,
+     "persian_subtitle": false,
+     "imdb_250": "",
+     "title": "Animals 2026",
+     "persian_title": "",
+     "budget": "",
+     "persian_plot": "",
+     "english_plot": "",
+     "imdb_id": "tt31049299",
+     "imdb_score": "",
+     "imdb_votes": "",
+     "30nama_score": 5.3,
+     "30nama_votes": "15",
+     "myanimelist": "",
+     "myanimelist_score": 0,
+     "myanimelist_votes": "",
+     "mydramalist": "",
+     "mydramalist_score": "",
+     "mydramalist_votes": "",
+     "image": {
+      "cover": "https://example.com/cover/30685883_30NAMA.jpg?1791531410",
+      "cover_webp": "https://example.com/cover/30685883_30NAMA.webp?1791531410",
+      "poster": {
+       "big": "https://example.com/poster/30685883-b_30NAMA.jpg?1791531387",
+       "big_webp": "https://example.com/poster/30685883-b_30NAMA.webp?1791531387",
+       "large": "https://example.com/poster/30685883-l_30NAMA.jpg?1791531387",
+       "large_webp": "https://example.com/poster/30685883-l_30NAMA.webp?1791531387",
+       "medium": "https://example.com/poster/30685883-m_30NAMA.jpg?1791531387",
+       "medium_webp": "https://example.com/poster/30685883-m_30NAMA.webp?1791531387",
+       "small": "https://example.com/poster/30685883-s_30NAMA.jpg?1791531387",
+       "small_webp": "https://example.com/poster/30685883-s_30NAMA.webp?1791531387"
+      }
+     },
+     "genre": [
+      {
+       "name": "اکشن",
+       "slug": "action"
+      },
+      {
+       "name": "جنایی",
+       "slug": "crime"
+      },
+      {
+       "name": "درام",
+       "slug": "drama"
+      },
+      {
+       "name": "هیجان انگیز",
+       "slug": "thriller"
+      }
+     ],
+     "airstatus": {
+      "status": null,
+      "data": null
+     },
+     "nextepisode": {
+      "caption": null,
+      "date": null
+     }
+    }
+   ]
+  }
+ }
+}

@@ -44,6 +44,8 @@ enum MacRoute: Hashable {
     case advancedSearch(AdvancedQuery = AdvancedQuery())
     /// An actor's titles, when one on a title page was clicked.
     case person(Person)
+    case schedule
+    case topLists
 }
 
 /// The card that opens over a poster the pointer has rested on: the title, and where its poster
@@ -124,6 +126,8 @@ struct MainView: View {
                     case .catalog(let slug, let title): CatalogView(slug: slug, title: title)
                     case .advancedSearch(let query): AdvancedSearchView(start: query)
                     case .person(let person): PersonView(person: person)
+                    case .schedule: ScheduleView()
+                    case .topLists: TopListsView()
                     }
                 }
                 .id(route)
@@ -275,6 +279,7 @@ struct MainView: View {
 
 /// The floating bar at the top of the window: the same glass capsule the Apple TV app has.
 private struct NavBar: View {
+    @Environment(AppModel.self) private var app
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
 
@@ -282,9 +287,11 @@ private struct NavBar: View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
         // and the downloads disc of the same size balances it on the other side (the bell, too). So the bar stays
         // centred and its items do not shift when the button comes and goes.
+        // The bell only when there is something in it: an empty one only took room.
+        let bell = app.user != nil && !(app.notifications?.items.isEmpty ?? true)
         HStack(spacing: 10) {
             // Room the size of the bell on the other side, so the bar stays centred.
-            Color.clear.frame(width: 48, height: 48)
+            if bell { Color.clear.frame(width: 48, height: 48) }
             Button { nav.back() } label: {
                 Image(systemName: "chevron.backward")
                     .font(.system(size: 15, weight: .bold))
@@ -312,8 +319,9 @@ private struct NavBar: View {
             .liquidGround()
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
                 .liquidGround()
-            NotificationBell()
+            if bell { NotificationBell().transition(.scale(scale: 0.8).combined(with: .opacity)) }
         }
+        .animation(Theme.focusSpring, value: bell)
         // The open tab's glass pill flows to the next like a drop of liquid, out of the bar and
         // into the downloads disc too: both are glass drawn under it.
         .liquidPill(selected: nav.opened.isEmpty ? AnyHashable(nav.section) : nil)

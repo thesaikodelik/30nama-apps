@@ -23,20 +23,23 @@ struct CatalogView: View {
     /// kind of title to stay with, and a genre's own page has no such kind.
     private var type: String? { ["movies": "movie", "series": "series", "anime": "anime"][slug] }
 
-    /// The orders 30nama's app API keeps to. It has no "newest" (the website's own API has, by
-    /// post id, through an action this API does not offer); any other value it is given brings
-    /// one fixed list, which was shown as "newest" until 1.2.4. Recently updated is the website's
-    /// own first choice, and for films it is the newest too.
+    /// The orders 30nama's app API keeps to, and "newest". The app API has no newest: any order
+    /// it does not know brings one fixed list, which was shown as "newest" until 1.2.4. The
+    /// website's own API has it, by post id, so it is offered when the build has the site's key.
+    /// Recently updated is the website's own first choice.
     enum Sort: String, CaseIterable {
-        case updated = "update", popular = "favorite"
+        case updated = "update", newest = "id", popular = "favorite"
 
         var label: S {
             switch self {
             case .popular: return .popular
             case .updated: return .updated
+            case .newest: return .newest
             }
         }
     }
+
+    private var sorts: [Sort] { Sort.allCases.filter { $0 != .newest || (type != nil && app.api.hasSite) } }
 
     private let columns = [GridItem(.adaptive(minimum: Mac.posterWidth, maximum: Mac.posterWidth + 40), spacing: 20)]
 
@@ -76,6 +79,10 @@ struct CatalogView: View {
         .task(id: app.contentVersion) {
             if type != nil { options = try? await app.filterOptions() }
         }
+        // What the newest list cannot narrow by is let go, not kept and silently ignored.
+        .onChange(of: sort) { _, sort in
+            if sort == .newest { filter = Filter(genre: filter.genre) }
+        }
     }
 
     /// Genre, country, lowest score and decade. With any of them set, the wall is filled by
@@ -83,11 +90,14 @@ struct CatalogView: View {
     private func filters(_ options: FilterOptions) -> some View {
         HStack(spacing: 8) {
             FilterMenu(title: loc(.genres), choices: options.genres, selection: $filter.genre)
-            FilterMenu(title: loc(.country), choices: options.countries, selection: $filter.country)
-            FilterMenu(title: loc(.minScore), choices: options.scores, selection: $filter.score)
-            FilterMenu(title: loc(.decade),
-                       choices: options.decades.map { FilterOptions.Choice(name: loc.num("\($0)–\($0 + 9)"), value: "\($0)") },
-                       selection: Binding(get: { filter.decade.map(String.init) }, set: { filter.decade = $0.flatMap(Int.init) }))
+            // The site's newest list narrows by genre only.
+            if sort != .newest {
+                FilterMenu(title: loc(.country), choices: options.countries, selection: $filter.country)
+                FilterMenu(title: loc(.minScore), choices: options.scores, selection: $filter.score)
+                FilterMenu(title: loc(.decade),
+                           choices: options.decades.map { FilterOptions.Choice(name: loc.num("\($0)–\($0 + 9)"), value: "\($0)") },
+                           selection: Binding(get: { filter.decade.map(String.init) }, set: { filter.decade = $0.flatMap(Int.init) }))
+            }
             if !filter.isEmpty {
                 Button { filter = Filter() } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(Theme.text3)
@@ -110,7 +120,7 @@ struct CatalogView: View {
             }
             Spacer(minLength: 0)
             HStack(spacing: 8) {
-                ForEach(Sort.allCases, id: \.self) { option in
+                ForEach(sorts, id: \.self) { option in
                     PillChoice(title: loc(option.label), selected: sort == option) { sort = option }
                 }
             }
@@ -137,6 +147,18 @@ struct CatalogView: View {
         defer { if requested == sort { loading = false } }
         let narrowed = filter
         do {
+            if requested == .newest, let type {
+                let path = SiteQuery.newest(kind: type, genre: narrowed.genre, streamOnly: true, page: page + 1)
+                let next = PostPage(site: try await app.api.site(path))
+                guard requested == sort, narrowed == filter, !Task.isCancelled else { return }
+                let known = Set(posts.map(\.id))
+                posts += next.posts.filter { !known.contains($0.id) }
+                page = next.page
+                pages = next.pages
+                // The site's lists give pages, not a count.
+                total = nil
+                return
+            }
             let result = narrowed.isEmpty
                 ? try await app.api.get("archive", [
                     "slugs": slug, "streamonly": "1", "page": String(page + 1),
@@ -215,6 +237,13 @@ struct BrowseView: View {
             if let menu {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 34) {
+                        // What only the 30nama website has, through its own API.
+                        if app.api.hasSite {
+                            HStack(spacing: 16) {
+                                SiteTile(title: loc(.weeklySchedule), symbol: "calendar") { nav.open(.schedule) }
+                                SiteTile(title: loc(.topLists), symbol: "trophy") { nav.open(.topLists) }
+                            }
+                        }
                         if !menu.genres.isEmpty { group(loc(.genres), menu.genres) }
                         if !menu.categories.isEmpty { group(loc(.categories), menu.categories) }
                     }

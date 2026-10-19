@@ -387,8 +387,8 @@ struct DetailsView: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     ForEach(post.cast) { person in
-                        // Their titles come from the site API, by the IMDb id: without either, a plain card.
-                        CastCard(person: person, open: app.api.hasSite && person.imdb != nil ? { nav.open(.person(person)) } : nil)
+                        // Who they are and their titles come from the site API, by 30nama's id or the IMDb one: without either, a plain card.
+                        CastCard(person: person, open: app.api.hasSite && (person.siteID != nil || person.imdb != nil) ? { nav.open(.person(person)) } : nil)
                     }
                 }
             }
