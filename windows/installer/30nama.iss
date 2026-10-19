@@ -36,7 +36,8 @@ WizardSmallImageFile=art\small-58.png,art\small-77.png,art\small-97.png,art\smal
 ; The language is asked first, on a page of the installer's own ([Code], ChooseLanguage), with the
 ; language of Windows already chosen; Inno Setup's own dialog is a plain drop-down list.
 ShowLanguageDialog=no
-SetupIconFile={#Repo}\windows\src\Nama.App\Assets\30nama.ico
+; The app's icon with an install badge (windows/tools/make-installer-art.py).
+SetupIconFile={#Repo}\windows\installer\setup.ico
 UninstallDisplayIcon={app}\Win - 30nama.exe
 UninstallDisplayName=30nama
 ; No licence to accept: the MIT licence and the notices of the parts it ships with go beside the app.

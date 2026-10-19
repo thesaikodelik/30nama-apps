@@ -1,10 +1,11 @@
 """The installer's pictures, drawn from the app's own logo and icon, in the app's colours: a dark
 page with the red glow the app's pages have, the logo on the Welcome and Finished pages, and the
-icon in the corner. Each at the sizes Inno Setup picks from for the screen's DPI.
+icon in the corner. Each at the sizes Inno Setup picks from for the screen's DPI. And Setup's own
+icon: the app's, with a red badge and a downward arrow, so the installer is not taken for the app.
 
     python windows/tools/make-installer-art.py
 
-Writes windows/installer/art/*.png. Needs Pillow.
+Writes windows/installer/art/*.png and windows/installer/setup.ico. Needs Pillow.
 """
 import math
 import os
@@ -104,6 +105,40 @@ def small(px):
     return icon.resize((px, px), Image.LANCZOS)
 
 
+def setup_icon():
+    """The app's icon with a badge at its lower end: a red disc, ringed in the page's dark so it
+    stands off the cube, holding an arrow down onto a line, the usual sign of something to install."""
+    n = 1024
+    icon = Image.open(ICON).convert('RGBA').resize((n, n), Image.LANCZOS)
+    d = int(n * 0.47)
+    x0, y0 = n - d - 6, n - d - 6
+    badge = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(badge)
+    ring = int(d * 0.07)
+    draw.ellipse((x0, y0, x0 + d, y0 + d), fill=INK + (255,))
+    draw.ellipse((x0 + ring, y0 + ring, x0 + d - ring, y0 + d - ring), fill=RED + (255,))
+    cx, cy = x0 + d / 2, y0 + d / 2
+    w = d * 0.085
+    white = (255, 255, 255, 255)
+    # The shaft, the head, and the line it lands on.
+    draw.rounded_rectangle((cx - w / 2, cy - d * 0.25, cx + w / 2, cy + d * 0.04), radius=w / 2, fill=white)
+    draw.polygon([(cx - d * 0.19, cy - d * 0.03), (cx + d * 0.19, cy - d * 0.03), (cx, cy + d * 0.15)], fill=white)
+    draw.rounded_rectangle((cx - d * 0.22, cy + d * 0.2, cx + d * 0.22, cy + d * 0.2 + w), radius=w / 2, fill=white)
+    shadow = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    shadow.paste((0, 0, 0, 140), (0, int(n * 0.012)), badge.getchannel('A'))
+    icon.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(n * 0.015)))
+    icon.alpha_composite(badge)
+    target = os.path.join(REPO, 'windows', 'installer', 'setup.ico')
+    sizes = [16, 20, 24, 32, 40, 48, 64, 256]
+    frames = [icon.resize((s, s), Image.LANCZOS) for s in sizes]
+    frames[-1].save(target, sizes=[(s, s) for s in sizes], append_images=frames[:-1])
+    icon.resize((256, 256), Image.LANCZOS).save(os.path.join(SCRATCH, 'setup-preview.png')) if SCRATCH else None
+    print('wrote', target)
+
+
+SCRATCH = os.environ.get('NAMA_PREVIEW_DIR')
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name in os.listdir(OUT):
@@ -116,6 +151,7 @@ def main():
     for px in [58, 77, 97, 116, 124, 143, 159]:
         small(px).save(os.path.join(OUT, f'small-{px}.png'))
     print('wrote', OUT)
+    setup_icon()
 
 
 if __name__ == '__main__':
