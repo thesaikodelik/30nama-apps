@@ -202,11 +202,12 @@ public sealed class NavBar : Grid
         _back.IsTabStop = showBack;
         _downloadsLit = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
         ShowDownloads();
-        // The bell, for someone signed in, beside the downloads; the room on the other side balances it.
+        // The bell only while 30nama has something to tell: with none, it would take room and the
+        // eye for nothing. The room on the other side, which keeps the bar centred, goes with it.
         _bellSlot.Children.Clear();
-        var signedIn = AppModel.Shared.IsLoggedIn;
-        if (signedIn) _bellSlot.Children.Add(Bell());
-        _bellSlot.Visibility = _balance.Visibility = signedIn ? Visibility.Visible : Visibility.Collapsed;
+        var any = AppModel.Shared.IsLoggedIn && AppModel.Shared.Notifications is { Items.Count: > 0 };
+        if (any) _bellSlot.Children.Add(Bell());
+        _bellSlot.Visibility = _balance.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         _items.Children.Clear();
         _tabs.Clear();
         foreach (var section in Nav.OnBar)

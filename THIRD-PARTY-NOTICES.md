@@ -42,7 +42,24 @@ approved by 30nama.
 
 The fonts in `30nama/Shared/Fonts` are [Vazirmatn](https://github.com/rastikerdar/vazirmatn),
 licensed under the SIL Open Font License 1.1. The licence text is in
-`30nama/Shared/Fonts/Vazirmatn-OFL.txt`.
+`30nama/Shared/Fonts/Vazirmatn-OFL.txt`. The Windows installer carries two of them for its
+Persian and Arabic pages.
+
+Vazirmatn is the work of Saber Rastikerdar, who made it and gave it to everyone, free, and who
+has since passed away. Every Persian word in these apps is set in his letters. With gratitude,
+and in his memory.
+
+<div dir="rtl">
+
+وزیرمتن کار صابر راستی‌کردار است که آن را ساخت و رایگان در اختیار همه گذاشت، و دیگر در میان ما نیست. هر کلمهٔ فارسی این برنامه‌ها با حروف او نوشته شده است. با سپاس، و به یاد او.
+
+</div>
+
+## Inno Setup's Persian messages (Windows installer)
+
+`windows/installer/Farsi.isl` is the user-contributed Persian translation of Inno Setup's
+messages, by Peyman Mohammadi ([inno-setup-translations](https://github.com/peymanr34/inno-setup-translations)),
+from Inno Setup's own repository.
 
 ## mpv and the libraries it is built on (Mac app only)
 

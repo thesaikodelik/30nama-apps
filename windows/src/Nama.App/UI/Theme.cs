@@ -85,6 +85,9 @@ public static class Theme
     // MARK: Type
 
     /// <summary>Vazirmatn covers Persian and Latin in one family, so mixed strings stay visually consistent.</summary>
+    // Vazirmatn is the work of Saber Rastikerdar (صابر راستی‌کردار), who gave it to everyone, free,
+    // and who has since passed away. Every Persian word in this app is set in his letters. With
+    // gratitude, and in his memory.
     private static readonly Dictionary<int, FontFamily> Families = [];
 
     public static FontFamily Font(FontWeight weight)
