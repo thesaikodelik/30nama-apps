@@ -84,6 +84,12 @@ ar.WelcomeLabel2=أفلام ومسلسلات وأنمي 30nama في تطبيق �
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
+[CustomMessages]
+; When a file of the installed app is still held open; %1 is the file's name.
+en.AppInUse=Close 30nama (also its icon beside the clock) and run Setup again. Nothing was changed.%n%nIn use: %1
+fa.AppInUse=۳۰نما را ببندید (آیکونش کنار ساعت را هم) و نصب‌کننده را دوباره اجرا کنید. چیزی تغییر نکرد.%n%nدر حال استفاده: %1
+ar.AppInUse=أغلق 30nama (وأيقونته بجانب الساعة أيضًا) وشغّل برنامج التثبيت مرة أخرى. لم يتغيّر شيء.%n%nقيد الاستخدام: %1
+
 [Files]
 ; For Setup itself, not installed: the typeface of its Persian and Arabic pages.
 Source: "{#Repo}\30nama\Shared\Fonts\Vazirmatn-Regular.ttf"; Flags: dontcopy
@@ -284,7 +290,7 @@ begin
     Sleep(500);
   end;
   Log('Not installed, nothing was replaced: ' + Blocked + ' is in use');
-  Result := 'Close 30nama (also beside the clock) and run Setup again. Nothing was changed. In use: ' + Blocked;
+  Result := FmtMessage(CustomMessage('AppInUse'), [ExtractFileName(Blocked)]);
   // The updater quit for this; the old version opens again, and tells of the failure itself.
   if WizardSilent then
     ExecAsOriginalUser(ExpandConstant('{app}\Win - 30nama.exe'), '', Folder, SW_SHOWNORMAL, ewNoWait, Code);
