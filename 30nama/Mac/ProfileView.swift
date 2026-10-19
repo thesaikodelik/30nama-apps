@@ -84,13 +84,15 @@ struct ProfileView: View {
 
     // MARK: Header
 
+    /// Who it is on one side, what they can do on the other. The name, then the subscription in a
+    /// quiet line, then the counts in a row of their own; the buttons out of the way at the far end.
     private var header: some View {
-        HStack(alignment: .center, spacing: 26) {
+        HStack(alignment: .center, spacing: 24) {
             avatar
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 12) {
                     Text(app.user?.name ?? loc(.guestAccount))
-                        .font(.app(38, .heavy))
+                        .font(.app(36, .heavy))
                         .foregroundStyle(Theme.text1)
                         .lineLimit(1)
                         .shadow(color: .black.opacity(0.5), radius: 14, y: 5)
@@ -103,51 +105,65 @@ struct ProfileView: View {
                             .background(Capsule(style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xFFE27A), ProfileView.gold], startPoint: .top, endPoint: .bottom)))
                     }
                 }
-                HStack(spacing: 10) {
-                    if !app.ratings.isEmpty {
-                        Stat(value: loc.num(app.ratings.count), label: loc(.ratedCount))
-                        if let average = app.ratings.average {
-                            Stat(value: loc.num(Fmt.score(average)), label: loc(.averageRating), symbol: "star.fill")
-                        }
-                    }
-                    if !watchlist.isEmpty { Stat(value: loc.num(listSizes["watchlist"] ?? watchlist.count), label: loc(.watchlist)) }
-                    if !favorites.isEmpty { Stat(value: loc.num(listSizes["favorite"] ?? favorites.count), label: loc(.favorites)) }
-                }
-                // For the user's own eyes, and not the point of the page: kept small and quiet.
                 if let user = app.user, let line = loc.subscriptionLine(user) {
                     Text(line).font(.app(13)).foregroundStyle(Theme.text3)
-                }
-                if app.user != nil || !app.ratings.isEmpty {
-                    HStack(spacing: 10) {
-                        if !app.ratings.isEmpty {
-                            Button { exportRatings() } label: {
-                                Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
-                            }
-                            .buttonStyle(GlassButtonStyle(height: 34))
-                        }
-                        if app.user != nil {
-                            Button { confirmingSignOut = true } label: {
-                                Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                            .buttonStyle(GlassButtonStyle(height: 34))
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-                // A guest otherwise had no way in from here but the settings.
-                if app.user == nil {
+                } else if app.user == nil {
+                    // A guest otherwise had no way in from here but the settings.
                     Text(loc(.signInHint))
                         .font(.app(14))
                         .foregroundStyle(Theme.text2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 460, alignment: .leading)
+                }
+                if !stats.isEmpty {
+                    HStack(spacing: 14) {
+                        ForEach(stats.indices, id: \.self) { i in
+                            if i > 0 { Text("·").foregroundStyle(Theme.text3) }
+                            HStack(spacing: 6) {
+                                if let symbol = stats[i].symbol {
+                                    Image(systemName: symbol).font(.system(size: 12, weight: .bold)).foregroundStyle(ProfileView.gold)
+                                }
+                                Text(stats[i].value).font(.app(17, .heavy)).foregroundStyle(Theme.text1)
+                                Text(stats[i].label).font(.app(13, .medium)).foregroundStyle(Theme.text3)
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            Spacer(minLength: 16)
+            HStack(spacing: 10) {
+                if app.user == nil {
                     Button { app.requestSignIn() } label: {
                         Label(loc(.signIn), systemImage: "person.crop.circle.badge.checkmark")
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                } else {
+                    if !app.ratings.isEmpty {
+                        Button { exportRatings() } label: {
+                            Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(GlassButtonStyle(height: 34))
+                    }
+                    Button { confirmingSignOut = true } label: {
+                        Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                    .buttonStyle(GlassButtonStyle(height: 34))
                 }
             }
-            Spacer(minLength: 0)
         }
+    }
+
+    /// The counts under the name: what was rated, how generously, and the lists kept on 30nama.
+    private var stats: [(value: String, label: String, symbol: String?)] {
+        var out: [(value: String, label: String, symbol: String?)] = []
+        if !app.ratings.isEmpty {
+            out.append((loc.num(app.ratings.count), loc(.ratedCount), nil))
+            if let average = app.ratings.average { out.append((loc.num(Fmt.score(average)), loc(.averageRating), "star.fill")) }
+        }
+        if !watchlist.isEmpty { out.append((loc.num(listSizes["watchlist"] ?? watchlist.count), loc(.watchlist), nil)) }
+        if !favorites.isEmpty { out.append((loc.num(listSizes["favorite"] ?? favorites.count), loc(.favorites), nil)) }
+        return out
     }
 
     private var avatar: some View {
@@ -174,27 +190,6 @@ struct ProfileView: View {
         let words = name.split(separator: " ")
         let letters = [words.first?.first, words.count > 1 ? words.last?.first : nil].compactMap { $0 }
         return letters.isEmpty ? nil : String(letters).uppercased()
-    }
-
-    private struct Stat: View {
-        let value: String
-        let label: String
-        var symbol: String?
-
-        var body: some View {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    if let symbol {
-                        Image(systemName: symbol).font(.system(size: 14, weight: .bold)).foregroundStyle(ProfileView.gold)
-                    }
-                    Text(value).font(.app(22, .heavy)).foregroundStyle(Theme.text1)
-                }
-                Text(label).font(.app(12, .medium)).foregroundStyle(Theme.text3)
-            }
-            .padding(.horizontal, 16)
-            .frame(minWidth: 96, minHeight: 60, alignment: .leading)
-            .glass(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
     }
 
     // MARK: Taste

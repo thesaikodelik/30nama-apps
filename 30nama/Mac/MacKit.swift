@@ -957,6 +957,85 @@ struct CardStandIn: View {
     }
 }
 
+// MARK: - Glass with a rim
+
+/// The glass of the top bar and its discs, made as the liquid pill is: frosted, a glare from
+/// above and a rim bright where the light strikes the top edge. A flat material with an even
+/// hairline reads as grey plastic; the uneven rim is what reads as glass. `lit` is the open
+/// look, a little brighter, as the pill under the open tab. macOS 26 has real glass of its own.
+struct GlassLens<S: InsettableShape>: View {
+    let shape: S
+    var lit = false
+
+    var body: some View {
+        ZStack {
+            shape.fill(.ultraThinMaterial)
+            shape.fill(Color.white.opacity(GlassLight.body(lit)))
+            shape.fill(GlassLight.glare(lit))
+            shape.strokeBorder(GlassLight.rim(lit), lineWidth: GlassLight.rimWidth)
+        }
+        .shadow(color: .black.opacity(GlassLight.shadow(lit)), radius: 7, y: 3)
+        .allowsHitTesting(false)
+    }
+}
+
+/// How light falls on the glass, the same for a lens and for glass cut to a drawn shape.
+enum GlassLight {
+    static let rimWidth: CGFloat = 1.2
+    static func body(_ lit: Bool) -> Double { lit ? 0.10 : 0.02 }
+    static func shadow(_ lit: Bool) -> Double { lit ? 0.3 : 0.22 }
+    /// A glare over the top half, and a little caught along the bottom edge.
+    static func glare(_ lit: Bool) -> LinearGradient {
+        LinearGradient(stops: [.init(color: .white.opacity(lit ? 0.30 : 0.12), location: 0),
+                               .init(color: .white.opacity(lit ? 0.06 : 0.02), location: 0.5),
+                               .init(color: .clear, location: 0.7),
+                               .init(color: .white.opacity(lit ? 0.10 : 0.04), location: 1)],
+                       startPoint: .top, endPoint: .bottom)
+    }
+    /// Bright where the light strikes the top edge, faint along the bottom.
+    static func rim(_ lit: Bool) -> LinearGradient {
+        LinearGradient(colors: [.white.opacity(lit ? 0.95 : 0.55), .white.opacity(lit ? 0.25 : 0.12),
+                                .white.opacity(0.05), .white.opacity(lit ? 0.45 : 0.22)],
+                       startPoint: .top, endPoint: .bottom)
+    }
+}
+
+/// Glass cut to a shape that is drawn rather than a `Shape`: `outline` is the shape and `inner`
+/// the same a hair narrower inside, and the band between the two is the rim.
+private struct DrawnGlass<Outline: View, Inner: View>: View {
+    let outline: Outline
+    let inner: Inner
+    var lit = false
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial)
+            Color.white.opacity(GlassLight.body(lit))
+            GlassLight.glare(lit)
+            GlassLight.rim(lit)
+                .mask {
+                    outline
+                        .overlay { inner.blendMode(.destinationOut) }
+                        .compositingGroup()
+                }
+        }
+        .mask(outline)
+        .shadow(color: .black.opacity(GlassLight.shadow(lit)), radius: 7, y: 3)
+    }
+}
+
+extension View {
+    /// `glass(_:)` with the rim of `GlassLens` where the system has no glass of its own.
+    @ViewBuilder
+    func lens<S: InsettableShape>(_ shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(GlassLens(shape: shape))
+        }
+    }
+}
+
 // MARK: - The liquid pill
 
 /// Where each tab of a bar is, by its id, in the bar's own space ("liquidBar").
@@ -967,7 +1046,26 @@ struct LiquidTabFrames: PreferenceKey {
     }
 }
 
+/// Where the glass the pill flows over is, in the same space: a bar's capsule, a disc beside it.
+struct LiquidGroundFrames: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 extension View {
+    /// Glass of a capsule's shape, drawn under the liquid pill rather than by this view, so the
+    /// pill can leave one piece of glass and gather in another: the bar, and a disc beside it
+    /// that is a tab of its own.
+    func liquidGround() -> some View {
+        background {
+            GeometryReader { geo in
+                Color.clear.preference(key: LiquidGroundFrames.self, value: [geo.frame(in: .named("liquidBar"))])
+            }
+        }
+    }
+
     /// Tells the bar's liquid pill where this tab is.
     func liquidTab(_ id: AnyHashable) -> some View {
         background {
@@ -987,12 +1085,43 @@ extension View {
 private struct LiquidPillBar: ViewModifier {
     let selected: AnyHashable?
     @State private var frames: [AnyHashable: CGRect] = [:]
+    @State private var grounds: [CGRect] = []
 
     func body(content: Content) -> some View {
         content
             .onPreferenceChange(LiquidTabFrames.self) { frames = $0 }
-            .background { LiquidPill(selected: selected, frames: frames) }
+            .onPreferenceChange(LiquidGroundFrames.self) { grounds = $0 }
+            .background {
+                ZStack {
+                    if !grounds.isEmpty {
+                        DrawnGlass(outline: Capsules(frames: grounds), inner: Capsules(frames: grounds, inset: GlassLight.rimWidth))
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                    // Seen only within the glass: between two pieces of it the pill passes
+                    // unseen, as if under the gap, and comes out in the next.
+                    LiquidPill(selected: selected, frames: frames)
+                        .mask {
+                            if grounds.isEmpty { Rectangle() } else { Capsules(frames: grounds, inset: 3) }
+                        }
+                }
+            }
             .coordinateSpace(name: "liquidBar")
+    }
+}
+
+/// Capsules at the given places, drawn rather than laid out, so they share the space the
+/// frames were measured in whatever the direction of the interface.
+private struct Capsules: View {
+    let frames: [CGRect]
+    var inset: CGFloat = 0
+
+    var body: some View {
+        Canvas { context, _ in
+            for frame in frames where frame.width > 2 * inset && frame.height > 2 * inset {
+                context.fill(Capsule(style: .continuous).path(in: frame.insetBy(dx: inset, dy: inset)), with: .color(.white))
+            }
+        }
     }
 }
 
@@ -1017,13 +1146,10 @@ private struct LiquidPill: View {
         // Glass, cut to the liquid's shape: the goo needs a solid colour to find its edge, so it
         // is drawn as the mask, and what shows through it is frosted glass a little brighter than
         // the bar's, with light falling on it from above.
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial)
-            Color.white.opacity(0.16)
-            LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.03)], startPoint: .top, endPoint: .bottom)
-        }
-        .mask(Goo(from: from.flatMap { frames[$0] }, to: target, progress: progress))
-        .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+        let start = from.flatMap { frames[$0] }
+        DrawnGlass(outline: Goo(from: start, to: target, progress: progress),
+                   inner: Goo(from: start, to: target, progress: progress, inset: GlassLight.rimWidth),
+                   lit: true)
             .opacity(target == nil ? 0 : 1)
             .animation(.easeOut(duration: 0.2), value: target == nil)
             .allowsHitTesting(false)
@@ -1050,6 +1176,8 @@ private struct Goo: View, Animatable {
     var from: CGRect?
     var to: CGRect?
     var progress: Double
+    /// Drawn this much inside the true shape; the rim is the difference between the two.
+    var inset: CGFloat = 0
 
     var animatableData: Double {
         get { progress }
@@ -1063,8 +1191,8 @@ private struct Goo: View, Animatable {
             context.addFilter(.alphaThreshold(min: 0.5, color: .white))
             context.addFilter(.blur(radius: 5))
             context.drawLayer { layer in
-                for piece in pieces(to: to) {
-                    layer.fill(Capsule(style: .continuous).path(in: piece), with: .color(.white))
+                for piece in pieces(to: to) where piece.width > 2 * inset && piece.height > 2 * inset {
+                    layer.fill(Capsule(style: .continuous).path(in: piece.insetBy(dx: inset, dy: inset)), with: .color(.white))
                 }
             }
         }

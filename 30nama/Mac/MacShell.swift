@@ -287,7 +287,7 @@ private struct NavBar: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Theme.text1)
                     .frame(width: 48, height: 48)
-                    .glass(Circle())
+                    .lens(Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -305,14 +305,15 @@ private struct NavBar: View {
                     .liquidTab(section)
                 }
             }
-            // The open tab's white pill flows to the next like a drop of liquid. Only over a tab
-            // in the bar: Downloads has its own disc beside it.
-            .liquidPill(selected: nav.opened.isEmpty && nav.section != .downloads ? AnyHashable(nav.section) : nil)
             .padding(4)
-            .glass(Capsule(style: .continuous))
+            .liquidGround()
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
+                .liquidGround()
             NotificationBell()
         }
+        // The open tab's glass pill flows to the next like a drop of liquid, out of the bar and
+        // into the downloads disc too: both are glass drawn under it.
+        .liquidPill(selected: nav.opened.isEmpty ? AnyHashable(nav.section) : nil)
         .animation(Theme.focusSpring, value: nav.opened.isEmpty)
     }
 }
