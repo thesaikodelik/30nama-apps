@@ -31,6 +31,15 @@ public sealed record ApiConfig
     /// <summary>Waits between retries of a transient failure. Its count is the number of retries.</summary>
     public IReadOnlyList<TimeSpan> Backoff { get; init; } = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)];
     public TimeSpan RequestSpacing { get; init; } = TimeSpan.FromSeconds(0.1);
+    /// <summary>The website's own API (<see cref="SiteQuery"/>).</summary>
+    public string SiteHost { get; init; } = "https://interface.30nama.com/api/v1";
+    /// <summary>
+    /// The key the site gives every browser. Not kept in the repository: a build takes it from the
+    /// git-ignored windows/Local.props. Without it these parts of the app stay hidden and the rest
+    /// carries on: everything else is on the app API.
+    /// </summary>
+    public string? SiteKey { get; init; }
+    public string SitePlatform { get; init; } = "Website";
 }
 
 public sealed class ApiException : Exception
@@ -307,14 +316,22 @@ public sealed class ApiClient
             token = _token;
         }
         var retries = NoRetry.Contains(action) ? 0 : Config.Backoff.Count;
+        var envelope = await RetryingAsync(background, retries,
+            () => SendAsync(host, key, action, parameters ?? new Dictionary<string, string>(), token, TimeSpan.FromSeconds(20), CancellationToken.None));
+        if (!envelope.Success && action != "user" && IsLoginRequired(envelope.Message)) await ConfirmSessionExpiredAsync();
+        return envelope;
+    }
+
+    /// <summary>One request through the gate, tried again after a transient failure.</summary>
+    private async Task<Envelope> RetryingAsync(bool background, int retries, Func<Task<Envelope>> send)
+    {
         for (var attempt = 0; ; attempt++)
         {
             await _gate.AcquireAsync(background);
             try
             {
-                var envelope = await SendAsync(host, key, action, parameters ?? new Dictionary<string, string>(), token, TimeSpan.FromSeconds(20), CancellationToken.None);
+                var envelope = await send();
                 _gate.Release();
-                if (!envelope.Success && action != "user" && IsLoginRequired(envelope.Message)) await ConfirmSessionExpiredAsync();
                 return envelope;
             }
             catch (ApiException e) when (e.Kind == ApiException.Kinds.Transient && attempt < retries)
@@ -330,6 +347,31 @@ public sealed class ApiClient
                 throw;
             }
         }
+    }
+
+    /// <summary>Whether this build can ask the website's API: it was given the site's key.</summary>
+    public bool HasSite => !string.IsNullOrEmpty(Config.SiteKey);
+
+    /// <summary>
+    /// Runs an action of the website's API and returns its <c>result</c>, throwing a server error
+    /// when it did not succeed. Through the same gate, with the same retries, as the app API: both
+    /// are behind the same Cloudflare. Its parameters are in <paramref name="path"/>, the rest in <paramref name="form"/>.
+    /// </summary>
+    public async Task<Json> SiteAsync(string path, IReadOnlyDictionary<string, string>? form = null, bool background = false)
+    {
+        if (Config.SiteKey is not { Length: > 0 } key || !Uri.TryCreate(Config.SiteHost + "/action/" + path, UriKind.Absolute, out var url)) throw ApiException.Unreachable();
+        var e = await RetryingAsync(background, Config.Backoff.Count, async () =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.TryAddWithoutValidation("User-Agent", Config.UserAgent);
+            request.Headers.TryAddWithoutValidation("c-api-key", key);
+            request.Headers.TryAddWithoutValidation("c-platform", Config.SitePlatform);
+            request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(FormEncode(form ?? new Dictionary<string, string>())));
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+            return await ExchangeAsync(request, path, TimeSpan.FromSeconds(20), CancellationToken.None);
+        });
+        if (!e.Success) throw new ApiException(ApiException.Kinds.Server, e.Message ?? "error");
+        return e.Result;
     }
 
     /// <summary>Runs an action and returns its <c>result</c>, throwing a server error when it did not succeed.</summary>
@@ -382,7 +424,12 @@ public sealed class ApiClient
         request.Headers.TryAddWithoutValidation("c-language", language);
         request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(FormEncode(parameters)));
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+        return await ExchangeAsync(request, action, timeout, cancel);
+    }
 
+    /// <summary>Sends a request made for either API and reads its envelope.</summary>
+    private async Task<Envelope> ExchangeAsync(HttpRequestMessage request, string action, TimeSpan timeout, CancellationToken cancel)
+    {
         byte[] data;
         int status;
         string? retryAfterHeader;

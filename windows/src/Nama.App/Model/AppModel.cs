@@ -40,7 +40,29 @@ public sealed class AppModel
     /// </summary>
     public HashSet<string> Watched { get; } = LoadSet(WatchedFile);
 
-    public ApiClient Api { get; } = new(new ApiConfig { UserAgent = $"30nama/{typeof(AppModel).Assembly.GetName().Version?.ToString(3)} (Windows NT 10.0; Win64; x64)" });
+    public ApiClient Api { get; } = new(new ApiConfig
+    {
+        UserAgent = $"30nama/{typeof(AppModel).Assembly.GetName().Version?.ToString(3)} (Windows NT 10.0; Win64; x64)",
+        // From windows/Local.props when the build had it (ApiConfig.SiteKey).
+        SiteKey = SiteKeyOfBuild,
+#if DEBUG
+        // NAMA_SITE_HOST: a stand-in for the website's API, for the pages that use it to be tried.
+        SiteHost = Environment.GetEnvironmentVariable("NAMA_SITE_HOST") is { Length: > 0 } host ? host : "https://interface.30nama.com/api/v1",
+#endif
+    });
+
+    /// <summary>From windows/Local.props when the build had it (ApiConfig.SiteKey); in a build being worked on, NAMA_SITE_KEY too.</summary>
+    private static string? SiteKeyOfBuild
+    {
+        get
+        {
+#if DEBUG
+            if (Environment.GetEnvironmentVariable("NAMA_SITE_KEY") is { Length: > 0 } variable) return variable;
+#endif
+            return typeof(AppModel).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+                .OfType<System.Reflection.AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "NamaSiteKey")?.Value is { Length: > 0 } key ? key : null;
+        }
+    }
 
     /// <summary>Says which part of the state changed: "phase", "settings", "content", "watch", "continue", "lists", "ratings", "playback", "toast", "user".</summary>
     public event Action<string>? Changed;
