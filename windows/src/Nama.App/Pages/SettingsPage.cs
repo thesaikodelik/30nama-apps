@@ -26,7 +26,19 @@ public sealed class SettingsPage : Grid
         side.Children.Add(Theme.Text(App.Loc[S.unofficial], 15, color: Theme.Text2, lines: 3));
         SetColumn(side, 1);
         layout.Children.Add(side);
-        Children.Add(new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled });
+        var scroller = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled };
+        // Beside the logo where there is room for both; in a narrow window the settings alone,
+        // narrower with it, so nothing is cut at the window's edges.
+        scroller.SizeChanged += (_, e) =>
+        {
+            var room = e.NewSize.Width - 2 * Theme.Edge;
+            var both = room >= 690 + 110 + 320;
+            side.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
+            layout.ColumnSpacing = both ? 110 : 0;
+            layout.ColumnDefinitions[1].Width = new GridLength(both ? 320 : 0);
+            layout.ColumnDefinitions[0].Width = new GridLength(Math.Max(280, Math.Min(690, room)));
+        };
+        Children.Add(scroller);
         Render();
         App.Changed += OnChanged;
         Unloaded += (_, _) => App.Changed -= OnChanged;

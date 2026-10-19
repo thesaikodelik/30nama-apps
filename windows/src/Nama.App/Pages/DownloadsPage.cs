@@ -19,7 +19,7 @@ public sealed class DownloadsPage : Grid
     private static Loc Loc => App.Loc;
 
     private readonly Stage _stage = new(dim: 0.5);
-    private readonly StackPanel _column = new() { Spacing = 22, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60), MaxWidth = 1020 };
+    private readonly StackPanel _column = new() { Spacing = 22, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60), HorizontalAlignment = HorizontalAlignment.Center };
     /// <summary>The part on show. Until the user picks one, it is the part the newest download is in.</summary>
     private DownloadItem.Shelves? _chosen;
     /// <summary>The series whose episodes are folded out.</summary>
@@ -33,7 +33,11 @@ public sealed class DownloadsPage : Grid
     {
         Children.Add(Kit.Ambient());
         Children.Add(_stage);
-        Children.Add(new ScrollViewer { Content = _column, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled });
+        var scroller = new ScrollViewer { Content = _column, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled };
+        // At most 1020 wide, in the middle of the window whatever its width, as on the Mac. A
+        // scroll viewer lays its content from its edge, so a width limit alone left the column there.
+        scroller.SizeChanged += (_, e) => _column.Width = Math.Min(1020, e.NewSize.Width);
+        Children.Add(scroller);
         // The series downloaded into most recently starts folded out.
         if (Downloads.Items.FirstOrDefault(i => i.Shelf != DownloadItem.Shelves.Movies && i.Season is not null) is { } latest) _unfolded.Add(latest.Group);
         // Progress comes in often; the list is drawn again at most twice a second.

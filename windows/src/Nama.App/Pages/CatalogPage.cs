@@ -414,6 +414,16 @@ public sealed class SearchPage : Grid
         var filters = Kit.Glass(loc[S.advancedSearch], "", () => _nav.Open(new Route.Advanced()), height: 40);
         filters.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(filters);
+        // The box gives way first in a narrow window, so the row is never cut at its ends.
+        void Fit()
+        {
+            if (XamlRoot is null || ActualWidth <= 0) return;
+            var room = ActualWidth - 2 * Theme.Edge - 2 * row.Spacing - only.ActualWidth - filters.ActualWidth;
+            capsule.Width = Math.Clamp(room, 220, 640);
+        }
+        SizeChanged += (_, _) => Fit();
+        only.SizeChanged += (_, _) => Fit();
+        filters.SizeChanged += (_, _) => Fit();
         return row;
     }
 
