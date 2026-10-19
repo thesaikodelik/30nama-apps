@@ -387,22 +387,8 @@ struct DetailsView: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     ForEach(post.cast) { person in
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle().fill(Theme.surface2)
-                                Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(Theme.text3)
-                                if let face = person.poster {
-                                    RemoteImage(url: face.url(forWidth: 96), blurhash: face.blurhash, maxPixel: Int(96 * Display.scale))
-                                }
-                            }
-                            .frame(width: 96, height: 96)
-                            .clipShape(Circle())
-                            Text(person.name).font(.app(13, .semibold)).foregroundStyle(Theme.text1).lineLimit(1)
-                            if let role = person.role {
-                                Text(role).font(.app(12)).foregroundStyle(Theme.text3).lineLimit(1)
-                            }
-                        }
-                        .frame(width: 112)
+                        // Their titles come from the site API, by the IMDb id: without either, a plain card.
+                        CastCard(person: person, open: app.api.hasSite && person.imdb != nil ? { nav.open(.person(person)) } : nil)
                     }
                 }
             }
@@ -521,6 +507,49 @@ private struct UpdatesTicker: View {
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 0.5)) { index = (index + 1) % updates.count }
             }
+        }
+    }
+}
+
+/// An actor on a title page: the face, the name and the part. When `open` is given it opens their
+/// titles, and under the pointer the name is underlined and the face lit, like a link.
+private struct CastCard: View {
+    let person: Person
+    let open: (() -> Void)?
+
+    @Environment(\.hue) private var hue
+    @State private var hovering = false
+
+    var body: some View {
+        let lit = hovering && open != nil
+        Button { open?() } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle().fill(Theme.surface2)
+                    Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(Theme.text3)
+                    if let face = person.poster {
+                        RemoteImage(url: face.url(forWidth: 96), blurhash: face.blurhash, maxPixel: Int(96 * Display.scale))
+                    }
+                }
+                .frame(width: 96, height: 96)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(hue ?? Theme.accent, lineWidth: 2).opacity(lit ? 1 : 0))
+                Text(person.name).font(.app(13, .semibold)).foregroundStyle(lit ? (hue ?? Theme.accent) : Theme.text1)
+                    .underline(lit).lineLimit(1)
+                if let role = person.role {
+                    Text(role).font(.app(12)).foregroundStyle(Theme.text3).lineLimit(1)
+                }
+            }
+            .frame(width: 112)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(open == nil)
+        .animation(.easeOut(duration: 0.15), value: lit)
+        .onHover { inside in
+            guard open != nil, inside != hovering else { return }
+            hovering = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
     }
 }

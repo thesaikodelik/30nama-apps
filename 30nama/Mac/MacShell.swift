@@ -42,6 +42,8 @@ enum MacRoute: Hashable {
     case catalog(slug: String, title: String)
     /// The advanced search, set up beforehand when a name on a title page was clicked.
     case advancedSearch(AdvancedQuery = AdvancedQuery())
+    /// An actor's titles, when one on a title page was clicked.
+    case person(Person)
 }
 
 /// The card that opens over a poster the pointer has rested on: the title, and where its poster
@@ -121,6 +123,7 @@ struct MainView: View {
                     case .title(let post): DetailsView(preview: post)
                     case .catalog(let slug, let title): CatalogView(slug: slug, title: title)
                     case .advancedSearch(let query): AdvancedSearchView(start: query)
+                    case .person(let person): PersonView(person: person)
                     }
                 }
                 .id(route)

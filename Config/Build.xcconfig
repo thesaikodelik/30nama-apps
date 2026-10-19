@@ -3,4 +3,5 @@
 // The bundle id lives here, not on the target, so Local.xcconfig can replace it.
 DEVELOPMENT_TEAM =
 PRODUCT_BUNDLE_IDENTIFIER = app.30nama.tv
+NAMA_SITE_KEY =
 #include? "Local.xcconfig"

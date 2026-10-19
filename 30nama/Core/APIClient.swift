@@ -18,6 +18,8 @@ struct APIConfig {
     /// Waits between retries of a transient failure. Its count is the number of retries.
     var backoff: [TimeInterval] = [1, 3]
     var requestSpacing: TimeInterval = 0.1
+    /// The website's own API, for what only the site has.
+    var site = SiteConfig()
 }
 
 enum APIError: Error, Equatable {
@@ -193,16 +195,46 @@ actor APIClient {
     /// server could not be reached or kept answering with something that is not the API.
     func call(_ action: String, _ params: [String: String] = [:], background: Bool = false) async throws -> Envelope {
         guard let host else { throw APIError.unreachable }
-        let retries = APIClient.noRetry.contains(action) ? 0 : config.backoff.count
+        let envelope = try await retrying(background: background, retries: APIClient.noRetry.contains(action) ? 0 : config.backoff.count) {
+            try await self.send(host: host, key: self.key, action: action, params: params, token: self.token, timeout: 20)
+        }
+        if !envelope.success, action != "user", APIClient.isLoginRequired(envelope.message) {
+            await confirmSessionExpired()
+        }
+        return envelope
+    }
+
+    /// Whether the website's API can be asked at all: a build without its key leaves out what only
+    /// the site has.
+    nonisolated var hasSite: Bool { config.site.key != nil }
+
+    /// Runs an action of the website's API (`SiteConfig`) and returns its `result`, throwing
+    /// `APIError.server` when it did not succeed. Through the same gate, with the same retries, as
+    /// the app API: both are behind the same Cloudflare. Its parameters are in `path`, the rest in `form`.
+    func site(_ path: String, _ form: [String: String] = [:], background: Bool = false) async throws -> JSON {
+        guard let key = config.site.key, let url = URL(string: config.site.host + "/action/" + path) else { throw APIError.unreachable }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(key, forHTTPHeaderField: "c-api-key")
+        request.setValue(config.site.platform, forHTTPHeaderField: "c-platform")
+        request.httpBody = APIClient.formEncode(form).data(using: .utf8)
+        let e = try await retrying(background: background, retries: config.backoff.count) {
+            try await self.exchange(request, action: path)
+        }
+        guard e.success else { throw APIError.server(e.message ?? "error") }
+        return e.result
+    }
+
+    /// One request through the gate, tried again after a transient failure.
+    private func retrying(background: Bool, retries: Int, _ send: () async throws -> Envelope) async throws -> Envelope {
         var attempt = 0
         while true {
             await gate.acquire(background: background)
             do {
-                let envelope = try await send(host: host, key: key, action: action, params: params, token: token, timeout: 20)
+                let envelope = try await send()
                 await gate.release()
-                if !envelope.success, action != "user", APIClient.isLoginRequired(envelope.message) {
-                    await confirmSessionExpired()
-                }
                 return envelope
             } catch let APIError.transient(_, retryAfter) where attempt < retries {
                 await gate.release()
@@ -252,7 +284,10 @@ actor APIClient {
         request.setValue(config.clientVersion, forHTTPHeaderField: "c-version-number")
         request.setValue(language, forHTTPHeaderField: "c-language")
         request.httpBody = APIClient.formEncode(params).data(using: .utf8)
+        return try await exchange(request, action: action)
+    }
 
+    private func exchange(_ request: URLRequest, action: String) async throws -> Envelope {
         let data: Data, response: HTTPURLResponse
         do {
             (data, response) = try await transport(request)

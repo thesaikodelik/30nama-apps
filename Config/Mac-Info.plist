@@ -7,5 +7,7 @@
 		<key>NSAllowsArbitraryLoadsForMedia</key>
 		<true/>
 	</dict>
+	<key>NamaSiteKey</key>
+	<string>$(NAMA_SITE_KEY)</string>
 </dict>
 </plist>

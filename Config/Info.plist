@@ -16,5 +16,7 @@
 	</dict>
 	<key>UIUserInterfaceStyle</key>
 	<string>Dark</string>
+	<key>NamaSiteKey</key>
+	<string>$(NAMA_SITE_KEY)</string>
 </dict>
 </plist>

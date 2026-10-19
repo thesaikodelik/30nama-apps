@@ -59,6 +59,8 @@ struct Person: Hashable, Identifiable {
     var name: String
     var role: String?
     var poster: Poster?
+    /// "nm…": what the site API finds a person's titles by.
+    var imdb: String?
     var id: String { name + "|" + (role ?? "") }
 }
 
@@ -182,7 +184,7 @@ struct Post: Identifiable, Hashable {
         cast = j["cast"].array.compactMap { c in
             guard let name = c["name"].text else { return nil }
             let p = Poster(c["image"]["poster"])
-            return Person(name: name, role: c["as"].text, poster: p.isEmpty ? nil : p)
+            return Person(name: name, role: c["as"].text, poster: p.isEmpty ? nil : p, imdb: c["imdb"].text)
         }
         func names(_ v: JSON) -> [String] { v.array.compactMap { $0["name"].text ?? $0.text } }
         directors = names(j["crew"]["director"])
