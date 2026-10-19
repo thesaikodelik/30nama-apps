@@ -25,7 +25,9 @@ public sealed class HomePage : Grid
     private StackPanel? _billboardColumn;
 
     private HomeFeed? _feed;
-    private List<Post> _continuing = [];
+    /// <summary>Null until it is known.</summary>
+    private List<Post>? _continuing;
+    private bool _trendDone, _topDone;
     /// <summary>What is trending on TMDB this week and is on 30nama; asked for once per run.</summary>
     private static List<Post> Trend = [];
     /// <summary>
@@ -201,41 +203,105 @@ public sealed class HomePage : Grid
 
     // MARK: Shelves
 
+    /// <summary>The rows that have come in already: a fresh list changes their cards where they are.</summary>
+    private readonly HashSet<string> _arrived = [];
+    private static readonly Windows.Foundation.Size PosterCard = new(Theme.PosterWidth, Theme.PosterWidth * 1.5);
+    private static readonly Windows.Foundation.Size RankedCard = new(Theme.PosterWidth + 60, Theme.PosterWidth * 1.5);
+    private static readonly Windows.Foundation.Size WideCard = new(288, 162);
+    /// <summary>Kept beside the app's data: the trending row came last time, so it keeps its place while it is looked for.</summary>
+    private static string TrendingSeen => System.IO.Path.Combine(Storage.Folder, "home-trending-seen");
+
+    /// <summary>
+    /// Every row arrives whole, as on the Mac: stand-ins of its cards' size hold its place until its
+    /// list and the pictures of its first cards are in (three seconds at most), then the cards come
+    /// in order, and nothing on the page moves.
+    /// </summary>
     private void ShowShelves()
     {
         var loc = App.Loc;
         _shelves.Children.Clear();
         if (_feed is not { } feed) return;
-        if (_continuing.Count > 0)
-            _shelves.Children.Add(Kit.Shelf(loc[S.continueWatching], _continuing.Select(p => Kit.Continue(p, () => _nav.Open(p), () =>
+        if (App.IsLoggedIn && _continuing is null) _shelves.Children.Add(StandIns(loc[S.continueWatching], WideCard, 3));
+        else if (_continuing is { Count: > 0 } continuing)
+            AddShelf("continue", loc[S.continueWatching], continuing.Select(p => Kit.Continue(p, () => _nav.Open(p), () =>
             {
                 App.DismissContinue(p);
-                _continuing.RemoveAll(x => x.Id == p.Id);
+                _continuing?.RemoveAll(x => x.Id == p.Id);
                 ShowShelves();
-            })), step: 3));
+            })).ToList(), null, step: 3);
         if (Trend.Count > 0)
-            _shelves.Children.Add(Kit.Shelf(loc[S.trendingWeek], Trend.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p)))));
+            AddShelf("trending", loc[S.trendingWeek], Trend.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
+        else if (!_trendDone && System.IO.File.Exists(TrendingSeen)) _shelves.Children.Add(StandIns(loc[S.trendingWeek], PosterCard));
         foreach (var section in feed.Sections)
         {
             var posts = Distinct(section.Posts);
-            IEnumerable<FrameworkElement> cards = section.Key == "top_10"
-                ? posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p)))
-                : posts.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p)));
+            var cards = section.Key == "top_10"
+                ? posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p))).ToList()
+                : posts.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList();
             Section? target = section.Key switch { "movies" => Section.Movies, "series" => Section.Series, "anime" => Section.Anime, _ => null };
-            _shelves.Children.Add(Kit.Shelf(loc.TitleForSection(section.Key), cards, target is { } t ? () => _nav.Go(t) : null));
+            AddShelf(section.Key, loc.TitleForSection(section.Key), cards, target is { } t ? () => _nav.Go(t) : null);
             // The two top tens sit under the first shelf, before the long lists begin.
             if (section == feed.Sections[0] && feed.Posts("top_10").Count == 0)
             {
-                Ranked(loc[S.topFilms], Top.GetValueOrDefault("movies"));
-                Ranked(loc[S.topSeries], Top.GetValueOrDefault("series"));
+                Ranked("top-movies", loc[S.topFilms], Top.GetValueOrDefault("movies"));
+                Ranked("top-series", loc[S.topSeries], Top.GetValueOrDefault("series"));
             }
         }
     }
 
-    private void Ranked(string title, List<Post>? posts)
+    private void Ranked(string key, string title, List<Post>? posts)
     {
+        if (posts is null && !_topDone) _shelves.Children.Add(StandIns(title, RankedCard, 4));
         if (posts is not { Count: > 0 }) return;
-        _shelves.Children.Add(Kit.Shelf(title, posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p))), step: 4));
+        AddShelf(key, title, posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p))).ToList(), null, step: 4);
+    }
+
+    /// <summary>A row still on its way: grey cards of the size its own will be.</summary>
+    private static FrameworkElement StandIns(string title, Windows.Foundation.Size size, double step = 5) =>
+        Kit.Shelf(title, Enumerable.Range(0, 7).Select(_ => (FrameworkElement)StandIn(size)), step: step);
+
+    private static Border StandIn(Windows.Foundation.Size? size = null) => new()
+    {
+        Width = size?.Width ?? double.NaN, Height = size?.Height ?? double.NaN,
+        CornerRadius = new CornerRadius(Theme.Radius), Background = Theme.White(0.06), IsHitTestVisible = false,
+    };
+
+    /// <summary>A row with its cards. One not in yet shows stand-ins under unseen cards, and brings the cards in once their pictures are.</summary>
+    private void AddShelf(string key, string title, IReadOnlyList<FrameworkElement> cards, Action? more, double step = 5)
+    {
+        if (_arrived.Contains(key) || App.Settings.ReduceMotion && _arrived.Add(key))
+        {
+            _shelves.Children.Add(Kit.Shelf(title, cards, more, step));
+            return;
+        }
+        var held = cards.Select(card =>
+        {
+            var slot = new Grid();
+            var stand = StandIn();
+            slot.Children.Add(stand);
+            card.Opacity = 0;
+            card.Translation = new System.Numerics.Vector3(0, 10, 0);
+            slot.Children.Add(card);
+            return (Slot: slot, Card: card, Stand: stand);
+        }).ToList();
+        var shelf = Kit.Shelf(title, held.Select(h => (FrameworkElement)h.Slot), more, step);
+        _shelves.Children.Add(shelf);
+        shelf.Loaded += async (_, _) =>
+        {
+            if (!_arrived.Add(key)) return;
+            // A slow picture holds the row up for three seconds at most.
+            await Task.WhenAny(Task.WhenAll(held.Take(7).Select(h => Images.ShownAsync(h.Card))), Task.Delay(3000));
+            for (var i = 0; i < held.Count; i++)
+            {
+                var (slot, card, stand) = held[i];
+                card.OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromSeconds(0.35) };
+                card.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromSeconds(0.35) };
+                card.Opacity = 1;
+                card.Translation = default;
+                _ = Task.Delay(400).ContinueWith(_ => DispatcherQueue.TryEnqueue(() => slot.Children.Remove(stand)), TaskScheduler.Default);
+                if (i < 9) await Task.Delay(60);
+            }
+        };
     }
 
     /// <summary>
@@ -286,7 +352,14 @@ public sealed class HomePage : Grid
     {
         if (Trend.Count > 0) return;
         var found = await App.TrendingThisWeekAsync();
-        if (found.Count == 0) return;
+        _trendDone = true;
+        // Whether it came, for the next launch to keep its place or not.
+        try
+        {
+            if (found.Count > 0) System.IO.File.WriteAllText(TrendingSeen, "");
+            else System.IO.File.Delete(TrendingSeen);
+        }
+        catch (Exception) { }
         Trend = found;
         ShowShelves();
     }
@@ -321,6 +394,7 @@ public sealed class HomePage : Grid
             }
             catch (Exception) { }
         }
+        _topDone = true;
         ShowShelves();
     }
 }
