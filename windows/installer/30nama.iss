@@ -1,4 +1,4 @@
-; The Windows installer, built by windows/tools/build-release.ps1 with Inno Setup 6:
+﻿; The Windows installer, built by windows/tools/build-release.ps1 with Inno Setup 6:
 ;   ISCC /DVersion=1.0.0 /DSource=<app build folder> /DRepo=<repository root> /DOutput=<folder> 30nama.iss
 ;
 ; It installs for the current user only, under %LOCALAPPDATA%\Programs, so it needs no
@@ -28,11 +28,21 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
-WizardStyle=modern
+; Dark, as the app is: its own pictures, the title bar of the same dark, no rules between parts.
+WizardStyle=modern dark includetitlebar hidebevels
+WizardBackImageFile=art\back-596.png,art\back-796.png,art\back-994.png,art\back-1192.png,art\back-1490.png
+WizardImageFile=art\side-202.png,art\side-269.png,art\side-336.png,art\side-404.png,art\side-505.png
+WizardSmallImageFile=art\small-58.png,art\small-77.png,art\small-97.png,art\small-116.png,art\small-124.png,art\small-143.png,art\small-159.png
+; The language is asked first, on a page of the installer's own ([Code], ChooseLanguage), with the
+; language of Windows already chosen; Inno Setup's own dialog is a plain drop-down list.
+ShowLanguageDialog=no
 SetupIconFile={#Repo}\windows\src\Nama.App\Assets\30nama.ico
 UninstallDisplayIcon={app}\Win - 30nama.exe
 UninstallDisplayName=30nama
-LicenseFile={#Repo}\LICENSE
+; No licence to accept: the MIT licence and the notices of the parts it ships with go beside the app.
+; Welcome, where to (first install only), then straight to installing.
+DisableWelcomePage=no
+DisableReadyPage=yes
 OutputDir={#Output}
 OutputBaseFilename=30nama-windows-{#Version}-setup
 Compression=lzma2/ultra64
@@ -43,12 +53,41 @@ RestartApplications=no
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
+; Inno Setup's user-contributed Persian (Peyman Mohammadi, github.com/peymanr34/inno-setup-translations).
+Name: "fa"; MessagesFile: "Farsi.isl"
 Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl"
+
+[LangOptions]
+; Persian and Arabic in the app's own typeface, Vazirmatn, carried inside Setup and loaded for it alone.
+; Vazirmatn is the work of the late Saber Rastikerdar (صابر راستی‌کردار), who gave it to everyone,
+; free. With gratitude, and in his memory.
+; Setup sizes its windows by how large the font measures against these. Vazirmatn measures about
+; 1.4 times Segoe UI 9 (whose are 7 and 15), so with its own measures the Persian and Arabic
+; windows are the size of the English, rather than 40% larger.
+fa.DialogFontBaseScaleHeight=20
+fa.DialogFontBaseScaleWidth=10
+ar.DialogFontBaseScaleHeight=20
+ar.DialogFontBaseScaleWidth=10
+fa.DialogFontName=Vazirmatn
+fa.WelcomeFontName=Vazirmatn
+ar.DialogFontName=Vazirmatn
+ar.WelcomeFontName=Vazirmatn
+
+[Messages]
+en.WelcomeLabel1=Welcome to 30nama
+en.WelcomeLabel2=Films, series and anime from 30nama, in an app made for Windows. An unofficial app, not made by 30nama.%n%n[name/ver] will be installed for you alone: no administrator is needed.
+fa.WelcomeLabel1=به ۳۰نما خوش آمدید
+fa.WelcomeLabel2=فیلم، سریال و انیمهٔ ۳۰نما در برنامه‌ای برای ویندوز. این برنامه غیررسمی است و ساختهٔ خود ۳۰نما نیست.%n%n[name/ver] فقط برای حساب شما نصب می‌شود و دسترسی مدیر سیستم لازم نیست.
+ar.WelcomeLabel1=مرحبًا بك في 30nama
+ar.WelcomeLabel2=أفلام ومسلسلات وأنمي 30nama في تطبيق مصنوع لويندوز. تطبيق غير رسمي، لم تصنعه 30nama.%n%nسيُثبَّت [name/ver] لحسابك وحدك، دون الحاجة إلى صلاحيات المسؤول.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
+; For Setup itself, not installed: the typeface of its Persian and Arabic pages.
+Source: "{#Repo}\30nama\Shared\Fonts\Vazirmatn-Regular.ttf"; Flags: dontcopy
+Source: "{#Repo}\30nama\Shared\Fonts\Vazirmatn-Bold.ttf"; Flags: dontcopy
 Source: "{#Source}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Repo}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -70,6 +109,109 @@ Name: "{autodesktop}\30nama"; Filename: "{app}\Win - 30nama.exe"; Tasks: desktop
 Filename: "{app}\Win - 30nama.exe"; Description: "{cm:LaunchProgram,30nama}"; Flags: nowait postinstall
 
 [Code]
+const
+  FR_PRIVATE = $10;
+
+function AddFontResourceEx(FileName: String; Flags: Cardinal; Reserved: Integer): Integer;
+  external 'AddFontResourceExW@gdi32.dll stdcall';
+
+var
+  ChosenLanguage: String;
+
+// Setup was started in a language already: it chose on its first run, or was told by the updater.
+function LanguageGiven: Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if Pos('/LANG=', Uppercase(ParamStr(I))) = 1 then Result := True;
+end;
+
+procedure LanguageClick(Sender: TObject);
+begin
+  case TComponent(Sender).Tag of
+    0: ChosenLanguage := 'fa';
+    1: ChosenLanguage := 'en';
+  else
+    ChosenLanguage := 'ar';
+  end;
+end;
+
+// The first page: three large buttons, each language in its own words, the language of Windows lit.
+function ChooseLanguage: Boolean;
+var
+  Form: TSetupForm;
+  Title: TNewStaticText;
+  Button: TNewButton;
+  Names: array[0..2] of String;
+  Codes: array[0..2] of String;
+  I: Integer;
+begin
+  Names[0] := 'فارسی'; Codes[0] := 'fa';
+  Names[1] := 'English'; Codes[1] := 'en';
+  Names[2] := 'العربية'; Codes[2] := 'ar';
+  Form := CreateCustomForm(ScaleX(340), ScaleY(300), False, False);
+  try
+    Form.Caption := '30nama';
+    Form.Position := poScreenCenter;
+    Title := TNewStaticText.Create(Form);
+    Title.Parent := Form;
+    Title.Caption := 'زبان  ·  Language  ·  اللغة';
+    Title.Font.Name := 'Vazirmatn';
+    Title.Font.Size := 13;
+    Title.Font.Style := [fsBold];
+    Title.AutoSize := True;
+    Title.Top := ScaleY(26);
+    Title.Left := (Form.ClientWidth - Title.Width) div 2;
+    for I := 0 to 2 do
+    begin
+      Button := TNewButton.Create(Form);
+      Button.Parent := Form;
+      Button.Caption := Names[I];
+      Button.Tag := I;
+      Button.Font.Name := 'Vazirmatn';
+      Button.Font.Size := 12;
+      if Codes[I] = ActiveLanguage then Button.Font.Style := [fsBold];
+      Button.Default := Codes[I] = ActiveLanguage;
+      Button.Width := ScaleX(260);
+      Button.Height := ScaleY(46);
+      Button.Left := (Form.ClientWidth - Button.Width) div 2;
+      Button.Top := ScaleY(84) + I * ScaleY(60);
+      Button.OnClick := @LanguageClick;
+      Button.ModalResult := mrOk;
+      if Button.Default then Form.ActiveControl := Button;
+    end;
+    ChosenLanguage := '';
+    Result := Form.ShowModal = mrOk;
+  finally
+    Form.Free;
+  end;
+end;
+
+function InitializeSetup: Boolean;
+var
+  Code: Integer;
+begin
+  Result := True;
+  ExtractTemporaryFile('Vazirmatn-Regular.ttf');
+  ExtractTemporaryFile('Vazirmatn-Bold.ttf');
+  AddFontResourceEx(ExpandConstant('{tmp}\Vazirmatn-Regular.ttf'), FR_PRIVATE, 0);
+  AddFontResourceEx(ExpandConstant('{tmp}\Vazirmatn-Bold.ttf'), FR_PRIVATE, 0);
+  // An update runs quietly, in the language it is given; nothing is asked.
+  if WizardSilent or LanguageGiven then Exit;
+  if not ChooseLanguage then
+  begin
+    Result := False;
+    Exit;
+  end;
+  // Another language than this run's: Setup starts again in it, and this run ends.
+  if ChosenLanguage <> ActiveLanguage then
+  begin
+    Exec(ExpandConstant('{srcexe}'), '/LANG=' + ChosenLanguage, '', SW_SHOWNORMAL, ewNoWait, Code);
+    Result := False;
+  end;
+end;
 // Files are replaced one by one, and Inno Setup cannot put back a file it has already replaced. A
 // file held (the app still closing, a program holding it shut to others) used to stop it halfway,
 // with new and old files mixed and the new version number on them. So every file is checked before
