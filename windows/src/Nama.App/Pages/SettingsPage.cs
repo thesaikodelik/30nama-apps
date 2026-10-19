@@ -43,21 +43,7 @@ public sealed class SettingsPage : Grid
         var s = App.Settings;
         _column.Children.Clear();
 
-        var account = new List<FrameworkElement>();
-        if (App.User is { } user)
-        {
-            account.Add(Row(loc[S.account], Value(user.Name ?? "—")));
-            if (user.Type is { } type) account.Add(Row(loc[S.accountType], Value(loc.AccountType(type))));
-            if (loc.SubscriptionLine(user) is { } line) account.Add(Row(loc[S.expires], Value(line.Replace(loc[S.subscriptionUntil], "").Trim())));
-            account.Add(Action(Kit.Glass(loc[S.signOut], null, ConfirmSignOut, height: 38)));
-        }
-        else
-        {
-            account.Add(Row(loc[S.account], Value(loc[S.guestAccount])));
-            account.Add(Action(Kit.Glass(loc[S.signInQR], null, App.RequestSignIn, height: 38)));
-        }
-        if (!App.Ratings.IsEmpty) account.Add(Row(loc[S.yourRating], Kit.Glass(loc[S.exportRatings], null, ExportRatings, height: 34)));
-        Group(loc[S.account], account);
+        // The account (its name, its subscription, signing out, the ratings export) is on the profile, as on the Mac.
 
         Group(loc[S.language], [Row(loc[S.language], Choice(LangExtensions.All.Select(l => (l.Name(), (object)l)), s.Lang, v => App.Update(x => x with { Lang = (Lang)v })))]);
 
@@ -216,20 +202,6 @@ public sealed class SettingsPage : Grid
     }
 
     /// <summary>The ratings as a file Letterboxd's importer reads: the app cannot send them to 30nama, so this is how they leave it.</summary>
-    private async void ExportRatings()
-    {
-        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "30nama-ratings" };
-        picker.FileTypeChoices.Add("CSV", [".csv"]);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
-        if (await picker.PickSaveFileAsync() is not { } file) return;
-        try
-        {
-            await File.WriteAllTextAsync(file.Path, App.Ratings.Csv(), new System.Text.UTF8Encoding(false));
-            App.ShowToast(App.Loc[S.exportDone]);
-        }
-        catch (Exception) { App.ShowToast(App.Loc[S.error]); }
-    }
-
     /// <summary>
     /// A new issue on the project's GitHub page, with what a report needs to be acted on already
     /// filled in. Nothing about the account goes with it.
@@ -259,15 +231,4 @@ public sealed class SettingsPage : Grid
         if (await picker.PickSingleFolderAsync() is { } chosen) App.Update(x => x with { DownloadFolder = chosen.Path });
     }
 
-    private async void ConfirmSignOut()
-    {
-        var loc = App.Loc;
-        var dialog = new ContentDialog
-        {
-            Title = loc[S.signOutTitle], Content = loc[S.signOutBody], PrimaryButtonText = loc[S.signOut], CloseButtonText = loc[S.cancel],
-            DefaultButton = ContentDialogButton.Close, XamlRoot = XamlRoot, FlowDirection = loc.Lang.IsRtl() ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
-            RequestedTheme = ElementTheme.Dark,
-        };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary) App.SignOut();
-    }
 }
