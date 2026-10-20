@@ -183,7 +183,8 @@ final class TrendingTests: XCTestCase {
             return (Data(html.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }, search: net.search)
         _ = await trending.row(.trend)
-        XCTAssertEqual(Array(net.searches.prefix(1)), ["Film N1x"], "the public list is looked for on 30nama")
+        // Titles are looked up side by side, so in no fixed order.
+        XCTAssertTrue(net.searches.contains("Film N1x"), "the public list is looked for on 30nama")
         let fresh = await trending.row(.fresh)
         XCTAssertTrue(fresh.isEmpty, "rows that need the API stay empty without a key")
     }

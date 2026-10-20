@@ -20,6 +20,10 @@ struct NamaApp: App {
 enum Route: Hashable {
     case details(PostRef)
     case catalog(slug: String, title: String)
+    /// An actor's biography and titles, from the 30nama website's own API.
+    case person(Person)
+    case schedule
+    case topLists
 }
 
 /// A title to open. Carries the list entry so the page has something to show while it loads.
@@ -42,6 +46,9 @@ extension View {
             switch route {
             case .details(let ref): DetailsView(ref: ref)
             case .catalog(let slug, let title): CatalogView(slug: slug, title: title)
+            case .person(let person): PersonView(person: person)
+            case .schedule: ScheduleView()
+            case .topLists: TopListsView()
             }
         }
     }

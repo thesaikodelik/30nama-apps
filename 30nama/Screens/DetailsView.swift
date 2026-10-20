@@ -357,9 +357,17 @@ struct DetailsView: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 28) {
                     ForEach(post.cast) { person in
-                        Button {} label: { Face(person: person) }
-                            .buttonStyle(FaceButtonStyle())
-                            .focused($focus, equals: .person(person.id))
+                        // Who they are and their titles come from the site API, by 30nama's id or
+                        // the IMDb one: without either, the face only takes the focus.
+                        if app.api.hasSite, person.siteID != nil || person.imdb != nil {
+                            NavigationLink(value: Route.person(person)) { Face(person: person) }
+                                .buttonStyle(FaceButtonStyle())
+                                .focused($focus, equals: .person(person.id))
+                        } else {
+                            Button {} label: { Face(person: person) }
+                                .buttonStyle(FaceButtonStyle())
+                                .focused($focus, equals: .person(person.id))
+                        }
                     }
                 }
                 .padding(.horizontal, Theme.edge)
