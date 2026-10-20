@@ -81,7 +81,18 @@ public sealed record Settings
 public static class Storage
 {
     public static string Folder { get; } = Directory.CreateDirectory(
+#if DEBUG
+        // NAMA_DATA: another folder, for a guest beside the signed-in one (screenshots for the README).
+        Environment.GetEnvironmentVariable("NAMA_DATA") ??
+#endif
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "30nama")).FullName;
+
+    /// <summary>Running on NAMA_DATA's folder: the signed-in session stays out of it, both ways.</summary>
+#if DEBUG
+    public static bool Elsewhere { get; } = Environment.GetEnvironmentVariable("NAMA_DATA") is not null;
+#else
+    public static bool Elsewhere => false;
+#endif
 
     public static string? Read(string path)
     {
@@ -114,6 +125,7 @@ public static class SessionStore
 
     public static void Save(User user)
     {
+        if (Storage.Elsewhere) return;
         try
         {
             var vault = new PasswordVault();
@@ -131,6 +143,7 @@ public static class SessionStore
 
     public static User? Load()
     {
+        if (Storage.Elsewhere) return null;
         string? token = null;
         try
         {
@@ -148,6 +161,7 @@ public static class SessionStore
 
     public static void Clear()
     {
+        if (Storage.Elsewhere) return;
         try { Remove(new PasswordVault()); } catch (Exception) { }
         try { System.IO.File.Delete(ProfileFile); } catch (Exception) { }
     }
