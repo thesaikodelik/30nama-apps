@@ -193,6 +193,53 @@ public sealed class NavBar : Grid
         if (what is "notifications" or "user") Refresh();
     }
 
+    private bool _bellShown;
+
+    /// <summary>The bell comes and goes with a fade and a little growing, as on the Mac.</summary>
+    private void ShowBell(bool show)
+    {
+        var was = _bellShown;
+        _bellShown = show;
+        if (!show)
+        {
+            if (!was) return;
+            if (_bellSlot.Children.FirstOrDefault() is FrameworkElement leaving)
+            {
+                leaving.Opacity = 0;
+                leaving.ScaleTo(0.85);
+            }
+            _ = Task.Delay(260).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_bellShown) return;
+                _bellSlot.Children.Clear();
+                _bellSlot.Visibility = _balance.Visibility = Visibility.Collapsed;
+            }), TaskScheduler.Default);
+            return;
+        }
+        // Built again each time: its count of unread ones may have changed.
+        _bellSlot.Children.Clear();
+        var bell = Bell();
+        _bellSlot.Children.Add(bell);
+        _bellSlot.Visibility = _balance.Visibility = Visibility.Visible;
+        if (was)
+        {
+            bell.Springy(0.25);
+            return;
+        }
+        // Its starting look is set before its transitions are, so it grows from it rather than to it.
+        bell.Opacity = 0;
+        bell.Loaded += (_, _) =>
+        {
+            bell.ScaleTo(0.85);
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                bell.Springy(0.25);
+                bell.Opacity = 1;
+                bell.ScaleTo(1);
+            });
+        };
+    }
+
     public void Refresh()
     {
         var loc = AppModel.Shared.Loc;
@@ -204,10 +251,8 @@ public sealed class NavBar : Grid
         ShowDownloads();
         // The bell only while 30nama has something to tell: with none, it would take room and the
         // eye for nothing. The room on the other side, which keeps the bar centred, goes with it.
-        _bellSlot.Children.Clear();
         var any = AppModel.Shared.IsLoggedIn && AppModel.Shared.Notifications is { Items.Count: > 0 };
-        if (any) _bellSlot.Children.Add(Bell());
-        _bellSlot.Visibility = _balance.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        ShowBell(any);
         _items.Children.Clear();
         _tabs.Clear();
         foreach (var section in Nav.OnBar)

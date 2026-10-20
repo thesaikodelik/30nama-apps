@@ -16,14 +16,15 @@ public sealed class CatalogPage : Grid
     private static AppModel App => AppModel.Shared;
 
     /// <summary>
-    /// The orders 30nama's app API keeps to. It has no "newest" (the website gets it by post id,
-    /// through an action this API answers with 404); any other value brings one fixed list, which
-    /// was shown as "newest". Recently updated is the website's own first choice, and for films it
-    /// is the newest too. "year" puts titles still to come, years ahead, first.
+    /// The orders 30nama's app API keeps to, and "newest". The app API has no newest: any order it
+    /// does not know brings one fixed list, which was shown as "newest". The website's own API has
+    /// it, by post id, so it is offered when the build has the site's key. Recently updated is the
+    /// website's own first choice. "year" puts titles still to come, years ahead, first.
     /// </summary>
-    private enum Sort { Updated, Popular }
+    private enum Sort { Updated, Newest, Popular }
     private static string Order(Sort s) => s == Sort.Popular ? "favorite" : "update";
-    private static S Label(Sort s) => s == Sort.Popular ? S.popular : S.updated;
+    private static S Label(Sort s) => s switch { Sort.Popular => S.popular, Sort.Newest => S.newest, _ => S.updated };
+    private IEnumerable<Sort> Sorts => Enum.GetValues<Sort>().Where(s => s != Sort.Newest || (Type is not null && App.Api.HasSite));
 
     private readonly string _slug;
     private readonly string _title;
@@ -108,10 +109,12 @@ public sealed class CatalogPage : Grid
         }
         top.Children.Add(name);
         var sorts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var option in Enum.GetValues<Sort>())
+        foreach (var option in Sorts)
             sorts.Children.Add(Kit.Pill(loc[Label(option)], _sort == option, () =>
             {
                 _sort = option;
+                // What the newest list cannot narrow by is let go, not kept and silently ignored.
+                if (option == Sort.Newest) _filter = new Filter() with { Genre = _filter.Genre };
                 RenderHeader();
                 _ = Restart();
             }));
@@ -132,10 +135,14 @@ public sealed class CatalogPage : Grid
         var loc = App.Loc;
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         row.Children.Add(FilterMenu(loc[S.genres], options.Genres, _filter.Genre, v => _filter = _filter with { Genre = v }));
-        row.Children.Add(FilterMenu(loc[S.country], options.Countries, _filter.Country, v => _filter = _filter with { Country = v }));
-        row.Children.Add(FilterMenu(loc[S.minScore], options.Scores, _filter.Score, v => _filter = _filter with { Score = v }));
-        var decades = options.Decades.Select(d => new FilterOptions.Choice(loc.Num($"{d}–{d + 9}"), d.ToString())).ToList();
-        row.Children.Add(FilterMenu(loc[S.decade], decades, _filter.Decade?.ToString(), v => _filter = _filter with { Decade = v is null ? null : int.Parse(v) }));
+        // The site's newest list narrows by genre only.
+        if (_sort != Sort.Newest)
+        {
+            row.Children.Add(FilterMenu(loc[S.country], options.Countries, _filter.Country, v => _filter = _filter with { Country = v }));
+            row.Children.Add(FilterMenu(loc[S.minScore], options.Scores, _filter.Score, v => _filter = _filter with { Score = v }));
+            var decades = options.Decades.Select(d => new FilterOptions.Choice(loc.Num($"{d}–{d + 9}"), d.ToString())).ToList();
+            row.Children.Add(FilterMenu(loc[S.decade], decades, _filter.Decade?.ToString(), v => _filter = _filter with { Decade = v is null ? null : int.Parse(v) }));
+        }
         if (!_filter.IsEmpty)
         {
             var reset = Theme.Bare(Glyph.Icon("", 16, Theme.Text3), () =>
@@ -165,24 +172,13 @@ public sealed class CatalogPage : Grid
         label.Children.Add(chevron);
         var face = new Border { Height = 30, Padding = new Thickness(13, 0, 13, 0), CornerRadius = new CornerRadius(15), Background = chosen is not null ? Theme.Brush(Colors.White) : Theme.White(0.1), Child = label };
         var button = Theme.Bare(face, () => { });
-        button.Click += (_, _) =>
-        {
-            var menu = new MenuFlyout();
-            void Add(string text, string? value)
+        button.Click += (_, _) => Kit.ChoiceMenu(button, title,
+            [(loc[S.allChoices], null), .. choices.Select(c => (c.Name, (string?)c.Value))], selection, value =>
             {
-                var item = new RadioMenuFlyoutItem { Text = text, GroupName = title, IsChecked = value == selection };
-                item.Click += (_, _) =>
-                {
-                    set(value);
-                    RenderHeader();
-                    _ = Restart();
-                };
-                menu.Items.Add(item);
-            }
-            Add(loc[S.allChoices], null);
-            foreach (var c in choices) Add(c.Name, c.Value);
-            menu.ShowAt(button);
-        };
+                set(value);
+                RenderHeader();
+                _ = Restart();
+            });
         Kit.AutomationName(button, title);
         return button;
     }
@@ -197,28 +193,32 @@ public sealed class CatalogPage : Grid
         var narrowed = _filter;
         try
         {
-            var result = narrowed.IsEmpty
-                ? await App.Api.GetAsync("archive", new Dictionary<string, string>
-                {
-                    ["slugs"] = _slug, ["streamonly"] = "1", ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "desc",
-                })
-                : await App.Api.GetAsync("advanced_search", new Dictionary<string, string>
-                {
-                    ["parameters"] = narrowed.Parameters(Type), ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "DESC",
-                });
-            if (generation != _generation) return;
-            var next = new PostPage(result);
-            var known = _posts.Select(p => p.Id).ToHashSet();
-            foreach (var post in next.Posts.Where(p => !known.Contains(p.Id)))
+            if (_sort == Sort.Newest && Type is { } kind)
             {
-                _posts.Add(post);
-                _wall.Add(Kit.Poster(post, () => _nav.Open(post)));
+                var newest = SitePosts.Page(await App.Api.SiteAsync(SiteQuery.Newest(kind, narrowed.Genre, true, _page + 1)));
+                if (generation != _generation) return;
+                Add(newest);
+                // The site's lists give pages, not a count: the last order's count goes.
+                if (_page == 1) RenderHeader();
             }
-            _page = next.Page;
-            _pages = next.Pages;
-            var hadTotal = _total is not null;
-            _total = next.Total;
-            if (!hadTotal) RenderHeader();
+            else
+            {
+                var result = narrowed.IsEmpty
+                    ? await App.Api.GetAsync("archive", new Dictionary<string, string>
+                    {
+                        ["slugs"] = _slug, ["streamonly"] = "1", ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "desc",
+                    })
+                    : await App.Api.GetAsync("advanced_search", new Dictionary<string, string>
+                    {
+                        ["parameters"] = narrowed.Parameters(Type), ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "DESC",
+                    });
+                if (generation != _generation) return;
+                var next = new PostPage(result);
+                Add(next);
+                var hadTotal = _total is not null;
+                _total = next.Total;
+                if (!hadTotal) RenderHeader();
+            }
         }
         catch (Exception)
         {
@@ -231,6 +231,18 @@ public sealed class CatalogPage : Grid
         }
         // A wall shorter than the window gives nothing to scroll: the next page is fetched at once.
         if (generation == _generation && !_failed && _scroller.ScrollableHeight < Theme.Prefetch && _page < _pages) await LoadNextAsync();
+    }
+
+    private void Add(PostPage next)
+    {
+        var known = _posts.Select(p => p.Id).ToHashSet();
+        foreach (var post in next.Posts.Where(p => !known.Contains(p.Id)))
+        {
+            _posts.Add(post);
+            _wall.Add(Kit.Poster(post, () => _nav.Open(post)));
+        }
+        _page = next.Page;
+        _pages = next.Pages;
     }
 
     private void RenderFooter()
@@ -274,9 +286,46 @@ public sealed class BrowsePage : Grid
             return;
         }
         _column.Children.Clear();
+        // What only the 30nama website has, through its own API.
+        if (App.Api.HasSite)
+        {
+            var site = new Grid { ColumnSpacing = 16, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
+            site.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            site.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            site.Children.Add(SiteTile(App.Loc[S.weeklySchedule], "", () => _nav.Open(new Route.Schedule())));
+            var top = SiteTile(App.Loc[S.topLists], Glyph.Star, () => _nav.Open(new Route.TopLists()));
+            Grid.SetColumn(top, 1);
+            site.Children.Add(top);
+            _column.Children.Add(site);
+        }
         _column.Children.Add(AdvancedCard());
         if (menu.Genres.Count > 0) _column.Children.Add(Group(App.Loc[S.genres], menu.Genres));
         if (menu.Categories.Count > 0) _column.Children.Add(Group(App.Loc[S.categories], menu.Categories));
+    }
+
+    /// <summary>A way into one of the site's own pages, at the top of Explore.</summary>
+    private static Button SiteTile(string title, string glyph, Action open)
+    {
+        var face = new Grid { Height = 76, Padding = new Thickness(20, 0, 20, 0), ColumnSpacing = 14, CornerRadius = new CornerRadius(14), Background = Theme.White(0.06) }.Springy(0.2);
+        face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var icon = Glyph.Icon(glyph, 24, Theme.Accent);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        face.Children.Add(icon);
+        var text = Theme.Text(title, 18, FontWeights.Bold);
+        text.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(text, 1);
+        face.Children.Add(text);
+        var rim = new Border { CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08), Margin = new Thickness(-20, 0, -20, 0) };
+        Grid.SetColumnSpan(rim, 2);
+        face.Children.Add(rim);
+        var button = Theme.Bare(face, open);
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        Kit.AutomationName(button, title);
+        button.PointerEntered += (_, _) => { face.Background = Theme.White(0.12); rim.BorderBrush = Theme.White(0.9); rim.BorderThickness = new Thickness(2); };
+        button.PointerExited += (_, _) => { face.Background = Theme.White(0.06); rim.BorderBrush = Theme.White(0.08); rim.BorderThickness = new Thickness(1); };
+        return Kit.Hovering(button, face, 1.02);
     }
 
     /// <summary>The way into the advanced search, above the genres it goes beyond.</summary>

@@ -54,7 +54,7 @@ public sealed record TitleUpdate(string Title, string? Content, string? Gregoria
 }
 
 /// <param name="Imdb">The person's IMDb id ("nm0000190"), which the site API finds their titles by.</param>
-public sealed record Person(string Name, string? Role, Poster? Poster, string? Imdb = null)
+public sealed record Person(string Name, string? Role, Poster? Poster, string? Imdb = null, int? SiteId = null)
 {
     public string Id => Name + "|" + (Role ?? "");
 }
@@ -187,7 +187,7 @@ public sealed class Post : IEquatable<Post>
         {
             if (c["name"].Text is not { } name) return null;
             var poster = new Poster(c["image"]["poster"]);
-            return new Person(name, c["as"].Text, poster.IsEmpty ? null : poster, c["imdb"].Text);
+            return new Person(name, c["as"].Text, poster.IsEmpty ? null : poster, c["imdb"].Text, c["id"].Int);
         }).OfType<Person>().ToList();
         static List<string> Names(Json v) => v.Array.Select(x => x["name"].Text ?? x.Text).OfType<string>().ToList();
         p.Directors = Names(j["crew"]["director"]);

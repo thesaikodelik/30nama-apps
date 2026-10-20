@@ -80,6 +80,127 @@ public class SiteApiTests
     }
 
     [Fact]
-    public void CastMembersKeepTheirImdbId() =>
-        Assert.Equal("nm0000255", Post.Parse(Fixtures.Load("single_movie")["result"])?.Cast[0].Imdb);
+    public void CastMembersKeepTheirImdbAndSiteIds()
+    {
+        var post = Post.Parse(Fixtures.Load("single_movie")["result"])!;
+        Assert.Equal("nm0000255", post.Cast[0].Imdb);
+        Assert.Equal(151521, post.Cast[0].SiteId);
+        Assert.Null(post.Cast[1].SiteId);
+    }
+
+    [Fact]
+    public void APersonIsAskedBySiteIdAPageAtATime()
+    {
+        Assert.Equal("single/id/151521", SiteQuery.Person(151521, 1));
+        Assert.Equal("single/id/151521/page/3", SiteQuery.Person(151521, 3));
+    }
+
+    [Fact]
+    public void APersonsFactsBiographyAndTitles()
+    {
+        var person = PersonDetails.Parse(Fixtures.Load("site_person")["result"])!;
+        Assert.Equal("Ben Affleck", person.Name);
+        Assert.Equal("Benjamin Géza Affleck-Boldt", person.FullName);
+        Assert.Equal("بن افلک", person.PersianName);
+        Assert.Equal("بازیگر", person.Profession);
+        Assert.Equal("۲۴ مرداد ۱۳۵۱", person.Birthdate);
+        Assert.Null(person.Deathdate);
+        Assert.Equal("۵۴", person.Age);
+        Assert.Equal("https://www.imdb.com/name/nm0000255", person.Imdb?.OriginalString);
+        Assert.Equal("https://example.com/person/30151521-m_30NAMA.webp?", person.Picture?.Medium?.OriginalString);
+        Assert.Equal(["پیش زمینه", "پاراگراف نمونهٔ اول با «نقل» و ’.", "پاراگراف نمونهٔ دوم."], person.Biography);
+        Assert.Equal(1, person.Titles.Page);
+        Assert.Equal(4, person.Titles.Pages);
+        Assert.Equal(2, person.Titles.Posts.Count);
+    }
+
+    [Fact]
+    public void SiteTextKeepsParagraphsAndDropsTheEditorsMarkup()
+    {
+        Assert.Equal(["a&b", "line", "next ’"], SiteText.Paragraphs("<p>a&amp;b</p><p>&nbsp;</p>line<br>next &#x2019;"));
+        Assert.Empty(SiteText.Paragraphs(""));
+    }
+
+    [Fact]
+    public void ABiographysHeadingsAreShortLinesThatAreNotSentences()
+    {
+        Assert.True(SiteText.IsHeading("پیش زمینه"));
+        Assert.False(SiteText.IsHeading("او در بوستون به دنیا آمد."));
+        Assert.False(SiteText.IsHeading(new string('ا', 60)));
+    }
+
+    [Fact]
+    public void AFoldedBiographyShowsWholeParagraphsToAboutEightHundredLetters()
+    {
+        var sentence = new string('ا', 299) + ".";
+        string[] bio = ["آغاز", sentence, sentence, sentence, "میانه", sentence];
+        Assert.True(SiteText.IsLong(bio));
+        Assert.Equal(bio[..4], SiteText.Opening(bio));
+        // Past the letters on a heading: the paragraph under it comes too.
+        var half = new string('ب', 399) + ".";
+        string[] headed = [half, half, "میانه", sentence, sentence];
+        Assert.Equal(headed[..4], SiteText.Opening(headed));
+        Assert.False(SiteText.IsLong(["کوتاه."]));
+    }
+
+    [Fact]
+    public void NewestIsTheSitesListByPostId()
+    {
+        Assert.Equal("list/type/category/value/movie/page/2/orderby/id/order/desc/streamonly/yes/genre/all",
+                     SiteQuery.Newest("movie", null, true, 2));
+        Assert.Equal("list/type/category/value/anime/page/1/orderby/id/order/desc/streamonly/no/genre/action",
+                     SiteQuery.Newest("anime", "action", false, 1));
+    }
+
+    [Fact]
+    public void TopListKeepsItsPlaces()
+    {
+        Assert.Equal("toplist/list/top-movie-30nama", SiteQuery.TopList(TopLists.SiteMovies));
+        var entries = TopListEntry.Parse(Fixtures.Load("site_toplist")["result"]);
+        Assert.Equal([1, 2, 3], entries.Select(e => e.Rank));
+        Assert.Equal([7583, 8863, 7143], entries.Select(e => e.Post.Id));
+        Assert.Equal(2014, entries[0].Post.Year);
+    }
+
+    [Fact]
+    public void TheScheduleSortsTitlesByTheSitesDays()
+    {
+        Assert.Equal("schedule/type/anime", SiteQuery.Schedule(Schedule.Kinds.Anime));
+        var week = new Schedule(Fixtures.Load("site_schedule")["result"]);
+        // A title listed twice is kept once.
+        Assert.Equal(3, week.Entries.Count);
+        Assert.Equal([721396], week.On(0).Select(p => p.Id));
+        Assert.Equal([721194], week.On(4).Select(p => p.Id));
+        Assert.Empty(week.On(2));
+    }
+
+    [Fact]
+    public void TheSitesWeekStartsOnSaturday()
+    {
+        var saturday = new DateTime(2026, 10, 17);
+        var tuesday = new DateTime(2026, 10, 20);
+        Assert.Equal(0, Schedule.Day(saturday));
+        Assert.Equal(3, Schedule.Day(tuesday));
+        Assert.Equal([3, 4, 5, 6, 0, 1, 2], Schedule.Week(tuesday));
+        Assert.Equal(DayOfWeek.Saturday, Schedule.Weekday(0));
+        Assert.Equal(DayOfWeek.Sunday, Schedule.Weekday(1));
+    }
+
+    [Fact]
+    public void PersianDigitsBecomeLatin()
+    {
+        Assert.Equal("123", SiteText.LatinDigits("۱۲۳"));
+        Assert.Equal("45", SiteText.LatinDigits("٤٥"));
+        Assert.Equal("7a", SiteText.LatinDigits("7a"));
+    }
+
+    [Fact]
+    public void PersianTextIsTidiedForReading()
+    {
+        Assert.Equal("در ۴ نوامبر، ۱۹۶۹ در «Dazed and Confused» بازی کرد.",
+                     SiteText.TidyPersian("در 4 نوامبر ، 1969 در \" Dazed and Confused\" بازی کرد ."));
+        Assert.Equal("علاقه‌ی زیادی داشت و می‌یافت ولی نمی‌خواست",
+                     SiteText.TidyPersian("علاقه ی زیادی داشت و می یافت ولی نمی خواست"));
+        Assert.Equal("گفت، سپس رفت", SiteText.TidyPersian("گفت،سپس رفت"));
+    }
 }

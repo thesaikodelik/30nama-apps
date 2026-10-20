@@ -529,8 +529,8 @@ public sealed class TitlePage : Grid
                 r.HorizontalAlignment = HorizontalAlignment.Center;
                 card.Children.Add(r);
             }
-            // Only the website's API finds a person's titles, by their IMDb id.
-            if (App.Api.HasSite && person.Imdb is not null)
+            // Only the website's API knows a person: by 30nama's own id, or by the IMDb id for their titles alone.
+            if (App.Api.HasSite && (person.SiteId is not null || person.Imdb is not null))
             {
                 var open = Theme.Bare(card, () => _nav.Open(new Route.Actor(person)));
                 open.PointerEntered += (_, _) =>

@@ -138,24 +138,13 @@ public sealed class AdvancedSearchPage : Grid
         return rows;
     }
 
-    /// <summary>A pill that names the choice made and opens the list of choices; long lists scroll.</summary>
+    /// <summary>A pill that names the choice made and opens the list of choices.</summary>
     private Button Menu(string title, IReadOnlyList<SearchChoices.Choice> choices, string? selection, Func<string?, Func<AdvancedQuery, AdvancedQuery>> set)
     {
         var chosen = choices.FirstOrDefault(c => c.Value == selection);
         var button = Capsule(chosen is null ? title : $"{title}: {chosen.Name}", chosen is not null);
-        button.Click += (_, _) =>
-        {
-            var menu = new MenuFlyout();
-            void Add(string text, string? value)
-            {
-                var item = new RadioMenuFlyoutItem { Text = text, GroupName = title, IsChecked = value == selection };
-                item.Click += (_, _) => Change(set(value));
-                menu.Items.Add(item);
-            }
-            Add(Loc[S.allChoices], null);
-            foreach (var c in choices) Add(c.Name, c.Value);
-            menu.ShowAt(button);
-        };
+        button.Click += (_, _) => Kit.ChoiceMenu(button, title,
+            [(Loc[S.allChoices], null), .. choices.Select(c => (c.Name, (string?)c.Value))], selection, value => Change(set(value)));
         Kit.AutomationName(button, title);
         return button;
     }

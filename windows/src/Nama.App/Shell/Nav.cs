@@ -17,6 +17,10 @@ public abstract record Route
     public sealed record Advanced(AdvancedQuery? Start = null) : Route;
     /// <summary>An actor's titles, from the website's API.</summary>
     public sealed record Actor(Person Person) : Route;
+    /// <summary>The week of series and anime, from the website's API.</summary>
+    public sealed record Schedule : Route;
+    /// <summary>The website's lists of the best.</summary>
+    public sealed record TopLists : Route;
 
     /// <summary>The same page: a title by its id, a catalogue by its slug.</summary>
     public bool Same(Route other) => (this, other) switch
@@ -24,7 +28,8 @@ public abstract record Route
         (Title a, Title b) => a.Post.Id == b.Post.Id,
         (Catalog a, Catalog b) => a.Slug == b.Slug,
         (Advanced a, Advanced b) => a.Start == b.Start,
-        (Actor a, Actor b) => a.Person.Imdb == b.Person.Imdb,
+        (Actor a, Actor b) => a.Person.SiteId == b.Person.SiteId && a.Person.Imdb == b.Person.Imdb,
+        (Schedule, Schedule) or (TopLists, TopLists) => true,
         _ => false,
     };
 }
