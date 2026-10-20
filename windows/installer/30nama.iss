@@ -87,6 +87,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [CustomMessages]
 ; When a file of the installed app is still held open; %1 is the file's name.
+; While Setup waits for the app to close, with a moving bar so it does not look stuck.
+en.WaitingTitle=Waiting for 30nama to close
+en.WaitingText=Close 30nama, and its icon beside the clock too. Installing goes on by itself as soon as it has closed.
+fa.WaitingTitle=در انتظار بسته شدن 30nama
+fa.WaitingText=برنامهٔ 30nama را ببندید، آیکونش کنار ساعت را هم. همین که بسته شود، نصب خودش ادامه پیدا می‌کند.
+ar.WaitingTitle=بانتظار إغلاق 30nama
+ar.WaitingText=أغلق 30nama، وأيقونته بجانب الساعة أيضًا. يتابع التثبيت تلقائيًا بمجرد إغلاقه.
 en.AppInUse=Close 30nama (also its icon beside the clock) and run Setup again. Nothing was changed.%n%nIn use: %1
 fa.AppInUse=برنامهٔ 30nama را ببندید (آیکونش کنار ساعت را هم) و نصب‌کننده را دوباره اجرا کنید. چیزی تغییر نکرد.%n%nدر حال استفاده: %1
 ar.AppInUse=أغلق 30nama (وأيقونته بجانب الساعة أيضًا) وشغّل برنامج التثبيت مرة أخرى. لم يتغيّر شيء.%n%nقيد الاستخدام: %1
@@ -278,17 +285,38 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Folder, Blocked: String;
-  Tries, Code: Integer;
+  Tries, Step, Limit, Code: Integer;
+  Waiting: TOutputMarqueeProgressWizardPage;
 begin
   Result := '';
   Folder := ExpandConstant('{app}');
   if not DirExists(Folder) then Exit;
-  // Fifteen seconds: the app quitting for the update lets go in that time.
-  for Tries := 1 to 30 do
+  Blocked := FirstHeld(Folder);
+  if Blocked = '' then Exit;
+  // Quietly, fifteen seconds: the app quitting for the update lets go in that time. Shown, two
+  // minutes, with a moving bar and what to do, and Setup goes on by itself once the app is closed.
+  Waiting := nil;
+  Limit := 30;
+  if not WizardSilent then
   begin
-    Blocked := FirstHeld(Folder);
-    if Blocked = '' then Exit;
-    Sleep(500);
+    Limit := 240;
+    Waiting := CreateOutputMarqueeProgressPage(CustomMessage('WaitingTitle'), CustomMessage('WaitingText'));
+    Waiting.Show;
+  end;
+  try
+    for Tries := 1 to Limit do
+    begin
+      // Short sleeps, so the window keeps answering and the bar keeps moving.
+      for Step := 1 to 10 do
+      begin
+        if Waiting <> nil then Waiting.Animate;
+        Sleep(50);
+      end;
+      Blocked := FirstHeld(Folder);
+      if Blocked = '' then Exit;
+    end;
+  finally
+    if Waiting <> nil then Waiting.Hide;
   end;
   Log('Not installed, nothing was replaced: ' + Blocked + ' is in use');
   Result := FmtMessage(CustomMessage('AppInUse'), [ExtractFileName(Blocked)]);
