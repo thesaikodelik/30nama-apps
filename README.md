@@ -8,7 +8,7 @@
 
 <p>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.2-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/tag/win-v1.0.1"><img src="https://img.shields.io/badge/Download-Windows%201.0.1-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%201.0.1-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
 </p>
 
 <p>
@@ -56,13 +56,13 @@
 
 ## نسخهٔ مک
 
-برنامهٔ مک همهٔ آنچه برنامهٔ Apple TV دارد را در خود دارد. علاوه بر این، دانلود، پخش فایل‌های MKV و امکاناتی را دارد که فقط با موس معنا پیدا می‌کنند. یک فایل نصبی برای هر دو نوع مک است، اینتل و Apple Silicon.
+برنامهٔ ۳۰نما برای کامپیوترهای مک، با macOS 14 یا بالاتر. فیلم‌ها و سریال‌ها و انیمه‌های ۳۰نما را می‌گردید، همان‌جا تماشا می‌کنید یا دانلود می‌کنید، و فایل‌های دانلودشده، حتی MKV، را هم خودش پخش می‌کند. با موس و کیبورد کار می‌کند و یک فایل نصب برای هر دو نوع مک دارد، اینتل و Apple Silicon.
 
 <a id="install"></a>
 
 ### نصب
 
-آخرین نسخه را از [صفحهٔ Releases](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید (فایل `30nama-mac-2.0.2.dmg`).
+فایل `30nama-mac-2.0.2.dmg` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
@@ -163,11 +163,19 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 
 ## نسخهٔ ویندوز
 
-برنامهٔ ویندوز همان برنامهٔ مک است، برای ویندوز ۱۰ و ۱۱ (۶۴ بیتی): همان صفحه‌ها و همان سه زبان، دانلود با چند اتصال هم‌زمان، و پخش فایل‌های MKV با موتور mpv. کدش در پوشهٔ [windows](windows) است.
+برنامهٔ ۳۰نما برای کامپیوترهای ویندوز ۱۰ و ۱۱ (۶۴ بیتی)، با موس و کیبورد:
+
+- خانه با عنوان‌های ویژه و ردیف‌های فیلم و سریال، «ادامهٔ تماشا»، و فهرست فیلم و سریال و انیمه با ترتیب و فیلتر.
+- صفحهٔ هر عنوان با فصل‌ها و قسمت‌ها، بازیگرها و بیوگرافی هر بازیگر، و «برنامهٔ هفتگی» و «فهرست‌های برتر».
+- پخش با موتور mpv، با زیرنویس فارسی، انتخاب کیفیت و صدا. فایل‌های MKV را هم پخش می‌کند.
+- دانلود فیلم و قسمت‌ها با چند اتصال هم‌زمان، صف دانلود، ساعت و سقف سرعت دانلود، و زیرنویس فارسی هماهنگ کنار فایل.
+- سه زبان فارسی، انگلیسی و عربی، و به‌روزرسانی از داخل خود برنامه.
+
+کدش در پوشهٔ [windows](windows) است.
 
 ### نصب
 
-آخرین نسخه را از [صفحهٔ ریلیز ویندوز](https://github.com/thesaikodelik/30nama-apps/releases/tag/win-v1.0.1) بگیرید (فایل `30nama-windows-1.0.1-setup.exe`).
+فایل `30nama-windows-1.0.1-setup.exe` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را اجرا کنید. اول زبان نصب را می‌پرسد.
 
@@ -177,7 +185,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 
 از آن به بعد، برنامه خودش نسخهٔ تازه را خبر می‌دهد و نصبش می‌کند. پیش از نصب، امضای فایل با کلید نسخهٔ ویندوز این پروژه بررسی می‌شود.
 
-### فرقش با نسخهٔ مک
+### چند نکته
 
 - اگر در تنظیمات «ماندن در کنار ساعت ویندوز» را روشن کنید، با بستن پنجره برنامه کنار ساعت می‌ماند تا دانلودها ادامه پیدا کنند.
 - برنامه فقط یک بار باز می‌شود. اگر دوباره بازش کنید، همان پنجرهٔ قبلی جلو می‌آید.
@@ -189,6 +197,10 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 <a id="features"></a>
 
 ## برنامهٔ Apple TV
+
+Apple TV جعبهٔ کوچکی از اپل است که به تلویزیون وصل می‌شود و با کنترل خودش کار می‌کند. این برنامه ۳۰نما را روی همان تلویزیون می‌آورد: عنوان‌ها را با کنترل می‌گردید، روی صفحهٔ بزرگ تماشا می‌کنید، و از جایی که رها کرده‌اید ادامه می‌دهید.
+
+برنامه هنوز در App Store نیست و فایل نصب هم ندارد، چون اپل اجازه نمی‌دهد برنامه‌ای از روی فایل روی Apple TV نصب شود. فعلاً برای نصبش باید آن را با Xcode روی یک مک [از روی کد بسازید](#run).
 
 <p align="center">
 <img src="docs/screenshots/home.jpg" alt="صفحهٔ خانهٔ Apple TV" width="100%">
