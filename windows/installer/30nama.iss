@@ -30,6 +30,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 ; Dark, as the app is: its own pictures, the title bar of the same dark, no rules between parts.
 WizardStyle=modern dark includetitlebar hidebevels
+; The plain size, not the modern style's fifth larger: its pages say little, and the room went empty.
+WizardSizePercent=100
 WizardBackImageFile=art\back-596.png,art\back-796.png,art\back-994.png,art\back-1192.png,art\back-1490.png
 WizardImageFile=art\side-202.png,art\side-269.png,art\side-336.png,art\side-404.png,art\side-505.png
 WizardSmallImageFile=art\small-58.png,art\small-77.png,art\small-97.png,art\small-116.png,art\small-124.png,art\small-143.png,art\small-159.png
