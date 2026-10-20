@@ -16,19 +16,24 @@ struct CatalogView: View {
     @State private var loading = false
     @State private var failed = false
 
-    /// The orders 30nama's app API keeps to. It has no "newest" (the website's own API has, by
-    /// post id, through an action this API does not offer); any other value it is given brings
-    /// one fixed list, which was shown as "newest" until 1.2.4. Recently updated is the website's
-    /// own first choice, and for films it is the newest too.
+    /// The orders 30nama's app API keeps to, and "newest". The app API has no newest: any order
+    /// it does not know brings one fixed list, which was shown as "newest" until 1.2.4. The
+    /// website's own API has it, by post id, so it is offered when the build has the site's key.
+    /// Recently updated is the website's own first choice.
     enum Sort: String, CaseIterable {
-        case updated = "update", popular = "favorite"
+        case updated = "update", newest = "id", popular = "favorite"
         var label: S {
             switch self {
             case .popular: return .popular
             case .updated: return .updated
+            case .newest: return .newest
             }
         }
     }
+
+    /// "movie", "series" or "anime" for the three catalogue tabs: the site's newest list is by kind.
+    private var kind: String? { ["movies": "movie", "series": "series", "anime": "anime"][slug] }
+    private var sorts: [Sort] { Sort.allCases.filter { $0 != .newest || (kind != nil && app.api.hasSite) } }
 
     private let columns = Array(repeating: GridItem(.fixed(Theme.posterWidth), spacing: 32), count: 7)
 
@@ -46,7 +51,7 @@ struct CatalogView: View {
                     }
                     Spacer()
                     HStack(spacing: 12) {
-                        ForEach(Sort.allCases, id: \.self) { option in
+                        ForEach(sorts, id: \.self) { option in
                             Button(loc(option.label)) { sort = option }
                                 .buttonStyle(PillButtonStyle(kind: .chip, selected: option == sort))
                         }
@@ -84,6 +89,7 @@ struct CatalogView: View {
             posts = []
             page = 0
             pages = 1
+            total = nil
             loading = false
             await loadNext()
         }
@@ -97,6 +103,17 @@ struct CatalogView: View {
         let requested = sort
         defer { if requested == sort { loading = false } }
         do {
+            if requested == .newest, let kind {
+                let next = PostPage(site: try await app.api.site(SiteQuery.newest(kind: kind, genre: nil, streamOnly: true, page: page + 1)))
+                guard requested == sort, !Task.isCancelled else { return }
+                let known = Set(posts.map(\.id))
+                posts += next.posts.filter { !known.contains($0.id) }
+                page = next.page
+                pages = next.pages
+                // The site's lists give pages, not a count.
+                total = nil
+                return
+            }
             let result = try await app.api.get("archive", [
                 "slugs": slug, "streamonly": "1", "page": String(page + 1),
                 "orderby": requested.rawValue, "order": "desc",

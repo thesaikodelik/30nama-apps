@@ -133,11 +133,11 @@ struct PersonView: View {
     /// shows its start and fades out above "More".
     private func biography(_ paragraphs: [String]) -> some View {
         let long = paragraphs.joined().count > 1000
-        let shown = wholeBiography || !long ? paragraphs : Self.opening(of: paragraphs)
+        let shown = wholeBiography || !long ? paragraphs : SiteText.opening(of: paragraphs)
         return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(Array(shown.enumerated()), id: \.offset) { _, paragraph in
-                    if Self.isHeading(paragraph) {
+                    if SiteText.isHeading(paragraph) {
                         Text(paragraph).font(.app(17, .bold)).foregroundStyle(Theme.text1)
                     } else {
                         Text(paragraph).font(.app(16)).foregroundStyle(Theme.text2).lineSpacing(8)
@@ -161,23 +161,6 @@ struct PersonView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.layoutDirection, .rightToLeft)
-    }
-
-    /// A heading 30nama put in the text: a short line that is not a sentence.
-    static func isHeading(_ paragraph: String) -> Bool {
-        paragraph.count < 48 && !paragraph.contains(where: { ".،؛!؟:".contains($0) })
-    }
-
-    /// The start of the biography, about as tall as the card beside it: whole paragraphs up to
-    /// about eight hundred letters.
-    static func opening(of paragraphs: [String]) -> [String] {
-        var out: [String] = [], length = 0
-        for p in paragraphs {
-            out.append(p)
-            length += p.count
-            if length > 800, !isHeading(p) { break }
-        }
-        return out
     }
 
     // MARK: Their titles

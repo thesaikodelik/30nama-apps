@@ -20,6 +20,13 @@ struct BrowseView: View {
                 if let menu {
                     ScrollView(.horizontal) {
                         HStack(spacing: 12) {
+                            // What only the 30nama website has, through its own API.
+                            if app.api.hasSite {
+                                NavigationLink(value: Route.schedule) { Label(loc(.weeklySchedule), systemImage: "calendar") }
+                                    .buttonStyle(PillButtonStyle(kind: .chip))
+                                NavigationLink(value: Route.topLists) { Label(loc(.topLists), systemImage: "trophy") }
+                                    .buttonStyle(PillButtonStyle(kind: .chip))
+                            }
                             ForEach(menu.categories) { category in
                                 NavigationLink(value: Route.catalog(slug: category.slug, title: category.name)) {
                                     Text(category.name)

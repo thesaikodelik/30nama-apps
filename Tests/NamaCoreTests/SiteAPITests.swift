@@ -159,4 +159,12 @@ final class SiteAPITests: XCTestCase {
                        "علاقه\u{200C}ی زیادی داشت و می\u{200C}یافت ولی نمی\u{200C}خواست")
         XCTAssertEqual(SiteText.tidyPersian("گفت،سپس رفت"), "گفت، سپس رفت")
     }
+
+    func testABiographyFoldsAfterWholeParagraphsNotOnAHeading() {
+        let long = String(repeating: "متن بلند. ", count: 30)
+        XCTAssertTrue(SiteText.isHeading("اوایل زندگی و حرفه"))
+        XCTAssertFalse(SiteText.isHeading("او در تگزاس به دنیا آمد."))
+        XCTAssertEqual(SiteText.opening(of: ["تیتر", long, "تیتر دوم", long], letters: 200), ["تیتر", long])
+        XCTAssertEqual(SiteText.opening(of: ["کوتاه."], letters: 200), ["کوتاه."])
+    }
 }

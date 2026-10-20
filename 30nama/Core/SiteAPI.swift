@@ -113,6 +113,23 @@ enum SiteText {
         return Fmt.persianDigits(s)
     }
 
+    /// A heading 30nama put in a biography: a short line that is not a sentence.
+    static func isHeading(_ paragraph: String) -> Bool {
+        paragraph.count < 48 && !paragraph.contains(where: { ".،؛!؟:".contains($0) })
+    }
+
+    /// The start of a long text, for showing it folded: whole paragraphs up to about `letters`,
+    /// and never ending on a heading.
+    static func opening(of paragraphs: [String], letters: Int = 800) -> [String] {
+        var out: [String] = [], length = 0
+        for p in paragraphs {
+            out.append(p)
+            length += p.count
+            if length > letters, !isHeading(p) { break }
+        }
+        return out
+    }
+
     static func paragraphs(_ html: String) -> [String] {
         var s = html
         for tag in ["</p>", "<br>", "<br/>", "<br />"] { s = s.replacingOccurrences(of: tag, with: "\n", options: .caseInsensitive) }
