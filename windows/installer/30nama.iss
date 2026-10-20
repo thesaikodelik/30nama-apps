@@ -91,11 +91,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; When a file of the installed app is still held open; %1 is the file's name.
 ; While Setup waits for the app to close, with a moving bar so it does not look stuck.
 en.WaitingTitle=Waiting for 30nama to close
-en.WaitingText=Close 30nama, and its icon beside the clock too. Installing goes on by itself as soon as it has closed.
+en.WaitingText=Close 30nama (its icon beside the clock too); installing then goes on by itself.
 fa.WaitingTitle=در انتظار بسته شدن 30nama
-fa.WaitingText=برنامهٔ 30nama را ببندید، آیکونش کنار ساعت را هم. همین که بسته شود، نصب خودش ادامه پیدا می‌کند.
+fa.WaitingText=برنامهٔ 30nama را ببندید (آیکونش کنار ساعت را هم)؛ بعد نصب خودش ادامه پیدا می‌کند.
 ar.WaitingTitle=بانتظار إغلاق 30nama
-ar.WaitingText=أغلق 30nama، وأيقونته بجانب الساعة أيضًا. يتابع التثبيت تلقائيًا بمجرد إغلاقه.
+ar.WaitingText=أغلق 30nama (وأيقونته بجانب الساعة أيضًا)؛ ثم يتابع التثبيت تلقائيًا.
 en.AppInUse=Close 30nama (also its icon beside the clock) and run Setup again. Nothing was changed.%n%nIn use: %1
 fa.AppInUse=برنامهٔ 30nama را ببندید (آیکونش کنار ساعت را هم) و نصب‌کننده را دوباره اجرا کنید. چیزی تغییر نکرد.%n%nدر حال استفاده: %1
 ar.AppInUse=أغلق 30nama (وأيقونته بجانب الساعة أيضًا) وشغّل برنامج التثبيت مرة أخرى. لم يتغيّر شيء.%n%nقيد الاستخدام: %1
