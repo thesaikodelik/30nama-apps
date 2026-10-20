@@ -290,7 +290,7 @@ public sealed partial class MainWindow : Window
 #if DEBUG
     /// <summary>
     /// Debug builds go straight to a page: NAMA_SECTION names a section, NAMA_OPEN a title by id or
-    /// "first", and NAMA_PLAY=1 starts it. As DebugLaunch.swift on the Mac.
+    /// "first", NAMA_PLAY=1 starts it, NAMA_PERSON opens a person and NAMA_PAGE a page of the site's. As DebugLaunch.swift on the Mac.
     /// </summary>
     private async Task DebugLaunchAsync()
     {
@@ -300,6 +300,18 @@ public sealed partial class MainWindow : Window
         {
             Environment.SetEnvironmentVariable("NAMA_NOTIFY_TEST", null);
             EpisodeWatch.Show(shown, _app.Loc);
+        }
+        // NAMA_PAGE: one of the website's pages, "schedule" or "toplists".
+        switch (Environment.GetEnvironmentVariable("NAMA_PAGE"))
+        {
+            case "schedule": _nav.Open(new Route.Schedule()); break;
+            case "toplists": _nav.Open(new Route.TopLists()); break;
+        }
+        // NAMA_PERSON: a person's page, by 30nama's id for them.
+        if (int.TryParse(Environment.GetEnvironmentVariable("NAMA_PERSON"), out var person))
+        {
+            Environment.SetEnvironmentVariable("NAMA_PERSON", null);
+            _nav.Open(new Route.Actor(new Person("…", null, null, SiteId: person)));
         }
         if (Environment.GetEnvironmentVariable("NAMA_OPEN") is not { } target) return;
         Environment.SetEnvironmentVariable("NAMA_OPEN", null); // once, not again after a sign-in
@@ -351,6 +363,8 @@ public sealed partial class MainWindow : Window
             Route.Catalog catalog => new CatalogPage(catalog.Slug, catalog.Name, _nav),
             Route.Advanced advanced => new AdvancedSearchPage(_nav, advanced.Start),
             Route.Actor actor => new PersonPage(actor.Person, _nav),
+            Route.Schedule => new SchedulePage(_nav),
+            Route.TopLists => new TopListsPage(_nav),
             _ => null,
         };
         if (page is null) return;

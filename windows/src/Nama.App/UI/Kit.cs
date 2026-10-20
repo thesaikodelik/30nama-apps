@@ -110,6 +110,43 @@ public static class Kit
         return button;
     }
 
+    /// <summary>
+    /// The list of one filter's choices, "all" first, opened under its pill. A short list is a plain
+    /// menu; a long one (forty-odd genres, the countries) is a panel of pills in rows, so it is not
+    /// a column taller than the window.
+    /// </summary>
+    public static void ChoiceMenu(FrameworkElement anchor, string title, IReadOnlyList<(string Name, string? Value)> choices, string? selection, Action<string?> pick)
+    {
+        if (choices.Count <= 12)
+        {
+            var menu = new MenuFlyout();
+            foreach (var (name, value) in choices)
+            {
+                var item = new RadioMenuFlyoutItem { Text = name, GroupName = title, IsChecked = value == selection };
+                item.Click += (_, _) => pick(value);
+                menu.Items.Add(item);
+            }
+            menu.ShowAt(anchor);
+            return;
+        }
+        var wall = new Pages.WrapRow(8) { MaxWidth = 520 };
+        var flyout = new Flyout
+        {
+            Content = new ScrollViewer { Content = wall, MaxHeight = 380, Padding = new Thickness(4), VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
+            FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+            {
+                Setters = { new Setter(FrameworkElement.MaxWidthProperty, 600.0), new Setter(Control.CornerRadiusProperty, new CornerRadius(14)) },
+            },
+        };
+        foreach (var (name, value) in choices)
+            wall.Add(Pill(name, value == selection, () =>
+            {
+                flyout.Hide();
+                pick(value);
+            }));
+        flyout.ShowAt(anchor);
+    }
+
     /// <summary>A small capsule that is one choice among a few: a season, a sort order.</summary>
     public static Button Pill(string title, bool selected, Action click)
     {
