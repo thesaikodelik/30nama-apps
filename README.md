@@ -7,7 +7,7 @@
 <p dir="rtl">برنامه‌های غیررسمی و بومی ۳۰نما برای مک، ویندوز و Apple TV.</p>
 
 <p>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.2-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.3-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%201.0.2-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
 </p>
 
@@ -62,7 +62,7 @@
 
 ### نصب
 
-فایل `30nama-mac-2.0.2.dmg` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
+فایل `30nama-mac-2.0.3.dmg` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
@@ -89,7 +89,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 این پروژه سرور خودش را ندارد و هیچ داده‌ای از شما جایی جمع نمی‌کند. برنامه‌های مک و ویندوز برای این کارها، بی‌واسطه، با این سایت‌ها تماس می‌گیرند، و آن سایت‌ها نشانی IP شما را می‌بینند:
 
 - **۳۰نما:** همهٔ فیلم‌ها، حساب و پخش. بیوگرافی و آثار بازیگرها، ترتیب «جدیدترین»، برنامهٔ هفتگی و فهرست‌های برتر از API خود سایت ۳۰نما می‌آیند، چون API برنامه آن‌ها را ندارد.
-- **گیت‌هاب:** هر چند ساعت یک بار، برای دیدن این‌که نسخهٔ تازه‌ای آمده یا نه.
+- **گیت‌هاب:** هر یک ساعت یک بار، و وقتی در تنظیمات «بررسی نسخهٔ تازه» را بزنید، برای دیدن این‌که نسخهٔ تازه‌ای آمده یا نه.
 - **TMDB:** لوگوی فیلم‌ها، تریلرها و ردیف «پرطرفدار این هفته».
 - **یوتیوب:** پخش تریلرها، هم در پنجرهٔ تریلر و هم بی‌صدا پشت صفحهٔ هر عنوان.
 - **SubSource:** فقط وقتی ۳۰نما برای عنوانی زیرنویس فارسی ندارد.
