@@ -37,6 +37,11 @@ enum SiteQuery {
         "list/type/category/value/\(kind)/page/\(page)/orderby/id/order/desc/streamonly/\(streamOnly ? "yes" : "no")/genre/\(genre ?? "all")"
     }
 
+    /// A member's public page on the site: it has the first and last name the app API leaves out.
+    static func profile(username: String) -> String {
+        "profile/user/" + (username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? username)
+    }
+
     static func schedule(_ kind: Schedule.Kind) -> String { "schedule/type/\(kind.rawValue)" }
 
     static func topList(_ list: TopList) -> String { "toplist/list/\(list.rawValue)" }
@@ -262,3 +267,20 @@ struct Schedule {
     static func symbolIndex(of day: Int) -> Int { (day + 6) % 7 }
 }
 
+/// The name a member gave the site, which the app API does not send: only the username, which
+/// cannot be changed and is often not a name at all.
+struct SiteProfile: Equatable {
+    var firstName: String?
+    var lastName: String?
+
+    init(site j: JSON) {
+        firstName = j["first_name"].text
+        lastName = j["last_name"].text
+    }
+
+    /// First and last name together, or nil when neither is filled in.
+    var fullName: String? {
+        let parts = [firstName, lastName].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+}

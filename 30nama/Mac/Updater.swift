@@ -27,6 +27,9 @@ final class Updater {
 
     @ObservationIgnored private var staged: URL?
     @ObservationIgnored private var lastLook = Date.distantPast
+    /// Coming to the front at launch is not a reason to look: the first look waits for the
+    /// opening title to be over.
+    @ObservationIgnored private let opened = Date()
 
     init() { checkPending() }
 
@@ -89,9 +92,13 @@ final class Updater {
         }
     }
 
-    /// Looks for a newer release, at most every few hours: GitHub answers sixty times an hour per address.
-    func look() async {
-        guard phase == .idle, Date().timeIntervalSince(lastLook) > 4 * 3600 else { return }
+    enum Look { case found, upToDate, noAnswer }
+
+    /// Looks for a newer release, at most once an hour unless `asked` (the button in Settings):
+    /// GitHub answers sixty times an hour per address. Nil when it did not look.
+    @discardableResult
+    func look(asked: Bool = false) async -> Look? {
+        guard phase == .idle, asked || (Date().timeIntervalSince(lastLook) > 3600 && Date().timeIntervalSince(opened) > 7) else { return nil }
         lastLook = Date()
         let test = Updater.testFeed
         if let test { Updater.log("looking at the test feed \(test.absoluteString)") }
@@ -102,11 +109,14 @@ final class Updater {
               (response as? HTTPURLResponse)?.statusCode == 200,
               let feed = try? JSON.parse(data) else {
             if test != nil { Updater.log("the test feed did not answer") }
-            return
+            return .noAnswer
         }
-        guard let release = MacRelease.newest(in: feed, newerThan: Updater.current) else { return }
+        guard let release = MacRelease.newest(in: feed, newerThan: Updater.current) else { return .upToDate }
         Updater.log("found \(release.version)")
         phase = .available(release)
+        // Asked for, it is shown even if it was put off for this time the app is open.
+        if asked { postponed = false }
+        return .found
     }
 
     func postpone() { postponed = true }

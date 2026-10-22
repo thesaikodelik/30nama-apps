@@ -771,7 +771,7 @@ struct Shelf<Card: View>: View {
                 .padding(.horizontal, Mac.edge)
                 .padding(.vertical, 18)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .scrollClipDisabled()
             .scrollPosition(id: $position, anchor: .leading)
             .overlay(alignment: .leading) { arrow(-1, posts) }

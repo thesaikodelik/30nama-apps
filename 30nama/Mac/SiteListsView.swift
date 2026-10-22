@@ -50,7 +50,7 @@ struct ScheduleView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: kind) { await load() }
     }
@@ -129,7 +129,7 @@ struct TopListsView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: list) { await load() }
     }

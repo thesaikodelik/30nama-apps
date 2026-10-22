@@ -45,7 +45,7 @@ struct AdvancedSearchView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: app.contentVersion) { choices = try? await app.searchChoices() }
         .task(id: query) {

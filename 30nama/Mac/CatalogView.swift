@@ -66,7 +66,7 @@ struct CatalogView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: "\(sort.rawValue)|\(app.contentVersion)|\(filter.parameters(type: type))") {
             posts = []
@@ -251,7 +251,7 @@ struct BrowseView: View {
                     .padding(.top, 96)
                     .padding(.bottom, 60)
                 }
-                .scrollIndicators(.hidden)
+                .scrollIndicators(.never)
             } else if failed {
                 ErrorState { Task { await load() } }
             } else {
@@ -365,7 +365,7 @@ struct SearchView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: "\(query)|\(streamOnly)") { await run(query.trimmingCharacters(in: .whitespaces)) }
         .onAppear { typing = true }

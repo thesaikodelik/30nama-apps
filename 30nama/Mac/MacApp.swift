@@ -24,14 +24,18 @@ struct NamaMacApp: App {
                 .environment(downloads)
                 .environment(updater)
                 .frame(minWidth: 1120, minHeight: 720)
-                // Every hour while open; the updater itself asks GitHub only every few. The first
-                // look waits for the opening title to be over, so the news is seen arriving.
+                // Every hour while open, and when the app comes to the front after an hour or more:
+                // a release could otherwise wait half a day to be seen. The first look waits for the
+                // opening title to be over, so the news is seen arriving.
                 .task {
                     try? await Task.sleep(for: .seconds(8))
                     while !Task.isCancelled {
                         await updater.look()
                         try? await Task.sleep(for: .seconds(3600))
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    Task { await updater.look() }
                 }
                 // The account's messages, a little after the home page's requests, then every quarter
                 // of an hour; asked again at once when someone signs in or out.

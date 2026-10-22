@@ -4,7 +4,9 @@ import UniformTypeIdentifiers
 /// Account, language, playback and subtitle choices, with what the app is and is not beside them.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(Updater.self) private var updater
     @Environment(\.loc) private var loc
+    @State private var lookingForUpdate = false
 
 
     var body: some View {
@@ -37,7 +39,19 @@ struct SettingsView: View {
                             keyField(loc(.tmdbKey), hint: loc(.tmdbKeyHint), text: $tmdbKey)
                         }
                         group(loc(.about)) {
-                            fact(loc(.version), loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
+                            // The app looks by itself every hour; this is for when a release was
+                            // just announced.
+                            row(loc(.version)) {
+                                Text(loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
+                                    .font(.app(15)).foregroundStyle(Theme.text3)
+                                Button {
+                                    Task { await lookForUpdate() }
+                                } label: {
+                                    if lookingForUpdate { ProgressView().controlSize(.small) } else { Text(loc(.checkForUpdate)) }
+                                }
+                                .buttonStyle(GlassButtonStyle(height: 34))
+                                .disabled(lookingForUpdate)
+                            }
                             fact(loc(.apiHost), hostName)
                             row(loc(.reportProblem)) {
                                 Button(loc(.reportProblem)) { reportProblem() }.buttonStyle(GlassButtonStyle(height: 34))
@@ -51,7 +65,7 @@ struct SettingsView: View {
                 .padding(.bottom, 60)
                 .frame(maxWidth: .infinity)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
     }
 
@@ -289,6 +303,17 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 46)
+    }
+
+    private func lookForUpdate() async {
+        lookingForUpdate = true
+        defer { lookingForUpdate = false }
+        switch await updater.look(asked: true) {
+        case .upToDate: app.showToast(loc(.upToDate))
+        case .noAnswer: app.showToast(loc(.error))
+        // Found: the update's own card says so. Nil: one is already on its way.
+        case .found, nil: break
+        }
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
