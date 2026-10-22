@@ -826,7 +826,7 @@ private struct EpisodePanel: View {
                         }
                         .padding(.bottom, 24)
                     }
-                    .scrollIndicators(.hidden)
+                    .scrollIndicators(.never)
                     // The list fades out at the foot of the card instead of being cut off there.
                     .mask {
                         LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)

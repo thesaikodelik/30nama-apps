@@ -167,4 +167,22 @@ final class SiteAPITests: XCTestCase {
         XCTAssertEqual(SiteText.opening(of: ["تیتر", long, "تیتر دوم", long], letters: 200), ["تیتر", long])
         XCTAssertEqual(SiteText.opening(of: ["کوتاه."], letters: 200), ["کوتاه."])
     }
+
+    func testTheSitesProfileGivesTheNameTheAppAPILeavesOut() {
+        XCTAssertEqual(SiteQuery.profile(username: "sample.user"), "profile/user/sample.user")
+        XCTAssertEqual(SiteQuery.profile(username: "a/b c"), "profile/user/a%2Fb%20c")
+        let both = SiteProfile(site: .object(["first_name": .string("Sample"), "last_name": .string(" Person ")]))
+        XCTAssertEqual(both.fullName, "Sample Person")
+        XCTAssertEqual(both.firstName, "Sample")
+        XCTAssertEqual(SiteProfile(site: .object(["first_name": .string("Sample"), "last_name": .string("")])).fullName, "Sample")
+        XCTAssertNil(SiteProfile(site: .object(["first_name": .null])).fullName)
+    }
+
+    func testAHundredMovieLines() {
+        XCTAssertEqual(MovieLines.all.count, 100)
+        XCTAssertEqual(Set(MovieLines.all).count, 100, "no line twice")
+        XCTAssertTrue(MovieLines.all.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+        var generator = SystemRandomNumberGenerator()
+        XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(using: &generator)))
+    }
 }

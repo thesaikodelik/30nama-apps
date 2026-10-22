@@ -563,7 +563,7 @@ struct DownloadsView: View {
                 .frame(maxWidth: 1020)
                 .frame(maxWidth: .infinity)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .onAppear {
             // The series downloaded into most recently starts folded out.

@@ -26,6 +26,14 @@ struct ProfileView: View {
     }
 
     @State private var confirmingSignOut = false
+    /// The name the member gave the site; the app API sends only the username.
+    @State private var siteProfile: SiteProfile?
+
+    /// One line from the screen for this time the app is open.
+    private static let line: String = {
+        var generator = SystemRandomNumberGenerator()
+        return MovieLines.pick(using: &generator)
+    }()
 
     var body: some View {
         ZStack {
@@ -56,7 +64,7 @@ struct ProfileView: View {
                 .padding(.top, 100)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task(id: app.ratings) { await refresh() }
         .alert(loc(.signOutTitle), isPresented: $confirmingSignOut) {
@@ -66,6 +74,11 @@ struct ProfileView: View {
             Text(loc(.signOutBody))
         }
         .task(id: "\(app.user?.id ?? "")|\(app.listVersion)") { await loadLists() }
+        .task(id: app.user?.name) {
+            siteProfile = nil
+            guard let username = app.user?.name, app.api.hasSite else { return }
+            siteProfile = (try? await app.api.site(SiteQuery.profile(username: username), background: true)).map(SiteProfile.init(site:))
+        }
     }
 
     /// The user's own ratings as a spreadsheet, to keep or take elsewhere.
@@ -86,12 +99,27 @@ struct ProfileView: View {
 
     /// Who it is on one side, what they can do on the other. The name, then the subscription in a
     /// quiet line, then the counts in a row of their own; the buttons out of the way at the far end.
+    /// A line from a film said to them by name, in the film's own English.
+    private var greeting: some View {
+        let name = siteProfile?.firstName ?? app.user?.name
+        return (Text(name.map { "\($0), " } ?? "").fontWeight(.bold).foregroundColor(Theme.text1) + Text("\u{201C}\(Self.line)\u{201D}"))
+            .font(.system(size: 15, weight: .medium, design: .serif))
+            .italic()
+            .foregroundStyle(Theme.text2)
+            .lineLimit(2)
+            // English inside a Persian or Arabic page: written left to right, but its lines kept
+            // to the same edge as the lines above it.
+            .multilineTextAlignment(loc.lang.isRTL ? .trailing : .leading)
+            .environment(\.layoutDirection, .leftToRight)
+            .frame(maxWidth: 560, alignment: .leading)
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 24) {
             avatar
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 12) {
-                    Text(app.user?.name ?? loc(.guestAccount))
+                    Text(siteProfile?.fullName ?? app.user?.name ?? loc(.guestAccount))
                         .font(.app(36, .heavy))
                         .foregroundStyle(Theme.text1)
                         .lineLimit(1)
@@ -104,6 +132,10 @@ struct ProfileView: View {
                             .frame(height: 26)
                             .background(Capsule(style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xFFE27A), ProfileView.gold], startPoint: .top, endPoint: .bottom)))
                     }
+                }
+                // The username, under a name the site gave instead of it.
+                if siteProfile?.fullName != nil, let username = app.user?.name {
+                    Text(username).font(.app(13, .medium)).foregroundStyle(Theme.text3)
                 }
                 if let user = app.user, let line = loc.subscriptionLine(user) {
                     Text(line).font(.app(13)).foregroundStyle(Theme.text3)
@@ -130,6 +162,7 @@ struct ProfileView: View {
                     }
                     .padding(.top, 4)
                 }
+                greeting.padding(.top, 6)
             }
             Spacer(minLength: 16)
             HStack(spacing: 10) {

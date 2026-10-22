@@ -56,7 +56,7 @@ struct HomeView: View {
                             shelves(feed)
                         }
                     }
-                    .scrollIndicators(.hidden)
+                    .scrollIndicators(.never)
                 } else if failed {
                     ErrorState { Task { await load() } }
                 } else {

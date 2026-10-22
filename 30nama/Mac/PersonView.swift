@@ -43,7 +43,7 @@ struct PersonView: View {
                 .padding(.top, 96)
                 .padding(.bottom, 60)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .task { await loadNext() }
     }

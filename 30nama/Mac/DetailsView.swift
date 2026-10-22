@@ -75,7 +75,7 @@ struct DetailsView: View {
                 .padding(.bottom, 60)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
         .environment(\.hue, sceneTint ?? post.tint)
         .task(id: post.id) { sceneTint = await SceneTint.shared.colour(for: post) }
@@ -392,7 +392,7 @@ struct DetailsView: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .scrollClipDisabled()
         }
     }
@@ -420,7 +420,7 @@ struct DetailsView: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .scrollClipDisabled()
         }
     }
@@ -433,7 +433,7 @@ struct DetailsView: View {
                     ForEach(list, id: \.self) { ReviewCard(review: $0) }
                 }
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .scrollClipDisabled()
         }
     }
