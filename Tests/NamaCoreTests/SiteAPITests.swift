@@ -185,4 +185,36 @@ final class SiteAPITests: XCTestCase {
         var generator = SystemRandomNumberGenerator()
         XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(using: &generator)))
     }
+
+    func testArticleListsAndTheirPictures() throws {
+        XCTAssertEqual(SiteQuery.articles(.review, page: 3), "article/type/review/page/3")
+        XCTAssertEqual(SiteQuery.article(id: 721620), "single/id/721620")
+        let page = ArticlePage(site: try fixture("site_articles")["result"])
+        XCTAssertEqual(page.pages, 1182)
+        XCTAssertEqual(page.articles.count, 2, "an entry with no id is left out")
+        let first = page.articles[0]
+        XCTAssertEqual(first.id, 721620)
+        XCTAssertEqual(first.kind, .news)
+        XCTAssertEqual(first.title, "عنوان خبر نمونه \u{2013} اول")
+        XCTAssertEqual(first.summary, "خلاصهٔ نمونه، با فاصلهٔ پیش از ویرگول")
+        XCTAssertEqual(first.date, "۲۹ مهر ۱۴۰۵")
+        XCTAssertEqual(first.picture?.absoluteString, "https://example.com/attach/2026/10/sample-scaled.jpg")
+        XCTAssertEqual(first.thumbnail?.absoluteString, "https://example.com/attach/2026/10/sample-scaled-309x197.jpg", "the JPEG: the WebP is mostly missing")
+        let review = page.articles[1]
+        XCTAssertEqual(review.kind, .review)
+        XCTAssertNil(review.summary)
+        XCTAssertEqual(review.picture?.absoluteString, "https://example.com/attach/2026/10/review.jpg")
+    }
+
+    func testAnArticlesTextBecomesHeadingsParagraphsAndPictures() throws {
+        let text = try XCTUnwrap(ArticleText(site: try fixture("site_article")["result"]))
+        XCTAssertEqual(text.article.title, "عنوان خبر نمونه")
+        XCTAssertEqual(text.blocks, [
+            .paragraph("پاراگراف اول با «نقل» و پیوند به Sample در سال ۲۰۲۶."),
+            .heading("تیتر میانی"),
+            .picture(try XCTUnwrap(URL(string: "https://example.com/attach/2026/10/big.jpg"))),
+            .paragraph("پاراگراف دوم کنار عکس."),
+            .picture(try XCTUnwrap(URL(string: "https://example.com/attach/2026/10/alone.png"))),
+        ], "the opening picture is the article's own and is shown above it; the video is left out")
+    }
 }

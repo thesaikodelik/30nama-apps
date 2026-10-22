@@ -46,6 +46,8 @@ enum MacRoute: Hashable {
     case person(Person)
     case schedule
     case topLists
+    case news
+    case article(Article)
 }
 
 /// The card that opens over a poster the pointer has rested on: the title, and where its poster
@@ -128,6 +130,8 @@ struct MainView: View {
                     case .person(let person): PersonView(person: person)
                     case .schedule: ScheduleView()
                     case .topLists: TopListsView()
+                    case .news: NewsView()
+                    case .article(let article): ArticleView(article: article)
                     }
                 }
                 .id(route)

@@ -1,0 +1,45 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "page": 1,
+  "pages": 1182,
+  "posts": [
+   {
+    "id": "721620",
+    "article_type": "news",
+    "title": "عنوان خبر نمونه &#8211; اول",
+    "poster": {
+     "large": "https://example.com/attach/2026/10/sample-scaled.jpg",
+     "thumbnail": "https://example.com/attach/2026/10/sample-scaled.jpg"
+    },
+    "image": {
+     "full": "https://example.com/attach/2026/10/sample-scaled.jpg",
+     "full_webp": "https://example.com/attach/2026/10/sample-scaled.jpg.webp",
+     "thumb": "https://example.com/attach/2026/10/sample-scaled-309x197.jpg",
+     "thumb_webp": "https://example.com/attach/2026/10/sample-scaled-309x197.jpg.webp"
+    },
+    "comments": "0",
+    "description": "\nخلاصهٔ نمونه ، با فاصلهٔ پیش از ویرگول",
+    "length": "1489",
+    "date": "۲۹ مهر ۱۴۰۵"
+   },
+   {
+    "id": "721600",
+    "article_type": "review",
+    "title": "نقد نمونه",
+    "poster": {
+     "large": "https://example.com/attach/2026/10/review.jpg"
+    },
+    "image": {},
+    "comments": "2",
+    "description": "",
+    "length": "9000",
+    "date": "۲۸ مهر ۱۴۰۵"
+   },
+   {
+    "title": "بدون شناسه"
+   }
+  ]
+ }
+}
