@@ -42,6 +42,12 @@ enum SiteQuery {
         "profile/user/" + (username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? username)
     }
 
+    /// The site's news, reviews and 30nama's own announcements, newest first, 24 a page.
+    static func articles(_ kind: Article.Kind, page: Int) -> String { "article/type/\(kind.rawValue)/page/\(page)" }
+
+    /// One article whole: the same action as a title's or a person's page.
+    static func article(id: Int) -> String { "single/id/\(id)" }
+
     static func schedule(_ kind: Schedule.Kind) -> String { "schedule/type/\(kind.rawValue)" }
 
     static func topList(_ list: TopList) -> String { "toplist/list/\(list.rawValue)" }
@@ -133,6 +139,30 @@ enum SiteText {
             if length > letters, !isHeading(p) { break }
         }
         return out
+    }
+
+    /// An article's HTML as what the page is built of: headings, paragraphs and pictures, in
+    /// order. A picture that links to a larger one is the larger one. Videos and the rest of the
+    /// editor's markup are left out; links are kept as their words.
+    static func blocks(_ html: String) -> [ArticleBlock] {
+        let picture = "\u{1}", heading = "\u{2}"
+        var s = html
+        s = s.replacingOccurrences(of: #"<a[^>]*href="([^"]+\.(?:jpe?g|png|webp|gif))"[^>]*>\s*<img[^>]*>\s*</a>"#,
+                                   with: "\n\(picture)$1\n", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: #"<img[^>]*\ssrc="([^"]+)"[^>]*>"#, with: "\n\(picture)$1\n", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: #"<video[\s\S]*?</video>|<iframe[\s\S]*?</iframe>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: #"<h[1-6][^>]*>"#, with: "\n\(heading)", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: #"</h[1-6]>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+        return paragraphs(s).compactMap { line in
+            if line.hasPrefix(picture) {
+                return URL(string: String(line.dropFirst()).trimmingCharacters(in: .whitespaces)).map(ArticleBlock.picture)
+            }
+            if line.hasPrefix(heading) {
+                let text = tidyPersian(String(line.dropFirst()).trimmingCharacters(in: .whitespaces))
+                return text.isEmpty ? nil : .heading(text)
+            }
+            return .paragraph(tidyPersian(line))
+        }
     }
 
     static func paragraphs(_ html: String) -> [String] {
@@ -284,3 +314,68 @@ struct SiteProfile: Equatable {
         return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 }
+
+/// A piece of an article's page.
+enum ArticleBlock: Hashable {
+    case heading(String)
+    case paragraph(String)
+    case picture(URL)
+}
+
+/// An article as the site lists it: news, a review, or one of 30nama's own announcements. Its
+/// text is fetched apart, when it is opened.
+struct Article: Identifiable, Hashable {
+    enum Kind: String, CaseIterable { case news, review, announcement }
+
+    let id: Int
+    var kind: Kind
+    var title: String
+    /// The first lines of the text, as the list gives them.
+    var summary: String?
+    /// As the site writes it, in Persian ("۲۹ مهر ۱۴۰۵").
+    var date: String?
+    var picture: URL?
+    var thumbnail: URL?
+
+    init?(site j: JSON) {
+        guard let id = j["id"].int, let title = j["title"].text else { return nil }
+        self.id = id
+        kind = j["article_type"].text.flatMap(Kind.init(rawValue:)) ?? .news
+        self.title = SiteText.decodeEntities(title)
+        summary = j["description"].text.map { SiteText.tidyPersian(SiteText.paragraphs($0).joined(separator: " ")) }.flatMap { $0.isEmpty ? nil : $0 }
+        date = j["date"].text
+        // The JPEG first: the WebP the site lists is missing from its server for most articles.
+        picture = j["image"]["full"].url ?? j["poster"]["large"].url ?? j["image"]["full_webp"].url
+        thumbnail = j["image"]["thumb"].url ?? picture
+    }
+}
+
+struct ArticlePage {
+    var articles: [Article]
+    var page: Int
+    var pages: Int
+
+    init(site j: JSON) {
+        articles = j["posts"].array.compactMap(Article.init(site:))
+        page = j["page"].int ?? 1
+        pages = j["pages"].int ?? 1
+    }
+}
+
+/// An article whole: what the list had, and its text in blocks.
+struct ArticleText {
+    var article: Article
+    var blocks: [ArticleBlock]
+
+    init?(site j: JSON) {
+        guard let article = Article(site: j) else { return nil }
+        self.article = article
+        var blocks = SiteText.blocks(j["content"].text ?? "")
+        // The article's own picture is shown above it; the text often opens with it again.
+        if case .picture(let first) = blocks.first, first.deletingPathExtension().lastPathComponent.hasPrefix(article.picture?.deletingPathExtension().deletingPathExtension().lastPathComponent ?? "\u{0}") {
+            blocks.removeFirst()
+        }
+        self.blocks = blocks
+    }
+}
+

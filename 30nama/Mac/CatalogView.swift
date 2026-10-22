@@ -242,6 +242,7 @@ struct BrowseView: View {
                             HStack(spacing: 16) {
                                 SiteTile(title: loc(.weeklySchedule), symbol: "calendar") { nav.open(.schedule) }
                                 SiteTile(title: loc(.topLists), symbol: "trophy") { nav.open(.topLists) }
+                                SiteTile(title: loc(.news), symbol: "newspaper") { nav.open(.news) }
                             }
                         }
                         if !menu.genres.isEmpty { group(loc(.genres), menu.genres) }

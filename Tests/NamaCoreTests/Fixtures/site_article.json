@@ -1,0 +1,23 @@
+{
+ "success": true,
+ "msg": null,
+ "result": {
+  "id": 721620,
+  "article_type": "news",
+  "title": "عنوان خبر نمونه",
+  "date": "۲۹ مهر ۱۴۰۵ ۲۲:۴۰",
+  "length": "1489",
+  "poster": {
+   "large": "https://example.com/attach/2026/10/sample-scaled.jpg"
+  },
+  "image": {
+   "full": "https://example.com/attach/2026/10/sample-scaled.jpg",
+   "full_webp": "https://example.com/attach/2026/10/sample-scaled.jpg.webp"
+  },
+  "content": " <p><a href=\"https://example.com/attach/2026/10/sample-scaled.jpg\"><img src=\"https://example.com/attach/2026/10/sample-300x240.jpg\" width=\"300\" /></a></p><p style=\"text-align: justify;\">پاراگراف اول با «نقل» و پیوند به <a href=\"/series/1/Sample\">Sample</a> در سال 2026 .</p><h3 style=\"text-align: justify;\"><strong>تیتر میانی</strong></h3><p><a href=\"https://example.com/attach/2026/10/big.jpg\"><img class=\"alignright\" src=\"https://example.com/attach/2026/10/big-300x200.jpg\" alt=\"\" /></a>پاراگراف دوم کنار عکس.</p><video controls><source src=\"https://example.com/v.mp4\"></video><p><img src=\"https://example.com/attach/2026/10/alone.png\" /></p><p>&nbsp;</p>",
+  "comments": {
+   "total_comments": 0
+  },
+  "seo": {}
+ }
+}
