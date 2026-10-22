@@ -55,6 +55,11 @@ struct UpdatePill: View {
                 .lineLimit(1)
             action
         }
+        // Its own size before anything is drawn behind it. Fixed only at the end, the system's
+        // own glass (macOS 26) took the width offered to the capsule instead, wider than what is
+        // in it, and in right-to-left the icon was pushed against the edge with room left over
+        // on the other side.
+        .fixedSize()
         .padding(.leading, 16)
         .padding(.trailing, 6)
         .frame(height: 44)
