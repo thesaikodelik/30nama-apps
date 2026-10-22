@@ -601,6 +601,8 @@ struct DownloadsView: View {
                     .liquidTab(part)
                 }
             }
+            // Sized before the glass: see UpdatePill.
+            .fixedSize()
             // The open part's white pill flows to the next like a drop of liquid, as in the top bar.
             .liquidPill(selected: AnyHashable(shelf))
             .padding(4)

@@ -322,6 +322,8 @@ struct DetailsView: View {
             Text(loc(.yourRating)).font(.app(14, .semibold)).foregroundStyle(Theme.text2).lineLimit(1)
             StarRater(value: app.ratings.stars(for: post.id), size: 18) { app.rate(post, stars: $0) }
         }
+        // Sized before the glass: see UpdatePill.
+        .fixedSize()
         .padding(.horizontal, 18)
         .frame(height: 46)
         // The same surface as the buttons around it.
