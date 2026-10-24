@@ -111,6 +111,9 @@ Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 [InstallDelete]
 ; What an older version left that this one no longer has.
 Type: filesandordirs; Name: "{app}\*.pdb"
+; Win2D, which 1.0.3 carried for its opening title; the app now blurs that by itself.
+Type: files; Name: "{app}\Microsoft.Graphics.Canvas.dll"
+Type: files; Name: "{app}\Microsoft.Graphics.Canvas.Interop.dll"
 
 [Registry]
 ; The name the app's notifications go by (EpisodeWatch.AppId); the app writes it, the uninstaller takes it away.
