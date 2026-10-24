@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Color = Windows.UI.Color;
 
 namespace Nama.App.UI;
@@ -12,7 +13,7 @@ namespace Nama.App.UI;
 /// <summary>
 /// The opening title, as on the Mac (Splash.swift, the glass drawn where the system has no Liquid
 /// Glass), with its numbers: a sheet of clear glass over the app, which is seen through it a little
-/// blurred; the logo's cube and then its name spring out of a blur onto the glass, a red line draws
+/// blurred; the logo's cube and then its name spring onto the glass, a red line draws
 /// under them, and a glint runs across the glass and the letters. To leave, the line runs out to
 /// both edges and the glass parts along it like a curtain, as the app behind comes sharp.
 /// </summary>
@@ -173,7 +174,7 @@ public sealed class SplashCurtain : Grid
     private sealed class Half : Grid
     {
         /// <summary>Room around anything blurred, about three times its blur: a blur cut at its sprite's edge shows as a straight line.</summary>
-        private const float LogoRoom = 60, ArcRoom = 90, EdgeRoom = 54, BandRoom = 24;
+        private const float ArcRoom = 90, EdgeRoom = 54, BandRoom = 24;
 
         private readonly Border _dark = new() { Background = Theme.Black(0.82), OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromSeconds(0.9) } };
         private readonly RadialGradientBrush _shade;
@@ -182,7 +183,8 @@ public sealed class SplashCurtain : Grid
         private readonly CompositionLinearGradientBrush _letterGlint;
         private readonly Grid _edge;
         private readonly Compositor _c;
-        private readonly List<(SpriteVisual Sprite, CompositionEffectBrush Blur, bool Mirrored, double Delay)> _parts = [];
+        private readonly Image _cube, _name;
+        private readonly Border _reflection;
         private readonly SpriteVisual _arc, _band, _rimGlow;
         private readonly ShapeVisual _rimShapes;
         private readonly CompositionRectangleGeometry _rimRect;
@@ -252,21 +254,38 @@ public sealed class SplashCurtain : Grid
             ElementCompositionPreview.SetElementChildVisual(rimHost, _rimGlow);
             Children.Add(rimHost);
 
-            // The logo's reflection in the glass below it, fading as it goes down; then the logo, its
-            // cube a beat before its name, and over it the glint on the letters.
+            // The logo's reflection in the glass below it, fading as it goes down.
             var surface = LoadedImageSurface.StartLoadFromUri(LogoSource);
-            var reflection = Holder(2 * (LogoLift + LogoHeight + 26));
-            var logo = Holder(2 * LogoLift);
-            var reflected = _c.CreateContainerVisual();
-            var shown = _c.CreateContainerVisual();
-            foreach (var (from, to, delay) in new[] { (0.0, LogoSplit, 0.2), (LogoSplit, 1.0, 0.42) })
-            {
-                AddPart(reflected, surface, from, to, mirrored: true, delay);
-                AddPart(shown, surface, from, to, mirrored: false, delay);
-            }
-            ElementCompositionPreview.SetElementChildVisual(reflection, reflected);
-            ElementCompositionPreview.SetElementChildVisual(logo, shown);
+            var reflection = _reflection = Holder(2 * (LogoLift + LogoHeight + 26));
+            var mirrored = _c.CreateSurfaceBrush(surface);
+            mirrored.Stretch = CompositionStretch.Fill;
+            mirrored.TransformMatrix = Matrix3x2.CreateScale(1, -1, new Vector2((float)LogoWidth / 2, (float)LogoHeight / 2));
+            var fade = _c.CreateLinearGradientBrush();
+            fade.StartPoint = new Vector2(0, 0);
+            fade.EndPoint = new Vector2(0, 0.5f);
+            fade.ColorStops.Add(_c.CreateColorGradientStop(0, Color.FromArgb(255, 255, 255, 255)));
+            fade.ColorStops.Add(_c.CreateColorGradientStop(1, Color.FromArgb(0, 255, 255, 255)));
+            var reflectionMask = _c.CreateMaskBrush();
+            reflectionMask.Source = mirrored;
+            reflectionMask.Mask = fade;
+            var reflectionSprite = _c.CreateSpriteVisual();
+            reflectionSprite.Size = new Vector2((float)LogoWidth, (float)LogoHeight);
+            reflectionSprite.Brush = reflectionMask;
+            reflectionSprite.Opacity = 0.16f;
+            ElementCompositionPreview.SetElementChildVisual(reflection, reflectionSprite);
+            Motion.Visual(reflection).Opacity = 0;
             Children.Add(reflection);
+
+            // The logo, its cube a beat before its name.
+            var logo = new Grid
+            {
+                Width = LogoWidth, Height = LogoHeight, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 2 * LogoLift, 0, 0), IsHitTestVisible = false,
+            };
+            _cube = Part(0, LogoSplit);
+            _name = Part(LogoSplit, 1);
+            logo.Children.Add(_cube);
+            logo.Children.Add(_name);
             Children.Add(logo);
 
             // A white silhouette of the logo seen through a moving slit, cut to the logo's own shape.
@@ -374,61 +393,17 @@ public sealed class SplashCurtain : Grid
             return arc;
         }
 
-        /// <summary>
-        /// One part of the logo (or of its reflection, upside down and faded as it goes down), blurred
-        /// through a brush whose amount is moved: it comes out of the blur as it arrives.
-        /// </summary>
-        private void AddPart(ContainerVisual into, LoadedImageSurface surface, double from, double to, bool mirrored, double delay)
+        private static Image Part(double from, double to)
         {
-            var w = (float)LogoWidth;
-            var h = (float)LogoHeight;
-            var size = new Vector2(w + 2 * LogoRoom, h + 2 * LogoRoom);
-            // The part: the whole logo drawn and cut by a clip, upside down for the reflection.
-            var image = _c.CreateSurfaceBrush(surface);
-            image.Stretch = CompositionStretch.Fill;
-            var drawn = _c.CreateSpriteVisual();
-            drawn.Brush = image;
-            drawn.Size = new Vector2(w, h);
-            drawn.Offset = new Vector3(LogoRoom, LogoRoom, 0);
-            if (mirrored)
-            {
-                drawn.CenterPoint = new Vector3(w / 2, h / 2, 0);
-                drawn.Scale = new Vector3(1, -1, 1);
-            }
-            var left = from <= 0 ? 0 : LogoRoom + w * (float)from;
-            var right = to >= 1 ? size.X : LogoRoom + w * (float)to;
-            var cut = _c.CreateContainerVisual();
-            cut.Size = size;
-            cut.Clip = _c.CreateInsetClip(left, 0, size.X - right, 0);
-            cut.Children.InsertAtTop(drawn);
-            var clear = Color.FromArgb(0, 255, 255, 255);
-            var solid = Color.FromArgb(255, 255, 255, 255);
-            var part = Blur.Picture(_c, cut, size);
-            var blur = Blur.Of(_c, part, 18);
-            var sprite = _c.CreateSpriteVisual();
-            sprite.Size = size;
-            if (mirrored)
-            {
-                var fade = _c.CreateLinearGradientBrush();
-                fade.MappingMode = CompositionMappingMode.Absolute;
-                fade.StartPoint = new Vector2(0, LogoRoom);
-                fade.EndPoint = new Vector2(0, LogoRoom + h / 2);
-                fade.ColorStops.Add(_c.CreateColorGradientStop(0, solid));
-                fade.ColorStops.Add(_c.CreateColorGradientStop(1, clear));
-                var faded = _c.CreateMaskBrush();
-                faded.Source = blur;
-                faded.Mask = fade;
-                sprite.Brush = faded;
-            }
-            else sprite.Brush = blur;
-            sprite.Offset = new Vector3(-LogoRoom, -LogoRoom, 0);
-            // About the middle of the whole logo, not of the part: from 1.3 the cube comes in from
-            // further left and the name from further right, closing on each other.
-            sprite.CenterPoint = new Vector3(size / 2, 0);
-            sprite.Scale = new Vector3(1.3f, 1.3f, 1);
-            sprite.Opacity = 0;
-            into.Children.InsertAtTop(sprite);
-            _parts.Add((sprite, blur, mirrored, delay));
+            var image = new Image { Source = new BitmapImage(LogoSource), Width = LogoWidth, Height = LogoHeight, Stretch = Stretch.Fill };
+            image.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(LogoWidth * from, 0, LogoWidth * (to - from), LogoHeight) };
+            var visual = Motion.Visual(image);
+            ElementCompositionPreview.SetIsTranslationEnabled(image, true);
+            visual.Properties.InsertVector3("Translation", new Vector3(0, 44, 0));
+            visual.CenterPoint = new Vector3((float)(LogoWidth * (from + to) / 2), (float)LogoHeight / 2, 0);
+            visual.Scale = new Vector3(1.3f, 1.3f, 1);
+            visual.Opacity = 0;
+            return image;
         }
 
         private void BuildGlint(out Border glint)
@@ -459,26 +434,14 @@ public sealed class SplashCurtain : Grid
         {
             // Light on the glass comes up over 1.6 s.
             Motion.FadeTo(_sheen, 1, 1.6, 0, Motion.Out);
-            // Each part: one spring(response 0.62, damping 0.68), the cube 0.2 s in and the name
-            // 0.42, moving blur 18 → 0, opacity 0 → 1, a drop of 44 → 0 and size 1.3 → 1 together.
-            // The spring passes 1 and comes back: right for the drop and the size; blur below 0 and
-            // opacity above 1 mean nothing, and are cut there as SwiftUI cuts them.
-            foreach (var (sprite, blur, mirrored, delay) in _parts)
+            // Each part: spring(response 0.62, damping 0.68), the cube 0.2 s in and the name 0.42.
+            foreach (var (part, delay) in new[] { (_cube, 0.2), (_name, 0.42) })
             {
-                var clock = _c.CreatePropertySet();
-                clock.InsertScalar("t", 0);
-                var spring = _c.CreateSpringScalarAnimation();
-                spring.FinalValue = 1;
-                spring.Period = TimeSpan.FromSeconds(0.62 / (2 * Math.PI));
-                spring.DampingRatio = 0.68f;
-                spring.DelayTime = TimeSpan.FromSeconds(delay);
-                clock.StartAnimation("t", spring);
-                // The reflection: upside down, so it rises; 0.16 strong, with a blur of its own 1.5.
-                Follow(blur, "Blur.BlurAmount", mirrored ? "1.5 + Max(0, 18 * (1 - p.t))" : "Max(0, 18 * (1 - p.t))", clock);
-                Follow(sprite, "Opacity", mirrored ? "0.16 * Clamp(p.t, 0, 1)" : "Clamp(p.t, 0, 1)", clock);
-                Follow(sprite, "Offset.Y", $"{-LogoRoom} {(mirrored ? "-" : "+")} 44 * (1 - p.t)", clock);
-                Follow(sprite, "Scale", "Vector3(1.3 - 0.3 * p.t, 1.3 - 0.3 * p.t, 1)", clock);
+                Motion.Spring(part, "Translation", Vector3.Zero, 0.62, 0.68, delay);
+                Motion.Spring(part, "Scale", Vector3.One, 0.62, 0.68, delay);
+                Motion.FadeTo(part, 1, 0.35, delay, Motion.Out);
             }
+            Motion.FadeTo(_reflection, 1, 0.6, 0.42, Motion.Out);
             // The glint, 1.15 s in, crossing in 0.9 s, on the glass and on the letters together.
             Motion.Ease(_glint, "Translation", new Vector3(1500, 0, 0), 0.9, 1.15, Motion.InOut);
             var sweep = _c.CreateVector2KeyFrameAnimation();
@@ -486,13 +449,6 @@ public sealed class SplashCurtain : Grid
             sweep.Duration = TimeSpan.FromSeconds(0.9);
             sweep.DelayTime = TimeSpan.FromSeconds(1.15);
             _letterGlint.StartAnimation("Offset", sweep);
-        }
-
-        private void Follow(CompositionObject target, string property, string expression, CompositionPropertySet clock)
-        {
-            var follow = _c.CreateExpressionAnimation(expression);
-            follow.SetReferenceParameter("p", clock);
-            target.StartAnimation(property, follow);
         }
 
         public void Clear() => _dark.Opacity = 0;

@@ -273,7 +273,11 @@ public sealed class SettingsPage : Grid
             field.Background = Theme.White(0);
             field.MinWidth = 0;
             field.MinHeight = 0;
-            field.Padding = new Thickness(0, 4, 0, 4);
+            // As tall as its line, in the middle of the capsule: the box's own least height (32, from the
+            // theme, inside its template) kept the text at the top of a taller box.
+            field.Padding = new Thickness(0);
+            field.Resources["TextControlThemeMinHeight"] = 0.0;
+            field.Resources["TextControlThemePadding"] = new Thickness(0);
             field.Resources["TextControlBackgroundFocused"] = Theme.White(0);
             field.Resources["TextControlBackgroundPointerOver"] = Theme.White(0);
             field.Resources["TextControlBorderBrushFocused"] = Theme.White(0);
