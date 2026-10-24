@@ -1,6 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media;
 
 namespace Nama.App.UI;
@@ -15,7 +16,7 @@ public sealed class BackdropTrailer : Grid
     /// <summary>Where the trailer starts: past studio cards and the first fade from black.</summary>
     private const int Skip = 8;
 
-    private readonly WebView2 _web = new() { DefaultBackgroundColor = Colors.Transparent };
+    private readonly WebView2 _web = new UnseenWebView { DefaultBackgroundColor = Colors.Transparent };
     private readonly CancellationTokenSource _stop = new();
     private bool _stopped;
 
@@ -60,7 +61,7 @@ public sealed class BackdropTrailer : Grid
     {
         try
         {
-            await YouTube.LoadAsync(_web, video, $"autoplay=1&mute=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3&loop=1&playlist={video}&start={Skip}");
+            await YouTube.LoadAsync(_web, video, $"autoplay=1&mute=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3&loop=1&playlist={video}&start={Skip}", unseen: true);
             // The page is YouTube's own, so its video can be asked how far it has played. A couple
             // of seconds in, it is playing for real and YouTube's title has faded.
             for (var i = 0; i < 40; i++)
@@ -92,5 +93,26 @@ public sealed class BackdropTrailer : Grid
         _stopped = true;
         _stop.Cancel();
         YouTube.Stop(_web);
+    }
+}
+
+/// <summary>
+/// A web view that is only a picture to assistive technology. WebView2's own automation peer hands
+/// over its browser window, and from the moment the control was in the page a search of the window's
+/// tree went astray there: UI Automation found nine elements of the window instead of a hundred, and
+/// the search began inside the page wandered into other apps' windows. This peer has no children
+/// and is not a control, so the page around it is found whole.
+/// </summary>
+public sealed class UnseenWebView : WebView2
+{
+    protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
+
+    private sealed class Peer(FrameworkElement owner) : FrameworkElementAutomationPeer(owner)
+    {
+        protected override IList<AutomationPeer> GetChildrenCore() => [];
+        protected override bool IsControlElementCore() => false;
+        protected override bool IsContentElementCore() => false;
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
+        protected override string GetClassNameCore() => nameof(UnseenWebView);
     }
 }

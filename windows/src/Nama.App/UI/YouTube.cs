@@ -6,21 +6,32 @@ namespace Nama.App.UI;
 
 /// <summary>
 /// YouTube's own player in a web view, for trailers: in the trailer sheet with sound, and behind a
-/// title's page without. Both share one browser environment, which may only be made one way.
+/// title's page without. A browser environment may only be made one way, so each has its own.
 /// </summary>
 public static class YouTube
 {
-    private static Task<CoreWebView2Environment>? _environment;
+    private static Task<CoreWebView2Environment>? _environment, _unseenEnvironment;
 
-    /// <summary>Its own folder under the app's, and leave to start playing without a click.</summary>
-    private static Task<CoreWebView2Environment> EnvironmentAsync() =>
-        _environment ??= CoreWebView2Environment.CreateWithOptionsAsync(null, Path.Combine(Storage.Folder, "WebView2"),
-            new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required" }).AsTask();
+    /// <summary>
+    /// Its own folder under the app's, and leave to start playing without a click. The one behind a
+    /// page is also kept out of the accessibility tree: YouTube's page gave it eight thousand
+    /// elements, under which a screen reader's search of the window found almost none of the page.
+    /// </summary>
+    private static Task<CoreWebView2Environment> EnvironmentAsync(bool unseen) => unseen
+        ? _unseenEnvironment ??= Make("WebView2-backdrop", " --disable-renderer-accessibility")
+        : _environment ??= Make("WebView2", "");
 
-    /// <summary>Opens <paramref name="video"/> in <paramref name="web"/>, as YouTube's embedded player with the given options.</summary>
-    public static async Task LoadAsync(WebView2 web, string video, string options)
+    private static Task<CoreWebView2Environment> Make(string folder, string more) =>
+        CoreWebView2Environment.CreateWithOptionsAsync(null, Path.Combine(Storage.Folder, folder),
+            new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required" + more }).AsTask();
+
+    /// <summary>
+    /// Opens <paramref name="video"/> in <paramref name="web"/>, as YouTube's embedded player with the
+    /// given options. <paramref name="unseen"/>: a picture behind a page, of nothing to a screen reader.
+    /// </summary>
+    public static async Task LoadAsync(WebView2 web, string video, string options, bool unseen = false)
     {
-        await web.EnsureCoreWebView2Async(await EnvironmentAsync());
+        await web.EnsureCoreWebView2Async(await EnvironmentAsync(unseen));
         var core = web.CoreWebView2;
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.AreDefaultContextMenusEnabled = false;
