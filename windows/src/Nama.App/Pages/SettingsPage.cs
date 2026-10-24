@@ -101,6 +101,8 @@ public sealed class SettingsPage : Grid
             Row(loc[S.subSize], Choice([(loc[S.small], 38), (loc[S.medium], 46), (loc[S.large], (object)54)], s.SubtitleSize, v => App.Update(x => x with { SubtitleSize = (int)v }))),
             Row(loc[S.subColor], Choice([(loc[S.white], SubtitleColor.White), (loc[S.yellow], SubtitleColor.Yellow), (loc[S.cyan], SubtitleColor.Cyan), (loc[S.green], (object)SubtitleColor.Green)], s.SubtitleColor, v => App.Update(x => x with { SubtitleColor = (SubtitleColor)v }))),
             Row(loc[S.subBackground], Choice([(loc[S.bgNone], SubtitleBackground.None), (loc[S.bgHalf], SubtitleBackground.Half), (loc[S.bgSolid], (object)SubtitleBackground.Solid)], s.SubtitleBackground, v => App.Update(x => x with { SubtitleBackground = (SubtitleBackground)v }))),
+            // What these choices make, drawn as the player draws it.
+            SubtitleLook.Sample(s, loc[S.sample]),
         ]);
 
         var folder = Value(Downloads.Shared.Folder, ltr: true);

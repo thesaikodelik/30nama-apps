@@ -274,36 +274,7 @@ public sealed partial class PlayerPage : Grid
         if (cue.Length == 0 || ActualHeight <= 0) return;
         var s = App.Settings;
         var size = Math.Max(15, s.SubtitleSize * ActualHeight / 1080);
-        var color = s.SubtitleColor switch
-        {
-            SubtitleColor.Yellow => Color.FromArgb(255, 255, 230, 77),
-            SubtitleColor.Cyan => Color.FromArgb(255, 115, 237, 255),
-            SubtitleColor.Green => Color.FromArgb(255, 140, 242, 140),
-            _ => Colors.White,
-        };
-        TextBlock Line(Color ink) => new()
-        {
-            Text = cue, FontSize = size, FontFamily = Theme.Font(FontWeights.SemiBold), FontWeight = FontWeights.SemiBold,
-            Foreground = Theme.Brush(ink), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
-            HorizontalAlignment = HorizontalAlignment.Center, IsTextScaleFactorEnabled = false,
-        };
-        var plate = s.SubtitleBackground switch { SubtitleBackground.Half => 0.5, SubtitleBackground.Solid => 1.0, _ => 0 };
-        var holder = new Grid { Padding = new Thickness(size * 0.5, size * 0.22, size * 0.5, size * 0.22), CornerRadius = new CornerRadius(size * 0.3) };
-        if (plate > 0) holder.Background = Theme.Black(plate);
-        else
-        {
-            // No plate: an outline, from copies of the line in black just around it.
-            var d = Math.Max(1, size / 22);
-            foreach (var (x, y) in new[] { (-d, 0.0), (d, 0.0), (0.0, -d), (0.0, d), (-d, -d), (d, d), (-d, d), (d, -d) })
-            {
-                var shadow = Line(Colors.Black);
-                shadow.Opacity = 0.85;
-                shadow.RenderTransform = new TranslateTransform { X = x, Y = y + d * 0.5 };
-                holder.Children.Add(shadow);
-            }
-        }
-        holder.Children.Add(Line(color));
-        _subtitle.Children.Add(holder);
+        _subtitle.Children.Add(SubtitleLook.Line(cue, size, s));
     }
 
     // MARK: Building
