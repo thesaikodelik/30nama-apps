@@ -102,12 +102,10 @@ struct ProfileView: View {
 
     // MARK: Header
 
-    /// Two rows instead of a stack of lines. The first: the picture, the name and the plan beside
-    /// it, the counts as figures across from them. The second: the line from a film, with the film
-    /// under it, and the buttons across from it.
+    /// One card instead of a stack of lines: the picture, and beside it the name, the username and
+    /// the line from a film; across from them the counts as figures, with the buttons under them.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .center, spacing: 22) {
+        HStack(alignment: .center, spacing: 22) {
                 avatar
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .center, spacing: 12) {
@@ -136,17 +134,13 @@ struct ProfileView: View {
                         // The username, under a name given instead of it.
                         Text(username).font(.app(13, .medium)).foregroundStyle(Theme.text3)
                     }
+                    greeting.padding(.top, 10)
                 }
                 Spacer(minLength: 16)
-                figures
-            }
-            HStack(alignment: .center, spacing: 22) {
-                greeting
-                Spacer(minLength: 16)
-                buttons
-            }
-            // Under the name, not under the picture.
-            .padding(.leading, 120 + 22)
+                VStack(alignment: .trailing, spacing: 18) {
+                    figures
+                    buttons
+                }
         }
         // A card of its own, of the top bar's glass, so who it is stands apart from the rows below.
         .padding(.horizontal, 28)
@@ -251,8 +245,7 @@ struct ProfileView: View {
         // the name above it.
         .environment(\.layoutDirection, .leftToRight)
         // Outside the left-to-right part, so "leading" is the page's own: right in Persian.
-        .frame(maxWidth: 680, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: 620, alignment: .leading)
         .task(id: "\(profileAsked)|\(names.first ?? "")") {
             guard profileAsked else { return }
             // Once per opening of the app, unless the name has only now come.
@@ -439,7 +432,7 @@ struct ProfileView: View {
 
 /// The line from a film as a quotation: a large quotation mark in the scene's colour, the words in
 /// a serif, and under them a signature, the film, its year and who directed it. When 30nama has the
-/// film its poster stands beside the words, and the poster and the signature open its page.
+/// film the signature opens its page.
 private struct Quote: View {
     let line: MovieLine
     let post: Post?
@@ -452,21 +445,6 @@ private struct Quote: View {
         let tint = hue ?? Theme.accent
         let lit = hovering && post != nil
         HStack(alignment: .center, spacing: 16) {
-            if let post {
-                Button { open(post) } label: {
-                    ZStack {
-                        Theme.surface2
-                        RemoteImage(url: post.poster.url(forWidth: 46), blurhash: post.poster.blurhash, maxPixel: Int(46 * Display.scale))
-                    }
-                    .frame(width: 46, height: 69)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .overlay { RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(lit ? 0.7 : 0.15), lineWidth: 1) }
-                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
-                    .scaleEffect(lit ? 1.05 : 1)
-                }
-                .buttonStyle(.plain)
-                .onHover { hover($0) }
-            }
             VStack(alignment: .leading, spacing: 8) {
                 Text(line.text)
                     .font(.system(size: 19, weight: .regular, design: .serif))
