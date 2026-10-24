@@ -34,7 +34,9 @@ struct ProfileView: View {
 
     /// A line from a film, picked once for this time the app is open, and again only when the name
     /// it is said to arrives (the site answers after the page has opened).
-    @State private var line: String?
+    @State private var line: MovieLine?
+    @State private var filmOnSite: Post?
+    @AppStorage("displayName") private var typedName = ""
 
     var body: some View {
         ZStack {
@@ -100,130 +102,198 @@ struct ProfileView: View {
 
     // MARK: Header
 
-    /// Who it is on one side, what they can do on the other. The name, then the subscription in a
-    /// quiet line, then the counts in a row of their own; the buttons out of the way at the far end.
-    /// A line from a film, in the film's own English, with their first name where a name or the
-    /// word for them was. Never the username: a line said to an account name means nothing.
-    private var greeting: some View {
-        Text(line.map { "\u{201C}\($0)\u{201D}" } ?? " ")
-            .font(.system(size: 15, weight: .medium, design: .serif))
-            .italic()
-            .foregroundStyle(Theme.text2)
-            .lineLimit(2)
-            // English inside a Persian or Arabic page: written left to right, but its lines kept
-            // to the same edge as the lines above it.
-            .multilineTextAlignment(loc.lang.isRTL ? .trailing : .leading)
-            .environment(\.layoutDirection, .leftToRight)
-            .frame(maxWidth: 560, alignment: .leading)
-            .task(id: "\(profileAsked)|\(siteProfile?.firstName ?? "")") {
-                guard profileAsked else { return }
-                // Once per opening of the app, unless the name has only now come.
-                if let kept = ProfileView.kept, kept.name == siteProfile?.firstName { line = kept.line; return }
-                var generator = SystemRandomNumberGenerator()
-                let picked = MovieLines.pick(name: siteProfile?.firstName, familyName: siteProfile?.lastName, using: &generator)
-                ProfileView.kept = (siteProfile?.firstName, picked)
-                line = picked
+    /// Two rows instead of a stack of lines. The first: the picture, the name and the plan beside
+    /// it, the counts as figures across from them. The second: the line from a film, with the film
+    /// under it, and the buttons across from it.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .center, spacing: 22) {
+                avatar
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(displayName ?? loc(.guestAccount))
+                            .font(.app(34, .heavy))
+                            .foregroundStyle(Theme.text1)
+                            .lineLimit(1)
+                            .shadow(color: .black.opacity(0.5), radius: 14, y: 5)
+                        if let type = app.user?.type {
+                            Text(loc.accountType(type))
+                                .font(.app(13, .bold))
+                                .foregroundStyle(Theme.focusInk)
+                                .padding(.horizontal, 12)
+                                .frame(height: 26)
+                                .background(Capsule(style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xFFE27A), ProfileView.gold], startPoint: .top, endPoint: .bottom)))
+                        }
+                    }
+                    if app.user == nil {
+                        // A guest otherwise had no way in from here but the settings.
+                        Text(loc(.signInHint))
+                            .font(.app(14))
+                            .foregroundStyle(Theme.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 460, alignment: .leading)
+                    } else if displayName != app.user?.name, let username = app.user?.name {
+                        // The username, under a name given instead of it.
+                        Text(username).font(.app(13, .medium)).foregroundStyle(Theme.text3)
+                    }
+                }
+                Spacer(minLength: 16)
+                figures
             }
+            HStack(alignment: .center, spacing: 22) {
+                greeting
+                Spacer(minLength: 16)
+                buttons
+            }
+            // Under the name, not under the picture.
+            .padding(.leading, 120 + 22)
+        }
+        // A card of its own, of the top bar's glass, so who it is stands apart from the rows below.
+        .padding(.horizontal, 28)
+        .padding(.vertical, 24)
+        .lens(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
-    /// The line of this opening of the app, and the name it was picked for.
-    @MainActor private static var kept: (name: String?, line: String)?
+    /// The name to show: the one the member gave the site, or failing that (a private profile)
+    /// the one they gave this Mac, or failing that the username.
+    private var displayName: String? {
+        siteProfile?.fullName ?? ownName.map { $0 } ?? app.user?.name
+    }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 24) {
-            avatar
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) {
-                    Text(siteProfile?.fullName ?? app.user?.name ?? loc(.guestAccount))
-                        .font(.app(36, .heavy))
-                        .foregroundStyle(Theme.text1)
-                        .lineLimit(1)
-                        .shadow(color: .black.opacity(0.5), radius: 14, y: 5)
-                    if let type = app.user?.type {
-                        Text(loc.accountType(type))
-                            .font(.app(13, .bold))
-                            .foregroundStyle(Theme.focusInk)
-                            .padding(.horizontal, 12)
-                            .frame(height: 26)
-                            .background(Capsule(style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xFFE27A), ProfileView.gold], startPoint: .top, endPoint: .bottom)))
-                    }
-                }
-                // The username, under a name the site gave instead of it.
-                if siteProfile?.fullName != nil, let username = app.user?.name {
-                    Text(username).font(.app(13, .medium)).foregroundStyle(Theme.text3)
-                }
-                if let user = app.user, let line = loc.subscriptionLine(user) {
-                    Text(line).font(.app(13)).foregroundStyle(Theme.text3)
-                } else if app.user == nil {
-                    // A guest otherwise had no way in from here but the settings.
-                    Text(loc(.signInHint))
-                        .font(.app(14))
-                        .foregroundStyle(Theme.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 460, alignment: .leading)
-                }
-                if !stats.isEmpty {
-                    HStack(spacing: 14) {
-                        ForEach(stats.indices, id: \.self) { i in
-                            if i > 0 { Text("·").foregroundStyle(Theme.text3) }
-                            HStack(spacing: 6) {
-                                if let symbol = stats[i].symbol {
-                                    Image(systemName: symbol).font(.system(size: 12, weight: .bold)).foregroundStyle(ProfileView.gold)
-                                }
-                                Text(stats[i].value).font(.app(17, .heavy)).foregroundStyle(Theme.text1)
-                                Text(stats[i].label).font(.app(13, .medium)).foregroundStyle(Theme.text3)
-                            }
+    /// The name written in Settings, when there is one.
+    private var ownName: String? {
+        let name = typedName.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty || app.user == nil ? nil : name
+    }
+
+    /// First and family name for the line from a film: the site's, or the one written here.
+    private var names: (first: String?, family: String?) {
+        if let site = siteProfile, site.fullName != nil { return (site.firstName, site.lastName) }
+        guard let own = ownName else { return (nil, nil) }
+        let words = own.split(separator: " ").map(String.init)
+        return (words.first, words.count > 1 ? words.dropFirst().joined(separator: " ") : nil)
+    }
+
+    /// The counts as figures with a word under each: the lists kept on 30nama, what was rated,
+    /// and the days of the plan left (its last day under the pointer).
+    private var figures: some View {
+        HStack(alignment: .top, spacing: 28) {
+            ForEach(stats.indices, id: \.self) { i in
+                VStack(spacing: 2) {
+                    HStack(spacing: 5) {
+                        if let symbol = stats[i].symbol {
+                            Image(systemName: symbol).font(.system(size: 13, weight: .bold)).foregroundStyle(ProfileView.gold)
                         }
+                        Text(stats[i].value).font(.app(26, .heavy)).foregroundStyle(Theme.text1)
                     }
-                    .padding(.top, 4)
+                    Text(stats[i].label).font(.app(12, .medium)).foregroundStyle(Theme.text3).lineLimit(1)
                 }
-                greeting.padding(.top, 6)
+                .help(stats[i].hint ?? "")
             }
-            Spacer(minLength: 16)
-            HStack(spacing: 10) {
-                if app.user == nil {
-                    Button { app.requestSignIn() } label: {
-                        Label(loc(.signIn), systemImage: "person.crop.circle.badge.checkmark")
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else {
-                    if !app.ratings.isEmpty {
-                        Button { exportRatings() } label: {
-                            Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
-                        }
-                        .buttonStyle(GlassButtonStyle(height: 34))
-                    }
-                    // The bar's bell shows only while something is new; the older ones are here.
-                    if !(app.notifications?.items.isEmpty ?? true) {
-                        Button { showingNotifications = true } label: {
-                            Label(loc(.notifications), systemImage: "bell")
-                        }
-                        .buttonStyle(GlassButtonStyle(height: 34))
-                        .popover(isPresented: $showingNotifications, arrowEdge: .bottom) {
-                            NotificationPanel { showingNotifications = false }
-                                .environment(app)
-                                .environment(\.loc, loc)
-                                .environment(\.layoutDirection, loc.lang == .en ? .leftToRight : .rightToLeft)
-                        }
-                    }
-                    Button { confirmingSignOut = true } label: {
-                        Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")
+        }
+    }
+
+    @ViewBuilder
+    private var buttons: some View {
+        HStack(spacing: 10) {
+            if app.user == nil {
+                Button { app.requestSignIn() } label: {
+                    Label(loc(.signIn), systemImage: "person.crop.circle.badge.checkmark")
+                }
+                .buttonStyle(PrimaryButtonStyle())
+            } else {
+                if !app.ratings.isEmpty {
+                    Button { exportRatings() } label: {
+                        Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(GlassButtonStyle(height: 34))
                 }
+                // The bar's bell shows only while something is new; the older ones are here.
+                if !(app.notifications?.items.isEmpty ?? true) {
+                    Button { showingNotifications = true } label: {
+                        Label(loc(.notifications), systemImage: "bell")
+                    }
+                    .buttonStyle(GlassButtonStyle(height: 34))
+                    .popover(isPresented: $showingNotifications, arrowEdge: .bottom) {
+                        NotificationPanel { showingNotifications = false }
+                            .environment(app)
+                            .environment(\.loc, loc)
+                            .environment(\.layoutDirection, loc.lang == .en ? .leftToRight : .rightToLeft)
+                    }
+                }
+                Button { NSWorkspace.shared.open(ProfileView.pricing) } label: {
+                    Label(loc(.renewSubscription), systemImage: "creditcard")
+                }
+                .buttonStyle(GlassButtonStyle(height: 34))
+                Button { confirmingSignOut = true } label: {
+                    Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .buttonStyle(GlassButtonStyle(height: 34))
             }
         }
     }
 
-    /// The counts under the name: what was rated, how generously, and the lists kept on 30nama.
-    private var stats: [(value: String, label: String, symbol: String?)] {
-        var out: [(value: String, label: String, symbol: String?)] = []
-        if !app.ratings.isEmpty {
-            out.append((loc.num(app.ratings.count), loc(.ratedCount), nil))
-            if let average = app.ratings.average { out.append((loc.num(Fmt.score(average)), loc(.averageRating), "star.fill")) }
+    /// 30nama's own page for buying or renewing a plan.
+    private static let pricing = URL(string: "https://30nama.com/pricing")!
+
+    /// A line from a film, in the film's own English, with their first name where a name or the
+    /// word for them was; under it the film, its year and its director, which open the film's page
+    /// when 30nama has it. Never the username: a line said to an account name means nothing.
+    private var greeting: some View {
+        Group {
+            if let line {
+                Quote(line: line, post: filmOnSite) { nav.open($0) }
+            } else {
+                Color.clear.frame(height: 1)
+            }
         }
-        if !watchlist.isEmpty { out.append((loc.num(listSizes["watchlist"] ?? watchlist.count), loc(.watchlist), nil)) }
-        if !favorites.isEmpty { out.append((loc.num(listSizes["favorite"] ?? favorites.count), loc(.favorites), nil)) }
+        // English inside a Persian or Arabic page: written left to right, kept to the same edge as
+        // the name above it.
+        .environment(\.layoutDirection, .leftToRight)
+        // Outside the left-to-right part, so "leading" is the page's own: right in Persian.
+        .frame(maxWidth: 680, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: "\(profileAsked)|\(names.first ?? "")") {
+            guard profileAsked else { return }
+            // Once per opening of the app, unless the name has only now come.
+            if let kept = ProfileView.kept, kept.name == names.first {
+                line = kept.line
+                filmOnSite = kept.post
+                return
+            }
+            var generator = SystemRandomNumberGenerator()
+            let picked = MovieLines.pick(name: names.first, familyName: names.family, using: &generator)
+            line = picked
+            filmOnSite = nil
+            ProfileView.kept = (names.first, picked, nil)
+            // Quietly, after the page's own requests: whether 30nama has the film.
+            for query in picked.searchQueries {
+                guard let found = try? await app.api.get("search", ["query": query, "streamonly": "0", "page": "1"], background: true),
+                      !Task.isCancelled else { continue }
+                if let post = picked.match(in: PostPage(found).posts) {
+                    filmOnSite = post
+                    ProfileView.kept = (names.first, picked, post)
+                    break
+                }
+            }
+        }
+    }
+
+    /// The line of this opening of the app, the name it was picked for, and its film on 30nama.
+    @MainActor private static var kept: (name: String?, line: MovieLine, post: Post?)?
+
+    /// The counts: the lists kept on 30nama, what was rated and how generously, and the plan's days.
+    private var stats: [(value: String, label: String, symbol: String?, hint: String?)] {
+        var out: [(value: String, label: String, symbol: String?, hint: String?)] = []
+        if !watchlist.isEmpty { out.append((loc.num(listSizes["watchlist"] ?? watchlist.count), loc(.watchlist), nil, nil)) }
+        if !favorites.isEmpty { out.append((loc.num(listSizes["favorite"] ?? favorites.count), loc(.favorites), nil, nil)) }
+        if !app.ratings.isEmpty {
+            out.append((loc.num(app.ratings.count), loc(.ratedCount), nil, nil))
+            if let average = app.ratings.average { out.append((loc.num(Fmt.score(average)), loc(.averageRating), "star.fill", nil)) }
+        }
+        if let user = app.user, let days = user.daysLeft() {
+            out.append((loc.num(days), loc(.subscriptionDays), nil, loc.subscriptionLine(user)))
+        }
         return out
     }
 
@@ -364,5 +434,77 @@ struct ProfileView: View {
         async let sizes = app.myListSizes()
         (watchlist, favorites, listSizes) = await (watch, liked, sizes)
         upcoming = await app.upcoming()
+    }
+}
+
+/// The line from a film as a quotation: a large quotation mark in the scene's colour, the words in
+/// a serif, and under them a signature, the film, its year and who directed it. When 30nama has the
+/// film its poster stands beside the words, and the poster and the signature open its page.
+private struct Quote: View {
+    let line: MovieLine
+    let post: Post?
+    let open: (Post) -> Void
+
+    @Environment(\.hue) private var hue
+    @State private var hovering = false
+
+    var body: some View {
+        let tint = hue ?? Theme.accent
+        let lit = hovering && post != nil
+        HStack(alignment: .center, spacing: 16) {
+            if let post {
+                Button { open(post) } label: {
+                    ZStack {
+                        Theme.surface2
+                        RemoteImage(url: post.poster.url(forWidth: 46), blurhash: post.poster.blurhash, maxPixel: Int(46 * Display.scale))
+                    }
+                    .frame(width: 46, height: 69)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(lit ? 0.7 : 0.15), lineWidth: 1) }
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                    .scaleEffect(lit ? 1.05 : 1)
+                }
+                .buttonStyle(.plain)
+                .onHover { hover($0) }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text(line.text)
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .italic()
+                    .foregroundStyle(Theme.text1.opacity(0.92))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 26)
+                    .overlay(alignment: .topLeading) {
+                        Text("\u{201C}")
+                            .font(.system(size: 50, weight: .bold, design: .serif))
+                            .foregroundStyle(tint.opacity(0.75))
+                            .offset(x: -2, y: -12)
+                            .accessibilityHidden(true)
+                    }
+                Button { if let post { open(post) } } label: {
+                    HStack(spacing: 8) {
+                        Capsule().fill(tint).frame(width: 16, height: 2)
+                        Text("\(line.film.uppercased()) · \(String(line.year)) · \(line.directors.joined(separator: ", "))")
+                            .font(.system(size: 11, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(lit ? tint : Theme.text3)
+                            .underline(lit)
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 26)
+                }
+                .buttonStyle(.plain)
+                .disabled(post == nil)
+                .onHover { hover($0) }
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: lit)
+    }
+
+    private func hover(_ inside: Bool) {
+        guard post != nil, inside != hovering else { return }
+        hovering = inside
+        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
     }
 }

@@ -180,16 +180,20 @@ final class SiteAPITests: XCTestCase {
 
     func testAHundredMovieLines() {
         XCTAssertEqual(MovieLines.all.count, 100)
-        XCTAssertEqual(Set(MovieLines.all).count, 100, "no line twice")
-        XCTAssertTrue(MovieLines.all.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+        XCTAssertEqual(Set(MovieLines.all.map(\.text)).count, 100, "no line twice")
+        XCTAssertTrue(MovieLines.all.allSatisfy { !$0.text.isEmpty && !$0.film.isEmpty && (1900...2010).contains($0.year) && !$0.directors.isEmpty })
+        XCTAssertEqual(MovieLines.all[73].film, "Chinatown")
+        XCTAssertEqual(MovieLines.all[73].directors, ["Roman Polanski"])
+        XCTAssertTrue(MovieLines.addressed.allSatisfy { $0.text.contains("{name}") && (1...100).contains($0.rank) })
         var generator = SystemRandomNumberGenerator()
         XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(name: nil, using: &generator)), "no name: a line as it is")
         XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(name: "  ", using: &generator)))
-        XCTAssertTrue(MovieLines.addressed.allSatisfy { $0.contains("{name}") })
-        for _ in 0..<50 {
+        for _ in 0..<60 {
             let line = MovieLines.pick(name: "Sample", familyName: "Person", using: &generator)
-            XCTAssertTrue(line.contains("Sample"), line)
-            XCTAssertFalse(line.contains("{name}"), line)
+            XCTAssertTrue(line.text.contains("Sample"), line.text)
+            XCTAssertFalse(line.text.contains("{name}"), line.text)
+            // The film is the one the line comes from.
+            XCTAssertTrue(MovieLines.all.contains { $0.film == line.film && $0.year == line.year })
         }
     }
 
@@ -223,5 +227,19 @@ final class SiteAPITests: XCTestCase {
             .paragraph("پاراگراف دوم کنار عکس."),
             .picture(try XCTUnwrap(URL(string: "https://example.com/attach/2026/10/alone.png"))),
         ], "the opening picture is the article's own and is shown above it; the video is left out")
+    }
+
+    func testALinesFilmIsFoundOn30nama() throws {
+        let line = MovieLines.all[73]   // Chinatown, 1974
+        XCTAssertEqual(line.searchQueries, ["Chinatown", "Chinatown 1974"])
+        func post(_ id: Int, _ title: String, series: Bool = false) -> Post {
+            Post(.object(["id": .number(Double(id)), "title": .object(["english": .string(title)]),
+                          "options": .object(["is_series": .bool(series)])]))!
+        }
+        var withYears = [post(1, "Chinatown 2019"), post(2, "Chinatown 1974", series: true), post(3, "Chinatown 1974"), post(4, "Chinatown Nights 1974")]
+        // The year comes from the info block in real answers; here from the title's end is enough.
+        for i in withYears.indices { withYears[i].year = Int(withYears[i].titleEnglish!.suffix(4)) }
+        XCTAssertEqual(line.match(in: withYears)?.id, 3, "the film, of that year, not the series or a namesake")
+        XCTAssertNil(line.match(in: [withYears[0]]))
     }
 }

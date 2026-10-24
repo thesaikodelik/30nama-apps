@@ -18,6 +18,28 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         // No account part: the account and signing out are on the profile, and
                         // iCloud is not open to a Mac build signed without an Apple developer account.
+                        // For a member whose profile on the site is private: the site will not give
+                        // their name, so it can be written here.
+                        if app.user != nil {
+                            group(loc(.profile)) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    row("\(loc(.yourName)) (\(loc(.optional)))") {
+                                        TextField("", text: $typedName)
+                                            .textFieldStyle(.plain)
+                                            .font(.app(14))
+                                            .padding(.horizontal, 12)
+                                            .frame(width: 252, height: 32)
+                                            .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+                                            .accessibilityLabel(loc(.yourName))
+                                    }
+                                    Text(loc(.yourNameHint))
+                                        .font(.app(12))
+                                        .foregroundStyle(Theme.text3)
+                                        .padding(.horizontal, 16)
+                                        .padding(.bottom, 8)
+                                }
+                            }
+                        }
                         group(loc(.language)) {
                             row(loc(.language)) {
                                 picker(Lang.allCases, selection: app.settings.lang, name: \.name) { value in app.update { $0.lang = value } }
@@ -160,6 +182,9 @@ struct SettingsView: View {
                 .padding(.bottom, 8)
         }
     }
+
+    /// The member's own name, for when their profile on the site is private. Read by the profile.
+    @AppStorage("displayName") private var typedName = ""
 
     /// Read by the player; kept on this Mac only, like the other things that are about the screen.
     @AppStorage("ambientLight") private var ambientLight = true
