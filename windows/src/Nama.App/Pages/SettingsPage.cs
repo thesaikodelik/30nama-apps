@@ -1,6 +1,7 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Nama.App.Model;
 using Nama.App.UI;
@@ -27,7 +28,7 @@ public sealed class SettingsPage : Grid
         side.Children.Add(Theme.Text(App.Loc[S.unofficial], 15, color: Theme.Text2, lines: 3));
         SetColumn(side, 1);
         layout.Children.Add(side);
-        var scroller = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollMode = ScrollMode.Disabled };
+        var scroller = new ScrollViewer { Content = layout, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled };
         // Beside the logo where there is room for both; in a narrow window the settings alone,
         // narrower with it, so nothing is cut at the window's edges.
         scroller.SizeChanged += (_, e) =>
@@ -45,9 +46,20 @@ public sealed class SettingsPage : Grid
         Unloaded += (_, _) => App.Changed -= OnChanged;
     }
 
+    /// <summary>Set while a field saves what is typed in it: drawn again, it would lose the typing.</summary>
+    private static bool _typing;
+
     private void OnChanged(string what)
     {
-        if (what is "user" or "settings") Render();
+        if (what is "user" or "settings" && !_typing) Render();
+    }
+
+    /// <summary>Saves a setting as it is typed, without drawing the page again under the field.</summary>
+    private static void SaveTyped(Func<Settings, Settings> change)
+    {
+        _typing = true;
+        try { App.Update(change); }
+        finally { _typing = false; }
     }
 
     private void Render()
@@ -57,6 +69,19 @@ public sealed class SettingsPage : Grid
         _column.Children.Clear();
 
         // The account (its name, its subscription, signing out, the ratings export) is on the profile, as on the Mac.
+        // For a member whose profile on the site is private: the site will not give their name, so it can be written here.
+        if (App.User is not null)
+        {
+            var name = new TextBox { Text = s.DisplayName ?? "", Width = 252, FontFamily = Theme.Font(FontWeights.Normal), FontSize = 14, CornerRadius = new CornerRadius(16) };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(name, loc[S.yourName]);
+            name.TextChanged += (_, _) => SaveTyped(x => x with { DisplayName = string.IsNullOrWhiteSpace(name.Text) ? null : name.Text.Trim() });
+            var field = new StackPanel { Spacing = 2 };
+            field.Children.Add(Row($"{loc[S.yourName]} ({loc[S.optional]})", name));
+            var note = Theme.Text(loc[Extra.yourNameHintHere], 12, color: Theme.Text3, lines: 2);
+            note.Margin = new Thickness(0, 0, 0, 8);
+            field.Children.Add(note);
+            Group(loc[S.profile], [field]);
+        }
 
         Group(loc[S.language], [Row(loc[S.language], Choice(LangExtensions.All.Select(l => (l.Name(), (object)l)), s.Lang, v => App.Update(x => x with { Lang = (Lang)v })))]);
 
@@ -94,14 +119,15 @@ public sealed class SettingsPage : Grid
 
         Group(loc[S.services],
         [
-            KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => App.Update(x => x with { SubsourceKey = v })),
-            KeyField(loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => App.Update(x => x with { TmdbKey = v })),
+            KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
+            KeyField(loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => SaveTyped(x => x with { TmdbKey = v })),
         ]);
 
         var version = typeof(SettingsPage).Assembly.GetName().Version;
         Group(loc[S.about],
         [
-            Row(loc[S.version], Value(version is null ? "—" : $"{version.Major}.{version.Minor}.{version.Build}", ltr: true)),
+            // The app looks by itself every hour; this is for when a release was just announced.
+            Row(loc[S.version], VersionRow(version is null ? "—" : $"{version.Major}.{version.Minor}.{version.Build}")),
             Row(loc[S.apiHost], Value(App.ApiHost is { } host && Uri.TryCreate(host, UriKind.Absolute, out var u) ? u.Host : "—", ltr: true)),
             Row(loc[S.reportProblem], Kit.Glass(loc[S.reportProblem], null, ReportProblem, height: 34)),
         ]);
@@ -200,16 +226,118 @@ public sealed class SettingsPage : Grid
         return toggle;
     }
 
-    /// <summary>The user's own key for a service, kept on this computer: a field and what it is for.</summary>
+    private static FrameworkElement VersionRow(string version)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        var number = Value(App.Loc.Num(version), ltr: true);
+        number.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(number);
+        Button? check = null;
+        check = Kit.Glass(App.Loc[S.checkForUpdate], null, async () =>
+        {
+            check!.IsEnabled = false;
+            try
+            {
+                switch (await Updater.Shared.LookAsync(asked: true))
+                {
+                    case Updater.Looks.UpToDate: App.ShowToast(App.Loc[S.upToDate]); break;
+                    case Updater.Looks.NoAnswer: App.ShowToast(App.Loc[S.error]); break;
+                    // Found: the update's own card says so. Null: one is already on its way.
+                }
+            }
+            finally { check.IsEnabled = true; }
+        }, height: 34);
+        row.Children.Add(check);
+        return row;
+    }
+
+    /// <summary>
+    /// The user's own key for a service, kept on this computer, saved as it is typed or pasted. With
+    /// one kept, the field says so: the app's red on its edge and on a tick under it, a button to
+    /// show or hide it, and one to remove it. As KeyField on the Mac.
+    /// </summary>
     private static FrameworkElement KeyField(string label, string hint, string? value, Action<string?> set)
     {
-        var box = new PasswordBox { Password = value ?? "", Width = 252, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono,Consolas"), FlowDirection = FlowDirection.LeftToRight };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, label);
-        box.LostFocus += (_, _) => set(string.IsNullOrWhiteSpace(box.Password) ? null : box.Password.Trim());
+        var loc = App.Loc;
+        var shown = false;
+        var mono = new FontFamily("Cascadia Mono,Consolas");
+        var secret = new PasswordBox { Password = value ?? "", FontFamily = mono, FontSize = 13 };
+        var plain = new TextBox { Text = value ?? "", FontFamily = mono, FontSize = 13, Visibility = Visibility.Collapsed };
+        foreach (var field in new Control[] { secret, plain })
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(field, label);
+            field.VerticalAlignment = VerticalAlignment.Center;
+            field.BorderThickness = new Thickness(0);
+            field.Background = Theme.White(0);
+            field.MinWidth = 0;
+            field.MinHeight = 0;
+            field.Padding = new Thickness(0, 4, 0, 4);
+            field.Resources["TextControlBackgroundFocused"] = Theme.White(0);
+            field.Resources["TextControlBackgroundPointerOver"] = Theme.White(0);
+            field.Resources["TextControlBorderBrushFocused"] = Theme.White(0);
+            field.Resources["TextControlBorderBrushPointerOver"] = Theme.White(0);
+        }
+        var eye = Glyph.Icon("\uE7B3", 12, Theme.Text3);
+        var reveal = Theme.Bare(eye, () => { });
+        var remove = Theme.Bare(Glyph.Icon("\uE711", 11, Theme.Text3), () => { });
+        reveal.VerticalAlignment = remove.VerticalAlignment = VerticalAlignment.Center;
+        Kit.AutomationName(remove, loc[S.removeKey]);
+        ToolTipService.SetToolTip(remove, loc[S.removeKey]);
+        var inner = new Grid { ColumnSpacing = 8, Margin = new Thickness(12, 0, 12, 0) };
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.Children.Add(secret);
+        inner.Children.Add(plain);
+        Grid.SetColumn(reveal, 1);
+        Grid.SetColumn(remove, 2);
+        inner.Children.Add(reveal);
+        inner.Children.Add(remove);
+        // Left to right in every language: a key is Latin letters and digits.
+        var capsule = new Border { Width = 252, Height = 32, CornerRadius = new CornerRadius(16), Background = Theme.White(0.08), BorderThickness = new Thickness(1), Child = inner, FlowDirection = FlowDirection.LeftToRight };
+
+        var note = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
+        var tick = Glyph.Icon("\uE73E", 12, Theme.Accent);
+        tick.VerticalAlignment = VerticalAlignment.Center;
+        var words = Theme.Text("", 12, color: Theme.Text3, lines: 2);
+
+        var current = value?.Trim() ?? "";
+        void Show()
+        {
+            var saved = current.Length > 0;
+            // The app's own red, on the edge and the tick only: the words in the usual colour, so it does not read as an error.
+            capsule.BorderBrush = new SolidColorBrush(Theme.Accent.WithAlpha(saved ? 0.55 : 0));
+            reveal.Visibility = remove.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
+            note.Children.Clear();
+            if (saved) note.Children.Add(tick);
+            words.Text = saved ? loc[Extra.keySavedHere] : hint;
+            words.Foreground = Theme.Brush(saved ? Theme.Text2 : Theme.Text3);
+            note.Children.Add(words);
+            eye.Glyph = shown ? "\uED1A" : "\uE7B3";
+            var name = shown ? loc[S.hideKey] : loc[S.showKey];
+            Kit.AutomationName(reveal, name);
+            ToolTipService.SetToolTip(reveal, name);
+            secret.Visibility = shown ? Visibility.Collapsed : Visibility.Visible;
+            plain.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        }
+        void Typed(string text)
+        {
+            if (text.Trim() == current) return;
+            current = text.Trim();
+            if (secret.Password != text) secret.Password = text;
+            if (plain.Text != text) plain.Text = text;
+            set(current.Length == 0 ? null : current);
+            if (current.Length == 0) shown = false;
+            Show();
+        }
+        secret.PasswordChanged += (_, _) => Typed(secret.Password);
+        plain.TextChanged += (_, _) => Typed(plain.Text);
+        reveal.Click += (_, _) => { shown = !shown; Show(); };
+        remove.Click += (_, _) => Typed("");
+        Show();
+
         var column = new StackPanel { Spacing = 2 };
-        column.Children.Add(Row(label, box));
-        var note = Theme.Text(hint, 12, color: Theme.Text3, lines: 2);
-        note.Margin = new Thickness(0, 0, 0, 8);
+        column.Children.Add(Row(label, capsule));
         column.Children.Add(note);
         return column;
     }

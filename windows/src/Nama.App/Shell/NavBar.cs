@@ -112,10 +112,15 @@ public sealed class NavBar : Grid
         // Room the size of the bell on the other side, so the bar stays centred.
         _row.Children.Add(_balance);
         // The back button keeps its place beside the bar while it is hidden, so the bar stays centred.
-        var arrow = Glyph.Icon(Glyph.Back, 15, Theme.Text1);
+        // Lit under the pointer as the bell and downloads are: a white disc inside, and the arrow brighter.
+        var arrow = Glyph.Icon(Glyph.Back, 15, Theme.Text1.WithAlpha(0.78));
         arrow.HorizontalAlignment = HorizontalAlignment.Center;
         arrow.MirroredWhenRightToLeft = true;
-        _back = Disc(arrow, nav.Back).Button.Springy(0.2);
+        var backInside = new Grid { Margin = new Thickness(4), CornerRadius = new CornerRadius(20), Background = Theme.White(0) };
+        backInside.Children.Add(arrow);
+        _back = Disc(backInside, nav.Back).Button.Springy(0.2);
+        _back.PointerEntered += (_, _) => { backInside.Background = Theme.White(0.12); arrow.Foreground = Theme.Brush(Theme.Text1); };
+        _back.PointerExited += (_, _) => { backInside.Background = Theme.White(0); arrow.Foreground = Theme.Brush(Theme.Text1.WithAlpha(0.78)); };
         Kit.AutomationName(_back, AppModel.Shared.Loc[S.back]);
         _row.Children.Add(_back);
         _capsule.Children.Add(GlassLens.Make());

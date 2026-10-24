@@ -26,6 +26,7 @@ public sealed class Updater
     private readonly DispatcherQueue _ui;
     private readonly HttpClient _http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private DateTime _lastLook = DateTime.MinValue;
+    private readonly DateTime _opened = DateTime.UtcNow;
     private string? _staged;
     private Uri? _failedPage;
 
@@ -118,14 +119,29 @@ public sealed class Updater
     /// </summary>
     private static bool Installed => File.Exists(Path.Combine(AppContext.BaseDirectory, "unins000.exe"));
 
-    /// <summary>Looks for a newer release, at most every few hours: GitHub answers sixty times an hour per address.</summary>
-    public async Task LookAsync()
+    public enum Looks { Found, UpToDate, NoAnswer }
+
+    /// <summary>
+    /// Looks for a newer release: by itself at most once an hour, and not in the first seconds the
+    /// app is open (GitHub answers sixty times an hour per address); at once when
+    /// <paramref name="asked"/>, from the button in Settings. Null when it did not look, or an
+    /// update is already on its way. As look(asked:) on the Mac.
+    /// </summary>
+    public async Task<Looks?> LookAsync(bool asked = false)
     {
 #if DEBUG
         // A build being worked on is not the released app; it looks only when told to.
-        if (TestFeed is null) return;
+        if (TestFeed is null && !asked) return null;
 #endif
-        if (Phase != Phases.Idle || DateTime.UtcNow - _lastLook < TimeSpan.FromHours(4)) return;
+        // Found before and put off for this time: asked for, its card comes back.
+        if (asked && Phase == Phases.Available && Postponed)
+        {
+            Postponed = false;
+            Tell();
+            return Looks.Found;
+        }
+        if (Phase != Phases.Idle) return null;
+        if (!asked && (DateTime.UtcNow - _lastLook < TimeSpan.FromHours(1) || DateTime.UtcNow - _opened < TimeSpan.FromSeconds(7))) return null;
         _lastLook = DateTime.UtcNow;
         if (TestFeed is { } test) Log($"looking at the test feed {test}");
         try
@@ -134,15 +150,22 @@ public sealed class Updater
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             using var response = await _http.SendAsync(request, timeout.Token);
-            if ((int)response.StatusCode != 200) return;
+            if ((int)response.StatusCode != 200) return Looks.NoAnswer;
             var feed = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
-            if (WinRelease.Newest(feed, Current) is not { } release) return;
+            if (WinRelease.Newest(feed, Current) is not { } release) return Looks.UpToDate;
             Release = release;
             Log($"found {release.Version}: {release.Installer}");
+            // Asked for, its card comes even if it was put off for this time.
+            if (asked) Postponed = false;
             Set(Phases.Available);
+            return Looks.Found;
         }
         // Not being able to look is not a failure the user needs to hear of; it is tried again later.
-        catch (Exception e) { Log($"could not look for updates: {e.GetType().Name}: {e.Message}"); }
+        catch (Exception e)
+        {
+            Log($"could not look for updates: {e.GetType().Name}: {e.Message}");
+            return Looks.NoAnswer;
+        }
     }
 
     public void Postpone()

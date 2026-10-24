@@ -55,6 +55,8 @@ public sealed record Settings
     public string? SubsourceKey { get; init; }
     /// <summary>The user's own TMDB key or read access token, if they made one. Kept on this computer only.</summary>
     public string? TmdbKey { get; init; }
+    /// <summary>The name for the profile when the site's is private; only on this computer.</summary>
+    public string? DisplayName { get; init; }
     public double Volume { get; init; } = 1;
 
     public static readonly int[] SubtitleSizes = [38, 46, 54];

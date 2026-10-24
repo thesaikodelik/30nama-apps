@@ -99,7 +99,13 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "30nama.ico"));
         Resize(1440, 900);
-        Activated += (_, e) => IsActive = e.WindowActivationState != WindowActivationState.Deactivated;
+        Activated += (_, e) =>
+        {
+            IsActive = e.WindowActivationState != WindowActivationState.Deactivated;
+            // Coming forward is a time to look too, when an hour has gone by: a release put out
+            // while the window sat behind others would otherwise wait for the next tick.
+            if (IsActive && _app.Phase == AppModel.Phases.Main) _ = Updater.Shared.LookAsync();
+        };
         _tray = new Tray(Path.Combine(AppContext.BaseDirectory, "Assets", "30nama.ico"))
         {
             Labels = () => (_app.Loc[Extra.openApp], _app.Loc[Extra.quit]),

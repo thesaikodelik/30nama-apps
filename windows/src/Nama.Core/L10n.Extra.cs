@@ -10,6 +10,8 @@ namespace Nama.Core;
 public enum Extra
 {
     showInFolder, keepInTray, keepInTrayHint, openApp, quit,
+    // The Mac's keySaved and yourNameHint say "this Mac"; on Windows it is this computer.
+    keySavedHere, yourNameHintHere,
 }
 #pragma warning restore IDE1006
 
@@ -25,6 +27,8 @@ public sealed partial class Loc
         [Extra.openApp] = "Open 30nama",
         [Extra.quit] = "Quit",
         [Extra.showInFolder] = "Show in folder",
+        [Extra.keySavedHere] = "Saved on this computer",
+        [Extra.yourNameHintHere] = "Shown on your profile when your 30nama profile is private. Stays on this computer.",
     };
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
@@ -34,6 +38,8 @@ public sealed partial class Loc
         [Extra.openApp] = "باز کردن ۳۰نما",
         [Extra.quit] = "خروج",
         [Extra.showInFolder] = "نمایش در پوشه",
+        [Extra.keySavedHere] = "روی همین کامپیوتر ذخیره شد",
+        [Extra.yourNameHintHere] = "وقتی پروفایل شما در ۳۰نما خصوصی است، این نام در پروفایل می‌آید. فقط روی همین کامپیوتر می‌ماند.",
     };
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
@@ -43,5 +49,7 @@ public sealed partial class Loc
         [Extra.openApp] = "فتح 30nama",
         [Extra.quit] = "إنهاء",
         [Extra.showInFolder] = "إظهار في المجلد",
+        [Extra.keySavedHere] = "حُفظ على هذا الكمبيوتر",
+        [Extra.yourNameHintHere] = "يظهر في ملفك الشخصي عندما يكون ملفك في 30nama خاصًا. يبقى على هذا الكمبيوتر فقط.",
     };
 }
