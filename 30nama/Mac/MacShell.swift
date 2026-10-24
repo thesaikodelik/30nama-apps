@@ -284,6 +284,7 @@ struct MainView: View {
 /// The floating bar at the top of the window: the same glass capsule the Apple TV app has.
 private struct NavBar: View {
     @Environment(AppModel.self) private var app
+    @State private var backHovering = false
     @State private var bellOpen = false
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
@@ -299,14 +300,20 @@ private struct NavBar: View {
             // Room the size of the bell on the other side, so the bar stays centred.
             if bell { Color.clear.frame(width: 48, height: 48) }
             Button { nav.back() } label: {
-                Image(systemName: "chevron.backward")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(Theme.text1)
-                    .frame(width: 48, height: 48)
-                    .lens(Circle())
-                    .contentShape(Circle())
+                // Lit under the pointer as the bell and the downloads disc are.
+                ZStack {
+                    Circle().fill(Color.white.opacity(backHovering ? 0.12 : 0)).padding(4)
+                    Image(systemName: "chevron.backward")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.text1.opacity(backHovering ? 1 : 0.85))
+                }
+                .frame(width: 48, height: 48)
+                .lens(Circle())
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .onHover { backHovering = $0 }
+            .animation(.easeOut(duration: 0.14), value: backHovering)
             .accessibilityLabel(loc(.back))
             .accessibilityHidden(nav.opened.isEmpty)
             .opacity(nav.opened.isEmpty ? 0 : 1)

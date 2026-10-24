@@ -164,23 +164,7 @@ struct SettingsView: View {
     @AppStorage("tmdbKey") private var tmdbKey = ""
 
     private func keyField(_ label: String, hint: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            row(label) {
-                SecureField("", text: text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, design: .monospaced))
-                    .padding(.horizontal, 12)
-                    .frame(width: 252, height: 32)
-                    .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
-                    .environment(\.layoutDirection, .leftToRight)
-                    .accessibilityLabel(label)
-            }
-            Text(hint)
-                .font(.app(12))
-                .foregroundStyle(Theme.text3)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-        }
+        KeyField(label: label, hint: hint, text: text) { row($0, control: $1) }
     }
 
     /// The member's own name, for when their profile on the site is private. Read by the profile.
@@ -404,3 +388,73 @@ private struct ChoiceLabel: View {
         .animation(.easeOut(duration: 0.14), value: hovering)
     }
 }
+
+/// A key the user makes on another site. It is kept as soon as it is typed or pasted, which a
+/// hidden field did not show: a key that is there now says so in green, can be shown to check it,
+/// and removed.
+private struct KeyField<Row: View>: View {
+    let label: String
+    let hint: String
+    @Binding var text: String
+    let row: (String, () -> AnyView) -> Row
+
+    @Environment(\.loc) private var loc
+    @State private var shown = false
+
+    init(label: String, hint: String, text: Binding<String>, row: @escaping (String, () -> AnyView) -> Row) {
+        self.label = label
+        self.hint = hint
+        _text = text
+        self.row = row
+    }
+
+    var body: some View {
+        let saved = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        VStack(alignment: .leading, spacing: 2) {
+            row(label) {
+                AnyView(HStack(spacing: 6) {
+                    Group {
+                        if shown { TextField("", text: $text) } else { SecureField("", text: $text) }
+                    }
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, design: .monospaced))
+                    .accessibilityLabel(label)
+                    if saved {
+                        Button { shown.toggle() } label: {
+                            Image(systemName: shown ? "eye.slash" : "eye").font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.text3)
+                        .help(shown ? loc(.hideKey) : loc(.showKey))
+                        .accessibilityLabel(shown ? loc(.hideKey) : loc(.showKey))
+                        Button { text = ""; shown = false } label: {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: 13))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.text3)
+                        .help(loc(.removeKey))
+                        .accessibilityLabel(loc(.removeKey))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(width: 252, height: 32)
+                .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+                .overlay { Capsule(style: .continuous).strokeBorder(Color.green.opacity(saved ? 0.45 : 0), lineWidth: 1) }
+                .environment(\.layoutDirection, .leftToRight))
+            }
+            Group {
+                if saved {
+                    Label(loc(.keySaved), systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Color.green.opacity(0.85))
+                } else {
+                    Text(hint).foregroundStyle(Theme.text3)
+                }
+            }
+            .font(.app(12))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .animation(.easeOut(duration: 0.2), value: saved)
+        }
+    }
+}
+
