@@ -284,6 +284,7 @@ struct MainView: View {
 /// The floating bar at the top of the window: the same glass capsule the Apple TV app has.
 private struct NavBar: View {
     @Environment(AppModel.self) private var app
+    @State private var bellOpen = false
     @Environment(MacNav.self) private var nav
     @Environment(\.loc) private var loc
 
@@ -291,8 +292,9 @@ private struct NavBar: View {
         // The back button has a place of its own beside the bar, kept even while it is hidden,
         // and the downloads disc of the same size balances it on the other side (the bell, too). So the bar stays
         // centred and its items do not shift when the button comes and goes.
-        // The bell only when there is something in it: an empty one only took room.
-        let bell = app.user != nil && !(app.notifications?.items.isEmpty ?? true)
+        // The bell only when something is new (older ones are on the profile page): an empty one,
+        // or one with nothing new, only took room. Kept while its panel is open.
+        let bell = app.user != nil && ((app.notifications?.unread ?? 0) > 0 || bellOpen)
         HStack(spacing: 10) {
             // Room the size of the bell on the other side, so the bar stays centred.
             if bell { Color.clear.frame(width: 48, height: 48) }
@@ -323,7 +325,7 @@ private struct NavBar: View {
             .liquidGround()
             DownloadsDisc(selected: nav.section == .downloads && nav.opened.isEmpty) { nav.go(.downloads) }
                 .liquidGround()
-            if bell { NotificationBell().transition(.scale(scale: 0.8).combined(with: .opacity)) }
+            if bell { NotificationBell(open: $bellOpen).transition(.scale(scale: 0.8).combined(with: .opacity)) }
         }
         .animation(Theme.focusSpring, value: bell)
         // The open tab's glass pill flows to the next like a drop of liquid, out of the bar and

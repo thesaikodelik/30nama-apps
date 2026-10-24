@@ -26,6 +26,7 @@ struct ProfileView: View {
     }
 
     @State private var confirmingSignOut = false
+    @State private var showingNotifications = false
     /// The name the member gave the site; the app API sends only the username.
     @State private var siteProfile: SiteProfile?
 
@@ -177,6 +178,19 @@ struct ProfileView: View {
                             Label(loc(.exportRatings), systemImage: "square.and.arrow.up")
                         }
                         .buttonStyle(GlassButtonStyle(height: 34))
+                    }
+                    // The bar's bell shows only while something is new; the older ones are here.
+                    if !(app.notifications?.items.isEmpty ?? true) {
+                        Button { showingNotifications = true } label: {
+                            Label(loc(.notifications), systemImage: "bell")
+                        }
+                        .buttonStyle(GlassButtonStyle(height: 34))
+                        .popover(isPresented: $showingNotifications, arrowEdge: .bottom) {
+                            NotificationPanel { showingNotifications = false }
+                                .environment(app)
+                                .environment(\.loc, loc)
+                                .environment(\.layoutDirection, loc.lang == .en ? .leftToRight : .rightToLeft)
+                        }
                     }
                     Button { confirmingSignOut = true } label: {
                         Label(loc(.signOut), systemImage: "rectangle.portrait.and.arrow.right")

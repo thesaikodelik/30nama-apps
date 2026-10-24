@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// The account's messages from 30nama: a bell beside the downloads disc, with how many are new,
-/// opening a panel of them. The bar shows it only when there are any.
+/// opening a panel of them. The bar shows it only while some are new, and while its panel is
+/// open, so marking them read does not take the panel away under the pointer.
 struct NotificationBell: View {
+    @Binding var open: Bool
+
     @Environment(AppModel.self) private var app
     @Environment(\.loc) private var loc
     @State private var hovering = false
-    @State private var open = false
 
     var body: some View {
         let unread = app.notifications?.unread ?? 0
@@ -48,7 +50,7 @@ struct NotificationBell: View {
     }
 }
 
-private struct NotificationPanel: View {
+struct NotificationPanel: View {
     let close: () -> Void
 
     @Environment(AppModel.self) private var app
