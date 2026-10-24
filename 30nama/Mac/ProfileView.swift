@@ -29,12 +29,12 @@ struct ProfileView: View {
     @State private var showingNotifications = false
     /// The name the member gave the site; the app API sends only the username.
     @State private var siteProfile: SiteProfile?
+    /// The site has answered (or there was no one to ask): the line can be picked.
+    @State private var profileAsked = false
 
-    /// One line from the screen for this time the app is open.
-    private static let line: String = {
-        var generator = SystemRandomNumberGenerator()
-        return MovieLines.pick(using: &generator)
-    }()
+    /// A line from a film, picked once for this time the app is open, and again only when the name
+    /// it is said to arrives (the site answers after the page has opened).
+    @State private var line: String?
 
     var body: some View {
         ZStack {
@@ -77,6 +77,8 @@ struct ProfileView: View {
         .task(id: "\(app.user?.id ?? "")|\(app.listVersion)") { await loadLists() }
         .task(id: app.user?.name) {
             siteProfile = nil
+            profileAsked = false
+            defer { profileAsked = true }
             guard let username = app.user?.name, app.api.hasSite else { return }
             siteProfile = (try? await app.api.site(SiteQuery.profile(username: username), background: true)).map(SiteProfile.init(site:))
         }
@@ -100,10 +102,10 @@ struct ProfileView: View {
 
     /// Who it is on one side, what they can do on the other. The name, then the subscription in a
     /// quiet line, then the counts in a row of their own; the buttons out of the way at the far end.
-    /// A line from a film said to them by name, in the film's own English.
+    /// A line from a film, in the film's own English, with their first name where a name or the
+    /// word for them was. Never the username: a line said to an account name means nothing.
     private var greeting: some View {
-        let name = siteProfile?.firstName ?? app.user?.name
-        return (Text(name.map { "\($0), " } ?? "").fontWeight(.bold).foregroundColor(Theme.text1) + Text("\u{201C}\(Self.line)\u{201D}"))
+        Text(line.map { "\u{201C}\($0)\u{201D}" } ?? " ")
             .font(.system(size: 15, weight: .medium, design: .serif))
             .italic()
             .foregroundStyle(Theme.text2)
@@ -113,7 +115,19 @@ struct ProfileView: View {
             .multilineTextAlignment(loc.lang.isRTL ? .trailing : .leading)
             .environment(\.layoutDirection, .leftToRight)
             .frame(maxWidth: 560, alignment: .leading)
+            .task(id: "\(profileAsked)|\(siteProfile?.firstName ?? "")") {
+                guard profileAsked else { return }
+                // Once per opening of the app, unless the name has only now come.
+                if let kept = ProfileView.kept, kept.name == siteProfile?.firstName { line = kept.line; return }
+                var generator = SystemRandomNumberGenerator()
+                let picked = MovieLines.pick(name: siteProfile?.firstName, familyName: siteProfile?.lastName, using: &generator)
+                ProfileView.kept = (siteProfile?.firstName, picked)
+                line = picked
+            }
     }
+
+    /// The line of this opening of the app, and the name it was picked for.
+    @MainActor private static var kept: (name: String?, line: String)?
 
     private var header: some View {
         HStack(alignment: .center, spacing: 24) {

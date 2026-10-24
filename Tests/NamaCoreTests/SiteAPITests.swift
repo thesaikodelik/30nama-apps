@@ -183,7 +183,14 @@ final class SiteAPITests: XCTestCase {
         XCTAssertEqual(Set(MovieLines.all).count, 100, "no line twice")
         XCTAssertTrue(MovieLines.all.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
         var generator = SystemRandomNumberGenerator()
-        XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(using: &generator)))
+        XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(name: nil, using: &generator)), "no name: a line as it is")
+        XCTAssertTrue(MovieLines.all.contains(MovieLines.pick(name: "  ", using: &generator)))
+        XCTAssertTrue(MovieLines.addressed.allSatisfy { $0.contains("{name}") })
+        for _ in 0..<50 {
+            let line = MovieLines.pick(name: "Sample", familyName: "Person", using: &generator)
+            XCTAssertTrue(line.contains("Sample"), line)
+            XCTAssertFalse(line.contains("{name}"), line)
+        }
     }
 
     func testArticleListsAndTheirPictures() throws {

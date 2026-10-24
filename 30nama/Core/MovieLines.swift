@@ -108,8 +108,66 @@ enum MovieLines {
         "I'm the king of the world!",
     ]
 
-    /// The line for this time the app is open.
-    static func pick<G: RandomNumberGenerator>(using generator: inout G) -> String {
-        all.randomElement(using: &generator) ?? all[0]
+    /// The lines from `all` that call someone by name or speak to them, with `{name}` where the
+    /// name or the word for them was: a line is only said to someone when their name fits in it.
+    /// Bond's own line goes by the family name, so it is said only when that is known.
+    static let addressed: [String] = [
+        "Frankly, {name}, I don't give a damn.",
+        "{name}, I've a feeling we're not in Kansas anymore.",
+        "Here's looking at you, {name}.",
+        "Go ahead, {name}, make my day.",
+        "All right, {name}, I'm ready for my close-up.",
+        "May the Force be with you, {name}.",
+        "{name}, fasten your seatbelts. It's going to be a bumpy night.",
+        "{name}, phone home.",
+        "Made it, {name}! Top of the world!",
+        "{name}, I think this is the beginning of a beautiful friendship.",
+        "Show me the money, {name}!",
+        "{name}, why don't you come up sometime and see me?",
+        "Play it, {name}. Play 'As Time Goes By.'",
+        "{name}, you can't handle the truth!",
+        "After all, {name}, tomorrow is another day!",
+        "You know how to whistle, don't you, {name}? You just put your lips together and blow.",
+        "{name}, you're gonna need a bigger boat.",
+        "I'll be back, {name}.",
+        "{name}, if you build it, he will come.",
+        "We'll always have Paris, {name}.",
+        "{name}! Hey, {name}!",
+        "Oh, {name}, don't let's ask for the moon. We have the stars.",
+        "{name}. {name}. Come back!",
+        "Well, {name}, nobody's perfect.",
+        "{name}, we have a problem.",
+        "You've got to ask yourself one question: 'Do I feel lucky?' Well, do ya, {name}?",
+        "{name}, there's no crying in baseball!",
+        "{name}, keep your friends close, but your enemies closer.",
+        "Well, {name}, here's another nice mess you've gotten me into!",
+        "{name}, say 'hello' to my little friend!",
+        "{name}, you can't fight in here! This is the War Room!",
+        "Elementary, my dear {name}.",
+        "Here's {name}!",
+        "Wait a minute, {name}. You ain't heard nothin' yet!",
+        "Forget it, {name}, it's Chinatown.",
+        "Hasta la vista, {name}.",
+        "Open the pod bay doors, {name}.",
+        "Yo, {name}!",
+        "{name}, you're going out a youngster, but you've got to come back a star!",
+        "Listen to me, {name}. You're my knight in shining armor. Don't you forget it.",
+        "Tell 'em to go out there with all they got and win just one for {name}.",
+        "Nobody puts {name} in a corner.",
+        "I'll get you, {name}, and your little dog too!",
+    ]
+
+    /// The line for this time the app is open: one said to them by their first name when it is
+    /// known, otherwise one of the hundred as it is.
+    static func pick<G: RandomNumberGenerator>(name: String?, familyName: String? = nil, using generator: inout G) -> String {
+        guard let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else {
+            return all.randomElement(using: &generator) ?? all[0]
+        }
+        var lines = addressed
+        if let family = familyName?.trimmingCharacters(in: .whitespaces), !family.isEmpty {
+            lines.append("\(family). \(name) \(family).")
+        }
+        let line = lines.randomElement(using: &generator) ?? lines[0]
+        return line.replacingOccurrences(of: "{name}", with: name)
     }
 }
