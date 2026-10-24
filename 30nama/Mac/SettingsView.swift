@@ -390,7 +390,7 @@ private struct ChoiceLabel: View {
 }
 
 /// A key the user makes on another site. It is kept as soon as it is typed or pasted, which a
-/// hidden field did not show: a key that is there now says so in green, can be shown to check it,
+/// hidden field did not show: a key that is there now says so, in the app's red, can be shown to check it,
 /// and removed.
 private struct KeyField<Row: View>: View {
     let label: String
@@ -439,13 +439,18 @@ private struct KeyField<Row: View>: View {
                 .padding(.horizontal, 12)
                 .frame(width: 252, height: 32)
                 .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
-                .overlay { Capsule(style: .continuous).strokeBorder(Color.green.opacity(saved ? 0.45 : 0), lineWidth: 1) }
+                .overlay { Capsule(style: .continuous).strokeBorder(Theme.accent.opacity(saved ? 0.55 : 0), lineWidth: 1) }
                 .environment(\.layoutDirection, .leftToRight))
             }
             Group {
                 if saved {
-                    Label(loc(.keySaved), systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(Color.green.opacity(0.85))
+                    // The app's own red, on the tick only: the words in the usual colour, so it does
+                    // not read as an error.
+                    Label {
+                        Text(loc(.keySaved)).foregroundStyle(Theme.text2)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
+                    }
                 } else {
                     Text(hint).foregroundStyle(Theme.text3)
                 }
