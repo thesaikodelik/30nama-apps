@@ -1059,20 +1059,12 @@ extension View {
     /// pill can leave one piece of glass and gather in another: the bar, and a disc beside it
     /// that is a tab of its own.
     func liquidGround() -> some View {
-        background {
-            GeometryReader { geo in
-                Color.clear.preference(key: LiquidGroundFrames.self, value: [geo.frame(in: .named("liquidBar"))])
-            }
-        }
+        modifier(LiquidGround())
     }
 
     /// Tells the bar's liquid pill where this tab is.
     func liquidTab(_ id: AnyHashable) -> some View {
-        background {
-            GeometryReader { geo in
-                Color.clear.preference(key: LiquidTabFrames.self, value: [id: geo.frame(in: .named("liquidBar"))])
-            }
-        }
+        modifier(LiquidTab(id: id))
     }
 
     /// A bar whose selected tab sits on a white pill that flows from tab to tab like a drop of
@@ -1082,27 +1074,101 @@ extension View {
     }
 }
 
+/// Asked again to measure where they are, and told whether the bar drew their glass. Measured
+/// once at a bad moment (the app reopening itself after an update, its window not yet in place),
+/// the pieces of glass and the tabs were somewhere else or nowhere, and the bar showed a plain
+/// pill with no glass and no flow until something made it lay itself out again.
+private struct LiquidPass: EnvironmentKey { static let defaultValue = 0 }
+private struct LiquidGroundDrawn: EnvironmentKey { static let defaultValue = true }
+
+private extension EnvironmentValues {
+    var liquidPass: Int {
+        get { self[LiquidPass.self] }
+        set { self[LiquidPass.self] = newValue }
+    }
+    var liquidGroundDrawn: Bool {
+        get { self[LiquidGroundDrawn.self] }
+        set { self[LiquidGroundDrawn.self] = newValue }
+    }
+}
+
+private struct LiquidGround: ViewModifier {
+    @Environment(\.liquidPass) private var pass
+    @Environment(\.liquidGroundDrawn) private var drawn
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                GeometryReader { geo in
+                    Color.clear.preference(key: LiquidGroundFrames.self, value: [geo.frame(in: .named("liquidBar"))])
+                }
+                .id(pass)
+            }
+            // Until the bar has drawn the glass under the pill, this piece draws its own, so it
+            // is never seen bare.
+            .background {
+                if !drawn { GlassLens(shape: Capsule(style: .continuous)) }
+            }
+    }
+}
+
+private struct LiquidTab: ViewModifier {
+    let id: AnyHashable
+    @Environment(\.liquidPass) private var pass
+
+    func body(content: Content) -> some View {
+        content.background {
+            GeometryReader { geo in
+                Color.clear.preference(key: LiquidTabFrames.self, value: [id: geo.frame(in: .named("liquidBar"))])
+            }
+            .id(pass)
+        }
+    }
+}
+
 private struct LiquidPillBar: ViewModifier {
     let selected: AnyHashable?
     @State private var frames: [AnyHashable: CGRect] = [:]
     @State private var grounds: [CGRect] = []
+    @State private var size: CGSize = .zero
+    @State private var pass = 0
+
+    /// A place that is really in the bar: some size, and inside it.
+    private func inBar(_ rect: CGRect) -> Bool {
+        size.width > 0 && rect.width > 1 && rect.height > 1
+            && CGRect(origin: .zero, size: size).insetBy(dx: -2, dy: -2).contains(rect)
+    }
 
     func body(content: Content) -> some View {
+        let groundsValid = !grounds.isEmpty && grounds.allSatisfy(inBar)
+        let tabs = frames.filter { inBar($0.value) }
         content
+            .environment(\.liquidPass, pass)
+            .environment(\.liquidGroundDrawn, groundsValid)
             .onPreferenceChange(LiquidTabFrames.self) { frames = $0 }
             .onPreferenceChange(LiquidGroundFrames.self) { grounds = $0 }
+            // Measured again whenever the window comes forward or changes size.
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in pass &+= 1 }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { _ in pass &+= 1 }
+            .background {
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { size = geo.size }
+                        .onChange(of: geo.size) { _, new in size = new }
+                }
+            }
             .background {
                 ZStack {
-                    if !grounds.isEmpty {
+                    if groundsValid {
                         DrawnGlass(outline: Capsules(frames: grounds), inner: Capsules(frames: grounds, inset: GlassLight.rimWidth))
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
                     }
                     // Seen only within the glass: between two pieces of it the pill passes
                     // unseen, as if under the gap, and comes out in the next.
-                    LiquidPill(selected: selected, frames: frames)
+                    LiquidPill(selected: selected, frames: tabs)
                         .mask {
-                            if grounds.isEmpty { Rectangle() } else { Capsules(frames: grounds, inset: 3) }
+                            if groundsValid { Capsules(frames: grounds, inset: 3) } else { Rectangle() }
                         }
                 }
             }
