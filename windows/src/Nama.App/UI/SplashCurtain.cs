@@ -32,6 +32,13 @@ public sealed class SplashCurtain : Grid
     internal static readonly Uri LogoSource = new("ms-appx:///Assets/Logo.png");
     private const float LineWidth = 320;
 
+    /// <summary>
+    /// The title is over the app. What arrives behind it then comes at once, not fading in: the
+    /// compositor draws a fading element apart from the rest, and the glass's blur missed it, so it
+    /// showed sharp through the blurred app until its fade was done.
+    /// </summary>
+    public static bool IsUp { get; private set; }
+
     private readonly Half _top, _bottom;
     /// <summary>The app behind, seen through the glass a little blurred: under both halves, so it does not part with them.</summary>
     private readonly Border _behind = new() { IsHitTestVisible = false };
@@ -83,6 +90,8 @@ public sealed class SplashCurtain : Grid
 
         SizeChanged += (_, e) => Lay(e.NewSize);
         Loaded += (_, _) => Begin();
+        IsUp = true;
+        Unloaded += (_, _) => IsUp = false;
     }
 
     private void Lay(Windows.Foundation.Size size)

@@ -115,9 +115,13 @@ public sealed class HomePage : Grid
         column.Children.Add(_dots);
         column.PointerEntered += (_, _) => _paused = true;
         column.PointerExited += (_, _) => _paused = false;
-        column.Opacity = 0;
-        column.Translation = new System.Numerics.Vector3(0, 10, 0);
-        column.Springy(0.45);
+        // Behind the opening title it is there at once: fading, the title's blur missed it.
+        if (!SplashCurtain.IsUp)
+        {
+            column.Opacity = 0;
+            column.Translation = new System.Numerics.Vector3(0, 10, 0);
+            column.Springy(0.45);
+        }
         _billboard.Children.Add(column);
         column.Loaded += (_, _) => { column.Opacity = 1; column.Translation = default; };
         ShowDots();

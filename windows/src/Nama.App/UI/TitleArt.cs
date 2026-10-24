@@ -57,12 +57,15 @@ public sealed class TitleArt : Grid
     {
         if (_settled) return;
         _settled = true;
+        // Behind the opening title, at once: fading, the title's blur missed it.
+        if (SplashCurtain.IsUp) { _name.OpacityTransition = null; _name.TranslationTransition = null; }
         _name.Opacity = 1;
         _name.Translation = default;
     }
 
     private void ShowLogo(Uri url, bool at)
     {
+        at |= SplashCurtain.IsUp;
         var loc = App.Loc;
         var column = new StackPanel { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Left };
         // Held left to right, so a window laid out right to left does not show the logo mirrored.
