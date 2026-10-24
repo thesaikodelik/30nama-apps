@@ -25,7 +25,7 @@ public sealed class ProfilePage : Grid
     private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(0, 110, 0, 60) };
     private List<Post> _picks = [], _starters = [], _watchlist = [], _favorites = [], _upcoming = [];
     private Dictionary<string, int> _listSizes = [];
-    private Grid _headerSlot = new();
+    private Grid _headerSlot = new(), _quoteSlot = new();
     /// <summary>The name the member gave the site; the app API sends only the username.</summary>
     private SiteProfile? _siteProfile;
     /// <summary>A line from a film, and the film on 30nama when it was found.</summary>
@@ -33,6 +33,13 @@ public sealed class ProfilePage : Grid
     private Post? _filmOnSite;
     /// <summary>The line of this opening of the app, the name it was picked for, and its film on 30nama.</summary>
     private static (string? Name, MovieLine Line, Post? Post)? _kept;
+    /// <summary>
+    /// The page is shown. Until then it is drawn once its parts are in, not part by part: each part
+    /// coming (the suggestions, the lists, the episodes on the way, the name from the site, the line)
+    /// redrew it, and what was there moved down under what came.
+    /// </summary>
+    private bool _shown;
+    private readonly TaskCompletionSource _lineReady = new();
 
     public ProfilePage(Nav nav)
     {
@@ -43,9 +50,23 @@ public sealed class ProfilePage : Grid
         Render();
         App.Changed += OnChanged;
         Unloaded += (_, _) => App.Changed -= OnChanged;
-        _ = RefreshAsync();
-        _ = LoadListsAsync();
+        var refresh = RefreshAsync();
+        var lists = LoadListsAsync();
         _ = LoadNameAsync();
+        _ = RevealAsync(refresh, lists);
+    }
+
+    /// <summary>Shows the page whole: when its parts are in, or after a few seconds whatever has come.</summary>
+    private async Task RevealAsync(Task refresh, Task lists)
+    {
+        // The name is asked quietly, behind the page's own requests: it is waited for only a little.
+        var named = Task.WhenAny(_lineReady.Task, Task.Delay(1500));
+        await Task.WhenAny(Task.WhenAll(refresh, lists, named), Task.Delay(4000));
+        _shown = true;
+        _column.Opacity = 0;
+        Render();
+        _column.Springy(0.3);
+        DispatcherQueue.TryEnqueue(() => _column.Opacity = 1);
     }
 
     private void OnChanged(string what)
@@ -80,12 +101,14 @@ public sealed class ProfilePage : Grid
         if (_kept is { } kept && kept.Name == first)
         {
             (_line, _filmOnSite) = (kept.Line, kept.Post);
+            _lineReady.TrySetResult();
             RenderHeader();
             return;
         }
         var picked = MovieLines.Pick(first, family, Random.Shared);
         (_line, _filmOnSite) = (picked, null);
         _kept = (first, picked, null);
+        _lineReady.TrySetResult();
         RenderHeader();
         // Quietly, after the page's own requests: whether 30nama has the film.
         foreach (var query in picked.SearchQueries)
@@ -97,7 +120,7 @@ public sealed class ProfilePage : Grid
                 if (_line != picked) return;
                 _filmOnSite = post;
                 _kept = (first, picked, post);
-                RenderHeader();
+                if (_shown) RenderQuote();
                 return;
             }
             catch (Exception) { }
@@ -125,8 +148,15 @@ public sealed class ProfilePage : Grid
     private void Render()
     {
         var loc = App.Loc;
-        _stage.Show(Backdrop);
         _column.Children.Clear();
+        if (!_shown)
+        {
+            var wait = Kit.Spinner();
+            wait.Margin = new Thickness(0, 120, 0, 0);
+            _column.Children.Add(wait);
+            return;
+        }
+        _stage.Show(Backdrop);
         var top = new StackPanel { Spacing = 30, Padding = new Thickness(Theme.Edge, 0, Theme.Edge, 0) };
         // A new one each drawing: the last one is still the child of the column before.
         _headerSlot = new Grid();
@@ -159,8 +189,19 @@ public sealed class ProfilePage : Grid
 
     private void RenderHeader()
     {
+        if (!_shown) return;
         _headerSlot.Children.Clear();
         _headerSlot.Children.Add(Header());
+    }
+
+    /// <summary>Only the line, when the film is found on 30nama: the rest of the card (the picture) is not drawn again.</summary>
+    private void RenderQuote()
+    {
+        _quoteSlot.Children.Clear();
+        if (_line is not { } line) return;
+        var quote = Quote(line, _filmOnSite);
+        quote.Margin = new Thickness(0, 10, 0, 0);
+        _quoteSlot.Children.Add(quote);
     }
 
     /// <summary>
@@ -207,12 +248,9 @@ public sealed class ProfilePage : Grid
             // The username, under a name given instead of it.
             column.Children.Add(Theme.Text(username, 13, FontWeights.Medium, Theme.Text3));
         }
-        if (_line is { } line)
-        {
-            var quote = Quote(line, _filmOnSite);
-            quote.Margin = new Thickness(0, 10, 0, 0);
-            column.Children.Add(quote);
-        }
+        _quoteSlot = new Grid();
+        column.Children.Add(_quoteSlot);
+        RenderQuote();
         Grid.SetColumn(column, 1);
         grid.Children.Add(column);
 
@@ -340,16 +378,17 @@ public sealed class ProfilePage : Grid
             TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, IsTextScaleFactorEnabled = false,
         };
         credit.Children.Add(signature);
+        // In a button whether or not the film is on 30nama: the line keeps its height when the film is found.
+        var open = Theme.Bare(credit, () => { if (post is not null) _nav.Open(post); });
+        open.HorizontalAlignment = HorizontalAlignment.Left;
         if (post is not null)
         {
-            var open = Theme.Bare(credit, () => _nav.Open(post));
-            open.HorizontalAlignment = HorizontalAlignment.Left;
             Kit.AutomationName(open, line.Film);
             open.PointerEntered += (_, _) => { signature.Foreground = new SolidColorBrush(tint); signature.TextDecorations = Windows.UI.Text.TextDecorations.Underline; };
             open.PointerExited += (_, _) => { signature.Foreground = Theme.Brush(Theme.Text3); signature.TextDecorations = Windows.UI.Text.TextDecorations.None; };
-            words.Children.Add(open);
         }
-        else words.Children.Add(credit);
+        else (open.IsTabStop, open.IsHitTestVisible) = (false, false);
+        words.Children.Add(open);
         block.Children.Add(words);
         return block;
     }
