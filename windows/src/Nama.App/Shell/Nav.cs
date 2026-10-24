@@ -21,6 +21,10 @@ public abstract record Route
     public sealed record Schedule : Route;
     /// <summary>The website's lists of the best.</summary>
     public sealed record TopLists : Route;
+    /// <summary>The website's news, reviews and announcements.</summary>
+    public sealed record News : Route;
+    /// <summary>One of them, whole.</summary>
+    public sealed record Article(Core.Article Item) : Route;
 
     /// <summary>The same page: a title by its id, a catalogue by its slug.</summary>
     public bool Same(Route other) => (this, other) switch
@@ -29,7 +33,8 @@ public abstract record Route
         (Catalog a, Catalog b) => a.Slug == b.Slug,
         (Advanced a, Advanced b) => a.Start == b.Start,
         (Actor a, Actor b) => a.Person.SiteId == b.Person.SiteId && a.Person.Imdb == b.Person.Imdb,
-        (Schedule, Schedule) or (TopLists, TopLists) => true,
+        (Schedule, Schedule) or (TopLists, TopLists) or (News, News) => true,
+        (Article a, Article b) => a.Item.Id == b.Item.Id,
         _ => false,
     };
 }

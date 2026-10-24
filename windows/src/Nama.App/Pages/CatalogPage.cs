@@ -289,13 +289,15 @@ public sealed class BrowsePage : Grid
         // What only the 30nama website has, through its own API.
         if (App.Api.HasSite)
         {
-            var site = new Grid { ColumnSpacing = 16, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
-            site.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            site.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var site = new Grid { ColumnSpacing = 16 };
+            for (var i = 0; i < 3; i++) site.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             site.Children.Add(SiteTile(App.Loc[S.weeklySchedule], "", () => _nav.Open(new Route.Schedule())));
             var top = SiteTile(App.Loc[S.topLists], Glyph.Star, () => _nav.Open(new Route.TopLists()));
             Grid.SetColumn(top, 1);
             site.Children.Add(top);
+            var news = SiteTile(App.Loc[S.news], "", () => _nav.Open(new Route.News()));
+            Grid.SetColumn(news, 2);
+            site.Children.Add(news);
             _column.Children.Add(site);
         }
         _column.Children.Add(AdvancedCard());
@@ -360,7 +362,7 @@ public sealed class BrowsePage : Grid
     {
         var group = new StackPanel { Spacing = 16 };
         group.Children.Add(Theme.Text(title, 26, FontWeights.Bold));
-        var tiles = new WrapRow(16);
+        var tiles = WrapRow.Fill(16, 210, 300);
         foreach (var entry in entries) tiles.Add(Tile(entry));
         group.Children.Add(tiles);
         return group;
@@ -369,7 +371,7 @@ public sealed class BrowsePage : Grid
     private Button Tile(MenuEntry entry)
     {
         var loc = App.Loc;
-        var face = new Grid { Width = 240, Height = 118, CornerRadius = new CornerRadius(14), Background = Theme.Brush(Theme.Surface2) }.Springy(0.2);
+        var face = new Grid { Height = 118, CornerRadius = new CornerRadius(14), Background = Theme.Brush(Theme.Surface2) }.Springy(0.2);
         face.Children.Add(Images.Remote(entry.Thumb ?? entry.Full, null, 360));
         face.Children.Add(new Border
         {

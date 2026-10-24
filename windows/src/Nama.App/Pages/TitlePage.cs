@@ -437,7 +437,7 @@ public sealed class TitlePage : Grid
                 pills.Add(Kit.Pill($"{loc[S.season]} {loc.Num(number)}", _season == number, () => { _season = number; Render(); }));
             column.Children.Add(pills);
         }
-        var grid = new WrapRow(12);
+        var grid = WrapRow.Fill(12, 250, 380);
         for (var i = 0; i < stream.Items.Count; i++)
         {
             var item = stream.Items[i];
@@ -453,7 +453,7 @@ public sealed class TitlePage : Grid
     private FrameworkElement EpisodeTile(StreamItem item, ContinueWatching? resume, bool watched, Action play)
     {
         var loc = App.Loc;
-        var face = new Grid { Width = 300, Height = 62, CornerRadius = new CornerRadius(14), Background = Theme.White(0.07), Padding = new Thickness(12, 0, 12, 0), ColumnSpacing = 14 };
+        var face = new Grid { Height = 62, CornerRadius = new CornerRadius(14), Background = Theme.White(0.07), Padding = new Thickness(12, 0, 12, 0), ColumnSpacing = 14 };
         face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -706,6 +706,14 @@ public sealed class WrapRow : Panel
 {
     private readonly double _spacing;
     private readonly bool _unmirrored;
+    private (double Min, double Max)? _fill;
+
+    /// <summary>
+    /// Tiles that take the row's width as the Mac's adaptive grid does: as many columns as fit at
+    /// <paramref name="min"/>, widened up to <paramref name="max"/>, and what is left over shared
+    /// out on both sides, so the row's two ends match. Its children are given the column's width.
+    /// </summary>
+    public static WrapRow Fill(double spacing, double min, double max = double.PositiveInfinity) => new(spacing) { _fill = (min, max) };
 
     /// <param name="unmirrored">
     /// For a wall of posters, all one size. Laid out as the Mac's adaptive grid: as many columns as
@@ -722,7 +730,12 @@ public sealed class WrapRow : Panel
         if (unmirrored) FlowDirection = FlowDirection.LeftToRight;
     }
 
-    public void Add(UIElement child) => Children.Add(child);
+    public void Add(UIElement child)
+    {
+        // A filled row's tiles take their column's width; a button would otherwise keep its own.
+        if (_fill is not null && child is FrameworkElement tile) tile.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Children.Add(child);
+    }
 
     /// <summary>The wall's columns for a width: how many, and how wide each is.</summary>
     private (int Count, double Width) Columns(double width, double item)
@@ -731,8 +744,33 @@ public sealed class WrapRow : Panel
         return (count, Math.Min(item + 40, (width - (count - 1) * _spacing) / count));
     }
 
+    /// <summary>The filled row's columns for a width: how many, how wide, and the margin each side.</summary>
+    private (int Count, double Width, double Margin) Filled(double width)
+    {
+        var (min, max) = _fill!.Value;
+        var count = Math.Max(1, (int)Math.Floor((width + _spacing) / (min + _spacing)));
+        var column = Math.Min(max, (width - (count - 1) * _spacing) / count);
+        return (count, column, Math.Max(0, (width - count * column - (count - 1) * _spacing) / 2));
+    }
+
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size available)
     {
+        if (_fill is not null && Children.Count > 0 && !double.IsInfinity(available.Width))
+        {
+            var (count, column, _) = Filled(available.Width);
+            double height = 0, row = 0;
+            for (var i = 0; i < Children.Count; i++)
+            {
+                Children[i].Measure(new Windows.Foundation.Size(column, double.PositiveInfinity));
+                row = Math.Max(row, Children[i].DesiredSize.Height);
+                if (i % count == count - 1 || i == Children.Count - 1)
+                {
+                    height += row + (height > 0 ? _spacing : 0);
+                    row = 0;
+                }
+            }
+            return new Windows.Foundation.Size(available.Width, height);
+        }
         if (_unmirrored && Children.Count > 0 && !double.IsInfinity(available.Width))
         {
             foreach (var child in Children) child.Measure(new Windows.Foundation.Size(available.Width, double.PositiveInfinity));
@@ -756,6 +794,19 @@ public sealed class WrapRow : Panel
 
     protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size final)
     {
+        if (_fill is not null && Children.Count > 0)
+        {
+            var (count, column, margin) = Filled(final.Width);
+            double top = 0;
+            for (var start = 0; start < Children.Count; start += count)
+            {
+                var row = Children.Skip(start).Take(count).Max(c => c.DesiredSize.Height);
+                for (var i = start; i < Math.Min(start + count, Children.Count); i++)
+                    Children[i].Arrange(new Windows.Foundation.Rect(Math.Round(margin + (i - start) * (column + _spacing)), top, column, row));
+                top += row + _spacing;
+            }
+            return final;
+        }
         if (_unmirrored && Children.Count > 0)
         {
             var item = Children[0].DesiredSize;

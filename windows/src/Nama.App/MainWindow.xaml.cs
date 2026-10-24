@@ -301,11 +301,12 @@ public sealed partial class MainWindow : Window
             Environment.SetEnvironmentVariable("NAMA_NOTIFY_TEST", null);
             EpisodeWatch.Show(shown, _app.Loc);
         }
-        // NAMA_PAGE: one of the website's pages, "schedule" or "toplists".
+        // NAMA_PAGE: one of the website's pages, "schedule", "toplists" or "news".
         switch (Environment.GetEnvironmentVariable("NAMA_PAGE"))
         {
             case "schedule": _nav.Open(new Route.Schedule()); break;
             case "toplists": _nav.Open(new Route.TopLists()); break;
+            case "news": _nav.Open(new Route.News()); break;
         }
         // NAMA_PERSON: a person's page, by 30nama's id for them.
         if (int.TryParse(Environment.GetEnvironmentVariable("NAMA_PERSON"), out var person))
@@ -365,6 +366,8 @@ public sealed partial class MainWindow : Window
             Route.Actor actor => new PersonPage(actor.Person, _nav),
             Route.Schedule => new SchedulePage(_nav),
             Route.TopLists => new TopListsPage(_nav),
+            Route.News => new NewsPage(_nav),
+            Route.Article article => new ArticleReader(article.Item),
             _ => null,
         };
         if (page is null) return;

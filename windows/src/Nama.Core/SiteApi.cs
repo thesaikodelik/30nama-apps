@@ -34,6 +34,23 @@ public static class SiteQuery
     public static string Newest(string kind, string? genre, bool streamOnly, int page) =>
         $"list/type/category/value/{kind}/page/{page}/orderby/id/order/desc/streamonly/{(streamOnly ? "yes" : "no")}/genre/{genre ?? "all"}";
 
+    /// <summary>A member's public page on the site: it has the first and last name the app API leaves out.</summary>
+    public static string Profile(string username)
+    {
+        // As a path segment: what a path may hold, less its slash.
+        const string allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*+,;=:@";
+        var sb = new System.Text.StringBuilder("profile/user/");
+        foreach (var b in System.Text.Encoding.UTF8.GetBytes(username))
+            sb.Append(b < 128 && allowed.Contains((char)b) ? ((char)b).ToString() : $"%{b:X2}");
+        return sb.ToString();
+    }
+
+    /// <summary>The site's news, reviews and 30nama's own announcements, newest first, 24 a page.</summary>
+    public static string Articles(Core.Article.Kinds kind, int page) => $"article/type/{Core.Article.Slug(kind)}/page/{page}";
+
+    /// <summary>One article whole: the same action as a title's or a person's page.</summary>
+    public static string Article(int id) => $"single/id/{id}";
+
     public static string Schedule(Schedule.Kinds kind) => $"schedule/type/{(kind == Core.Schedule.Kinds.Anime ? "anime" : "series")}";
 
     public static string TopList(TopLists list) => $"toplist/list/{TopListEntry.Slug(list)}";
@@ -198,6 +215,43 @@ public static partial class SiteText
         return shown;
     }
 
+    [GeneratedRegex(@"<a[^>]*href=""([^""]+\.(?:jpe?g|png|webp|gif))""[^>]*>\s*<img[^>]*>\s*</a>", RegexOptions.IgnoreCase)] private static partial Regex LinkedPicture();
+    [GeneratedRegex(@"<img[^>]*\ssrc=""([^""]+)""[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex Picture();
+    [GeneratedRegex(@"<video[\s\S]*?</video>|<iframe[\s\S]*?</iframe>", RegexOptions.IgnoreCase)] private static partial Regex Embedded();
+    [GeneratedRegex("<h[1-6][^>]*>", RegexOptions.IgnoreCase)] private static partial Regex HeadingOpen();
+    [GeneratedRegex("</h[1-6]>", RegexOptions.IgnoreCase)] private static partial Regex HeadingClose();
+
+    /// <summary>
+    /// An article's HTML as what the page is built of: headings, paragraphs and pictures, in order.
+    /// A picture that links to a larger one is the larger one. Videos and the rest of the editor's
+    /// markup are left out; links are kept as their words.
+    /// </summary>
+    public static IReadOnlyList<ArticleBlock> Blocks(string html)
+    {
+        const string picture = "\u0001", heading = "\u0002";
+        var s = LinkedPicture().Replace(html, $"\n{picture}$1\n");
+        s = Picture().Replace(s, $"\n{picture}$1\n");
+        s = Embedded().Replace(s, "\n");
+        s = HeadingOpen().Replace(s, $"\n{heading}");
+        s = HeadingClose().Replace(s, "\n");
+        var blocks = new List<ArticleBlock>();
+        foreach (var line in Paragraphs(s))
+        {
+            // Ordinal: a culture's comparison skips control characters, and every line would match.
+            if (line.StartsWith(picture, StringComparison.Ordinal))
+            {
+                if (Uri.TryCreate(line[1..].Trim(), UriKind.Absolute, out var url)) blocks.Add(new ArticleBlock.Picture(url));
+            }
+            else if (line.StartsWith(heading, StringComparison.Ordinal))
+            {
+                var text = TidyPersian(line[1..].Trim());
+                if (text.Length > 0) blocks.Add(new ArticleBlock.Heading(text));
+            }
+            else blocks.Add(new ArticleBlock.Paragraph(TidyPersian(line)));
+        }
+        return blocks;
+    }
+
     public static IReadOnlyList<string> Paragraphs(string html)
     {
         var s = html;
@@ -275,4 +329,84 @@ public sealed class Schedule
 
     /// <summary>The <see cref="System.DayOfWeek"/> a day of the site's is.</summary>
     public static DayOfWeek Weekday(int day) => (DayOfWeek)((day + 6) % 7);
+}
+
+/// <summary>
+/// The name a member gave the site, which the app API does not send: only the username, which
+/// cannot be changed and is often not a name at all.
+/// </summary>
+public sealed record SiteProfile(string? FirstName, string? LastName)
+{
+    public static SiteProfile Parse(Json j) => new(j["first_name"].Text, j["last_name"].Text);
+
+    /// <summary>First and last name together, or null when neither is filled in.</summary>
+    public string? FullName => new[] { FirstName, LastName }.OfType<string>().ToList() is { Count: > 0 } parts ? string.Join(" ", parts) : null;
+}
+
+/// <summary>A piece of an article's page.</summary>
+public abstract record ArticleBlock
+{
+    public sealed record Heading(string Text) : ArticleBlock;
+    public sealed record Paragraph(string Text) : ArticleBlock;
+    public sealed record Picture(Uri Url) : ArticleBlock;
+}
+
+/// <summary>
+/// An article as the site lists it: news, a review, or one of 30nama's own announcements. Its text
+/// is fetched apart, when it is opened.
+/// </summary>
+public sealed record Article
+{
+    public enum Kinds { News, Review, Announcement }
+
+    public required int Id { get; init; }
+    public Kinds Kind { get; init; }
+    public required string Title { get; init; }
+    /// <summary>The first lines of the text, as the list gives them.</summary>
+    public string? Summary { get; init; }
+    /// <summary>As the site writes it, in Persian ("۲۹ مهر ۱۴۰۵").</summary>
+    public string? Date { get; init; }
+    public Uri? Picture { get; init; }
+    public Uri? Thumbnail { get; init; }
+
+    public static string Slug(Kinds kind) => kind switch { Kinds.Review => "review", Kinds.Announcement => "announcement", _ => "news" };
+
+    public static Article? Parse(Json j)
+    {
+        if (j["id"].Int is not { } id || j["title"].Text is not { } title) return null;
+        var summary = j["description"].Text is { } d ? SiteText.TidyPersian(string.Join(" ", SiteText.Paragraphs(d))) : null;
+        // The JPEG first: the WebP the site lists is missing from its server for most articles.
+        var picture = j["image"]["full"].Url ?? j["poster"]["large"].Url ?? j["image"]["full_webp"].Url;
+        return new Article
+        {
+            Id = id,
+            Kind = j["article_type"].Text switch { "review" => Kinds.Review, "announcement" => Kinds.Announcement, _ => Kinds.News },
+            Title = SiteText.DecodeEntities(title),
+            Summary = string.IsNullOrEmpty(summary) ? null : summary,
+            Date = j["date"].Text,
+            Picture = picture,
+            Thumbnail = j["image"]["thumb"].Url ?? picture,
+        };
+    }
+}
+
+public sealed record ArticlePage(IReadOnlyList<Article> Articles, int Page, int Pages)
+{
+    public static ArticlePage Parse(Json j) =>
+        new(j["posts"].Array.Select(Article.Parse).OfType<Article>().ToList(), j["page"].Int ?? 1, j["pages"].Int ?? 1);
+}
+
+/// <summary>An article whole: what the list had, and its text in blocks.</summary>
+public sealed record ArticleText(Article Article, IReadOnlyList<ArticleBlock> Blocks)
+{
+    public static ArticleText? Parse(Json j)
+    {
+        if (Article.Parse(j) is not { } article) return null;
+        var blocks = SiteText.Blocks(j["content"].Text ?? "").ToList();
+        // The article's own picture is shown above it; the text often opens with it again.
+        static string Stem(Uri u) => Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(u.AbsolutePath));
+        if (blocks.FirstOrDefault() is ArticleBlock.Picture first && article.Picture is { } own && Stem(first.Url).StartsWith(Stem(own), StringComparison.Ordinal))
+            blocks.RemoveAt(0);
+        return new ArticleText(article, blocks);
+    }
 }

@@ -89,6 +89,14 @@ public sealed class NavBar : Grid
             flyout.Content = new Pages.NotificationsPanel(_nav, flyout.Hide) { FlowDirection = FlowDirection };
             flyout.ShowAt(button);
         };
+        // The bell stays while its pane is open: marking them all read would otherwise take it, and
+        // the pane with it, from under the pointer.
+        flyout.Opened += (_, _) => _bellPaneOpen = true;
+        flyout.Closed += (_, _) =>
+        {
+            _bellPaneOpen = false;
+            Refresh();
+        };
         button.PointerEntered += (_, _) => { inside.Background = Theme.White(0.12); icon.Foreground = Theme.Brush(Theme.Text1); };
         button.PointerExited += (_, _) => { inside.Background = Theme.White(0); icon.Foreground = Theme.Brush(Theme.Text1.WithAlpha(0.78)); };
         ToolTipService.SetToolTip(button, loc[S.notifications]);
@@ -193,7 +201,7 @@ public sealed class NavBar : Grid
         if (what is "notifications" or "user") Refresh();
     }
 
-    private bool _bellShown;
+    private bool _bellShown, _bellPaneOpen;
 
     /// <summary>The bell comes and goes with a fade and a little growing, as on the Mac.</summary>
     private void ShowBell(bool show)
@@ -216,6 +224,8 @@ public sealed class NavBar : Grid
             }), TaskScheduler.Default);
             return;
         }
+        // Not while its pane is open: the pane hangs from it.
+        if (was && _bellPaneOpen) return;
         // Built again each time: its count of unread ones may have changed.
         _bellSlot.Children.Clear();
         var bell = Bell();
@@ -249,9 +259,10 @@ public sealed class NavBar : Grid
         _back.IsTabStop = showBack;
         _downloadsLit = _nav.Section == Section.Downloads && _nav.Opened.Count == 0;
         ShowDownloads();
-        // The bell only while 30nama has something to tell: with none, it would take room and the
-        // eye for nothing. The room on the other side, which keeps the bar centred, goes with it.
-        var any = AppModel.Shared.IsLoggedIn && AppModel.Shared.Notifications is { Items.Count: > 0 };
+        // The bell only while 30nama has something new to tell: with none, it would take room and the
+        // eye for nothing. The room on the other side, which keeps the bar centred, goes with it. Read
+        // ones fill the list too; they are under "Notifications" on the profile.
+        var any = AppModel.Shared.IsLoggedIn && (AppModel.Shared.Notifications is { Unread: > 0 } || _bellPaneOpen);
         ShowBell(any);
         _items.Children.Clear();
         _tabs.Clear();

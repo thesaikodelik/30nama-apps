@@ -261,22 +261,6 @@ public sealed class SplashCurtain : Grid
                 RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5), RenderTransform = new RotateTransform { Angle = 28 },
             };
             canvas.Children.Add(band);
-            // Where the surface bends near the top: a soft ring of light.
-            var ring = new Border
-            {
-                Width = 1600, Height = 700,
-                Background = new RadialGradientBrush
-                {
-                    RadiusX = 0.5, RadiusY = 0.5,
-                    GradientStops =
-                    {
-                        new GradientStop { Color = Theme.Hex(0xFFFFFF, 0), Offset = 0.82 },
-                        new GradientStop { Color = Theme.Hex(0xFFFFFF, 0.1), Offset = 0.92 },
-                        new GradientStop { Color = Theme.Hex(0xFFFFFF, 0), Offset = 1 },
-                    },
-                },
-            };
-            canvas.Children.Add(ring);
             // The thick edge of the glass: a bright rim, and light glowing in from each side.
             foreach (var (from, to, horizontal, alignment) in new (Windows.Foundation.Point, Windows.Foundation.Point, bool, (HorizontalAlignment, VerticalAlignment))[]
             {
@@ -317,7 +301,6 @@ public sealed class SplashCurtain : Grid
                     Canvas.SetTop(element, e.NewSize.Height / 2 - element.Height / 2 + y);
                 }
                 Place(band, -420, -260);
-                Place(ring, 0, -380);
                 Place(moving, 0, 0);
             };
             var start = Motion.Visual(glint);

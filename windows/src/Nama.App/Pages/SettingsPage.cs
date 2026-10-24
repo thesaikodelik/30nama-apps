@@ -19,7 +19,8 @@ public sealed class SettingsPage : Grid
         Children.Add(Kit.Ambient());
         var layout = new Grid { HorizontalAlignment = HorizontalAlignment.Center, ColumnSpacing = 110 };
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(690) });
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
+        // As wide as the logo and its line, not more: the room left over is shared on both sides of the page.
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MaxWidth = 320 });
         layout.Children.Add(_column);
         var side = new StackPanel { Spacing = 18, Padding = new Thickness(0, 140, 0, 0) };
         side.Children.Add(new Image { Source = new BitmapImage(new Uri("ms-appx:///Assets/Logo.png")), Height = 72, HorizontalAlignment = HorizontalAlignment.Left, FlowDirection = FlowDirection.LeftToRight });
@@ -35,7 +36,7 @@ public sealed class SettingsPage : Grid
             var both = room >= 690 + 110 + 320;
             side.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
             layout.ColumnSpacing = both ? 110 : 0;
-            layout.ColumnDefinitions[1].Width = new GridLength(both ? 320 : 0);
+            layout.ColumnDefinitions[1].Width = both ? GridLength.Auto : new GridLength(0);
             layout.ColumnDefinitions[0].Width = new GridLength(Math.Max(280, Math.Min(690, room)));
         };
         Children.Add(scroller);

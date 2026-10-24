@@ -187,6 +187,57 @@ public class SiteApiTests
     }
 
     [Fact]
+    public void TheSitesProfileGivesTheNameTheAppApiLeavesOut()
+    {
+        Assert.Equal("profile/user/sample.user", SiteQuery.Profile("sample.user"));
+        Assert.Equal("profile/user/a%2Fb%20c", SiteQuery.Profile("a/b c"));
+        var both = SiteProfile.Parse(Json.Parse("""{"first_name":"Sample","last_name":" Person "}"""));
+        Assert.Equal("Sample Person", both.FullName);
+        Assert.Equal("Sample", both.FirstName);
+        Assert.Equal("Sample", SiteProfile.Parse(Json.Parse("""{"first_name":"Sample","last_name":""}""")).FullName);
+        Assert.Null(SiteProfile.Parse(Json.Parse("""{"first_name":null}""")).FullName);
+    }
+
+    [Fact]
+    public void ArticleListsAndTheirPictures()
+    {
+        Assert.Equal("article/type/review/page/3", SiteQuery.Articles(Article.Kinds.Review, 3));
+        Assert.Equal("single/id/721620", SiteQuery.Article(721620));
+        var page = ArticlePage.Parse(Fixtures.Load("site_articles")["result"]);
+        Assert.Equal(1182, page.Pages);
+        // An entry with no id is left out.
+        Assert.Equal(2, page.Articles.Count);
+        var first = page.Articles[0];
+        Assert.Equal(721620, first.Id);
+        Assert.Equal(Article.Kinds.News, first.Kind);
+        Assert.Equal("عنوان خبر نمونه – اول", first.Title);
+        Assert.Equal("خلاصهٔ نمونه، با فاصلهٔ پیش از ویرگول", first.Summary);
+        Assert.Equal("۲۹ مهر ۱۴۰۵", first.Date);
+        Assert.Equal("https://example.com/attach/2026/10/sample-scaled.jpg", first.Picture?.OriginalString);
+        // The JPEG: the WebP is mostly missing.
+        Assert.Equal("https://example.com/attach/2026/10/sample-scaled-309x197.jpg", first.Thumbnail?.OriginalString);
+        var review = page.Articles[1];
+        Assert.Equal(Article.Kinds.Review, review.Kind);
+        Assert.Null(review.Summary);
+        Assert.Equal("https://example.com/attach/2026/10/review.jpg", review.Picture?.OriginalString);
+    }
+
+    [Fact]
+    public void AnArticlesTextBecomesHeadingsParagraphsAndPictures()
+    {
+        var text = ArticleText.Parse(Fixtures.Load("site_article")["result"])!;
+        Assert.Equal("عنوان خبر نمونه", text.Article.Title);
+        // The opening picture is the article's own and is shown above it; the video is left out.
+        Assert.Equal<ArticleBlock>([
+            new ArticleBlock.Paragraph("پاراگراف اول با «نقل» و پیوند به Sample در سال ۲۰۲۶."),
+            new ArticleBlock.Heading("تیتر میانی"),
+            new ArticleBlock.Picture(new Uri("https://example.com/attach/2026/10/big.jpg")),
+            new ArticleBlock.Paragraph("پاراگراف دوم کنار عکس."),
+            new ArticleBlock.Picture(new Uri("https://example.com/attach/2026/10/alone.png")),
+        ], text.Blocks);
+    }
+
+    [Fact]
     public void PersianDigitsBecomeLatin()
     {
         Assert.Equal("123", SiteText.LatinDigits("۱۲۳"));
