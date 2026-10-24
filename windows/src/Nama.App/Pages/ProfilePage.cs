@@ -25,7 +25,7 @@ public sealed class ProfilePage : Grid
     private readonly StackPanel _column = new() { Spacing = 34, Padding = new Thickness(0, 110, 0, 60) };
     private List<Post> _picks = [], _starters = [], _watchlist = [], _favorites = [], _upcoming = [];
     private Dictionary<string, int> _listSizes = [];
-    private Grid _headerSlot = new(), _quoteSlot = new();
+    private Grid _quoteSlot = new();
     /// <summary>The name the member gave the site; the app API sends only the username.</summary>
     private SiteProfile? _siteProfile;
     /// <summary>A line from a film, and the film on 30nama when it was found.</summary>
@@ -33,45 +33,111 @@ public sealed class ProfilePage : Grid
     private Post? _filmOnSite;
     /// <summary>The line of this opening of the app, the name it was picked for, and its film on 30nama.</summary>
     private static (string? Name, MovieLine Line, Post? Post)? _kept;
+    private readonly TaskCompletionSource _lineReady = new(), _listsReady = new();
+
     /// <summary>
-    /// The page is shown. Until then it is drawn once its parts are in, not part by part: each part
-    /// coming (the suggestions, the lists, the episodes on the way, the name from the site, the line)
-    /// redrew it, and what was there moved down under what came.
+    /// One row of the page, its place kept from the start. It comes in when its data has come and
+    /// every row above it is in, so nothing is ever put above what is already seen: drawing the
+    /// page again for each answer moved what was there down under what came.
     /// </summary>
-    private bool _shown;
-    private readonly TaskCompletionSource _lineReady = new();
+    private sealed class Row(Func<FrameworkElement?> build)
+    {
+        public readonly Grid Slot = new() { Visibility = Visibility.Collapsed };
+        public readonly Func<FrameworkElement?> Build = build;
+        public bool Ready, Shown;
+    }
+
+    private readonly Row _headerRow, _tasteRow, _upcomingRow, _picksRow, _watchRow, _favRow, _endRow;
+    private readonly List<Row> _rows;
+    private readonly FrameworkElement _wait = Kit.Spinner();
 
     public ProfilePage(Nav nav)
     {
         _nav = nav;
+        _headerRow = new(Header);
+        _tasteRow = new(() => App.Ratings.IsEmpty ? NoRatings() : Insights());
+        _upcomingRow = new(() => _upcoming.Count == 0 ? null
+            : Kit.Shelf(App.Loc[S.upcoming], _upcoming.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p), note: p.NextEpisodeLabel(App.Loc.Lang)))));
+        _picksRow = new(() => App.Ratings.IsEmpty ? null : Shelf(App.Loc[S.forYou], _picks));
+        _watchRow = new(() => Shelf(App.Loc[S.watchlist], _watchlist));
+        _favRow = new(() => Shelf(App.Loc[S.favorites], _favorites));
+        _endRow = new(() => App.Ratings.IsEmpty ? Shelf(App.Loc[S.startWithThese], _starters) : Rated());
+        _rows = [_headerRow, _tasteRow, _upcomingRow, _picksRow, _watchRow, _favRow, _endRow];
+        foreach (var row in new[] { _headerRow, _tasteRow }) row.Slot.Padding = new Thickness(Theme.Edge, 0, Theme.Edge, 0);
+        foreach (var row in _rows) _column.Children.Add(row.Slot);
+        _wait.HorizontalAlignment = HorizontalAlignment.Center;
+        _column.Children.Add(_wait);
+
         Children.Add(Kit.Ambient());
         Children.Add(_stage);
         Children.Add(new ScrollViewer { Content = _column, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled });
-        Render();
         App.Changed += OnChanged;
         Unloaded += (_, _) => App.Changed -= OnChanged;
-        var refresh = RefreshAsync();
-        var lists = LoadListsAsync();
+        // What is kept here, not asked of the server, is in already.
+        _tasteRow.Ready = true;
+        _endRow.Ready = !App.Ratings.IsEmpty;
+        _ = RefreshAsync();
+        _ = LoadListsAsync();
         _ = LoadNameAsync();
-        _ = RevealAsync(refresh, lists);
+        _ = HeaderAsync();
     }
 
-    /// <summary>Shows the page whole: when its parts are in, or after a few seconds whatever has come.</summary>
-    private async Task RevealAsync(Task refresh, Task lists)
+    /// <summary>
+    /// The card, once what is in it has come: the counts of the lists, and the name and its line.
+    /// The name is asked quietly, behind the page's own requests: it is waited for only a little.
+    /// </summary>
+    private async Task HeaderAsync()
     {
-        // The name is asked quietly, behind the page's own requests: it is waited for only a little.
         var named = Task.WhenAny(_lineReady.Task, Task.Delay(1500));
-        await Task.WhenAny(Task.WhenAll(refresh, lists, named), Task.Delay(4000));
-        _shown = true;
-        _column.Opacity = 0;
-        Render();
-        _column.Springy(0.3);
-        DispatcherQueue.TryEnqueue(() => _column.Opacity = 1);
+        await Task.WhenAny(Task.WhenAll(_listsReady.Task, named), Task.Delay(4000));
+        Update(_headerRow);
+    }
+
+    /// <summary>A row's data has come (again): drawn in its place if shown, else let in when its turn comes.</summary>
+    private void Update(Row row)
+    {
+        if (row.Shown) Fill(row);
+        else
+        {
+            row.Ready = true;
+            Flow();
+        }
+    }
+
+    /// <summary>Brings in, from the top, every row that is ready and has nothing waiting above it.</summary>
+    private void Flow()
+    {
+        foreach (var row in _rows)
+        {
+            if (!row.Ready) break;
+            if (row.Shown) continue;
+            row.Shown = true;
+            Fill(row);
+            if (row.Slot.Visibility != Visibility.Visible) continue;
+            var slot = row.Slot;
+            slot.Opacity = 0;
+            slot.Translation = new System.Numerics.Vector3(0, 18, 0);
+            slot.Springy(0.35);
+            DispatcherQueue.TryEnqueue(() => { slot.Opacity = 1; slot.Translation = System.Numerics.Vector3.Zero; });
+        }
+        _wait.Visibility = _rows.All(r => r.Shown) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private static void Fill(Row row)
+    {
+        row.Slot.Children.Clear();
+        var content = row.Build();
+        if (content is not null) row.Slot.Children.Add(content);
+        row.Slot.Visibility = content is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnChanged(string what)
     {
-        if (what == "ratings") _ = RefreshAsync();
+        if (what == "ratings")
+        {
+            Update(_tasteRow);
+            _ = RefreshAsync();
+        }
         if (what is "lists" or "user") _ = LoadListsAsync();
         if (what == "user") _ = LoadNameAsync();
         if (what is "notifications" or "settings") RenderHeader();
@@ -120,7 +186,7 @@ public sealed class ProfilePage : Grid
                 if (_line != picked) return;
                 _filmOnSite = post;
                 _kept = (first, picked, post);
-                if (_shown) RenderQuote();
+                if (_headerRow.Shown) RenderQuote();
                 return;
             }
             catch (Exception) { }
@@ -145,53 +211,22 @@ public sealed class ProfilePage : Grid
     /// <summary>The title whose artwork washes the page: something the user chose, else something they rated.</summary>
     private Post? Backdrop => _favorites.FirstOrDefault() ?? _watchlist.FirstOrDefault() ?? App.Ratings.NewestFirst.FirstOrDefault()?.ToPost();
 
-    private void Render()
+    private static FrameworkElement NoRatings()
     {
-        var loc = App.Loc;
-        _column.Children.Clear();
-        if (!_shown)
-        {
-            var wait = Kit.Spinner();
-            wait.Margin = new Thickness(0, 120, 0, 0);
-            _column.Children.Add(wait);
-            return;
-        }
-        _stage.Show(Backdrop);
-        var top = new StackPanel { Spacing = 30, Padding = new Thickness(Theme.Edge, 0, Theme.Edge, 0) };
-        // A new one each drawing: the last one is still the child of the column before.
-        _headerSlot = new Grid();
-        top.Children.Add(_headerSlot);
-        RenderHeader();
-        if (App.Ratings.IsEmpty)
-        {
-            var empty = new StackPanel { Spacing = 8 };
-            empty.Children.Add(Theme.Text(loc[S.noRatingsYet], 22, FontWeights.Bold));
-            empty.Children.Add(Theme.Text(loc[S.rateHint], 16, color: Theme.Text2, lines: 2));
-            top.Children.Add(empty);
-        }
-        else top.Children.Add(Insights());
-        _column.Children.Add(top);
-        if (_upcoming.Count > 0)
-            _column.Children.Add(Kit.Shelf(loc[S.upcoming], _upcoming.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p), note: p.NextEpisodeLabel(loc.Lang)))));
-        Shelf(loc[S.forYou], _picks);
-        Shelf(loc[S.watchlist], _watchlist);
-        Shelf(loc[S.favorites], _favorites);
-        if (App.Ratings.IsEmpty) Shelf(loc[S.startWithThese], _starters);
-        else _column.Children.Add(Rated());
+        var empty = new StackPanel { Spacing = 8 };
+        empty.Children.Add(Theme.Text(App.Loc[S.noRatingsYet], 22, FontWeights.Bold));
+        empty.Children.Add(Theme.Text(App.Loc[S.rateHint], 16, color: Theme.Text2, lines: 2));
+        return empty;
     }
 
-    private void Shelf(string title, List<Post> posts)
-    {
-        if (posts.Count > 0) _column.Children.Add(Kit.Shelf(title, posts.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p)))));
-    }
+    private FrameworkElement? Shelf(string title, List<Post> posts) =>
+        posts.Count == 0 ? null : Kit.Shelf(title, posts.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))));
 
     // MARK: Header
 
     private void RenderHeader()
     {
-        if (!_shown) return;
-        _headerSlot.Children.Clear();
-        _headerSlot.Children.Add(Header());
+        if (_headerRow.Shown) Fill(_headerRow);
     }
 
     /// <summary>Only the line, when the film is found on 30nama: the rest of the card (the picture) is not drawn again.</summary>
@@ -551,7 +586,12 @@ public sealed class ProfilePage : Grid
     {
         HomeFeed feed;
         try { feed = await App.HomeAsync(); }
-        catch (Exception) { Render(); return; }
+        catch (Exception)
+        {
+            Update(_picksRow);
+            Update(_endRow);
+            return;
+        }
         // The same title can sit in two sections of the feed; it is wanted once.
         var seen = new HashSet<int>();
         var pool = feed.Sections.SelectMany(s => s.Posts).Where(p => seen.Add(p.Id)).ToList();
@@ -559,7 +599,8 @@ public sealed class ProfilePage : Grid
             // Nothing to go on yet: offer the best-regarded titles to kick things off.
             _starters = pool.Where(p => !p.ComingSoon && p.ImdbScore is not null).OrderByDescending(p => p.ImdbScore).Take(14).ToList();
         else _picks = App.Ratings.Recommend(pool, 16);
-        Render();
+        Update(_picksRow);
+        Update(_endRow);
     }
 
     /// <summary>The lists the user keeps on 30nama itself. A guest has none.</summary>
@@ -571,8 +612,12 @@ public sealed class ProfilePage : Grid
         _watchlist = await watch;
         _favorites = await liked;
         _listSizes = await sizes;
-        Render();
+        _stage.Show(Backdrop);
+        _listsReady.TrySetResult();
+        RenderHeader();
+        Update(_watchRow);
+        Update(_favRow);
         _upcoming = await App.UpcomingAsync();
-        if (_upcoming.Count > 0) Render();
+        Update(_upcomingRow);
     }
 }
