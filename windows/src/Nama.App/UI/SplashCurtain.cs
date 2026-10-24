@@ -1,5 +1,4 @@
 using System.Numerics;
-using Microsoft.Graphics.Canvas.Effects;
 using Microsoft.UI;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
@@ -56,7 +55,7 @@ public sealed class SplashCurtain : Grid
         // No material on the glass, as on the Mac: one would blur the app past recognising. The app
         // itself is blurred a little (6) and, in MainWindow, drawn 1.03 larger; both go as it leaves.
         // Hard edges: soft ones would darken the window's own edges.
-        _behindBlur = Blur.Of(c, c.CreateBackdropBrush(), 6, EffectBorderMode.Hard);
+        _behindBlur = Blur.Of(c, c.CreateBackdropBrush(), 6, GaussianBlur.Borders.Hard);
         var behind = c.CreateSpriteVisual();
         behind.Brush = _behindBlur;
         behind.RelativeSizeAdjustment = Vector2.One;
@@ -507,8 +506,8 @@ public sealed class SplashCurtain : Grid
 }
 
 /// <summary>
-/// A Gaussian blur for the compositor, from Win2D: WinUI 3 has no blur of its own. Its amount can be
-/// moved as <c>Blur.BlurAmount</c>.
+/// A Gaussian blur for the compositor (WinUI 3 has no blur of its own; <see cref="GaussianBlur"/>
+/// describes Direct2D's). Its amount can be moved as <c>Blur.BlurAmount</c>.
 /// </summary>
 internal static class Blur
 {
@@ -524,14 +523,10 @@ internal static class Blur
         return c.CreateSurfaceBrush(surface);
     }
 
-    public static CompositionEffectBrush Of(Compositor c, CompositionBrush source, float amount, EffectBorderMode border = EffectBorderMode.Soft)
+    public static CompositionEffectBrush Of(Compositor c, CompositionBrush source, float amount, GaussianBlur.Borders border = GaussianBlur.Borders.Soft)
     {
-        var effect = new GaussianBlurEffect
-        {
-            Name = "Blur", BlurAmount = amount, BorderMode = border, Optimization = EffectOptimization.Balanced,
-            Source = new CompositionEffectSourceParameter("source"),
-        };
-        var brush = c.CreateEffectFactory(effect, ["Blur.BlurAmount"]).CreateBrush();
+        var effect = new GaussianBlur { Name = "Blur", Amount = amount, Border = border, Source = new CompositionEffectSourceParameter("source") };
+        var brush = c.CreateEffectFactory(effect.AsEffect(), ["Blur.BlurAmount"]).CreateBrush();
         brush.SetSourceParameter("source", source);
         return brush;
     }
