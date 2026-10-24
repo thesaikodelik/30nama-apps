@@ -102,6 +102,14 @@ The Windows installer carries Microsoft's Windows App SDK (MIT License) and the 
 (Microsoft's BSD-style licence), both from NuGet. The trailer player uses the WebView2 runtime
 that comes with Windows.
 
+## Win2D (Windows app only)
+
+The Windows app's opening title blurs the app behind its glass and brings its logo out of a blur
+with Microsoft's Win2D (`Microsoft.Graphics.Win2D` 1.4.0, from NuGet): WinUI 3 has no blur effect of
+its own. Win2D's source is under the MIT License (github.com/microsoft/Win2D); the package from
+NuGet comes with Microsoft's own licence for it (microsoft.com/web/webpi/eula/eula_win2d_10012014.htm),
+and the Windows installer carries its `Microsoft.Graphics.Canvas.dll`.
+
 ## Subtitle site
 
 When 30nama has no subtitle of its own for a download, the Mac app reads the public pages of the
