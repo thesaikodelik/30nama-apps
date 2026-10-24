@@ -27,6 +27,9 @@ public sealed class Updater
     private readonly HttpClient _http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private DateTime _lastLook = DateTime.MinValue;
     private readonly DateTime _opened = DateTime.UtcNow;
+
+    /// <summary>The app has been open a few seconds: coming forward in them is the app starting, not a return to it.</summary>
+    public bool Settled => DateTime.UtcNow - _opened > TimeSpan.FromSeconds(7);
     private string? _staged;
     private Uri? _failedPage;
 
@@ -122,10 +125,9 @@ public sealed class Updater
     public enum Looks { Found, UpToDate, NoAnswer }
 
     /// <summary>
-    /// Looks for a newer release: by itself at most once an hour, and not in the first seconds the
-    /// app is open (GitHub answers sixty times an hour per address); at once when
-    /// <paramref name="asked"/>, from the button in Settings. Null when it did not look, or an
-    /// update is already on its way. As look(asked:) on the Mac.
+    /// Looks for a newer release: by itself at most once an hour (GitHub answers sixty times an hour
+    /// per address); at once when <paramref name="asked"/>, from the button in Settings. Null when it
+    /// did not look, or an update is already on its way. As look(asked:) on the Mac.
     /// </summary>
     public async Task<Looks?> LookAsync(bool asked = false)
     {
@@ -141,7 +143,7 @@ public sealed class Updater
             return Looks.Found;
         }
         if (Phase != Phases.Idle) return null;
-        if (!asked && (DateTime.UtcNow - _lastLook < TimeSpan.FromHours(1) || DateTime.UtcNow - _opened < TimeSpan.FromSeconds(7))) return null;
+        if (!asked && DateTime.UtcNow - _lastLook < TimeSpan.FromHours(1)) return null;
         _lastLook = DateTime.UtcNow;
         if (TestFeed is { } test) Log($"looking at the test feed {test}");
         try
