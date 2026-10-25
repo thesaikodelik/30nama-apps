@@ -9,7 +9,7 @@ on:
     inputs:
       budget:
         description: "Most titles to look up this run"
-        default: "20000"
+        default: "60000"
       max_pages:
         description: "Most catalogue pages of each kind to read (empty: all)"
         default: ""
@@ -37,7 +37,7 @@ jobs:
         env:
           SITE_KEY: ${{ secrets.SITE_KEY }}
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
-          BUDGET: ${{ inputs.budget || '20000' }}
+          BUDGET: ${{ inputs.budget || '60000' }}
           MAX_PAGES: ${{ inputs.max_pages }}
         run: python3 -I Tools/logos/build_logos.py out
       - name: Publish on the data branch
