@@ -1,0 +1,52 @@
+# Keeps logos.json on the `data` branch: the TMDB logos of 30nama's titles, for the apps to show
+# where TMDB is filtered. See Tools/logos/build_logos.py.
+name: logos
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: "Most titles to look up this run"
+        default: "20000"
+      max_pages:
+        description: "Most catalogue pages of each kind to read (empty: all)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: logos
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch what the last run left
+        run: |
+          mkdir out
+          if git fetch --depth 1 origin data; then
+            git show FETCH_HEAD:logos.json > out/logos.json
+            git show FETCH_HEAD:state.json > out/state.json
+          fi
+      - name: Look up new titles
+        env:
+          SITE_KEY: ${{ secrets.SITE_KEY }}
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+          BUDGET: ${{ inputs.budget || '20000' }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+        run: python3 -I Tools/logos/build_logos.py out
+      - name: Publish on the data branch
+        run: |
+          cd out
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add logos.json state.json
+          # One commit only, replaced each day: the history of this file is of no use to anyone.
+          git commit -q -m "logos.json, $(date -u +%F)"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

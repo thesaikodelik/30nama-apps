@@ -48,3 +48,16 @@ final class AparatTests: XCTestCase {
         XCTAssertEqual(request.url!.absoluteString.removingPercentEncoding?.contains("تریلر Dune: Part Two/perpage"), true)
     }
 }
+
+final class LogoIndexTests: XCTestCase {
+    func testALogoInTheLanguageOfTheInterfaceThroughTheProxy() throws {
+        let index = try XCTUnwrap(LogoIndex(try JSON.parse(Data(#"{"version":1,"updated":"2026-10-25","logos":{"tt1":["en.png","fa.png"],"tt2":["only.png",""]}}"#.utf8))))
+        XCTAssertEqual(index.count, 2)
+        XCTAssertEqual(index.logo(imdb: "tt1", lang: .fa)?.absoluteString, "https://wsrv.nl/?url=image.tmdb.org/t/p/w500/fa.png")
+        XCTAssertEqual(index.logo(imdb: "tt1", lang: .en)?.absoluteString, "https://wsrv.nl/?url=image.tmdb.org/t/p/w500/en.png")
+        XCTAssertEqual(index.logo(imdb: "tt2", lang: .fa)?.absoluteString, "https://wsrv.nl/?url=image.tmdb.org/t/p/w500/only.png")
+        XCTAssertNil(index.logo(imdb: "tt3", lang: .en))
+        XCTAssertNil(index.logo(imdb: nil, lang: .en))
+        XCTAssertNil(LogoIndex(JSON(["version": 2] as [String: Any])))
+    }
+}

@@ -17,6 +17,10 @@ final class TMDBStore {
     /// Looks under way, so that two parts of a page asking at once share one.
     @ObservationIgnored private var running: [Int: Task<TMDB.Info?, Never>] = [:]
     @ObservationIgnored private var usedKey: String?
+    /// TMDB is filtered here (the app is in Iran, `AppModel.inIran`): it is not asked at all, and
+    /// logos come from the repository's list of them instead.
+    @ObservationIgnored var filtered = false
+    @ObservationIgnored private var index: Task<LogoIndex?, Never>?
 
     /// What TMDB has for `post`, fetched the first time it is asked for. Without a key it returns
     /// once the logo is known; the trailer arrives in `known` a moment later.
@@ -68,6 +72,7 @@ final class TMDBStore {
             return info
         }
         #endif
+        if filtered { return await indexedLook(for: post, lang: lang) }
         guard let key = TMDBStore.key else { return await publicLook(for: post, lang: lang) }
         var id: Int?
         if let imdb = post.imdbID, let found = await json(TMDB.findRequest(imdbID: imdb, key: key)) {
@@ -82,6 +87,35 @@ final class TMDBStore {
         known[post.id] = info
         trailerSettled.insert(post.id)
         return info
+    }
+
+    /// Where TMDB is filtered: the logo from the list on GitHub, and no trailer (Aparat has those).
+    private func indexedLook(for post: Post, lang: Lang) async -> TMDB.Info? {
+        if index == nil { index = Task { await TMDBStore.loadIndex() } }
+        let list = await index?.value
+        // Not had this time: asked for again with the next title.
+        if list == nil { index = nil }
+        var info = TMDB.Info()
+        info.logo = list?.logo(imdb: post.imdbID, lang: lang)
+        known[post.id] = info
+        trailerSettled.insert(post.id)
+        return info
+    }
+
+    /// The list of logos, kept on disk and fetched again once a day; an old copy serves when GitHub does not answer.
+    private static func loadIndex() async -> LogoIndex? {
+        let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("30nama-logos.json")
+        let saved = try? Data(contentsOf: file)
+        let age = ((try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate).map { -$0.timeIntervalSinceNow }
+        if let saved, let age, age < 24 * 3600, let index = (try? JSON.parse(saved)).flatMap(LogoIndex.init) { return index }
+        var request = URLRequest(url: LogoIndex.address)
+        request.timeoutInterval = 20
+        if let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+           let index = (try? JSON.parse(data)).flatMap(LogoIndex.init) {
+            try? data.write(to: file, options: .atomic)
+            return index
+        }
+        return saved.flatMap { try? JSON.parse($0) }.flatMap(LogoIndex.init)
     }
 
     /// Without a key, the logo and the trailer, read from the site's public pages; the rest needs the API.

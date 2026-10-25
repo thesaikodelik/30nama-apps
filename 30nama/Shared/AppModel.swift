@@ -261,6 +261,9 @@ final class AppModel {
     private(set) var settings = Settings.load()
     private(set) var user: User?
     private(set) var apiHost: String?
+    /// Connected through the host that answers only inside Iran: TMDB, YouTube and the website are
+    /// filtered, so what comes from them is not waited for (see `APIClient.inIran`).
+    private(set) var inIran = false
     /// Bumped when the catalogue itself may differ: sign-in, sign-out, language.
     private(set) var contentVersion = 0
     /// Bumped when watch progress changed (the player closed).
@@ -313,6 +316,11 @@ final class AppModel {
             let host = try await api.bootstrap(cachedHost: UserDefaults.standard.string(forKey: "host"))
             UserDefaults.standard.set(host, forKey: "host")
             apiHost = host
+            inIran = await api.inIran
+            #if DEBUG
+            if FilteredNetwork.isOn { inIran = true }
+            #endif
+            TMDBStore.shared.filtered = inIran
         } catch {
             phase = .failed
             return
@@ -456,6 +464,8 @@ final class AppModel {
     /// the user's TMDB key when there is one, else TMDB's public page. Each title costs a 30nama
     /// search the first time, so the answers are kept on disk (see `Trending`).
     func trendingThisWeek() async -> [Post] {
+        // The row is TMDB's.
+        guard !inIran else { return [] }
         let key = TMDBStore.key
         if trending == nil || trending?.key != key {
             let api = api
