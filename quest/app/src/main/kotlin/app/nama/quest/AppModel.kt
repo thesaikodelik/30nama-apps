@@ -88,6 +88,33 @@ class AppModel(
 
   init {
     catalog.lang = _lang.value
+    watchPlayback()
+  }
+
+  /** The end of a film, or a stream that fails, brings the title page back instead of a dark screen. */
+  private fun watchPlayback() {
+    scope.launch {
+      video.state.collect { st ->
+        if (_place.value != Place.Playing) return@collect
+        when {
+          st.ended && st.duration > 0 -> stop()
+          st.error != null -> {
+            Log.w(TAG, "playback: ${st.error}")
+            stop()
+            _notice.value = loc(app.nama.core.S.playError)
+          }
+        }
+      }
+    }
+  }
+
+  /** Where the intro ends, while the film is inside it; the controls offer to skip there. */
+  fun introEnd(position: Double): Double? {
+    val s = _stream.value ?: return null
+    val start = s.introStart ?: 0.0
+    val end = s.introEnd ?: return null
+    // A second of slack at the end so the button doesn't flash as the intro finishes.
+    return end.takeIf { it > 0 && position >= start && position < end - 1 }
   }
 
   /** Signed-in users and the demo go straight home; everyone else sees the code first, with a way in as a guest. */

@@ -56,6 +56,11 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
         if (state.buffering) Text(loc(S.loading), style = Type.caption)
       }
       Timeline(state.position, state.duration, onSeek = { model.video.seekTo(it); onActivity() })
+      model.introEnd(state.position)?.let { end ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+          Pill(loc(S.skipIntro), { model.video.seekTo(end); onActivity() }, icon = Icon.Forward)
+        }
+      }
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(clock(model, state.position), style = Type.label.copy(color = Ink.text2, textDirection = TextDirection.Ltr), modifier = Modifier.width(110.dp))
         Spacer(Modifier.weight(1f))

@@ -226,7 +226,9 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
     cast.show(at(end), onTitle && hasDetails && model.details.value?.people?.isNotEmpty() == true)
 
     val idle = System.currentTimeMillis() - lastActivity > CONTROLS_HIDE_MS
-    controls.show(at(Layout.controls), playing && (!idle || st.paused || st.buffering))
+    // The controls also stay up while the intro can be skipped, so the offer isn't missed.
+    val inIntro = model.introEnd(st.position) != null
+    controls.show(at(Layout.controls), playing && (!idle || st.paused || st.buffering || inIntro))
     val h = Layout.SCREEN_H * screenScale
     subtitles.show(at(screenSpot.copy(y = screenSpot.y - h / 2 + 0.2f, d = screenSpot.d - 0.08f)), playing && st.subtitle.isNotBlank())
   }
