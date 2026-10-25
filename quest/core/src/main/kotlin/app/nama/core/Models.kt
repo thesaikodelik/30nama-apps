@@ -457,7 +457,7 @@ object Episode {
         return raw.dropWhile { !it.isDigit() }.takeWhile { it.isDigit() }.asciiInt()
     }
 
-    private val joiner = Regex("(?U)\\s*[,&+\\-–]\\s*")
+    private val joiner = unicodeRegex("\\s*[,&+\\-–]\\s*")
 
     /** Combined episodes arrive as "11,12"; show them as "11–12". */
     fun label(raw: String?, fallback: Int): String {

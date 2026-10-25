@@ -120,11 +120,11 @@ object SiteText {
         }
     }
 
-    private val straightQuotes = Regex("(?U)\"\\s*([^\"\\n]+?)\\s*\"")
-    private val spaceBeforeMark = Regex("(?U)\\s+([،؛:.!؟])")
-    private val commaWithoutSpace = Regex("(?U)،(?=\\S)")
-    private val mi = Regex("(?U)(^|\\s)(ن?می) (?=[آ-ی])")
-    private val ezafe = Regex("(?U)ه ی(?=\\s|$)")
+    private val straightQuotes = unicodeRegex("\"\\s*([^\"\\n]+?)\\s*\"")
+    private val spaceBeforeMark = unicodeRegex("\\s+([،؛:.!؟])")
+    private val commaWithoutSpace = unicodeRegex("،(?=\\S)")
+    private val mi = unicodeRegex("(^|\\s)(ن?می) (?=[آ-ی])")
+    private val ezafe = unicodeRegex("ه ی(?=\\s|$)")
 
     /**
      * The site's Persian is typed loosely: Latin digits, a space before every comma, straight
@@ -262,7 +262,7 @@ fun Post.Companion.fromSite(j: Json): Post? {
     return Post.from(shape)
 }
 
-private val siteYear = Regex("(?U)(?<=\\s)\\d{4}$")
+private val siteYear = unicodeRegex("(?<=\\s)\\d{4}$")
 
 /** A page of the site API's lists: `{page, pages, posts}`, with no total. */
 fun PostPage.Companion.fromSite(j: Json): PostPage {

@@ -68,7 +68,7 @@ object Aparat {
         "reaction", "review", "game", "fan made", "fanmade",
     )
 
-    private val trailingYear = Regex("(?U)\\s*\\(?(19|20)\\d\\d\\)?\\s*$")
+    private val trailingYear = unicodeRegex("\\s*\\(?(19|20)\\d\\d\\)?\\s*$")
 
     /** The title without a year at its end, as 30nama's English titles sometimes have. */
     private fun bareTitle(title: String): String = title.replace(trailingYear, "")

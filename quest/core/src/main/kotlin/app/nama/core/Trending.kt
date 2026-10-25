@@ -156,7 +156,7 @@ enum class TrendingRow {
 object TitleMatch {
     private val marks = Regex("[̀-ͯ]")
     private val notWord = Regex("[^a-z0-9؀-ۿ]+")
-    private val trailingYear = Regex("(?U)\\s*[\\(\\[]?\\b(19|20)\\d\\d[\\)\\]]?\\s*$")
+    private val trailingYear = unicodeRegex("\\s*[\\(\\[]?\\b(19|20)\\d\\d[\\)\\]]?\\s*$")
     private val latin = Regex("[a-zA-Z]")
 
     /** Lowercase, without accents or punctuation: "Amélie & Co." -> "amelie and co". */

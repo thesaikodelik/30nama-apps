@@ -82,6 +82,7 @@ class NamaActivity : AppSystemActivity() {
     stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>())
     model.start()
     if (BuildConfig.DEBUG) {
+      CoreSelfTest.run()
       // adb shell am start -n app.nama.quest/.NamaActivity --es place title --es lang fa
       intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let(model::setLang) }
       intent.getStringExtra("place")?.let(model::debugJump)

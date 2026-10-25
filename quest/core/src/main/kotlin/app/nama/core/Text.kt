@@ -160,3 +160,11 @@ internal fun String.withoutExtension(): String {
     val dot = lastIndexOf('.')
     return if (dot > 0) substring(0, dot) else this
 }
+
+/**
+ * A regex whose \s, \d and  know Unicode, as ICU's do in Swift. The JVM needs the (?U) flag for
+ * that; Android's engine is ICU itself, already behaves so, and rejects (?U) as a syntax error.
+ */
+fun unicodeRegex(pattern: String): Regex = Regex(if (onAndroid) pattern else "(?U)$pattern")
+
+private val onAndroid: Boolean = System.getProperty("java.vm.name")?.contains("Dalvik") == true
