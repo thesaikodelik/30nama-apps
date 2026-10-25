@@ -60,7 +60,11 @@ struct CatalogView: View {
                 }
 
                 if failed && posts.isEmpty {
-                    ErrorState { Task { await loadNext() } }.frame(height: 600)
+                    if sort == .newest {
+                        SiteErrorState { Task { await loadNext() } }.frame(height: 600)
+                    } else {
+                        ErrorState { Task { await loadNext() } }.frame(height: 600)
+                    }
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 44) {
                         ForEach(posts) { post in

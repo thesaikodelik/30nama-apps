@@ -168,9 +168,7 @@ struct PersonView: View {
     @ViewBuilder
     private var footer: some View {
         if failed {
-            Button(loc(.retry)) { Task { await loadNext() } }
-                .buttonStyle(GlassButtonStyle())
-                .frame(maxWidth: .infinity)
+            SiteRetry { await loadNext() }
         } else if loading {
             ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 20)
         } else if posts.isEmpty, done {

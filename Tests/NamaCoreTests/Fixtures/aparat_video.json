@@ -1,0 +1,41 @@
+{
+ "video": {
+  "id": "51917168",
+  "title": "تریلر فیلم دون: قسمت دوم (Dune: Part Two)",
+  "uid": "sjvxX",
+  "duration": 144,
+  "file_link": "https://example.com/aparat-video/abc-144p.mp4?wmsAuthSign=x",
+  "file_link_all": [
+   {
+    "profile": "144p",
+    "urls": [
+     "https://example.com/aparat-video/abc-144p.mp4?wmsAuthSign=x"
+    ]
+   },
+   {
+    "profile": "240p",
+    "urls": [
+     "https://example.com/aparat-video/abc-240p.mp4?wmsAuthSign=x"
+    ]
+   },
+   {
+    "profile": "360p",
+    "urls": [
+     "https://example.com/aparat-video/abc-360p.mp4?wmsAuthSign=x"
+    ]
+   },
+   {
+    "profile": "480p",
+    "urls": [
+     "https://example.com/aparat-video/abc-480p.mp4?wmsAuthSign=x"
+    ]
+   },
+   {
+    "profile": "720p",
+    "urls": [
+     "https://example.com/aparat-video/abc-720p.mp4?wmsAuthSign=x"
+    ]
+   }
+  ]
+ }
+}

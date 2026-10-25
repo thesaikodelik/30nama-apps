@@ -362,6 +362,26 @@ struct ErrorState: View {
     }
 }
 
+/// `ErrorState` for what comes from the website: says why when the site gave no answer at all
+/// (it is filtered in Iran), and asks it again at once on retry.
+struct SiteErrorState: View {
+    let retry: () -> Void
+
+    @Environment(AppModel.self) private var app
+    @Environment(\.loc) private var loc
+    @State private var outOfReach = false
+
+    var body: some View {
+        ErrorState(message: outOfReach ? loc(.siteOutOfReach) : nil) {
+            Task {
+                await app.api.siteAgain()
+                retry()
+            }
+        }
+        .task { outOfReach = !(await app.api.siteInReach) }
+    }
+}
+
 /// Placeholder block with a light sweeping across it.
 struct Skeleton: View {
     var width: CGFloat? = nil

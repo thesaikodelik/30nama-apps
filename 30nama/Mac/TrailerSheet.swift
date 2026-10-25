@@ -1,16 +1,23 @@
+import AVKit
 import SwiftUI
 import WebKit
 
-/// A title's trailer, playing over the window in YouTube's own player. YouTube cannot be reached
-/// everywhere without a VPN; when the player has not started after a while, the sheet says so
-/// rather than staying dark.
+/// A title's trailer, playing over the window: in YouTube's own player, or one from Aparat in
+/// the system's. YouTube cannot be reached everywhere without a VPN; when the player has not
+/// started after a while, the sheet says so rather than staying dark.
 struct TrailerSheet: View {
     let title: String
-    let video: String
+    let video: TrailerVideo
     let close: () -> Void
 
     @Environment(\.loc) private var loc
     @State private var unreachable = false
+
+    /// YouTube out of reach says so; Aparat is reachable everywhere, so there it is the video that failed.
+    private var failure: S {
+        if case .youtube = video { return .trailerUnreachable }
+        return .trailerNotLoaded
+    }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -34,11 +41,16 @@ struct TrailerSheet: View {
                     .accessibilityLabel(loc(.close))
                 }
                 ZStack {
-                    YouTubePlayer(video: video) { unreachable = !$0 }
+                    switch video {
+                    case .youtube(let id):
+                        YouTubePlayer(video: id) { unreachable = !$0 }
+                    case .aparat(let uid):
+                        AparatPlayer(uid: uid) { unreachable = true }
+                    }
                     if unreachable {
                         VStack(spacing: 10) {
                             Image(systemName: "wifi.exclamationmark").font(.system(size: 30))
-                            Text(loc(.trailerUnreachable)).font(.app(15, .medium)).multilineTextAlignment(.center)
+                            Text(loc(failure)).font(.app(15, .medium)).multilineTextAlignment(.center)
                         }
                         .foregroundStyle(Theme.text2)
                         .padding(30)
@@ -58,6 +70,34 @@ struct TrailerSheet: View {
             .overlay(shape.strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
             .shadow(color: .black.opacity(0.5), radius: 40, y: 20)
         }
+    }
+}
+
+/// A trailer from Aparat: its file, asked for as it is played, in the system's player.
+private struct AparatPlayer: View {
+    let uid: String
+    let failed: () -> Void
+
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack {
+            if let player {
+                VideoPlayer(player: player)
+            } else {
+                ProgressView().controlSize(.regular)
+            }
+        }
+        .task(id: uid) {
+            guard let file = await AparatStore.shared.file(uid: uid), !Task.isCancelled else {
+                if !Task.isCancelled { failed() }
+                return
+            }
+            let player = AVPlayer(url: file)
+            self.player = player
+            player.play()
+        }
+        .onDisappear { player?.pause() }
     }
 }
 

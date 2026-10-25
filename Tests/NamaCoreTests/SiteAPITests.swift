@@ -43,6 +43,39 @@ final class SiteAPITests: XCTestCase {
         XCTAssertEqual(q.form, ["parameters": #"{"cast":"nm0000995"}"#])
     }
 
+    func testASiteThatGivesNoAnswerIsNotAskedAgainForAWhile() async throws {
+        // As where the site is filtered: no answer at all.
+        var answering = false
+        let net = FakeNetwork { _, _ in answering ? (200, #"{"success":true,"msg":null,"result":{}}"#, [:]) : (0, "", [:]) }
+        var c = APIConfig()
+        c.requestSpacing = 0
+        c.backoff = [0.02, 0.02]
+        c.site.key = "site-key"
+        let api = APIClient(config: c, transport: net.transport)
+        do {
+            _ = try await api.site("schedule/type/series")
+            XCTFail("answered")
+        } catch {
+            XCTAssertEqual(error as? APIError, .unreachable)
+        }
+        // Not tried again, and the next page does not wait for it either.
+        XCTAssertEqual(net.calls.count, 1)
+        do {
+            _ = try await api.site("toplist/list/imdb")
+            XCTFail("answered")
+        } catch {
+            XCTAssertEqual(error as? APIError, .unreachable)
+        }
+        XCTAssertEqual(net.calls.count, 1)
+        let inReach = await api.siteInReach
+        XCTAssertFalse(inReach)
+        // Asked for again by the user, with the site now answering.
+        answering = true
+        await api.siteAgain()
+        _ = try await api.site("toplist/list/imdb")
+        XCTAssertEqual(net.calls.count, 2)
+    }
+
     func testSiteCallsGoToTheSiteHostWithItsKeyAndAForm() async throws {
         let net = FakeNetwork { _, _ in (200, #"{"success":true,"msg":null,"result":{"page":1,"pages":1,"posts":[]}}"#, [:]) }
         var c = APIConfig()

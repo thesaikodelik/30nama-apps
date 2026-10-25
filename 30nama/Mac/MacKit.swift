@@ -122,6 +122,40 @@ struct Hovered<Content: View>: View {
 }
 
 /// A small capsule that is one choice among a few: a season, a sort order.
+/// What a page that needs the website shows when it did not come: why, if the site gave no
+/// answer at all (it is filtered in Iran), and a button that asks it again at once.
+struct SiteRetry: View {
+    /// What failed came from the website; otherwise this is a plain retry button.
+    var site = true
+    let retry: () async -> Void
+
+    @Environment(AppModel.self) private var app
+    @Environment(\.loc) private var loc
+    @State private var outOfReach = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            if outOfReach {
+                Text(loc(.siteOutOfReach))
+                    .font(.app(15))
+                    .foregroundStyle(Theme.text2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(loc(.retry)) {
+                Task {
+                    if site { await app.api.siteAgain() }
+                    await retry()
+                }
+            }
+            .buttonStyle(GlassButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .task { outOfReach = site ? !(await app.api.siteInReach) : false }
+    }
+}
+
 struct PillChoice: View {
     let title: String
     let selected: Bool

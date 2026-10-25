@@ -71,8 +71,8 @@ final class MacNav {
     private(set) var opened: [MacRoute] = []
     /// The title a download is being chosen for, when that pane is up.
     var picking: Post?
-    /// The trailer playing over the window: the title's name and the YouTube id.
-    var trailer: (title: String, video: String)?
+    /// The trailer playing over the window: the title's name and where the video is.
+    var trailer: (title: String, video: TrailerVideo)?
     /// The quick-search bar is up.
     var palette = false
     /// The poster the pointer has rested on, while its card is up.

@@ -29,7 +29,7 @@ struct PersonView: View {
                     Text(loc(.filmography)).font(.app(38, .bold)).foregroundStyle(Theme.text1)
                 }
                 if failed && posts.isEmpty {
-                    ErrorState { Task { await loadNext() } }.frame(height: 400)
+                    SiteErrorState { Task { await loadNext() } }.frame(height: 400)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 44) {
                         ForEach(posts) { post in

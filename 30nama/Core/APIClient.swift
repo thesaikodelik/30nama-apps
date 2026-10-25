@@ -102,6 +102,13 @@ actor APIClient {
     let config: APIConfig
     private let transport: Transport
     private let gate: RequestGate
+    /// The website's own gate: its host is not the app API's, and a request of its that hangs, as
+    /// they do where it is filtered, must not hold a place the app's own requests are waiting for.
+    private let siteGate: RequestGate
+    /// Until when the website is taken to be out of reach (see `site`).
+    private var siteOutUntil = Date.distantPast
+    /// How long the website is not asked again after it gave no answer at all.
+    static let siteOutFor: TimeInterval = 180
 
     private(set) var host: String?
     private var key: String
@@ -117,6 +124,7 @@ actor APIClient {
         self.config = config
         self.key = config.apiKeys[0]
         self.gate = RequestGate(spacing: config.requestSpacing)
+        self.siteGate = RequestGate(spacing: config.requestSpacing)
         self.transport = transport ?? APIClient.urlSessionTransport()
     }
 
@@ -124,6 +132,9 @@ actor APIClient {
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = 20
         c.requestCachePolicy = .reloadIgnoringLocalCacheData
+        #if DEBUG
+        FilteredNetwork.install(in: c)
+        #endif
         let session = URLSession(configuration: c)
         return { request in
             let (data, response) = try await session.data(for: request)
@@ -211,24 +222,46 @@ actor APIClient {
     /// Runs an action of the website's API (`SiteConfig`) and returns its `result`, throwing
     /// `APIError.server` when it did not succeed. Through the same gate, with the same retries, as
     /// the app API: both are behind the same Cloudflare. Its parameters are in `path`, the rest in `form`.
+    ///
+    /// Iran filters the website (its API with it), and on some networks there a request to it is
+    /// neither answered nor refused. One that gets no answer at all is not tried again, and for
+    /// `siteOutFor` the site is not asked: what needs it fails at once with `APIError.unreachable`
+    /// instead of every page waiting out the same silence. `siteAgain()` lifts that.
     func site(_ path: String, _ form: [String: String] = [:], background: Bool = false) async throws -> JSON {
         guard let key = config.site.key, let url = URL(string: config.site.host + "/action/" + path) else { throw APIError.unreachable }
+        guard siteInReach else { throw APIError.unreachable }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 20
+        request.timeoutInterval = 12
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "c-api-key")
         request.setValue(config.site.platform, forHTTPHeaderField: "c-platform")
         request.httpBody = APIClient.formEncode(form).data(using: .utf8)
-        let e = try await retrying(background: background, retries: config.backoff.count) {
-            try await self.exchange(request, action: path)
+        let e = try await retrying(through: siteGate, background: background, retries: config.backoff.count) {
+            let data: Data, response: HTTPURLResponse
+            do {
+                (data, response) = try await self.transport(request)
+            } catch {
+                // Given up by whoever asked (a page closed) says nothing about the site.
+                if error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
+                self.siteOutUntil = Date().addingTimeInterval(APIClient.siteOutFor)
+                throw APIError.unreachable
+            }
+            return try self.envelope(data, response, action: path)
         }
         guard e.success else { throw APIError.server(e.message ?? "error") }
         return e.result
     }
 
+    /// Whether the website answered the last time it was asked, or has not been asked for a while.
+    var siteInReach: Bool { Date() >= siteOutUntil }
+
+    /// Asked for again by the user (a retry button, perhaps with a VPN now on): ask the site again at once.
+    func siteAgain() { siteOutUntil = .distantPast }
+
     /// One request through the gate, tried again after a transient failure.
-    private func retrying(background: Bool, retries: Int, _ send: () async throws -> Envelope) async throws -> Envelope {
+    private func retrying(through gate: RequestGate? = nil, background: Bool, retries: Int, _ send: () async throws -> Envelope) async throws -> Envelope {
+        let gate = gate ?? self.gate
         var attempt = 0
         while true {
             await gate.acquire(background: background)
@@ -294,6 +327,10 @@ actor APIClient {
         } catch {
             throw APIError.transient("\(action): \(error.localizedDescription)", retryAfter: 0)
         }
+        return try envelope(data, response, action: action)
+    }
+
+    private func envelope(_ data: Data, _ response: HTTPURLResponse, action: String) throws -> Envelope {
         // A progress report is answered with nothing at all: accepted, with nothing to say.
         if data.isEmpty, (200..<300).contains(response.statusCode) { return Envelope(success: true, message: nil, result: .null) }
         guard let json = try? JSON.parse(data), json.object != nil else {

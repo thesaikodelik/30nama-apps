@@ -89,7 +89,9 @@ struct DetailsView: View {
             while !streamTried, ContinuousClock.now - start < .seconds(2) {
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            _ = await trailerLook
+            // None from TMDB in time, as always where it is filtered: Aparat may have one. Its
+            // button joins the row when it is found.
+            if await trailerLook == nil { Task { await AparatStore.shared.look(for: preview) } }
             guard !Task.isCancelled else { return }
             for step in 1...7 {
                 withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.82)) { revealed = step }
@@ -299,7 +301,7 @@ struct DetailsView: View {
             .comingIn(at: 2, revealed)
         }
         // Only once a trailer has been found, so there is never a button that leads nowhere.
-        if let video = TMDBStore.shared.known[post.id]?.trailer {
+        if let video = trailer {
             Button {
                 // The silent preview behind the page stops; the trailer has the sound.
                 teaser = nil
@@ -313,6 +315,12 @@ struct DetailsView: View {
             .transition(.opacity)
             .comingIn(at: 3, revealed)
         }
+    }
+
+    /// The title's trailer: TMDB's, on YouTube, or else one found on Aparat.
+    private var trailer: TrailerVideo? {
+        if let video = TMDBStore.shared.known[post.id]?.trailer { return .youtube(video) }
+        return AparatStore.shared.found[post.id].map { .aparat($0.uid) }
     }
 
     /// What the user makes of the title: their own stars in one bar, and the lists they keep it on.

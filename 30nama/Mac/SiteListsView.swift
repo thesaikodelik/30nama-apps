@@ -39,9 +39,7 @@ struct ScheduleView: View {
                             }
                         }
                     } else if failed {
-                        Button(loc(.retry)) { Task { await load() } }
-                            .buttonStyle(GlassButtonStyle())
-                            .frame(maxWidth: .infinity)
+                        SiteRetry { await load() }
                     } else {
                         ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 30)
                     }
@@ -118,9 +116,7 @@ struct TopListsView: View {
                             }
                         }
                     } else if failed {
-                        Button(loc(.retry)) { Task { await load() } }
-                            .buttonStyle(GlassButtonStyle())
-                            .frame(maxWidth: .infinity)
+                        SiteRetry { await load() }
                     } else {
                         ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 30)
                     }

@@ -39,7 +39,7 @@ struct ScheduleView: View {
                         .focusSection()
                     }
                 } else if failed {
-                    ErrorState { Task { await load() } }.frame(height: 500)
+                    SiteErrorState { Task { await load() } }.frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 44) {
                         ForEach(0..<7, id: \.self) { _ in
@@ -123,7 +123,7 @@ struct TopListsView: View {
                     }
                     .focusSection()
                 } else if failed {
-                    ErrorState { Task { await load() } }.frame(height: 500)
+                    SiteErrorState { Task { await load() } }.frame(height: 500)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 44) {
                         ForEach(0..<7, id: \.self) { _ in

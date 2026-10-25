@@ -28,17 +28,22 @@ final class TMDBStore {
         }
         if let info = known[post.id] { return info }
         if let task = running[post.id] { return await task.value }
+        trailerSettled.remove(post.id)
         let task = Task { await look(post, lang: lang) }
         running[post.id] = task
         let info = await task.value
         running[post.id] = nil
+        // Failed: there will be no trailer this time, and no one should wait for one.
+        if info == nil { trailerSettled.insert(post.id) }
         return info
     }
 
-    /// The trailer for `post`, waiting up to `patience` for a look that is still under way.
+    /// The trailer for `post`, waiting up to `patience` and no longer. The wait starts now, not once
+    /// TMDB has answered: where TMDB is filtered its requests are neither answered nor refused, and
+    /// a title page holding its buttons for the answer showed none for a minute (issue #2).
     func trailer(for post: Post, lang: Lang, patience: Duration = .seconds(4)) async -> String? {
-        _ = await info(for: post, lang: lang)
         let until = ContinuousClock.now + patience
+        Task { _ = await info(for: post, lang: lang) }
         while ContinuousClock.now < until {
             if let trailer = known[post.id]?.trailer { return trailer }
             if trailerSettled.contains(post.id) { return nil }
@@ -86,6 +91,7 @@ final class TMDBStore {
         var request = URLRequest(url: TMDB.publicPage(imdbID: imdb))
         request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
         request.httpMethod = "HEAD"
+        request.timeoutInterval = 15
         guard let (_, response) = try? await URLSession.shared.data(for: request), let page = response.url else { return nil }
         var info = TMDB.Info()
         for language in (lang == .fa ? ["fa", "en"] : ["en"]) {
@@ -110,6 +116,8 @@ final class TMDBStore {
     private func publicPage(_ url: URL) async -> String? {
         var request = URLRequest(url: url)
         request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
+        // As the API's requests: a page that does not come is let go, not waited on for a minute.
+        request.timeoutInterval = 15
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return String(decoding: data, as: UTF8.self)

@@ -10,6 +10,7 @@ import Foundation
 /// - `NAMA_PLAY=1` also starts it playing. With `NAMA_DEMO=1` that needs no subscription.
 /// - `NAMA_MPV_LOG=<file>` has mpv write its full log there.
 /// - `NAMA_GUEST=1` opens as a guest, leaving the saved session as it is.
+/// - `NAMA_FILTERED=1` makes the hosts Iran filters (`FilteredHosts`) give no answer, as on Irancell.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
 /// - `NAMA_UPDATE_FEED=<url>` reads releases from there instead of GitHub, and `NAMA_VERSION=1.1.0`
 ///   makes the app take itself for that version, to walk through an update before one is published.

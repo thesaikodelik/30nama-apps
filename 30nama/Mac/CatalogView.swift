@@ -130,9 +130,7 @@ struct CatalogView: View {
     @ViewBuilder
     private var footer: some View {
         if failed {
-            Button(loc(.retry)) { Task { await loadNext() } }
-                .buttonStyle(GlassButtonStyle())
-                .frame(maxWidth: .infinity)
+            SiteRetry(site: sort == .newest) { await loadNext() }
         } else if loading {
             ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 20)
         }

@@ -7,6 +7,9 @@ struct NamaMacApp: App {
     @State private var updater = Updater()
 
     init() {
+        #if DEBUG
+        FilteredNetwork.start()
+        #endif
         let model = AppModel()
         _app = State(initialValue: model)
         _downloads = State(initialValue: Downloads(app: model))

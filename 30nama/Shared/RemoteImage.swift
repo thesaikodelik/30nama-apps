@@ -19,6 +19,9 @@ final class ImagePipeline: @unchecked Sendable {
         c.urlCache = URLCache(memoryCapacity: 8 * 1024 * 1024, diskCapacity: 400 * 1024 * 1024)
         c.requestCachePolicy = .returnCacheDataElseLoad
         c.timeoutIntervalForRequest = 30
+        #if DEBUG
+        FilteredNetwork.install(in: c)
+        #endif
         session = URLSession(configuration: c)
     }
 
