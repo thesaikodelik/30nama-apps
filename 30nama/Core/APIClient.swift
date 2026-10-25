@@ -9,6 +9,8 @@ struct APIConfig {
         "https://world.hana-api.com/api/v2",
         "https://ir.kazem-api.com/api/v2",
     ]
+    /// The hosts that answer only from inside Iran; the endpoint list says the same with "IR".
+    var iranHosts: Set<String> = ["https://ir.kazem-api.com/api/v2"]
     /// WebTV client key first, Android TV key as a fallback.
     var apiKeys = [
         "83hRzBabjDnuv9SmV2GFaftpxjhZSHXYe7UnBuX5DdANdpzPvXu46jvKZHPb97As",
@@ -105,6 +107,15 @@ actor APIClient {
     /// The website's own gate: its host is not the app API's, and a request of its that hangs, as
     /// they do where it is filtered, must not hold a place the app's own requests are waiting for.
     private let siteGate: RequestGate
+    private var discoveredIran: Set<String> = []
+
+    /// The host that answered is one that answers only inside Iran: the user is there, without a
+    /// VPN, and TMDB, YouTube and the website are filtered. Asked for no longer than is needed.
+    var inIran: Bool {
+        guard let host else { return false }
+        return config.iranHosts.contains(host) || discoveredIran.contains(host)
+    }
+
     /// Until when the website is taken to be out of reach (see `site`).
     private var siteOutUntil = Date.distantPast
     /// How long the website is not asked again after it gave no answer at all.
@@ -183,13 +194,13 @@ actor APIClient {
     private func discoverHosts() async -> [String] {
         let transport = self.transport
         let urls = config.discoveryURLs.compactMap { URL(string: "\($0)?t=\(Int(Date().timeIntervalSince1970))") }
-        return await withTaskGroup(of: [String].self) { group -> [String] in
+        let found = await withTaskGroup(of: [JSON].self) { group -> [JSON] in
             for url in urls {
                 group.addTask {
                     var request = URLRequest(url: url)
                     request.timeoutInterval = 6
                     guard let (data, _) = try? await transport(request), let list = try? JSON.parse(data) else { return [] }
-                    return list.array.compactMap { $0["host"].text }
+                    return list.array
                 }
             }
             for await list in group where !list.isEmpty {
@@ -198,6 +209,10 @@ actor APIClient {
             }
             return []
         }
+        for entry in found where entry["location"].text == "IR" {
+            if let host = entry["host"].text { discoveredIran.insert(host) }
+        }
+        return found.compactMap { $0["host"].text }
     }
 
     // MARK: Calls

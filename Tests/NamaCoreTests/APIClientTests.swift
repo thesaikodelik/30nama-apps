@@ -51,6 +51,28 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(host, "https://world.hana-api.com/api/v2")
     }
 
+    func testTheIranianHostSaysTheUserIsInIran() async throws {
+        // Only the Iranian host answers, as from inside Iran.
+        let inside = FakeNetwork { action, host in
+            if action == "discovery" { return (200, #"[{"location":"WORLD","host":"https://w.example.com/api/v2"},{"location":"IR","host":"https://i.example.com/api/v2"}]"#, [:]) }
+            return host == "i.example.com" ? (200, ok, [:]) : (0, "", [:])
+        }
+        let there = APIClient(config: config(), transport: inside.transport)
+        _ = try await there.bootstrap()
+        let inIran = await there.inIran
+        XCTAssertTrue(inIran)
+        // Abroad the Iranian host turns the request away.
+        let outside = FakeNetwork { action, host in
+            if action == "discovery" { return (0, "", [:]) }
+            if host.contains("kazem") { return (403, "<html>blocked</html>", [:]) }
+            return (200, ok, [:])
+        }
+        let here = APIClient(config: config(), transport: outside.transport)
+        _ = try await here.bootstrap()
+        let abroad = await here.inIran
+        XCTAssertFalse(abroad)
+    }
+
     func testBootstrapPrefersPublishedEndpointList() async throws {
         let net = FakeNetwork { action, host in
             if action == "discovery" { return (200, #"[{"location":"X","host":"https://new.example.com/api/v2"}]"#, [:]) }

@@ -9,3 +9,4 @@ xcuserdata/
 Config/Local.xcconfig
 # Reference material kept beside the code; never part of the repo.
 tmp/
+__pycache__/
