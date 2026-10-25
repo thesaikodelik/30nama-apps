@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.layout.size
 import app.nama.core.S
 import app.nama.quest.AppModel
 
@@ -51,14 +53,24 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
             .padding(horizontal = 40.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(stream?.title.orEmpty(), style = Type.heading, modifier = Modifier.weight(1f), maxLines = 1)
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(stream?.title.orEmpty(), style = Type.heading, modifier = Modifier.weight(1f, fill = false), maxLines = 1)
+        stream?.episodeLine?.let { Text(it, style = Type.label.copy(color = Ink.text2)) }
+        Spacer(Modifier.weight(1f))
         if (state.buffering) Text(loc(S.loading), style = Type.caption)
       }
       Timeline(state.position, state.duration, onSeek = { model.video.seekTo(it); onActivity() })
-      model.introEnd(state.position)?.let { end ->
+      // The offers of the moment: skip the intro or recap, or go on to the next episode during
+      // the credits (the pill fills as they run, and autoplay takes over when they end).
+      val skip = model.skipTarget(state.position)
+      val credits = model.creditsProgress(state.position, state.duration)
+      if (skip != null || credits != null) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-          Pill(loc(S.skipIntro), { model.video.seekTo(end); onActivity() }, icon = Icon.Forward)
+          if (skip != null) {
+            Pill(loc(if (skip.first) S.skipIntro else S.skipRecap), { model.video.seekExact(skip.second); onActivity() }, primary = true, icon = Icon.Forward)
+          } else if (credits != null) {
+            NextPill(loc(S.nextEpisode), credits) { model.playNext() }
+          }
         }
       }
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -69,6 +81,11 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
         RoundButton(if (state.paused) Icon.Play else Icon.Pause, { model.video.setPaused(!state.paused); onActivity() }, 76.dp, solid = true)
         Spacer(Modifier.width(22.dp))
         RoundButton(Icon.Forward, { model.video.seekBy(10.0); onActivity() }, 58.dp)
+        val next by model.next.collectAsState()
+        if (next != null) {
+          Spacer(Modifier.width(22.dp))
+          RoundButton(Icon.Next, { model.playNext(); onActivity() }, 58.dp)
+        }
         Spacer(Modifier.weight(1f))
         Row(Modifier.width(220.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
           val subsOn = state.subtitleLanguage != null
@@ -86,6 +103,26 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
         }
         Text(clock(model, state.duration), style = Type.label.copy(color = Ink.text3, textDirection = TextDirection.Ltr), modifier = Modifier.width(110.dp), textAlign = TextAlign.End)
       }
+    }
+  }
+}
+
+/** The red "Next episode" pill of the credits, filling from the reading start as they run. */
+@Composable
+private fun NextPill(text: String, progress: Float, onClick: () -> Unit) {
+  val p = rememberPointed()
+  Box(
+      Modifier.pointable(p, onClick, 1.04f).clip(RoundedCornerShape(50)).background(Ink.accent.copy(alpha = 0.55f)),
+      contentAlignment = Alignment.CenterStart,
+  ) {
+    Box(Modifier.matchParentSize().drawWithContent {
+      val rtl = layoutDirection == LayoutDirection.Rtl
+      val w = size.width * progress
+      drawRect(Ink.accent, topLeft = Offset(if (rtl) size.width - w else 0f, 0f), size = Size(w, size.height))
+    })
+    Row(Modifier.padding(horizontal = 26.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+      Glyph(Icon.Next, Modifier.size(18.dp), Color.White)
+      Text(text, style = Type.button.copy(color = Color.White))
     }
   }
 }

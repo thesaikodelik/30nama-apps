@@ -216,6 +216,7 @@ enum class Icon {
   Check,
   Sound,
   Muted,
+  Next,
   Search,
   Gear,
   Person,
@@ -296,6 +297,17 @@ fun Glyph(icon: Icon, modifier: Modifier = Modifier, color: Color = Ink.text1) {
           drawLine(color, Offset(w * 0.64f, h * 0.36f), Offset(w * 0.9f, h * 0.64f), w * 0.08f, StrokeCap.Round)
           drawLine(color, Offset(w * 0.9f, h * 0.36f), Offset(w * 0.64f, h * 0.64f), w * 0.08f, StrokeCap.Round)
         }
+      }
+      Icon.Next -> {
+        // Skip to next: a triangle and a bar, pointing the way time runs in the reading direction.
+        val tri = Path().apply {
+          if (rtl) { moveTo(w * 0.72f, h * 0.18f); lineTo(w * 0.24f, h * 0.5f); lineTo(w * 0.72f, h * 0.82f) }
+          else { moveTo(w * 0.28f, h * 0.18f); lineTo(w * 0.76f, h * 0.5f); lineTo(w * 0.28f, h * 0.82f) }
+          close()
+        }
+        drawPath(tri, color)
+        val x = if (rtl) w * 0.14f else w * 0.76f
+        drawRoundRect(color, Offset(x, h * 0.18f), Size(w * 0.1f, h * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
       }
       Icon.Search -> {
         drawCircle(color, w * 0.3f, Offset(w * 0.42f, h * 0.42f), style = Stroke(w * 0.11f))

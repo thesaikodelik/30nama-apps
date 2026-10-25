@@ -88,7 +88,7 @@ class NamaActivity : AppSystemActivity() {
       CoreSelfTest.run()
       // adb shell am start -n app.nama.quest/.NamaActivity --es place title --es lang fa
       intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let(model::setLang) }
-      intent.getStringExtra("place")?.let(model::debugJump)
+      intent.getStringExtra("place")?.let { model.debugJump(it, intent.getStringExtra("tile")) }
     }
   }
 
@@ -139,7 +139,7 @@ class NamaActivity : AppSystemActivity() {
           ui(R.id.panel_title_info, 1.0f, 0.36f) { TitleInfo(model) },
           ui(R.id.panel_episodes, 0.5f, 0.78f) { EpisodesPanel(model) },
           ui(R.id.panel_cast, 0.5f, 0.78f) { CastPanel(model) },
-          ui(R.id.panel_controls, 1.1f, 0.3f) { ControlsPanel(model) { stage?.poke() } },
+          ui(R.id.panel_controls, 1.1f, 0.36f) { ControlsPanel(model) { stage?.poke() } },
           ui(R.id.panel_subtitles, 2.4f, 0.3f, DP_SCREEN) { SubtitlePanel(model) },
           ui(R.id.panel_toast, 0.8f, 0.12f) { ToastPanel(model) },
           VideoSurfacePanelRegistration(

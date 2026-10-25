@@ -215,6 +215,8 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
 
   override fun seekTo(seconds: Double) = seekTo(seconds, exact = false)
 
+  override fun seekExact(seconds: Double) = seekTo(seconds, exact = true)
+
   /** [exact] decodes up to the exact frame; slower, for precise jumps like "skip intro". */
   fun seekTo(seconds: Double, exact: Boolean) {
     mpv.command("seek", fmt(seconds), if (exact) "absolute+exact" else "absolute+keyframes")

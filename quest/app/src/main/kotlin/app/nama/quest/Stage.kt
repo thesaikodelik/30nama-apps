@@ -277,8 +277,8 @@ class Stage(
 
     val idle = System.currentTimeMillis() - lastActivity > CONTROLS_HIDE_MS
     // The controls also stay up while the intro can be skipped, so the offer isn't missed.
-    val inIntro = model.introEnd(st.position) != null
-    controls.show(at(Layout.controls), playing && (!idle || st.paused || st.buffering || inIntro))
+    val offering = model.skipTarget(st.position) != null || model.creditsProgress(st.position, st.duration) != null
+    controls.show(at(Layout.controls), playing && (!idle || st.paused || st.buffering || offering))
     // Close and a little low, where the eye is already resting, whatever arrangement is up.
     toast.show(at(Layout.toast), model.toast.value != null)
     val h = Layout.SCREEN_H * screenScale

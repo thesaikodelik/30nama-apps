@@ -94,6 +94,11 @@ class DemoCatalog : Catalog {
             ),
         introStart = 8.0,
         introEnd = 40.0,
+        // Credits from a minute in, so the next-episode offer can be seen without waiting.
+        creditsStart = if (details.tile.isSeries) 60.0 else null,
+        episode = episode ?: details.resume,
+        episodeLine = (episode ?: details.resume)?.let { "S${it.season} · E${it.number}" },
+        fileId = (episode ?: details.resume)?.id ?: details.tile.id,
     )
   }
 

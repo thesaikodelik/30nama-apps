@@ -175,32 +175,74 @@ class AppModel(
     scope.launch {
       video.state.collect { st ->
         if (_place.value != Place.Playing) return@collect
+        val s = _stream.value
+        // Watched once 90% of a file longer than a minute has played, as on the Mac.
+        if (s?.fileId != null && st.duration > 60 && st.position / st.duration > 0.9) library.setWatched(s.fileId, true)
+        // Skip the intro or recap by itself when asked to, once per stretch and only after the
+        // picture has started; going back into it on purpose is not undone.
+        val skip = skipTarget(st.position)
+        if (skip != null && settings.autoSkip.value && st.videoWidth > 0 && autoSkipped != skip.second) {
+          autoSkipped = skip.second
+          video.seekExact(skip.second)
+        }
         when {
-          st.ended && st.duration > 0 -> stop()
+          st.ended && st.duration > 0 -> if (settings.autoplayNext.value && _next.value != null) playNext() else stop()
           st.error != null -> {
             Log.w(TAG, "playback: ${st.error}")
             stop()
             _notice.value = loc(app.nama.core.S.playError)
+            showToast(loc(app.nama.core.S.playError))
           }
         }
       }
     }
   }
 
-  /** Where the intro ends, while the film is inside it; the controls offer to skip there. */
-  fun introEnd(position: Double): Double? {
+  private var autoSkipped = -1.0
+
+  /**
+   * What can be skipped at [position]: (true, end) inside the intro, (false, end) inside the
+   * recap, as core's StreamItem.skipTarget. A second of slack at the end keeps the offer from
+   * flashing as the stretch finishes.
+   */
+  fun skipTarget(position: Double): Pair<Boolean, Double>? {
     val s = _stream.value ?: return null
-    val start = s.introStart ?: 0.0
-    val end = s.introEnd ?: return null
-    // A second of slack at the end so the button doesn't flash as the intro finishes.
-    return end.takeIf { it > 0 && position >= start && position < end - 1 }
+    s.introEnd?.let { end -> if (end > 0 && position >= (s.introStart ?: 0.0) && position < end - 1) return true to end }
+    s.recapEnd?.let { end -> if (end > 0 && position >= (s.recapStart ?: 0.0) && position < end - 1) return false to end }
+    return null
+  }
+
+  /** Kept for the controls: the intro's end while inside it. */
+  fun introEnd(position: Double): Double? = skipTarget(position)?.takeIf { it.first }?.second
+
+  /** The next episode of the series being played, if there is one. */
+  private val _next = MutableStateFlow<Episode?>(null)
+  val next: StateFlow<Episode?> = _next.asStateFlow()
+
+  /** During the end credits: how far through them (0..1), for the "Next episode" pill that fills. */
+  fun creditsProgress(position: Double, duration: Double): Float? {
+    val s = _stream.value ?: return null
+    val start = s.creditsStart ?: return null
+    if (_next.value == null || start <= 0 || position < start || duration <= start) return null
+    return ((position - start) / (duration - start)).toFloat().coerceIn(0f, 1f)
+  }
+
+  /** Reports where the current file got to, then starts the next episode. */
+  fun playNext() {
+    val n = _next.value ?: return
+    reportNow()
+    play(n)
   }
 
   /** Signed-in users and the demo go straight home; everyone else sees the code first, with a way in as a guest. */
   fun start() {
     scope.launch {
       safely { catalog.prepare() }.onFailure { Log.w(TAG, "prepare: $it") }
-      (catalog as? app.nama.quest.data.LiveCatalog)?.continueFilter = library::visibleContinue
+      (catalog as? app.nama.quest.data.LiveCatalog)?.let { live ->
+        live.continueFilter = library::visibleContinue
+        live.preferAdaptive = { settings.preferAdaptive.value }
+        live.audioMix = { settings.audioMix.value }
+      }
       if (catalog.signedIn) launch { library.refreshLists() }
       if (catalog.signedIn || catalog.isDemo || prefs.getBoolean("guest", false)) goHome() else startLogin()
     }
@@ -335,15 +377,33 @@ class AppModel(
         return@launch
       }
       // The user may have gone back while the stream was being asked for.
-      if (_place.value != Place.Title || _details.value !== d) return@launch
+      if ((_place.value != Place.Title && _place.value != Place.Playing) || _details.value !== d) return@launch
       _trailer.value = null
       _stream.value = s
+      _next.value = nextAfter(d, s.episode)
+      Log.i(TAG, "playing ${s.episodeLine ?: s.title}; next: ${_next.value?.let { "S${it.season} E${it.number}" } ?: "none"}")
+      autoSkipped = -1.0
       _place.value = Place.Playing
-      // Persian subtitles on by default when the title has them, as in the other apps.
-      video.selectSubtitle(s.subtitles.firstOrNull { it.language == "fa" }?.language)
+      // The default subtitle language from Settings (Persian unless changed), when the file has it.
+      val wanted = settings.defaultSubtitle.value
+      video.selectSubtitle(s.subtitles.firstOrNull { it.language == wanted }?.language)
       video.load(s)
       reportWhilePlaying(s)
     }
+  }
+
+  /** The episode after [current] in the series' order, across seasons. */
+  private fun nextAfter(d: Details, current: Episode?): Episode? {
+    current ?: return null
+    val all = d.seasons.flatMap { it.episodes }
+    val i = all.indexOfFirst { it.id == current.id }
+    return if (i >= 0) all.getOrNull(i + 1) else null
+  }
+
+  private fun reportNow() {
+    val s = _stream.value ?: return
+    val st = video.state.value
+    if (st.duration > 0) scope.launch { safely { catalog.reportProgress(s, st.position, st.duration) } }
   }
 
   private var reportJob: Job? = null
@@ -379,13 +439,27 @@ class AppModel(
   }
 
   fun stop() {
-    val s = _stream.value
-    val st = video.state.value
-    if (s != null && st.duration > 0) scope.launch { runCatching { catalog.reportProgress(s, st.position, st.duration) } }
+    reportNow()
     reportJob?.cancel()
+    playJob?.cancel()
     video.stop()
     _stream.value = null
+    _next.value = null
     _place.value = if (_details.value != null) Place.Title else Place.Home
+    refreshAfterPlayback()
+  }
+
+  /**
+   * What playing changed: the continue-watching row and the title's own resume point. Read again
+   * quietly, without emptying what is shown (the server takes a moment to record the position).
+   */
+  private fun refreshAfterPlayback() {
+    val tile = _details.value?.tile
+    scope.launch {
+      delay(1_500)
+      safely { catalog.home() }.onSuccess { _rows.value = it }
+      if (tile != null) safely { catalog.details(tile) }.onSuccess { fresh -> if (_details.value?.tile?.id == tile.id) _details.value = fresh }
+    }
   }
 
   fun startLogin() {
@@ -432,7 +506,7 @@ class AppModel(
    * Debug builds: open a place straight from adb, the way NAMA_OPEN does on the Mac, so each
    * arrangement can be looked at without a controller in hand.
    */
-  fun debugJump(where: String) {
+  fun debugJump(where: String, tileId: String? = null) {
     scope.launch {
       when (where) {
         "login" -> startLogin()
@@ -444,7 +518,8 @@ class AppModel(
           while (_place.value == Place.Starting) delay(100)
           if (_place.value == Place.Login) goHome()
           while (_rows.value.isEmpty()) delay(100)
-          val tile = _rows.value.getOrNull(1)?.tiles?.firstOrNull() ?: return@launch
+          val all = _rows.value.flatMap { it.tiles }
+          val tile = (tileId?.let { id -> all.firstOrNull { it.id == id } } ?: _rows.value.getOrNull(1)?.tiles?.firstOrNull()) ?: return@launch
           open(tile)
           if (where == "play") {
             while (_details.value == null) delay(100)

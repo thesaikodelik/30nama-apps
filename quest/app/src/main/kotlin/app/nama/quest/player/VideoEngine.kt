@@ -20,6 +20,9 @@ interface VideoEngine {
 
   fun seekTo(seconds: Double)
 
+  /** To the exact frame, slower: for jumps that must land precisely, like skipping the intro. */
+  fun seekExact(seconds: Double)
+
   /** Null turns subtitles off. */
   fun selectSubtitle(language: String?)
 

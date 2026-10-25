@@ -96,6 +96,16 @@ data class Stream(
     val startAt: Double = 0.0,
     val introStart: Double? = null,
     val introEnd: Double? = null,
+    val recapStart: Double? = null,
+    val recapEnd: Double? = null,
+    /** Where the end credits begin: the next episode is offered from here. */
+    val creditsStart: Double? = null,
+    /** The episode this is, for a series; the player finds the next one from it. */
+    val episode: Episode? = null,
+    /** "S2 · E5" style line for the controls. */
+    val episodeLine: String? = null,
+    /** 30nama's file id, for watched marks. */
+    val fileId: String? = null,
     /** Opaque handle the real catalogue needs to report progress. */
     val ref: Any? = null,
     /** A trailer behind the title page: starts muted and loops. */

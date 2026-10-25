@@ -50,6 +50,10 @@ class LiveCatalog(private val context: Context) : Catalog {
     private set
   private var logos: LogoIndex? = null
 
+  /** Settings the stream depends on (AppModel sets them from Settings). */
+  var preferAdaptive: () -> Boolean = { false }
+  var audioMix: () -> AudioMix = { AudioMix.stereo }
+
   /** Hides what the user took off continue watching (Library), applied to that row. */
   var continueFilter: (List<Post>) -> List<Post> = { it }
 
@@ -201,17 +205,28 @@ class LiveCatalog(private val context: Context) : Catalog {
     val result = answer.result ?: throw Refused(answer.refusal ?: Loc(lang)(if (signedIn) S.noStream else S.loginToWatch))
     streams[id] = result
     val item = (episode?.let { e -> result.items.firstOrNull { it.id == e.id } } ?: result.items.getOrNull(result.startIndex)) ?: return null
-    // The highest fixed rendition, like the other apps; the headset plays two channels, so the
-    // server's own stereo mix when there is one.
-    val quality = item.quality(preferAdaptive = false) ?: return null
-    val resumeAt = result.resume?.takeIf { it.fileID == item.fileID }?.time ?: 0.0
+    // The highest fixed rendition unless the user asked for the adaptive one, as on the Mac; the
+    // headset plays two channels, so the server's own stereo mix unless asked otherwise.
+    val quality = item.quality(preferAdaptive = preferAdaptive()) ?: return null
+    // The Mac's rule: resume only past the first 5 s and not inside the last 3% (the credits).
+    val resumeAt =
+        result.resume
+            ?.takeIf { it.fileID == item.fileID && it.time > 5 && (it.duration <= 0 || it.time < it.duration * 0.97) }
+            ?.time ?: 0.0
+    val loc = Loc(lang)
     return Stream(
-        url = quality.url(AudioMix.stereo).toString(),
+        url = quality.url(audioMix()).toString(),
         title = item.title(lang)?.let { "${post.title(lang)} · $it" } ?: post.title(lang),
         subtitles = item.subtitles.map { (code, uri) -> SubtitleTrack(uri.toString(), code, if (code == "fa") "فارسی" else "English") },
         startAt = resumeAt,
         introStart = item.introStart,
         introEnd = item.introEnd,
+        recapStart = item.recapStart,
+        recapEnd = item.recapEnd,
+        creditsStart = item.creditsStart,
+        episode = if (post.isSeries) episodeOf(item) else null,
+        episodeLine = if (post.isSeries) loc.episodeTag(item.season, item.episodeRaw ?: item.episodeNumber.toString()) else null,
+        fileId = item.fileID.ifEmpty { null },
         ref = Playing(post, item),
     )
   }
