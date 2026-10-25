@@ -86,6 +86,53 @@ class AppModel(
   private var loginJob: Job? = null
   private var detailsJob: Job? = null
 
+  /** The bar over the wall: which section, and what has been opened on top of it. */
+  private val _section = MutableStateFlow(Section.home)
+  val section: StateFlow<Section> = _section.asStateFlow()
+  private val _routes = MutableStateFlow<List<Route>>(emptyList())
+  val routes: StateFlow<List<Route>> = _routes.asStateFlow()
+
+  /** What wall screens use to reach 30nama; null in the demo, which has only the home rows. */
+  val services: Services? =
+      (catalog as? app.nama.quest.data.LiveCatalog)?.let { live ->
+        Services(context, live.api, prefs, { live.user }, { _lang.value })
+      }
+
+  fun go(to: Section) {
+    _routes.value = emptyList()
+    _section.value = to
+    if (_place.value == Place.Title) back()
+  }
+
+  fun push(route: Route) {
+    if (_routes.value.lastOrNull() == route) return
+    _routes.value = _routes.value + route
+    if (_place.value == Place.Title) {
+      detailsJob?.cancel()
+      playJob?.cancel()
+      stopTrailer()
+      _place.value = Place.Home
+    }
+  }
+
+  /** Opens a title found on any wall screen. */
+  fun openPost(post: app.nama.core.Post) {
+    val live = catalog as? app.nama.quest.data.LiveCatalog ?: return
+    open(live.tileFor(post))
+  }
+
+  /** Signs out and goes back to the code, as the Mac's settings do. */
+  fun signOut() {
+    val live = catalog as? app.nama.quest.data.LiveCatalog ?: return
+    scope.launch {
+      live.signOut()
+      _rows.value = emptyList()
+      _section.value = Section.home
+      _routes.value = emptyList()
+      startLogin()
+    }
+  }
+
   init {
     catalog.lang = _lang.value
     watchPlayback()
@@ -226,6 +273,7 @@ class AppModel(
         stopTrailer()
         _place.value = Place.Home
       }
+      Place.Home -> if (_routes.value.isNotEmpty()) _routes.value = _routes.value.dropLast(1)
       else -> Unit
     }
   }

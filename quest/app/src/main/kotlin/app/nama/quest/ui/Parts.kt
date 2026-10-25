@@ -216,6 +216,15 @@ enum class Icon {
   Check,
   Sound,
   Muted,
+  Search,
+  Gear,
+  Person,
+  Heart,
+  Bookmark,
+  Download,
+  Bell,
+  Shuffle,
+  Settings2,
 }
 
 /** Icons drawn as paths: crisp at any panel density, and no icon library in the APK. */
@@ -287,6 +296,49 @@ fun Glyph(icon: Icon, modifier: Modifier = Modifier, color: Color = Ink.text1) {
           drawLine(color, Offset(w * 0.64f, h * 0.36f), Offset(w * 0.9f, h * 0.64f), w * 0.08f, StrokeCap.Round)
           drawLine(color, Offset(w * 0.9f, h * 0.36f), Offset(w * 0.64f, h * 0.64f), w * 0.08f, StrokeCap.Round)
         }
+      }
+      Icon.Search -> {
+        drawCircle(color, w * 0.3f, Offset(w * 0.42f, h * 0.42f), style = Stroke(w * 0.11f))
+        drawLine(color, Offset(w * 0.64f, h * 0.64f), Offset(w * 0.88f, h * 0.88f), w * 0.12f, StrokeCap.Round)
+      }
+      Icon.Gear, Icon.Settings2 -> {
+        // Eight teeth around a ring.
+        for (i in 0 until 8) {
+          val a = Math.toRadians(i * 45.0)
+          val c = Offset(w / 2 + (w * 0.36f * Math.cos(a)).toFloat(), h / 2 + (h * 0.36f * Math.sin(a)).toFloat())
+          drawCircle(color, w * 0.09f, c)
+        }
+        drawCircle(color, w * 0.3f, Offset(w / 2, h / 2))
+        drawCircle(Ink.bg1, w * 0.12f, Offset(w / 2, h / 2))
+      }
+      Icon.Person -> {
+        drawCircle(color, w * 0.2f, Offset(w / 2, h * 0.32f))
+        drawArc(color, 180f, 180f, true, Offset(w * 0.15f, h * 0.58f), Size(w * 0.7f, h * 0.7f))
+      }
+      Icon.Heart -> {
+        val p = Path().apply {
+          moveTo(w * 0.5f, h * 0.86f)
+          cubicTo(w * 0.1f, h * 0.58f, w * 0.02f, h * 0.3f, w * 0.26f, h * 0.18f)
+          cubicTo(w * 0.4f, h * 0.12f, w * 0.48f, h * 0.22f, w * 0.5f, h * 0.3f)
+          cubicTo(w * 0.52f, h * 0.22f, w * 0.6f, h * 0.12f, w * 0.74f, h * 0.18f)
+          cubicTo(w * 0.98f, h * 0.3f, w * 0.9f, h * 0.58f, w * 0.5f, h * 0.86f)
+          close()
+        }
+        drawPath(p, color)
+      }
+      Icon.Bookmark -> drawPath(Path().apply { moveTo(w * 0.24f, h * 0.1f); lineTo(w * 0.76f, h * 0.1f); lineTo(w * 0.76f, h * 0.9f); lineTo(w * 0.5f, h * 0.68f); lineTo(w * 0.24f, h * 0.9f); close() }, color)
+      Icon.Download -> {
+        drawLine(color, Offset(w * 0.5f, h * 0.12f), Offset(w * 0.5f, h * 0.66f), w * 0.11f, StrokeCap.Round)
+        drawPath(Path().apply { moveTo(w * 0.26f, h * 0.44f); lineTo(w * 0.5f, h * 0.68f); lineTo(w * 0.74f, h * 0.44f) }, color, style = stroke)
+        drawLine(color, Offset(w * 0.18f, h * 0.88f), Offset(w * 0.82f, h * 0.88f), w * 0.11f, StrokeCap.Round)
+      }
+      Icon.Bell -> {
+        drawPath(Path().apply { moveTo(w * 0.2f, h * 0.72f); quadraticBezierTo(w * 0.28f, h * 0.6f, w * 0.28f, h * 0.42f); quadraticBezierTo(w * 0.3f, h * 0.16f, w * 0.5f, h * 0.14f); quadraticBezierTo(w * 0.7f, h * 0.16f, w * 0.72f, h * 0.42f); quadraticBezierTo(w * 0.72f, h * 0.6f, w * 0.8f, h * 0.72f); close() }, color)
+        drawCircle(color, w * 0.08f, Offset(w * 0.5f, h * 0.84f))
+      }
+      Icon.Shuffle -> {
+        drawLine(color, Offset(w * 0.12f, h * 0.3f), Offset(w * 0.88f, h * 0.7f), w * 0.1f, StrokeCap.Round)
+        drawLine(color, Offset(w * 0.12f, h * 0.7f), Offset(w * 0.88f, h * 0.3f), w * 0.1f, StrokeCap.Round)
       }
       Icon.Check -> drawPath(Path().apply { moveTo(w * 0.15f, h * 0.52f); lineTo(w * 0.42f, h * 0.78f); lineTo(w * 0.86f, h * 0.24f) }, color, style = stroke)
     }

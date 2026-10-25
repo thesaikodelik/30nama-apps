@@ -72,14 +72,16 @@ class NamaActivity : AppSystemActivity() {
   override fun onSceneReady() {
     super.onSceneReady()
     scene.setReferenceSpace(ReferenceSpace.LOCAL_FLOOR)
-    scene.enablePassthrough(true)
+    // Debug captures over adb would otherwise include the user's own room; "--ez room false" keeps
+    // it out of them.
+    scene.enablePassthrough(!(BuildConfig.DEBUG && !intent.getBooleanExtra("room", true)))
     scene.setLightingEnvironment(
         ambientColor = Vector3(0.4f),
         sunColor = Vector3(1.6f),
         sunDirection = -Vector3(1f, 3f, -2f),
         environmentIntensity = 0.3f,
     )
-    stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>())
+    stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>(), alongGaze = BuildConfig.DEBUG && intent.getBooleanExtra("gaze", false))
     model.start()
     if (BuildConfig.DEBUG) {
       CoreSelfTest.run()
@@ -189,7 +191,7 @@ class NamaActivity : AppSystemActivity() {
     // Text at ~1 m: 1000 dp per metre puts 17 dp body text at about 1° — the comfortable minimum.
     const val DP_NEAR = 1000f
     // The wall sits twice as far, so each dp is drawn larger to keep the same angle.
-    const val DP_FAR = 560f
+    const val DP_FAR = 600f
     const val DP_SCREEN = 520f
   }
 }

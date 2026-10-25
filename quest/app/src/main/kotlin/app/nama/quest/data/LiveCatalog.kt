@@ -39,11 +39,12 @@ class LiveCatalog(private val context: Context) : Catalog {
   override val isDemo = false
   override var lang: Lang = Lang.en
 
-  private val api = APIClient()
-  private val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
+  val api = APIClient()
+  val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
   private val ready = Mutex()
   private var prepared = false
-  private var user: User? = null
+  var user: User? = null
+    private set
   private var logos: LogoIndex? = null
 
   /** What a tile, a details page and a stream point back to. */
@@ -110,6 +111,17 @@ class LiveCatalog(private val context: Context) : Catalog {
     for (section in feed.sections) rows += Row(section.key, loc.title(forSection = section.key), section.posts.map { tile(it, loc, lang) })
     // The server can list a title twice in one row; the lists key their items by id.
     return rows.map { r -> r.copy(tiles = r.tiles.distinctBy { it.id }) }
+  }
+
+  /** A title found anywhere (search, a list, a person's page) as the tile the title page opens from. */
+  fun tileFor(post: Post): Tile = tile(post, Loc(lang), lang)
+
+  /** Signs out on the server and forgets the session here. */
+  suspend fun signOut() {
+    runCatching { api.call("logout") }
+    api.setToken(null)
+    user = null
+    prefs.edit().remove("token").apply()
   }
 
   private fun tile(post: Post, loc: Loc, lang: Lang): Tile {

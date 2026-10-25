@@ -156,52 +156,42 @@ fun LanguageChips(model: AppModel, current: Lang) {
 @Composable
 fun HomeWall(model: AppModel) {
   val lang by model.lang.collectAsState()
-  val rows by model.rows.collectAsState()
-  val failed by model.rowsFailed.collectAsState()
-  val loc = model.loc
   Directional(lang.isRTL) {
     Column(Modifier.fillMaxSize()) {
-      Row(
-          Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 10.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(14.dp),
-      ) {
-        Image(painterResource(R.drawable.nama_logo), null, Modifier.size(40.dp))
-        Text("30nama", style = Type.title.copy(fontSize = 28.sp, textDirection = TextDirection.Ltr))
-        if (model.catalog.isDemo) {
-          Text(
-              X.demoBadge(lang),
-              style = Type.caption.copy(color = Ink.accent),
-              modifier = Modifier.clip(RoundedCornerShape(50)).border(1.dp, Ink.accent.copy(alpha = 0.6f), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp),
-          )
-        }
-        Spacer(Modifier.weight(1f))
-        Text(X.pointToBrowse(lang), style = Type.caption)
-        LanguageChips(model, lang)
-      }
-      when {
-        rows.isEmpty() && failed ->
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-              Text(X.nothingLoaded(lang), style = Type.heading)
-              Spacer(Modifier.height(16.dp))
-              Pill(loc(S.retry), { model.loadHome() }, primary = true)
-            }
-        rows.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(loc(S.loading), style = Type.body) }
-        else ->
-            LazyColumn(
-                // Fade the bottom edge so a cut-off row reads as "more below", not as a clipping bug.
-                Modifier.fillMaxSize().fadeBottom(),
-                contentPadding = PaddingValues(bottom = 60.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
-            ) {
-              items(rows, key = { it.key }) { row -> WallRow(model, row) }
-            }
-      }
+      NavBar(model)
+      Box(Modifier.weight(1f).fillMaxWidth()) { WallContent(model) }
     }
   }
 }
 
-private fun Modifier.fadeBottom() =
+/** The home section: the server's rows, continue watching first. */
+@Composable
+fun HomeRows(model: AppModel) {
+  val lang by model.lang.collectAsState()
+  val rows by model.rows.collectAsState()
+  val failed by model.rowsFailed.collectAsState()
+  val loc = model.loc
+  when {
+    rows.isEmpty() && failed ->
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+          Text(X.nothingLoaded(lang), style = Type.heading)
+          Spacer(Modifier.height(16.dp))
+          Pill(loc(S.retry), { model.loadHome() }, primary = true)
+        }
+    rows.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(loc(S.loading), style = Type.body) }
+    else ->
+        LazyColumn(
+            // Fade the bottom edge so a cut-off row reads as "more below", not as a clipping bug.
+            Modifier.fillMaxSize().fadeBottom(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 60.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
+        ) {
+          items(rows, key = { it.key }) { row -> WallRow(model, row) }
+        }
+  }
+}
+
+fun Modifier.fadeBottom() =
     this.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
         .drawWithContent {
           drawContent()

@@ -35,7 +35,7 @@ object Layout {
   const val SCREEN_H = SCREEN_W * 9f / 16f
   const val SCREEN_D = 2.9f
 
-  val screenHome = Spot(0f, 0.88f, SCREEN_D)
+  val screenHome = Spot(0f, 0.95f, SCREEN_D)
   val screenTitle = Spot(0f, 0.24f, SCREEN_D)
   val screenPlay = Spot(0f, 0.18f, SCREEN_D - 0.05f)
   const val PLAY_SCALE = 1.18f
@@ -44,8 +44,8 @@ object Layout {
   // where the neck rests.
   const val WALL_RADIUS = 2.0f
   const val WALL_W = 3.4f
-  const val WALL_H = 1.2f
-  val wall = Spot(0f, -0.6f, WALL_RADIUS)
+  const val WALL_H = 1.3f
+  val wall = Spot(0f, -0.55f, WALL_RADIUS)
 
   val login = Spot(0f, -0.12f, 1.05f, faceEye = true)
 
@@ -162,7 +162,13 @@ class Placed(val entity: Entity) {
   }
 }
 
-class Stage(private val scene: Scene, private val model: AppModel, private val objects: SceneObjectSystem) {
+class Stage(
+    private val scene: Scene,
+    private val model: AppModel,
+    private val objects: SceneObjectSystem,
+    /** Debug captures: lay out along the headset's full gaze, tilt included, so a headset lying on a desk still frames the panels. */
+    private val alongGaze: Boolean = false,
+) {
   val login = place(R.id.panel_login)
   val wall = place(R.id.panel_home)
   val screenArt = place(R.id.panel_screen_art)
@@ -198,6 +204,10 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
 
   fun recenter() {
     val head = scene.getViewerPose()
+    if (alongGaze) {
+      origin = head
+      return
+    }
     // Only the heading matters: tilting the head while recentering must not tilt the room.
     val fwd = head.forward().let { Vector3(it.x, 0f, it.z) }
     if (fwd.length() < 1e-3f) return
@@ -276,10 +286,11 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
     val o = origin ?: return Pose()
     val right = o.right()
     val fwd = o.forward()
-    val p = o.t + right * spot.x + Vector3(0f, spot.y, 0f) + fwd * spot.d
+    val up = if (alongGaze) o.up() else Vector3(0f, 1f, 0f)
+    val p = o.t + right * spot.x + up * spot.y + fwd * spot.d
     val toPanel = p - o.t
-    val look = if (spot.faceEye) toPanel else Vector3(toPanel.x, 0f, toPanel.z)
-    return Pose(p, Quaternion.lookRotation(look.normalize(), Vector3(0f, 1f, 0f)))
+    val look = if (spot.faceEye || alongGaze) toPanel else Vector3(toPanel.x, 0f, toPanel.z)
+    return Pose(p, Quaternion.lookRotation(look.normalize(), up))
   }
 
   /**
