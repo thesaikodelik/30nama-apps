@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+  <item type="id" name="panel_login" />
+  <item type="id" name="panel_home" />
+  <item type="id" name="panel_screen_art" />
+  <item type="id" name="panel_video" />
+  <item type="id" name="panel_logo_glow" />
+  <item type="id" name="panel_logo" />
+  <item type="id" name="panel_title_info" />
+  <item type="id" name="panel_episodes" />
+  <item type="id" name="panel_cast" />
+  <item type="id" name="panel_controls" />
+  <item type="id" name="panel_subtitles" />
+</resources>

@@ -1,0 +1,15 @@
+.gradle
+.kotlin
+.idea
+*.iml
+build/
+local.properties
+.cxx
+.externalNativeBuild
+# libmpv, FFmpeg and their headers are built by tools/build-libmpv.sh, never committed
+app/src/main/jniLibs/
+app/src/main/cpp/include/
+# signing material stays on the release machine
+*.keystore
+*.jks
+keystore.properties

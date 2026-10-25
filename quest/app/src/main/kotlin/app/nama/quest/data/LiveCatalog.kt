@@ -1,0 +1,220 @@
+package app.nama.quest.data
+
+import android.content.Context
+import android.util.Log
+import app.nama.core.APIClient
+import app.nama.core.AudioMix
+import app.nama.core.Json
+import app.nama.core.Lang
+import app.nama.core.Loc
+import app.nama.core.LogoIndex
+import app.nama.core.Post
+import app.nama.core.S
+import app.nama.core.StreamItem
+import app.nama.core.StreamResult
+import app.nama.core.User
+import app.nama.core.WatchProgress
+import app.nama.core.continueWatching
+import app.nama.core.home
+import app.nama.core.profile
+import app.nama.core.qrLogin
+import app.nama.core.qrLoginCode
+import app.nama.core.reportProgress
+import app.nama.core.signIn
+import app.nama.core.single
+import app.nama.core.stream
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URI
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+/** The catalogue as 30nama serves it, through app.nama.core (the same logic as the Mac and Windows apps). */
+class LiveCatalog(private val context: Context) : Catalog {
+  override val isDemo = false
+  override var lang: Lang = Lang.en
+
+  private val api = APIClient()
+  private val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
+  private val ready = Mutex()
+  private var prepared = false
+  private var user: User? = null
+  private var logos: LogoIndex? = null
+
+  /** What a tile, a details page and a stream point back to. */
+  private val posts = HashMap<String, Post>()
+  private val streams = HashMap<Int, StreamResult>()
+
+  override val signedIn: Boolean
+    get() = user != null
+
+  override suspend fun prepare() {
+    ready.withLock {
+      if (prepared) return
+      val started = System.currentTimeMillis()
+      Log.i("Nama", "bootstrap…")
+      val host = api.bootstrap(prefs.getString("host", null))
+      Log.i("Nama", "bootstrap → $host in ${System.currentTimeMillis() - started} ms")
+      prefs.edit().putString("host", host).apply()
+      prefs.getString("token", null)?.let { token ->
+        api.setToken(token)
+        // An expired session reads as no profile; the app then asks to sign in again.
+        user = api.profile(token)
+        if (user == null) {
+          api.setToken(null)
+          prefs.edit().remove("token").apply()
+        }
+      }
+      prepared = true
+    }
+  }
+
+  override suspend fun home(): List<Row> {
+    prepare()
+    api.setLanguage(lang)
+    val loc = Loc(lang)
+    val feed = api.home()
+    val rows = mutableListOf<Row>()
+    if (signedIn) {
+      runCatching { api.continueWatching(background = true) }
+          .getOrNull()
+          ?.takeIf { it.isNotEmpty() }
+          ?.let { list -> rows += Row("continue", loc(S.continueWatching), list.map { tile(it, loc) }, landscape = true) }
+    }
+    feed.heroes.takeIf { it.isNotEmpty() }?.let { rows += Row("featured", loc(S.featured), it.map { p -> tile(p, loc) }, landscape = true) }
+    for (section in feed.sections) rows += Row(section.key, loc.title(forSection = section.key), section.posts.map { tile(it, loc) })
+    return rows
+  }
+
+  private fun tile(post: Post, loc: Loc): Tile {
+    val key = post.id.toString()
+    posts[key] = post
+    val resume = post.resume
+    return Tile(
+        id = key,
+        title = post.title(lang),
+        originalTitle = post.titleEnglish,
+        poster = post.poster.url(300.0)?.toString(),
+        backdrop = (post.cover ?: post.poster.url(428.0))?.toString(),
+        year = post.year?.toString(),
+        genres = post.genres.map { it.name },
+        rating = post.imdbScore?.let { String.format(Locale.ROOT, "%.1f", it) },
+        isSeries = post.isSeries,
+        progress = resume?.progress?.toFloat()?.takeIf { it > 0f },
+        note = resume?.let { r ->
+          listOfNotNull(
+                  if (post.isSeries && r.season != null && r.episode != null) loc.episodeTag(r.season!!, r.episode!!) else null,
+                  r.remainingMinutes?.let { loc.num(it) + " " + loc(S.minLeft) },
+              )
+              .joinToString(" · ")
+              .ifEmpty { null }
+        },
+    )
+  }
+
+  override suspend fun details(tile: Tile): Details {
+    prepare()
+    val id = tile.id.toInt()
+    val post = api.single(id) ?: posts[tile.id] ?: error("no title")
+    posts[tile.id] = post
+    val loc = Loc(lang)
+    val result = runCatching { api.stream(id, signedIn).result }.getOrNull()
+    if (result != null) streams[id] = result
+    val seasons =
+        result?.items.orEmpty().groupBy { it.season }.toSortedMap().map { (n, items) ->
+          Season(n, items.map { episodeOf(it) })
+        }
+    val resumeItem = result?.let { r -> r.items.getOrNull(r.startIndex).takeIf { r.resume != null } }
+    return Details(
+        tile = tile(post, loc).copy(backdrop = (post.cover ?: post.poster.url(428.0))?.toString() ?: tile.backdrop),
+        overview = post.plot(lang).ifBlank { null },
+        runtimeMinutes = post.runtimeMinutes,
+        logo = logoIndex()?.logo(post.imdbID, lang)?.toString(),
+        director = post.directors.firstOrNull(),
+        people = post.cast.take(16).map { Person(it.name, it.role ?: loc(S.cast), it.poster?.url(160.0)?.toString()) },
+        seasons = if (post.isSeries) seasons else emptyList(),
+        resume = resumeItem?.takeIf { post.isSeries }?.let(::episodeOf),
+    )
+  }
+
+  private fun episodeOf(item: StreamItem) =
+      Episode(
+          id = item.id,
+          season = item.season,
+          number = item.episodeNumber,
+          title = item.title(lang) ?: "",
+          minutes = item.durationMinutes,
+      )
+
+  override suspend fun stream(details: Details, episode: Episode?): Stream? {
+    val id = details.tile.id.toInt()
+    val post = posts[details.tile.id] ?: return null
+    val answer = api.stream(id, signedIn)
+    val result = answer.result ?: throw Refused(answer.refusal ?: Loc(lang)(if (signedIn) S.noStream else S.loginToWatch))
+    streams[id] = result
+    val item = (episode?.let { e -> result.items.firstOrNull { it.id == e.id } } ?: result.items.getOrNull(result.startIndex)) ?: return null
+    // The highest fixed rendition, like the other apps; the headset plays two channels, so the
+    // server's own stereo mix when there is one.
+    val quality = item.quality(preferAdaptive = false) ?: return null
+    val resumeAt = result.resume?.takeIf { it.fileID == item.fileID }?.time ?: 0.0
+    return Stream(
+        url = quality.url(AudioMix.stereo).toString(),
+        title = item.title(lang)?.let { "${post.title(lang)} · $it" } ?: post.title(lang),
+        subtitles = item.subtitles.map { (code, uri) -> SubtitleTrack(uri.toString(), code, if (code == "fa") "فارسی" else "English") },
+        startAt = resumeAt,
+        introStart = item.introStart,
+        introEnd = item.introEnd,
+        ref = Playing(post, item),
+    )
+  }
+
+  override suspend fun reportProgress(stream: Stream, seconds: Double, duration: Double) {
+    if (!signedIn) return
+    val ref = stream.ref as? Playing ?: return
+    api.reportProgress(WatchProgress(ref.post, ref.item, user?.id, seconds, duration))
+  }
+
+  override suspend fun loginCode(): LoginCode {
+    prepare()
+    val c = api.qrLoginCode()
+    return LoginCode(c.code, "30nama.com/auth")
+  }
+
+  override suspend fun pollLogin(code: LoginCode): Boolean {
+    val token = api.qrLogin(code.code) ?: return false
+    user = api.signIn(token)
+    prefs.edit().putString("token", token).apply()
+    return true
+  }
+
+  /** The logo list, kept for a day in the cache like the Mac does. */
+  private suspend fun logoIndex(): LogoIndex? {
+    logos?.let {
+      return it
+    }
+    return withContext(Dispatchers.IO) {
+      val file = File(context.cacheDir, "30nama-logos.json")
+      val fresh = file.exists() && System.currentTimeMillis() - file.lastModified() < 24 * 3600_000L
+      val text =
+          if (fresh) file.readText()
+          else
+              runCatching {
+                    val conn = URI(LogoIndex.ADDRESS).toURL().openConnection() as HttpURLConnection
+                    conn.connectTimeout = 10_000
+                    conn.readTimeout = 20_000
+                    conn.inputStream.use { it.readBytes().decodeToString() }.also { file.writeText(it) }
+                  }
+                  .onFailure { Log.w("Nama", "logo index: $it") }
+                  .getOrNull() ?: file.takeIf { it.exists() }?.readText()
+      text?.let { runCatching { LogoIndex.from(Json.parse(it)) }.getOrNull() }.also { logos = it }
+    }
+  }
+}
+
+private class Playing(val post: Post, val item: StreamItem)
+
+/** The server would not stream this title to this account; [message] says why. */
+class Refused(message: String) : Exception(message)
