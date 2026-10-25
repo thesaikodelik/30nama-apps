@@ -300,7 +300,6 @@ public sealed class BrowsePage : Grid
             site.Children.Add(news);
             _column.Children.Add(site);
         }
-        _column.Children.Add(AdvancedCard());
         if (menu.Genres.Count > 0) _column.Children.Add(Group(App.Loc[S.genres], menu.Genres));
         if (menu.Categories.Count > 0) _column.Children.Add(Group(App.Loc[S.categories], menu.Categories));
     }
@@ -327,34 +326,6 @@ public sealed class BrowsePage : Grid
         Kit.AutomationName(button, title);
         button.PointerEntered += (_, _) => { face.Background = Theme.White(0.12); rim.BorderBrush = Theme.White(0.9); rim.BorderThickness = new Thickness(2); };
         button.PointerExited += (_, _) => { face.Background = Theme.White(0.06); rim.BorderBrush = Theme.White(0.08); rim.BorderThickness = new Thickness(1); };
-        return Kit.Hovering(button, face, 1.02);
-    }
-
-    /// <summary>The way into the advanced search, above the genres it goes beyond.</summary>
-    private Button AdvancedCard()
-    {
-        var loc = App.Loc;
-        var face = new Grid { Height = 92, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(22, 0, 22, 0), CornerRadius = new CornerRadius(18), ColumnSpacing = 18 }.Springy(0.2);
-        face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var glass = new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1), BorderBrush = Theme.GlassRim, Margin = new Thickness(-22, 0, -22, 0) };
-        Grid.SetColumnSpan(glass, 3);
-        face.Children.Add(glass);
-        var icon = Glyph.Icon("", 24, Theme.Accent);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        face.Children.Add(icon);
-        var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Theme.Text(loc[S.advancedSearch], 19, FontWeights.Bold));
-        text.Children.Add(Theme.Text(loc[S.advancedHint], 13, color: Theme.Text2, lines: 2));
-        Grid.SetColumn(text, 1);
-        face.Children.Add(text);
-        var arrow = Glyph.Icon(Glyph.ChevronEnd, 14, Theme.Text3);
-        arrow.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(arrow, 2);
-        face.Children.Add(arrow);
-        var button = Theme.Bare(face, () => _nav.Open(new Route.Advanced()));
-        Kit.AutomationName(button, loc[S.advancedSearch]);
         return Kit.Hovering(button, face, 1.02);
     }
 
