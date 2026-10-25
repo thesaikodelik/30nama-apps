@@ -136,7 +136,7 @@ class NamaActivity : AppSystemActivity() {
           ui(R.id.panel_screen_art, Layout.SCREEN_W, Layout.SCREEN_H, DP_SCREEN) { ScreenArt(model) },
           ui(R.id.panel_logo_glow, 1.3f, 0.38f) { TitleLogo(model, glow = true) },
           ui(R.id.panel_logo, 1.3f, 0.38f) { TitleLogo(model, glow = false) },
-          ui(R.id.panel_title_info, 1.0f, 0.36f) { TitleInfo(model) },
+          ui(R.id.panel_title_info, 1.1f, 0.46f) { TitleInfo(model) },
           ui(R.id.panel_episodes, 0.5f, 0.78f) { EpisodesPanel(model) },
           ui(R.id.panel_cast, 0.5f, 0.78f) { CastPanel(model) },
           ui(R.id.panel_controls, 1.1f, 0.36f) { ControlsPanel(model) { stage?.poke() } },

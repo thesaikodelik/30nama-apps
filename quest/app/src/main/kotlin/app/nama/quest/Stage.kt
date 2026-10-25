@@ -51,7 +51,7 @@ object Layout {
 
   val logo = Spot(0f, 0.17f, 1.55f)
   val logoGlow = Spot(0f, 0.17f, 1.6f)
-  val info = Spot(0f, -0.27f, 1.38f, faceEye = true)
+  val info = Spot(0f, -0.32f, 1.38f, faceEye = true)
   /** Side panels; [start] is negative x in LTR and flips for RTL. */
   val sideStart = Spot(-1.0f, -0.02f, 1.28f, faceEye = true)
   val sideEnd = Spot(1.0f, -0.02f, 1.28f, faceEye = true)
@@ -273,7 +273,7 @@ class Stage(
     val start = if (rtl) Layout.sideEnd else Layout.sideStart
     val end = if (rtl) Layout.sideStart else Layout.sideEnd
     episodes.show(at(start), onTitle && hasDetails)
-    cast.show(at(end), onTitle && hasDetails && model.details.value?.people?.isNotEmpty() == true)
+    cast.show(at(end), onTitle && hasDetails && model.details.value?.let { it.people.isNotEmpty() || it.seasons.isNotEmpty() } == true)
 
     val idle = System.currentTimeMillis() - lastActivity > CONTROLS_HIDE_MS
     // The controls also stay up while the intro can be skipped, so the offer isn't missed.
