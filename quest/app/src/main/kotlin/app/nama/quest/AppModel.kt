@@ -83,6 +83,20 @@ class AppModel(
   private val _notice = MutableStateFlow<String?>(null)
   val notice: StateFlow<String?> = _notice.asStateFlow()
 
+  /** A short message in a small panel, gone after 3.5 s, like the Mac's toast. */
+  private val _toast = MutableStateFlow<String?>(null)
+  val toast: StateFlow<String?> = _toast.asStateFlow()
+  private var toastJob: Job? = null
+
+  fun showToast(text: String) {
+    toastJob?.cancel()
+    _toast.value = text
+    toastJob = scope.launch {
+      delay(3_500)
+      _toast.value = null
+    }
+  }
+
   private var loginJob: Job? = null
   private var detailsJob: Job? = null
 
@@ -119,6 +133,18 @@ class AppModel(
   fun openPost(post: app.nama.core.Post) {
     val live = catalog as? app.nama.quest.data.LiveCatalog ?: return
     open(live.tileFor(post))
+  }
+
+  /** "Continue as guest", remembered so the code isn't asked for on every launch. */
+  fun continueAsGuest() {
+    prefs.edit().putBoolean("guest", true).apply()
+    goHome()
+  }
+
+  /** From the profile or settings, for a guest who now wants to sign in. */
+  fun requestSignIn() {
+    prefs.edit().putBoolean("guest", false).apply()
+    startLogin()
   }
 
   /** Signs out and goes back to the code, as the Mac's settings do. */
@@ -168,7 +194,7 @@ class AppModel(
   fun start() {
     scope.launch {
       safely { catalog.prepare() }.onFailure { Log.w(TAG, "prepare: $it") }
-      if (catalog.signedIn || catalog.isDemo) goHome() else startLogin()
+      if (catalog.signedIn || catalog.isDemo || prefs.getBoolean("guest", false)) goHome() else startLogin()
     }
   }
 
@@ -374,12 +400,16 @@ class AppModel(
               delay(5_000)
               continue
             }
-            // Codes expire after a few minutes; poll until then, then show a fresh one.
-            val until = System.currentTimeMillis() + CODE_LIFETIME_MS
+            // The same rhythm as the other apps (core's QRLogin); when the code expires a fresh one
+            // simply takes its place, since pressing "New code" in a headset is one step too many.
+            val until = System.currentTimeMillis() + (app.nama.core.QRLogin.LIFETIME_SECONDS * 1000).toLong()
             while (isActive && System.currentTimeMillis() < until) {
-              delay(3_000)
+              delay((app.nama.core.QRLogin.POLL_SECONDS * 1000).toLong())
               if (runCatching { catalog.pollLogin(code) }.getOrDefault(false)) {
                 _login.value = null
+                prefs.edit().putBoolean("guest", false).apply()
+                val name = services?.user?.name
+                showToast(if (name.isNullOrBlank()) loc(app.nama.core.S.welcome) else "${loc(app.nama.core.S.welcome)} $name")
                 _rows.value = emptyList()
                 goHome()
                 return@launch
@@ -442,6 +472,5 @@ class AppModel(
 
   companion object {
     private const val TAG = "Nama"
-    private const val CODE_LIFETIME_MS = 4 * 60_000L
   }
 }

@@ -95,7 +95,7 @@ fun LoginPanel(model: AppModel) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Pulse()
         Text(X.waitingForConfirm(lang) + "  " + X.codeRefreshes(lang), style = Type.caption, modifier = Modifier.weight(1f))
-        Pill(loc(S.guest), { model.goHome() })
+        Pill(loc(S.guest), { model.continueAsGuest() })
       }
     }
   }

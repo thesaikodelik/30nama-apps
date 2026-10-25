@@ -15,7 +15,7 @@ enum class X(val en: String, val fa: String, val ar: String) {
   ),
   enterThisCode("Enter this code", "این کد را وارد کنید", "أدخل هذا الرمز"),
   waitingForConfirm("Waiting for you to confirm…", "منتظر تأیید شما…", "في انتظار تأكيدك…"),
-  codeRefreshes("A new code appears every few minutes.", "کد هر چند دقیقه عوض می‌شود.", "يتغير الرمز كل بضع دقائق."),
+  codeRefreshes("A new code appears every minute.", "کد هر دقیقه عوض می‌شود.", "يتغير الرمز كل دقيقة."),
   noTypingNeeded("Nothing to type in the headset.", "در هدست چیزی تایپ نمی‌شود.", "لا حاجة للكتابة في النظارة."),
   demoBadge("Demo", "نمایشی", "عرض تجريبي"),
   pointToBrowse("Point at a poster to see it on the screen", "روی یک پوستر بروید تا روی پرده ببینیدش", "أشر إلى ملصق لتراه على الشاشة"),

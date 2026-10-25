@@ -57,6 +57,7 @@ object Layout {
   val sideEnd = Spot(1.0f, -0.02f, 1.28f, faceEye = true)
 
   val controls = Spot(0f, -0.5f, 1.1f, faceEye = true)
+  val toast = Spot(0f, -0.2f, 0.95f, faceEye = true)
 }
 
 /** A place relative to the head. [faceEye] tilts the panel to look straight at the eyes. */
@@ -180,12 +181,13 @@ class Stage(
   val cast = place(R.id.panel_cast)
   val controls = place(R.id.panel_controls)
   val subtitles = place(R.id.panel_subtitles)
-  private val all = listOf(login, wall, screenArt, video, logoGlow, logo, info, episodes, cast, controls, subtitles)
+  val toast = place(R.id.panel_toast)
+  private val all = listOf(login, wall, screenArt, video, logoGlow, logo, info, episodes, cast, controls, subtitles, toast)
   private val byPanel = mapOf(
       R.id.panel_login to login, R.id.panel_home to wall, R.id.panel_screen_art to screenArt,
       R.id.panel_video to video, R.id.panel_logo_glow to logoGlow, R.id.panel_logo to logo,
       R.id.panel_title_info to info, R.id.panel_episodes to episodes, R.id.panel_cast to cast,
-      R.id.panel_controls to controls, R.id.panel_subtitles to subtitles,
+      R.id.panel_controls to controls, R.id.panel_subtitles to subtitles, R.id.panel_toast to toast,
   )
 
   fun fadeOf(panelId: Int): Float = byPanel[panelId]?.fade?.floatValue ?: 1f
@@ -277,6 +279,8 @@ class Stage(
     // The controls also stay up while the intro can be skipped, so the offer isn't missed.
     val inIntro = model.introEnd(st.position) != null
     controls.show(at(Layout.controls), playing && (!idle || st.paused || st.buffering || inIntro))
+    // Close and a little low, where the eye is already resting, whatever arrangement is up.
+    toast.show(at(Layout.toast), model.toast.value != null)
     val h = Layout.SCREEN_H * screenScale
     subtitles.show(at(screenSpot.copy(y = screenSpot.y - h / 2 + 0.2f, d = screenSpot.d - 0.08f)), playing && st.subtitle.isNotBlank())
   }

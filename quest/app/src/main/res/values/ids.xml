@@ -11,4 +11,5 @@
   <item type="id" name="panel_cast" />
   <item type="id" name="panel_controls" />
   <item type="id" name="panel_subtitles" />
+  <item type="id" name="panel_toast" />
 </resources>

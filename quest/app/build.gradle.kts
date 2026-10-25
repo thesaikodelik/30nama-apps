@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.jetbrains.kotlin.android)
@@ -21,6 +23,12 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     ndk { abiFilters += "arm64-v8a" }
+    // The website's API key, from local.properties (never committed). Without it the app works in
+    // full; only what comes from the website's own API stays hidden, as on the Mac and Windows.
+    val local = Properties().apply {
+      rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    buildConfigField("String", "SITE_KEY", "\"${local.getProperty("nama.siteKey", "")}\"")
     // libnamampv is plain C; libc++_shared comes from jniLibs with libmpv
     externalNativeBuild { cmake { arguments += "-DANDROID_STL=none" } }
   }

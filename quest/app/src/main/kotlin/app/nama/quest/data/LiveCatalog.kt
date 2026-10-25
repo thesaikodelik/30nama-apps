@@ -3,6 +3,9 @@ package app.nama.quest.data
 import android.content.Context
 import android.util.Log
 import app.nama.core.APIClient
+import app.nama.core.APIConfig
+import app.nama.core.SiteConfig
+import app.nama.quest.BuildConfig
 import app.nama.core.Aparat
 import app.nama.core.HttpURLConnectionTransport
 import app.nama.core.AudioMix
@@ -39,7 +42,7 @@ class LiveCatalog(private val context: Context) : Catalog {
   override val isDemo = false
   override var lang: Lang = Lang.en
 
-  val api = APIClient()
+  val api = APIClient(APIConfig(site = SiteConfig(key = BuildConfig.SITE_KEY.ifEmpty { null })))
   val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
   private val ready = Mutex()
   private var prepared = false
@@ -173,6 +176,8 @@ class LiveCatalog(private val context: Context) : Catalog {
         people = post.cast.distinctBy { it.name }.take(16).map { Person(it.name, it.role ?: loc(S.cast), it.poster?.url(160.0)?.toString()) },
         seasons = if (post.isSeries) seasons else emptyList(),
         resume = resumeItem?.takeIf { post.isSeries }?.let(::episodeOf),
+        post = post,
+        result = result,
     )
   }
 

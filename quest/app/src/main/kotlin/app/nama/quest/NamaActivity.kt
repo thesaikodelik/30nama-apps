@@ -22,6 +22,7 @@ import app.nama.quest.ui.ScreenArt
 import app.nama.quest.ui.SubtitlePanel
 import app.nama.quest.ui.TitleInfo
 import app.nama.quest.ui.TitleLogo
+import app.nama.quest.ui.ToastPanel
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.ComposeViewPanelRegistration
 import com.meta.spatial.core.SpatialFeature
@@ -140,6 +141,7 @@ class NamaActivity : AppSystemActivity() {
           ui(R.id.panel_cast, 0.5f, 0.78f) { CastPanel(model) },
           ui(R.id.panel_controls, 1.1f, 0.3f) { ControlsPanel(model) { stage?.poke() } },
           ui(R.id.panel_subtitles, 2.4f, 0.3f, DP_SCREEN) { SubtitlePanel(model) },
+          ui(R.id.panel_toast, 0.8f, 0.12f) { ToastPanel(model) },
           VideoSurfacePanelRegistration(
               R.id.panel_video,
               surfaceConsumer = { _, surface -> video.attach(surface) },

@@ -80,6 +80,10 @@ data class Details(
     val seasons: List<Season> = emptyList(),
     /** Episode or film to resume, when the server remembers one. */
     val resume: Episode? = null,
+    /** The title as 30nama sends it, for what the UI-shaped fields leave out (live catalogue only). */
+    val post: app.nama.core.Post? = null,
+    /** Its playable files, as read when the title opened (live catalogue only). */
+    val result: app.nama.core.StreamResult? = null,
 )
 
 data class SubtitleTrack(val url: String, val language: String, val label: String)

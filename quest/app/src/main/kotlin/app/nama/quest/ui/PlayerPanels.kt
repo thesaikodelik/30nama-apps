@@ -121,6 +121,25 @@ private fun clock(model: AppModel, seconds: Double): String {
   return model.loc.num(text)
 }
 
+/** The toast: one short line in a small glass capsule. */
+@Composable
+fun ToastPanel(model: AppModel) {
+  val lang by model.lang.collectAsState()
+  val text by model.toast.collectAsState()
+  Directional(lang.isRTL) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      text?.let {
+        Text(
+            it,
+            style = Type.label.copy(fontSize = 20.sp),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.glass(RoundedCornerShape(50)).padding(horizontal = 30.dp, vertical = 14.dp),
+        )
+      }
+    }
+  }
+}
+
 /** Subtitles on their own panel just in front of the screen; mpv can't draw them on a direct-to-compositor surface. */
 @Composable
 fun SubtitlePanel(model: AppModel) {
