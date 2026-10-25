@@ -50,6 +50,9 @@ class LiveCatalog(private val context: Context) : Catalog {
     private set
   private var logos: LogoIndex? = null
 
+  /** Hides what the user took off continue watching (Library), applied to that row. */
+  var continueFilter: (List<Post>) -> List<Post> = { it }
+
   /** What a tile, a details page and a stream point back to. */
   private val posts = HashMap<String, Post>()
   private val streams = HashMap<Int, StreamResult>()
@@ -107,6 +110,7 @@ class LiveCatalog(private val context: Context) : Catalog {
     if (signedIn) {
       runCatching { api.continueWatching(background = true) }
           .getOrNull()
+          ?.let(continueFilter)
           ?.takeIf { it.isNotEmpty() }
           ?.let { list -> rows += Row("continue", loc(S.continueWatching), list.map { tile(it, loc, lang) }, landscape = true) }
     }

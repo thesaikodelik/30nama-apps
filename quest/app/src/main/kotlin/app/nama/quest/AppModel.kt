@@ -106,6 +106,11 @@ class AppModel(
   private val _routes = MutableStateFlow<List<Route>>(emptyList())
   val routes: StateFlow<List<Route>> = _routes.asStateFlow()
 
+  val settings = Settings(prefs)
+
+  /** Lists, ratings, watched episodes, continue-watching dismissals: shared by every screen. */
+  val library: Library = Library(prefs) { services?.api }
+
   /** What wall screens use to reach 30nama; null in the demo, which has only the home rows. */
   val services: Services? =
       (catalog as? app.nama.quest.data.LiveCatalog)?.let { live ->
@@ -152,6 +157,7 @@ class AppModel(
     val live = catalog as? app.nama.quest.data.LiveCatalog ?: return
     scope.launch {
       live.signOut()
+      library.clear()
       _rows.value = emptyList()
       _section.value = Section.home
       _routes.value = emptyList()
@@ -194,6 +200,8 @@ class AppModel(
   fun start() {
     scope.launch {
       safely { catalog.prepare() }.onFailure { Log.w(TAG, "prepare: $it") }
+      (catalog as? app.nama.quest.data.LiveCatalog)?.continueFilter = library::visibleContinue
+      if (catalog.signedIn) launch { library.refreshLists() }
       if (catalog.signedIn || catalog.isDemo || prefs.getBoolean("guest", false)) goHome() else startLogin()
     }
   }
@@ -408,6 +416,7 @@ class AppModel(
               if (runCatching { catalog.pollLogin(code) }.getOrDefault(false)) {
                 _login.value = null
                 prefs.edit().putBoolean("guest", false).apply()
+                launch { library.refreshLists() }
                 val name = services?.user?.name
                 showToast(if (name.isNullOrBlank()) loc(app.nama.core.S.welcome) else "${loc(app.nama.core.S.welcome)} $name")
                 _rows.value = emptyList()
