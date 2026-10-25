@@ -57,6 +57,23 @@ android {
     targetCompatibility = JavaVersion.VERSION_17
   }
   kotlinOptions { jvmTarget = "17" }
+  testOptions {
+    unitTests {
+      // Panel snapshots (PanelShots) render Compose on the JVM through Robolectric.
+      isIncludeAndroidResources = true
+      all {
+        // The snapshots take minutes; they run only when asked for: -Pshots
+        if (!project.hasProperty("shots")) it.exclude("**/PanelShots*")
+        it.failOnNoDiscoveredTests = false
+        it.systemProperty("roborazzi.test.record", "true")
+        it.systemProperty("nama.shots", rootProject.file("build/shots").absolutePath)
+        it.systemProperty("nama.fixtures", rootProject.file("../Tests/NamaCoreTests/Fixtures").absolutePath)
+        (project.findProperty("shots.lang") as String?)?.let { lang -> it.systemProperty("nama.lang", lang) }
+        (project.findProperty("shots.trace") as String?)?.let { _ -> it.systemProperty("nama.trace", "1") }
+        it.maxHeapSize = "3g"
+      }
+    }
+  }
 }
 
 dependencies {
@@ -78,6 +95,14 @@ dependencies {
   implementation(libs.meta.spatial.sdk.mruk)
   implementation(libs.meta.spatial.sdk.isdk)
   debugImplementation(libs.meta.spatial.sdk.ovrmetrics)
+  debugImplementation(libs.androidx.ui.test.manifest)
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.robolectric)
+  testImplementation(libs.roborazzi)
+  testImplementation(libs.roborazzi.compose)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.ui.test.junit4)
   debugImplementation(libs.meta.spatial.sdk.castinputforward)
 }
 

@@ -30,6 +30,15 @@ object Images {
   // A handful at a time, so a row of posters doesn't starve the stream or the API.
   private val gate = Semaphore(4)
 
+  /** Where the bytes come from; the panel snapshots on the computer draw their own. */
+  @Volatile var source: (String) -> ByteArray = { url ->
+    val conn = URL(url).openConnection() as HttpURLConnection
+    conn.connectTimeout = 8_000
+    conn.readTimeout = 15_000
+    conn.setRequestProperty("User-Agent", "30nama-quest")
+    conn.inputStream.use { it.readBytes() }
+  }
+
   fun cached(url: String, maxWidth: Int): Bitmap? = cache.get("$maxWidth|$url")
 
   suspend fun load(url: String, maxWidth: Int): Bitmap? {
@@ -40,11 +49,7 @@ object Images {
     return gate.withPermit {
       withContext(Dispatchers.IO) {
         runCatching {
-              val conn = URL(url).openConnection() as HttpURLConnection
-              conn.connectTimeout = 8_000
-              conn.readTimeout = 15_000
-              conn.setRequestProperty("User-Agent", "30nama-quest")
-              val bytes = conn.inputStream.use { it.readBytes() }
+              val bytes = source(url)
               val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
               BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
               var sample = 1

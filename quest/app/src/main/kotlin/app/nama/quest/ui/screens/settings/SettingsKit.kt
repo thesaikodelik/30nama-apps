@@ -95,9 +95,10 @@ fun RowDivider() {
 }
 
 /**
- * Label (and an optional quiet line under it) on the start side, control on the end. The control
- * is measured first, but never takes more than leaves [minLabel] for the label, so a wide choice
- * wraps instead of squeezing the label away. [onClick] makes the whole row the target.
+ * Label (and an optional quiet line under it) on the start side, control on the end. When the
+ * control's one-line width doesn't fit beside at least [minLabel] of label, as with the buffer
+ * choices in Arabic, it moves under the label instead of wrapping inside its capsule.
+ * [onClick] makes the whole row the target.
  */
 @Composable
 fun SettingRow(
@@ -126,13 +127,24 @@ fun SettingRow(
     val gap = 18.dp.roundToPx()
     val width = constraints.maxWidth
     val loose = constraints.copy(minWidth = 0, minHeight = 0)
-    val c = measurables[1].measure(loose.copy(maxWidth = (width - minLabel.roundToPx() - gap).coerceAtLeast(0)))
-    val l = measurables[0].measure(loose.copy(maxWidth = (width - c.width - gap).coerceAtLeast(0)))
-    val height = maxOf(l.height, c.height, constraints.minHeight)
-    layout(width, height) {
-      // placeRelative mirrors both for Persian and Arabic.
-      l.placeRelative(0, (height - l.height) / 2)
-      c.placeRelative(width - c.width, (height - c.height) / 2)
+    val beside = (width - minLabel.roundToPx() - gap).coerceAtLeast(0)
+    if (measurables[1].maxIntrinsicWidth(constraints.maxHeight) <= beside) {
+      val c = measurables[1].measure(loose.copy(maxWidth = beside))
+      val l = measurables[0].measure(loose.copy(maxWidth = (width - c.width - gap).coerceAtLeast(0)))
+      val height = maxOf(l.height, c.height, constraints.minHeight)
+      layout(width, height) {
+        // placeRelative mirrors both for Persian and Arabic.
+        l.placeRelative(0, (height - l.height) / 2)
+        c.placeRelative(width - c.width, (height - c.height) / 2)
+      }
+    } else {
+      val l = measurables[0].measure(loose)
+      val c = measurables[1].measure(loose)
+      val between = 10.dp.roundToPx()
+      layout(width, maxOf(l.height + between + c.height, constraints.minHeight)) {
+        l.placeRelative(0, 0)
+        c.placeRelative(0, l.height + between)
+      }
     }
   }
 }

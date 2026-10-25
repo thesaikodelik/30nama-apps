@@ -33,6 +33,24 @@ cd quest
 
 `local.properties` با `sdk.dir` را خودتان بسازید؛ وارد ریپو نمی‌شود.
 
+## دیدن پنل‌ها روی کامپیوتر
+
+برای بیشتر تغییرها لازم نیست هدست را سر بگذارید. این دستور هر پنل (دیوار با همهٔ بخش‌ها و صفحه‌هایش، صفحهٔ عنوان فیلم و سریال، کنترل پخش، زیرنویس) را با همان اندازه‌ای که در هدست دارد، در هر سه زبان، به PNG تبدیل می‌کند:
+
+<div dir="ltr">
+
+```
+./gradlew :app:testDebugUnitTest -Pshots                   # build/shots/{en,fa,ar}/*.png
+./gradlew :app:testDebugUnitTest -Pshots -Pshots.lang=fa   # one language
+./gradlew :app:testDebugUnitTest -Pshots -Pshots.trace     # also print every request it answered
+```
+
+</div>
+
+- کار با Robolectric و Roborazzi روی خود JVM انجام می‌شود (`app/src/test/.../PanelShots.kt`). داده از فیکسچرهای مشترک `Tests/NamaCoreTests/Fixtures` می‌آید و از شبکه چیزی گرفته نمی‌شود. به‌جای پوسترها رنگ‌های ساختگی کشیده می‌شوند و حساب کاربری هم ساختگی است.
+- چیزهایی که این عکس‌ها نشان نمی‌دهند: جای پنل‌ها در فضا و فاصله‌شان، پردهٔ ویدئو، اشاره با دسته و دست، کیبورد سیستم و تیرگی اتاق.
+- شبیه‌ساز متا (Meta Spatial Simulator) برنامه‌هایی را که چند پنل و Spatial SDK دارند اجرا نمی‌کند؛ این ابزار جای آن است.
+
 ## آزمودن روی هدست
 
 نسخهٔ debug چند ورودی دارد که هر حالت را مستقیم از adb باز می‌کند، مثل `NAMA_OPEN` در مک:

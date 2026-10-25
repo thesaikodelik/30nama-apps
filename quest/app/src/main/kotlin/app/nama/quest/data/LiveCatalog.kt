@@ -8,6 +8,7 @@ import app.nama.core.SiteConfig
 import app.nama.quest.BuildConfig
 import app.nama.core.Aparat
 import app.nama.core.HttpURLConnectionTransport
+import app.nama.core.Transport
 import app.nama.core.AudioMix
 import app.nama.core.Json
 import app.nama.core.Lang
@@ -38,11 +39,19 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** The catalogue as 30nama serves it, through app.nama.core (the same logic as the Mac and Windows apps). */
-class LiveCatalog(private val context: Context) : Catalog {
+/**
+ * [transport] and [siteKey] are for the panel snapshots on the computer (PanelShots), which answer
+ * every request from the shared test fixtures instead of the network.
+ */
+class LiveCatalog(
+    private val context: Context,
+    private val transport: Transport? = null,
+    siteKey: String? = BuildConfig.SITE_KEY.ifEmpty { null },
+) : Catalog {
   override val isDemo = false
   override var lang: Lang = Lang.en
 
-  val api = APIClient(APIConfig(site = SiteConfig(key = BuildConfig.SITE_KEY.ifEmpty { null })))
+  val api = APIClient(APIConfig(site = SiteConfig(key = siteKey)), transport)
   val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
   private val ready = Mutex()
   private var prepared = false
@@ -257,7 +266,7 @@ class LiveCatalog(private val context: Context) : Catalog {
   override suspend fun trailer(details: Details): String? {
     val post = posts[details.tile.id] ?: return null
     val title = post.titleEnglish ?: post.title(Lang.en)
-    val net = HttpURLConnectionTransport()
+    val net = transport ?: HttpURLConnectionTransport()
     suspend fun json(r: app.nama.core.HttpRequest) =
         runCatching { net.send(r).takeIf { it.status == 200 }?.let { Json.parse(it.body) } }.getOrNull()
     val found = json(Aparat.searchRequest(title))?.let { Aparat.trailer(Aparat.videosInSearch(it), title, post.year) } ?: return null

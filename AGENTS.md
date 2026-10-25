@@ -82,6 +82,7 @@ xcodebuild -project 30nama.xcodeproj -scheme 30nama-mac -destination 'platform=m
 - **مجوز libmpv: LGPL.** mpv با `-Dgpl=false` و FFmpeg بدون `--enable-gpl` و `--enable-nonfree` ساخته می‌شود. `quest/tools/build-libmpv.sh` این را در هر ساخت می‌سنجد و اگر چیزی GPL شده باشد می‌ایستد. جزئیات در `quest/tools/LIBMPV.md` است. پیش از هر ریلیز: مجوز هر جزء در THIRD-PARTY-NOTICES.md و داخل خود برنامه بیاید، و آرشیو منبع همان ساخت کنار ریلیز کوئست گذاشته شود.
 - فقط arm64-v8a. حجم فایل نصب را نگاه کنید: سالن با مدل glTF و نور پخته‌شده ساخته می‌شود، با بافت‌های ASTC و حداکثر ۲K.
 - **حرکت و راحتی:** هیچ پنلی دنبال سر نمی‌آید؛ پنل‌ها فقط با recenter یا گرفتن جابه‌جا می‌شوند. هر تغییر محیط یک fade کوتاه دارد. هماهنگ کردن نرخ تازه شدن نمایشگر با فیلم (۷۲ یا ۱۲۰ هرتز برای ۲۴ فریم) را روی هدست بسنجید و اگر حرکت نرم‌تر دیده شد نگهش دارید. هر تغییر در صحنه را روی خود هدست ببینید، نه فقط در شبیه‌ساز، و نرخ فریم را در حالت بیکار و هنگام پخش نگاه کنید (OVR Metrics Tool).
+- **هر تغییری در پنل‌ها را اول روی کامپیوتر ببینید.** `PanelShots` هر پنل را با اندازهٔ واقعی‌اش در هدست، با دادهٔ فیکسچرها و در هر سه زبان، در `quest/build/shots` عکس می‌کند. جا شدن متن، شکستن ردیف‌ها و راست‌به‌چپ همین‌جا دیده می‌شود. جای پنل‌ها در فضا، ویدئو، اشاره با دسته و کیبورد سیستم را فقط هدست نشان می‌دهد. صفحهٔ تازه یا درخواستی که فیکسچر ندارد را به `PanelShots` اضافه کنید.
 - کسی که روی کوئست کار می‌کند به پوشه‌های Swift و `windows/` دست نمی‌زند، و بقیه به `quest/`.
 
 دستورها (از داخل `quest/`):
@@ -90,6 +91,7 @@ xcodebuild -project 30nama.xcodeproj -scheme 30nama-mac -destination 'platform=m
 
 ```
 ./gradlew test                 # pure-Kotlin core, no headset needed
+./gradlew :app:testDebugUnitTest -Pshots   # every panel as a PNG in build/shots, three languages
 ./gradlew installDebug         # build and install on the headset over adb
 adb logcat -s Nama:*
 ```

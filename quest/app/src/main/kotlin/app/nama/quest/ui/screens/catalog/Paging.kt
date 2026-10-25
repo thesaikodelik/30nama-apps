@@ -85,11 +85,13 @@ class Paged(private val scope: CoroutineScope) {
         val next = fetch(page + 1)
         if (asked != generation) return@launch
         val known = posts.mapTo(HashSet()) { it.id }
-        posts = posts + next.posts.filter { known.add(it.id) }
-        // A server that keeps answering with the same page number must not stall the wall, and an
-        // empty page is the end whatever the page count says.
+        val added = next.posts.filter { known.add(it.id) }
+        posts = posts + added
+        // A server that keeps answering with the same page number must not stall the wall, and a
+        // page with nothing new (empty, or only titles already shown) is the end whatever the page
+        // count says; otherwise "loading" would stay under the posters for good.
         page = maxOf(next.page, page + 1)
-        pages = if (next.posts.isEmpty()) page else next.pages
+        pages = if (added.isEmpty()) page else next.pages
         total = next.total
         answered = true
       } catch (e: CancellationException) {

@@ -59,7 +59,15 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
         Spacer(Modifier.weight(1f))
         if (state.buffering) Text(loc(S.loading), style = Type.caption)
       }
-      Timeline(state.position, state.duration, onSeek = { model.video.seekTo(it); onActivity() })
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Timeline(state.position, state.duration, onSeek = { model.video.seekTo(it); onActivity() })
+        // Elapsed under the timeline's start, the length under its end.
+        Row(Modifier.fillMaxWidth()) {
+          Text(clock(model, state.position), style = Type.label.copy(color = Ink.text2, textDirection = TextDirection.Ltr))
+          Spacer(Modifier.weight(1f))
+          Text(clock(model, state.duration), style = Type.label.copy(color = Ink.text3, textDirection = TextDirection.Ltr))
+        }
+      }
       // The offers of the moment: skip the intro or recap, or go on to the next episode during
       // the credits (the pill fills as they run, and autoplay takes over when they end).
       val skip = model.skipTarget(state.position)
@@ -73,8 +81,10 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
           }
         }
       }
+      Spacer(Modifier.weight(1f))
       Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(clock(model, state.position), style = Type.label.copy(color = Ink.text2, textDirection = TextDirection.Ltr), modifier = Modifier.width(110.dp))
+        // As wide as the group at the end, so the transport buttons sit in the middle.
+        Spacer(Modifier.width(END_GROUP))
         Spacer(Modifier.weight(1f))
         RoundButton(Icon.Rewind, { model.video.seekBy(-10.0); onActivity() }, 58.dp)
         Spacer(Modifier.width(22.dp))
@@ -87,7 +97,7 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
           RoundButton(Icon.Next, { model.playNext(); onActivity() }, 58.dp)
         }
         Spacer(Modifier.weight(1f))
-        Row(Modifier.width(220.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.width(END_GROUP), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
           val subsOn = state.subtitleLanguage != null
           val hasSubs = stream?.subtitles?.isNotEmpty() == true
           if (hasSubs) {
@@ -101,11 +111,12 @@ fun ControlsPanel(model: AppModel, onActivity: () -> Unit) {
           }
           RoundButton(Icon.Close, { model.stop() }, 52.dp)
         }
-        Text(clock(model, state.duration), style = Type.label.copy(color = Ink.text3, textDirection = TextDirection.Ltr), modifier = Modifier.width(110.dp), textAlign = TextAlign.End)
       }
     }
   }
 }
+
+private val END_GROUP = 180.dp
 
 /** The red "Next episode" pill of the credits, filling from the reading start as they run. */
 @Composable
