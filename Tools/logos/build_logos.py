@@ -60,23 +60,29 @@ def site(path, key):
     return answer.get("result") if answer.get("success") else None
 
 
-def catalog(key, known):
-    """IMDb ids of 30nama's titles, newest first. A kind is left once a whole page of it is known:
-    what is older was seen on an earlier run."""
-    most = int(os.environ.get("MAX_PAGES") or 100000)
+def catalog(key, known, whole):
+    """IMDb ids of 30nama's titles, newest first, and whether the catalogue was read to its end.
+    Once it has been (`whole` false), a kind is left at the first page that is all known: what is
+    older was read on an earlier run."""
+    most = int(os.environ.get("MAX_PAGES") or 0)
+    found, complete = [], not most
     for kind in KINDS:
         page, pages = 1, 1
-        while page <= min(pages, most):
+        while page <= pages:
+            if most and page > most:
+                break
             result = site(f"list/type/category/value/{kind}/page/{page}/orderby/id/order/desc/streamonly/no/genre/all", key)
             if not result:
+                complete = False
                 break
             pages = int(result.get("pages") or 1)
             ids = [p.get("imdb_id") for p in result.get("posts") or [] if re.fullmatch(r"tt\d+", p.get("imdb_id") or "")]
-            yield from ids
-            if ids and all(i in known for i in ids):
+            found += ids
+            if not whole and ids and all(i in known for i in ids):
                 break
             page += 1
             time.sleep(0.5)
+    return found, complete
 
 
 def best(logos, code):
@@ -128,8 +134,12 @@ def main():
     queue = state.get("queue", [])
     known = set(logos) | set(none) | set(queue)
 
+    # Until the catalogue has once been read to its end, every page of it is read.
+    read_through = state.get("read_through", False)
+    titles, complete = catalog(site_key, known, whole=not read_through)
+    read_through = read_through or complete
     new = []
-    for imdb in catalog(site_key, known):
+    for imdb in titles:
         if imdb not in known and imdb not in new:
             new.append(imdb)
     queue = new + queue
@@ -162,7 +172,7 @@ def main():
         json.dump({"version": 1, "updated": today.isoformat(), "logos": dict(sorted(logos.items()))}, file, separators=(",", ":"))
     queue = [i for i in queue if i not in done]
     with open(os.path.join(folder, "state.json"), "w") as file:
-        json.dump({"none": dict(sorted(none.items())), "queue": queue}, file, separators=(",", ":"))
+        json.dump({"none": dict(sorted(none.items())), "queue": queue, "read_through": read_through}, file, separators=(",", ":"))
     print(f"done: {looked} looked up; {len(logos)} titles with a logo, {len(none)} without, {len(queue)} still waiting", flush=True)
 
 
