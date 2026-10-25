@@ -55,8 +55,14 @@ class LiveCatalog(
   val prefs = context.getSharedPreferences("account", Context.MODE_PRIVATE)
   private val ready = Mutex()
   private var prepared = false
-  var user: User? = null
-    private set
+  private val _user = kotlinx.coroutines.flow.MutableStateFlow<User?>(null)
+  /** The signed-in user, as a flow: pages drawn before the saved session is restored update when it is. */
+  val userState: kotlinx.coroutines.flow.StateFlow<User?> = _user
+  var user: User?
+    get() = _user.value
+    private set(v) {
+      _user.value = v
+    }
   private var logos: LogoIndex? = null
 
   /** Settings the stream depends on (AppModel sets them from Settings). */
@@ -177,7 +183,10 @@ class LiveCatalog(
     val post = api.single(id) ?: posts[tile.id] ?: error("no title")
     posts[tile.id] = post
     val loc = Loc(lang)
-    val result = runCatching { api.stream(id, signedIn).result }.getOrNull()
+    val result =
+        runCatching { api.stream(id, signedIn).also { if (it.result == null) Log.w("Nama", "stream for details $id refused: ${it.refusal}") }.result }
+            .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it else Log.w("Nama", "stream for details $id: $it") }
+            .getOrNull()
     if (result != null) streams[id] = result
     val seasons =
         result?.items.orEmpty().groupBy { it.season }.toSortedMap().map { (n, items) ->

@@ -82,13 +82,16 @@ class NamaActivity : AppSystemActivity() {
         sunDirection = -Vector3(1f, 3f, -2f),
         environmentIntensity = 0.3f,
     )
-    stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>(), alongGaze = BuildConfig.DEBUG && intent.getBooleanExtra("gaze", false))
+    stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>(), alongGaze = BuildConfig.DEBUG && intent.getBooleanExtra("gaze", false),
+        gazeTilt = if (BuildConfig.DEBUG) intent.getFloatExtra("tilt", 0f) else 0f)
     model.start()
     if (BuildConfig.DEBUG) {
       CoreSelfTest.run()
       // adb shell am start -n app.nama.quest/.NamaActivity --es place title --es lang fa
       intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let(model::setLang) }
-      intent.getStringExtra("place")?.let { model.debugJump(it, intent.getStringExtra("tile")) }
+      intent.getStringExtra("place")?.let { model.debugJump(it, intent.getStringExtra("tile"), intent.getIntExtra("row", 1)) }
+      // A section of the wall, as NAMA_SECTION does on the Mac: search, movies, browse, settings…
+      intent.getStringExtra("section")?.let { name -> Section.entries.firstOrNull { it.name == name }?.let(model::go) }
     }
   }
 

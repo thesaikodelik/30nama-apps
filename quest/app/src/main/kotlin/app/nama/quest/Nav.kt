@@ -53,14 +53,15 @@ class Services(
     val context: Context,
     val api: APIClient,
     val prefs: SharedPreferences,
-    private val userOf: () -> User?,
+    /** Read with collectAsState in a screen, so it changes when the session is restored or ends. */
+    val userState: kotlinx.coroutines.flow.StateFlow<User?>,
     private val langOf: () -> Lang,
 ) {
   val user: User?
-    get() = userOf()
+    get() = userState.value
 
   val signedIn: Boolean
-    get() = userOf() != null
+    get() = userState.value != null
 
   val lang: Lang
     get() = langOf()

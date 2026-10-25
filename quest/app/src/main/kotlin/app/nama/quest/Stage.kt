@@ -20,6 +20,8 @@ import com.meta.spatial.toolkit.SceneObjectSystem
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.Visible
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.exp
 
 /**
@@ -169,6 +171,8 @@ class Stage(
     private val objects: SceneObjectSystem,
     /** Debug captures: lay out along the headset's full gaze, tilt included, so a headset lying on a desk still frames the panels. */
     private val alongGaze: Boolean = false,
+    /** Debug captures: degrees to aim the gaze layout up (+) or down (-), to frame the wall below the screen. */
+    private val gazeTilt: Float = 0f,
 ) {
   val login = place(R.id.panel_login)
   val wall = place(R.id.panel_home)
@@ -207,7 +211,12 @@ class Stage(
   fun recenter() {
     val head = scene.getViewerPose()
     if (alongGaze) {
-      origin = head
+      val a = Math.toRadians(gazeTilt.toDouble())
+      val f = head.forward()
+      val u = head.up()
+      val fwd = f * cos(a).toFloat() + u * sin(a).toFloat()
+      val up = u * cos(a).toFloat() - f * sin(a).toFloat()
+      origin = Pose(head.t, Quaternion.lookRotation(fwd.normalize(), up.normalize()))
       return
     }
     // Only the heading matters: tilting the head while recentering must not tilt the room.

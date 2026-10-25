@@ -61,7 +61,7 @@ import app.nama.quest.ui.rememberImage
 @Composable
 fun AccountGroup(model: AppModel, loc: Loc, lang: Lang) {
   val services = model.services ?: return
-  val user = services.user
+  val user = services.userState.collectAsState().value
   val typedName by model.settings.displayName.state.collectAsState()
   var confirming by remember { mutableStateOf(false) }
   SettingsGroup(loc(S.account)) {
@@ -121,7 +121,8 @@ private fun Avatar(url: String?, name: String?) {
 /** The member's own name, for a profile the site keeps private. Members only, as on the Mac. */
 @Composable
 fun ProfileGroup(model: AppModel, loc: Loc, lang: Lang) {
-  if (model.services?.signedIn != true) return
+  val user by (model.services ?: return).userState.collectAsState()
+  if (user == null) return
   val name by model.settings.displayName.state.collectAsState()
   SettingsGroup(loc(S.profile)) {
     SettingRow("${loc(S.yourName)} (${loc(S.optional)})", minLabel = 140.dp) {

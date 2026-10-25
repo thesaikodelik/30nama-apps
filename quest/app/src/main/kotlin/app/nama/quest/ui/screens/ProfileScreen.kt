@@ -96,7 +96,7 @@ private fun ProfilePage(model: AppModel, services: Services) {
   val lang by model.lang.collectAsState()
   val loc = Loc(lang)
   val api = services.api
-  val user = services.user
+  val user = services.userState.collectAsState().value
   val lists by model.library.lists.collectAsState()
   val ratingsVersion by model.library.ratingsVersion.collectAsState()
   val book = model.library.ratings

@@ -114,7 +114,7 @@ class AppModel(
   /** What wall screens use to reach 30nama; null in the demo, which has only the home rows. */
   val services: Services? =
       (catalog as? app.nama.quest.data.LiveCatalog)?.let { live ->
-        Services(context, live.api, prefs, { live.user }, { _lang.value })
+        Services(context, live.api, prefs, live.userState, { _lang.value })
       }
 
   fun go(to: Section) {
@@ -509,7 +509,7 @@ class AppModel(
    * Debug builds: open a place straight from adb, the way NAMA_OPEN does on the Mac, so each
    * arrangement can be looked at without a controller in hand.
    */
-  fun debugJump(where: String, tileId: String? = null) {
+  fun debugJump(where: String, tileId: String? = null, row: Int = 1) {
     scope.launch {
       when (where) {
         "login" -> startLogin()
@@ -522,7 +522,7 @@ class AppModel(
           if (_place.value == Place.Login) goHome()
           while (_rows.value.isEmpty()) delay(100)
           val all = _rows.value.flatMap { it.tiles }
-          val tile = (tileId?.let { id -> all.firstOrNull { it.id == id } } ?: _rows.value.getOrNull(1)?.tiles?.firstOrNull()) ?: return@launch
+          val tile = (tileId?.let { id -> all.firstOrNull { it.id == id } } ?: _rows.value.getOrNull(row)?.tiles?.firstOrNull()) ?: return@launch
           open(tile)
           if (where == "play") {
             while (_details.value == null) delay(100)

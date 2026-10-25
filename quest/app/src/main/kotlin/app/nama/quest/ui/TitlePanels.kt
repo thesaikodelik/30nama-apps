@@ -168,7 +168,7 @@ fun TitleInfo(model: AppModel) {
   val post = details?.post
   // The demo has no account and no 30nama title behind its tiles: no rating, no lists.
   val live = model.services != null
-  val signedIn = model.services?.signedIn == true
+  val signedIn = model.services?.userState?.collectAsState()?.value != null
   Directional(lang.isRTL) {
     Column(
         Modifier.fillMaxSize().glass(RoundedCornerShape(32.dp)).padding(horizontal = 40.dp, vertical = 22.dp),
