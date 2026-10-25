@@ -713,7 +713,7 @@ public sealed class WrapRow : Panel
     /// <paramref name="min"/>, widened up to <paramref name="max"/>, and what is left over shared
     /// out on both sides, so the row's two ends match. Its children are given the column's width.
     /// </summary>
-    public static WrapRow Fill(double spacing, double min, double max = double.PositiveInfinity) => new(spacing) { _fill = (min, max) };
+    public static WrapRow Fill(double spacing, double min, double max = double.PositiveInfinity, bool unmirrored = false) => new(spacing, unmirrored) { _fill = (min, max) };
 
     /// <param name="unmirrored">
     /// For a wall of posters, all one size. Laid out as the Mac's adaptive grid: as many columns as
@@ -797,12 +797,19 @@ public sealed class WrapRow : Panel
         if (_fill is not null && Children.Count > 0)
         {
             var (count, column, margin) = Filled(final.Width);
+            var fromRight = _unmirrored && AppModel.Shared.Loc.Lang.IsRtl();
             double top = 0;
             for (var start = 0; start < Children.Count; start += count)
             {
                 var row = Children.Skip(start).Take(count).Max(c => c.DesiredSize.Height);
                 for (var i = start; i < Math.Min(start + count, Children.Count); i++)
-                    Children[i].Arrange(new Windows.Foundation.Rect(Math.Round(margin + (i - start) * (column + _spacing)), top, column, row));
+                {
+                    var place = fromRight ? count - 1 - (i - start) : i - start;
+                    // Both edges on whole pixels: a tile's edge between two pixels is drawn half light.
+                    var left = Math.Round(margin + place * (column + _spacing));
+                    var right = Math.Round(margin + place * (column + _spacing) + column);
+                    Children[i].Arrange(new Windows.Foundation.Rect(left, top, right - left, row));
+                }
                 top += row + _spacing;
             }
             return final;

@@ -333,7 +333,7 @@ public sealed class BrowsePage : Grid
     {
         var group = new StackPanel { Spacing = 16 };
         group.Children.Add(Theme.Text(title, 26, FontWeights.Bold));
-        var tiles = WrapRow.Fill(16, 210, 300);
+        var tiles = WrapRow.Fill(16, 210, 300, unmirrored: true);
         foreach (var entry in entries) tiles.Add(Tile(entry));
         group.Children.Add(tiles);
         return group;
@@ -356,10 +356,17 @@ public sealed class BrowsePage : Grid
                 },
             },
         });
-        var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12) };
+        // The wall is not mirrored (WrapRow), so the words see to their own direction.
+        var rtl = loc.Lang.IsRtl();
+        var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12), HorizontalAlignment = rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left };
         text.Children.Add(Theme.Text(entry.Name, 17, FontWeights.Bold, Colors.White));
         if (entry.Count is int count and > 0)
             text.Children.Add(Theme.Text($"{Fmt.Count(count, loc.Lang)} {loc[S.results]}", 12, FontWeights.Medium, Theme.Hex(0xFFFFFF, 0.7)));
+        foreach (var line in text.Children.OfType<TextBlock>())
+        {
+            line.TextReadingOrder = TextReadingOrder.DetectFromContent;
+            line.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
+        }
         face.Children.Add(text);
         var rim = new Border { CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08) };
         face.Children.Add(rim);
