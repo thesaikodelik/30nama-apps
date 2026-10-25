@@ -28,6 +28,9 @@ interface VideoEngine {
 
   fun setMuted(muted: Boolean)
 
+  /** Seconds of the stream to hold ahead from the next file on; zero keeps the engine's own. */
+  fun setReadAhead(seconds: Int) {}
+
   fun stop()
 
   fun release()

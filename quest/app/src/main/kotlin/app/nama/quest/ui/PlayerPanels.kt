@@ -182,6 +182,12 @@ fun ToastPanel(model: AppModel) {
 fun SubtitlePanel(model: AppModel) {
   val state by model.video.state.collectAsState()
   val text = state.subtitle.trim()
+  // The look chosen in Settings; the Mac's sizes are points on a TV-distance screen, scaled to
+  // this panel so Medium lands where the fixed 40 sp sat.
+  val size by model.settings.subtitleSize.state.collectAsState()
+  val tint by model.settings.subtitleColor.state.collectAsState()
+  val plate by model.settings.subtitleBackground.state.collectAsState()
+  val sp = size * 40f / 46f
   Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
     if (text.isNotEmpty()) {
       Text(
@@ -189,13 +195,17 @@ fun SubtitlePanel(model: AppModel) {
           textAlign = TextAlign.Center,
           style =
               Type.title.copy(
-                  fontSize = 40.sp,
-                  lineHeight = 54.sp,
-                  color = Color.White,
-                  shadow = Shadow(Color.Black, Offset(0f, 2f), 10f),
+                  fontSize = sp.sp,
+                  lineHeight = (sp * 1.35f).sp,
+                  color = tint.color,
+                  // Without a plate the shadow is all that keeps the words off a bright picture.
+                  shadow = Shadow(Color.Black, Offset(0f, 2f), if (plate.plateAlpha == 0f) 14f else 10f),
                   textDirection = TextDirection.Content,
               ),
-          modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x8C000000)).padding(horizontal = 26.dp, vertical = 8.dp),
+          modifier =
+              Modifier.clip(RoundedCornerShape(16.dp))
+                  .background(Color.Black.copy(alpha = plate.plateAlpha))
+                  .padding(horizontal = 26.dp, vertical = 8.dp),
       )
     }
   }

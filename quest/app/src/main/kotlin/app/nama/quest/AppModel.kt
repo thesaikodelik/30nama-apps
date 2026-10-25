@@ -309,6 +309,8 @@ class AppModel(
 
   private fun startTrailer(d: Details) {
     trailerJob?.cancel()
+    // A moving picture behind the page is what Reduce motion asks to be spared.
+    if (settings.reduceMotion.value) return
     trailerJob =
         scope.launch {
           val url = safely { catalog.trailer(d) }.getOrNull() ?: return@launch
@@ -387,6 +389,7 @@ class AppModel(
       // The default subtitle language from Settings (Persian unless changed), when the file has it.
       val wanted = settings.defaultSubtitle.value
       video.selectSubtitle(s.subtitles.firstOrNull { it.language == wanted }?.language)
+      video.setReadAhead(settings.bufferAhead.value)
       video.load(s)
       reportWhilePlaying(s)
     }

@@ -198,6 +198,12 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
 
   override fun detach() = mpv.detachSurface()
 
+  override fun setReadAhead(seconds: Int) {
+    val secs = if (seconds > 0) seconds else config.cacheSecs
+    mpv.setProperty("cache-secs", secs.toLong())
+    mpv.setProperty("demuxer-readahead-secs", secs.toLong())
+  }
+
   override fun load(stream: Stream) {
     current = stream
     fellBack = false

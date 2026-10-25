@@ -274,7 +274,8 @@ fun ScreenArt(model: AppModel) {
   val place by model.place.collectAsState()
   val focused by model.focused.collectAsState()
   // The slow drift redraws the whole screen texture every frame; only while the picture is seen.
-  val zoom = if (place == Place.Home || place == Place.Title) driftZoom() else 1f
+  val calm by model.settings.reduceMotion.state.collectAsState()
+  val zoom = if (!calm && (place == Place.Home || place == Place.Title)) driftZoom() else 1f
   Directional(lang.isRTL) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
       AnimatedContent(focused to place, transitionSpec = { fadeIn(tween(700)) togetherWith fadeOut(tween(700)) }, label = "art") { (tile, where) ->
