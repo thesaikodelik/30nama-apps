@@ -73,6 +73,13 @@ class AppModel(
   private val _stream = MutableStateFlow<Stream?>(null)
   val stream: StateFlow<Stream?> = _stream.asStateFlow()
 
+  /** The trailer playing behind the title page, if any, and whether its sound is on. */
+  private val _trailer = MutableStateFlow<Stream?>(null)
+  val trailer: StateFlow<Stream?> = _trailer.asStateFlow()
+  private val _trailerSound = MutableStateFlow(false)
+  val trailerSound: StateFlow<Boolean> = _trailerSound.asStateFlow()
+  private var trailerJob: Job? = null
+
   private val _notice = MutableStateFlow<String?>(null)
   val notice: StateFlow<String?> = _notice.asStateFlow()
 
@@ -137,12 +144,42 @@ class AppModel(
               .onSuccess {
                 _details.value = it
                 _season.value = it.resume?.season ?: it.seasons.firstOrNull()?.number ?: 1
+                startTrailer(it)
               }
               .onFailure {
                 Log.w(TAG, "details: $it")
                 _notice.value = loc(app.nama.core.S.error)
               }
         }
+  }
+
+  private fun startTrailer(d: Details) {
+    trailerJob?.cancel()
+    trailerJob =
+        scope.launch {
+          val url = runCatching { catalog.trailer(d) }.getOrNull() ?: return@launch
+          // Only if the user is still looking at this title.
+          if (_place.value != Place.Title || _details.value !== d) return@launch
+          val s = Stream(url = url, title = d.tile.title, preview = true)
+          _trailerSound.value = false
+          _trailer.value = s
+          video.selectSubtitle(null)
+          video.load(s)
+        }
+  }
+
+  fun toggleTrailerSound() {
+    val on = !_trailerSound.value
+    _trailerSound.value = on
+    video.setMuted(!on)
+  }
+
+  private fun stopTrailer() {
+    trailerJob?.cancel()
+    if (_trailer.value != null) {
+      _trailer.value = null
+      video.stop()
+    }
   }
 
   fun chooseSeason(n: Int) {
@@ -152,13 +189,17 @@ class AppModel(
   fun back() {
     when (_place.value) {
       Place.Playing -> stop()
-      Place.Title -> _place.value = Place.Home
+      Place.Title -> {
+        stopTrailer()
+        _place.value = Place.Home
+      }
       else -> Unit
     }
   }
 
   fun play(episode: Episode? = null) {
     val d = _details.value ?: return
+    trailerJob?.cancel()
     scope.launch {
       _notice.value = null
       val s =
@@ -176,6 +217,7 @@ class AppModel(
         _notice.value = loc(app.nama.core.S.noStream)
         return@launch
       }
+      _trailer.value = null
       _stream.value = s
       _place.value = Place.Playing
       // Persian subtitles on by default when the title has them, as in the other apps.
@@ -263,7 +305,9 @@ class AppModel(
           goHome()
         }
         "title", "play" -> {
-          while (_rows.value.isEmpty() || _place.value == Place.Login) delay(100)
+          while (_place.value == Place.Starting) delay(100)
+          if (_place.value == Place.Login) goHome()
+          while (_rows.value.isEmpty()) delay(100)
           val tile = _rows.value.getOrNull(1)?.tiles?.firstOrNull() ?: return@launch
           open(tile)
           if (where == "play") {

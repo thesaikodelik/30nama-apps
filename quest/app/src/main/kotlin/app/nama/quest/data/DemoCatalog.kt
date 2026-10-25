@@ -97,6 +97,8 @@ class DemoCatalog : Catalog {
     )
   }
 
+  override suspend fun trailer(details: Details): String = DEMO_VIDEO
+
   override suspend fun loginCode() = LoginCode("482917", "30nama.com/auth")
 
   override suspend fun pollLogin(code: LoginCode): Boolean = false

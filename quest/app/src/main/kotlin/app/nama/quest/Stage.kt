@@ -70,6 +70,9 @@ class Placed(val entity: Entity) {
   var targetScale = 1f
   var opacity = 0f
   var targetOpacity = 0f
+  /** Brightness the compositor applies to the layer: a trailer plays dimmed behind the title. */
+  var brightness = 1f
+  private var shownBrightness = 1f
   /** Height relative to width, for the video's own aspect ratio. */
   var stretchY = 1f
   /** Read by the panel's Compose root, so fades work whether or not the panel is a layer. */
@@ -110,7 +113,8 @@ class Placed(val entity: Entity) {
     // A layer fades in the compositor; otherwise Compose fades the content. Never both, or a fade
     // would run at the square of its value.
     val l = layer
-    if (l != null) l.setColorScaleBias(Vector4(1f, 1f, 1f, opacity), Vector4(0f))
+    shownBrightness += (brightness - shownBrightness) * kf
+    if (l != null) l.setColorScaleBias(Vector4(shownBrightness, shownBrightness, shownBrightness, opacity), Vector4(0f))
     fade.floatValue = if (l != null) 1f else opacity
   }
 
@@ -192,7 +196,9 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
     val hasDetails = model.details.value != null
     val playing = where == Place.Playing
     val st = model.video.state.value
-    val videoUp = playing && (st.position > 0.05 || st.videoWidth > 0)
+    val trailerOn = where == Place.Title && model.trailer.value != null
+    // The picture stays up until the first frame of film or trailer is on the screen.
+    val videoUp = (playing || trailerOn) && st.position > 0.05 && st.videoWidth > 0
 
     login.show(at(Layout.login), where == Place.Login)
     wall.show(at(Layout.wall), where == Place.Home)
@@ -205,8 +211,9 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
     val screenScale = if (playing) Layout.PLAY_SCALE else 1f
     // The artwork stays until the first frame is up, so starting a film never flashes black.
     screenArt.show(at(screenSpot), !videoUp, screenScale)
-    video.show(at(screenSpot.copy(d = screenSpot.d - 0.01f)), playing, screenScale)
+    video.show(at(screenSpot.copy(d = screenSpot.d - 0.01f)), playing || (trailerOn && videoUp), screenScale)
     // Letterboxed films keep the screen's width and lose height, like a real cinema masking.
+    video.brightness = if (trailerOn) TRAILER_BRIGHTNESS else 1f
     video.stretchY = if (st.videoWidth > 0) ((16f / 9f) / st.aspect).coerceIn(0.4f, 1.4f) else 1f
 
     val onTitle = where == Place.Title
@@ -282,5 +289,8 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
     private const val CONTROLS_HIDE_MS = 4_000L
     private const val ROOM_DIM_PLAYING = 0.22f
     private const val ROOM_DIM_PAUSED = 0.55f
+    // Dim enough that the floating name reads over any trailer, bright enough to watch. The
+    // compositor scales linear light, so 0.32 looks like about 60% brightness.
+    private const val TRAILER_BRIGHTNESS = 0.32f
   }
 }

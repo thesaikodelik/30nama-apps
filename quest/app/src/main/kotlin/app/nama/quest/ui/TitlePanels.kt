@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -55,30 +57,55 @@ fun TitleLogo(model: AppModel, glow: Boolean) {
   val logo = rememberImage(details?.logo, 1200)
   val tint = Color(tile.art?.light ?: 0xFFF0454A)
   Directional(lang.isRTL) {
-    Box(Modifier.fillMaxSize().then(if (glow) Modifier.blur(28.dp) else Modifier), contentAlignment = Alignment.Center) {
-      if (logo != null) {
-        Image(
-            logo,
-            null,
-            Modifier.fillMaxSize().padding(24.dp),
-            contentScale = ContentScale.Fit,
-            colorFilter = if (glow) ColorFilter.tint(tint.copy(alpha = 0.85f)) else null,
-        )
-      } else {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          Text(
-              tile.title,
-              textAlign = TextAlign.Center,
-              maxLines = 2,
-              style =
-                  if (glow) Type.display.copy(fontSize = 96.sp, color = tint.copy(alpha = 0.9f))
-                  else Type.display.copy(fontSize = 96.sp, brush = Brush.verticalGradient(listOf(Color.White, lerpTint(tint)))),
-          )
-          tile.originalTitle?.takeIf { it != tile.title && !glow }?.let {
-            Text(it.uppercase(), style = Type.label.copy(fontSize = 22.sp, letterSpacing = 8.sp, color = tint), textAlign = TextAlign.Center)
+    if (glow) {
+      // Behind the sharp name, the title's own colour glowing. (Readability over a trailer comes
+      // from dimming the trailer itself; a translucent dark halo barely shows on a headset layer.)
+      LogoShape(tile, logo, tint.copy(alpha = 0.6f), Modifier.fillMaxSize().blur(36.dp))
+    } else {
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (logo != null) {
+          Image(logo, null, Modifier.fillMaxSize().padding(24.dp), contentScale = ContentScale.Fit)
+        } else {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                tile.title,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                style =
+                    Type.display.copy(
+                        fontSize = 96.sp,
+                        brush = Brush.verticalGradient(listOf(Color.White, lerpTint(tint))),
+                        shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 3f), 14f),
+                    ),
+            )
+            tile.originalTitle?.takeIf { it != tile.title }?.let {
+              Text(
+                  it.uppercase(),
+                  textAlign = TextAlign.Center,
+                  style =
+                      Type.label.copy(
+                          fontSize = 22.sp,
+                          letterSpacing = 8.sp,
+                          color = lerpTint(tint),
+                          shadow = Shadow(Color.Black.copy(alpha = 0.8f), Offset(0f, 2f), 10f),
+                      ),
+              )
+            }
           }
         }
       }
+    }
+  }
+}
+
+/** The name's silhouette in one colour, for the glow layer. */
+@Composable
+private fun LogoShape(tile: Tile, logo: androidx.compose.ui.graphics.ImageBitmap?, color: Color, modifier: Modifier) {
+  Box(modifier, contentAlignment = Alignment.Center) {
+    if (logo != null) {
+      Image(logo, null, Modifier.fillMaxSize().padding(24.dp), contentScale = ContentScale.Fit, colorFilter = ColorFilter.tint(color))
+    } else {
+      Text(tile.title, textAlign = TextAlign.Center, maxLines = 2, style = Type.display.copy(fontSize = 96.sp, color = color))
     }
   }
 }
@@ -118,6 +145,9 @@ fun TitleInfo(model: AppModel) {
             icon = Icon.Play,
             enabled = details != null,
         )
+        val trailer by model.trailer.collectAsState()
+        val sound by model.trailerSound.collectAsState()
+        if (trailer != null) Pill(loc(S.trailer), { model.toggleTrailerSound() }, icon = if (sound) Icon.Sound else Icon.Muted)
         Pill(loc(S.back), { model.back() }, icon = Icon.Back)
       }
       notice?.let {
@@ -243,7 +273,7 @@ fun CastPanel(model: AppModel) {
             }
             Column {
               Text(person.name, style = Type.label.copy(fontSize = 18.sp))
-              Text(person.role, style = Type.caption)
+              Text(person.role, style = Type.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
           }
         }

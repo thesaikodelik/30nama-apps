@@ -36,6 +36,9 @@ import com.meta.spatial.toolkit.PixelDisplayOptions
 import com.meta.spatial.toolkit.QuadShapeOptions
 import com.meta.spatial.toolkit.SceneObjectSystem
 import com.meta.spatial.toolkit.UIPanelSettings
+import com.meta.spatial.toolkit.UIPanelRenderOptions
+import com.meta.spatial.toolkit.PanelRenderMode
+import com.meta.spatial.runtime.PanelShapeLayerBlendType
 import com.meta.spatial.toolkit.VideoSurfacePanelRegistration
 import com.meta.spatial.vr.LocomotionSystem
 import com.meta.spatial.vr.VRFeature
@@ -152,6 +155,9 @@ class NamaActivity : AppSystemActivity() {
                     if (curveRadius != null) CylinderShapeOptions(radius = curveRadius, width = widthM, height = heightM)
                     else QuadShapeOptions(width = widthM, height = heightM),
                 display = DpPerMeterDisplayOptions(dpPerMeter = dpPerMeter),
+                // Soft edges, glass and glows need real blending; the default masks alpha at a
+                // threshold, so a 60% shadow either vanishes or turns solid.
+                rendering = UIPanelRenderOptions(PanelRenderMode.Layer(layerBlendType = PanelShapeLayerBlendType.ALPHA_BLEND)),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelTransparent),
             )
           },

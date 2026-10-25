@@ -23,6 +23,8 @@ interface VideoEngine {
   /** Null turns subtitles off. */
   fun selectSubtitle(language: String?)
 
+  fun setMuted(muted: Boolean)
+
   fun stop()
 
   fun release()

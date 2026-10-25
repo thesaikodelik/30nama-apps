@@ -214,6 +214,8 @@ enum class Icon {
   Subtitles,
   Close,
   Check,
+  Sound,
+  Muted,
 }
 
 /** Icons drawn as paths: crisp at any panel density, and no icon library in the APK. */
@@ -269,6 +271,22 @@ fun Glyph(icon: Icon, modifier: Modifier = Modifier, color: Color = Ink.text1) {
       Icon.Close -> {
         drawLine(color, Offset(w * 0.2f, h * 0.2f), Offset(w * 0.8f, h * 0.8f), w * 0.12f, StrokeCap.Round)
         drawLine(color, Offset(w * 0.8f, h * 0.2f), Offset(w * 0.2f, h * 0.8f), w * 0.12f, StrokeCap.Round)
+      }
+      Icon.Sound, Icon.Muted -> {
+        // A speaker; waves when the sound is on, a cross when it is off.
+        val speaker = Path().apply {
+          moveTo(w * 0.1f, h * 0.38f); lineTo(w * 0.28f, h * 0.38f); lineTo(w * 0.5f, h * 0.16f)
+          lineTo(w * 0.5f, h * 0.84f); lineTo(w * 0.28f, h * 0.62f); lineTo(w * 0.1f, h * 0.62f); close()
+        }
+        drawPath(speaker, color)
+        val thin = Stroke(width = w * 0.08f, cap = StrokeCap.Round)
+        if (icon == Icon.Sound) {
+          drawArc(color, -45f, 90f, false, Offset(w * 0.38f, h * 0.3f), Size(w * 0.36f, h * 0.4f), style = thin)
+          drawArc(color, -50f, 100f, false, Offset(w * 0.34f, h * 0.14f), Size(w * 0.58f, h * 0.72f), style = thin)
+        } else {
+          drawLine(color, Offset(w * 0.64f, h * 0.36f), Offset(w * 0.9f, h * 0.64f), w * 0.08f, StrokeCap.Round)
+          drawLine(color, Offset(w * 0.9f, h * 0.36f), Offset(w * 0.64f, h * 0.64f), w * 0.08f, StrokeCap.Round)
+        }
       }
       Icon.Check -> drawPath(Path().apply { moveTo(w * 0.15f, h * 0.52f); lineTo(w * 0.42f, h * 0.78f); lineTo(w * 0.86f, h * 0.24f) }, color, style = stroke)
     }

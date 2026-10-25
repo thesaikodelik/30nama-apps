@@ -3,6 +3,8 @@ package app.nama.quest.data
 import android.content.Context
 import android.util.Log
 import app.nama.core.APIClient
+import app.nama.core.Aparat
+import app.nama.core.HttpURLConnectionTransport
 import app.nama.core.AudioMix
 import app.nama.core.Json
 import app.nama.core.Lang
@@ -188,6 +190,20 @@ class LiveCatalog(private val context: Context) : Catalog {
     user = api.signIn(token)
     prefs.edit().putString("token", token).apply()
     return true
+  }
+
+  /**
+   * A trailer from Aparat, the way the Mac finds one when TMDB has none: a search for the English
+   * title, the best-matching video, then its file, asked for now because Aparat's links expire.
+   */
+  override suspend fun trailer(details: Details): String? {
+    val post = posts[details.tile.id] ?: return null
+    val title = post.titleEnglish ?: post.title(Lang.en)
+    val net = HttpURLConnectionTransport()
+    suspend fun json(r: app.nama.core.HttpRequest) =
+        runCatching { net.send(r).takeIf { it.status == 200 }?.let { Json.parse(it.body) } }.getOrNull()
+    val found = json(Aparat.searchRequest(title))?.let { Aparat.trailer(Aparat.videosInSearch(it), title, post.year) } ?: return null
+    return json(Aparat.videoRequest(found.uid))?.let(Aparat::fileInVideo)?.toString()
   }
 
   /** The logo list, kept for a day in the cache like the Mac does. */

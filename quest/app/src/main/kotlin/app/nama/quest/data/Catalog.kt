@@ -25,6 +25,9 @@ interface Catalog {
 
   suspend fun reportProgress(stream: Stream, seconds: Double, duration: Double) {}
 
+  /** A trailer file to play behind the title page, or null when none was found. */
+  suspend fun trailer(details: Details): String? = null
+
   suspend fun loginCode(): LoginCode?
 
   /** True once the code has been confirmed on the other device. */
@@ -91,6 +94,8 @@ data class Stream(
     val introEnd: Double? = null,
     /** Opaque handle the real catalogue needs to report progress. */
     val ref: Any? = null,
+    /** A trailer behind the title page: starts muted and loops. */
+    val preview: Boolean = false,
 )
 
 data class LoginCode(val code: String, val address: String, val ref: Any? = null)

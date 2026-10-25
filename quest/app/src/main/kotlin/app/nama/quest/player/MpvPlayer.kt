@@ -261,6 +261,10 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
 
   fun setVolume(percent: Int) = mpv.setProperty("volume", percent.toLong())
 
+  override fun setMuted(muted: Boolean) {
+    mpv.setProperty("mute", muted)
+  }
+
   fun setSpeed(speed: Double) = mpv.setProperty("speed", speed)
 
   /** Raw access for anything else; commands and writes are async like everything here. */
@@ -281,6 +285,10 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
       else mpv.command("change-list", "http-header-fields", "append", "$k: $v")
     }
     userAgent?.let { mpv.setProperty("user-agent", it) }
+
+    // A trailer behind the title page is quiet and plays round; a film is neither.
+    mpv.setProperty("mute", stream.preview)
+    mpv.setProperty("loop-file", if (stream.preview) "inf" else "no")
 
     val args = mutableListOf("loadfile", stream.url, "replace")
     if (startAt > 0) {
