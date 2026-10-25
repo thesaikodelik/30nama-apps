@@ -126,6 +126,13 @@ private fun Pulse() {
 }
 
 @Composable
+private fun driftZoom(): Float {
+  val drift = rememberInfiniteTransition(label = "drift")
+  val zoom by drift.animateFloat(1.0f, 1.08f, infiniteRepeatable(tween(24_000), RepeatMode.Reverse), label = "zoom")
+  return zoom
+}
+
+@Composable
 fun LanguageChips(model: AppModel, current: Lang) {
   Row(
       Modifier.clip(RoundedCornerShape(50)).background(Color(0x14F4F1EA)).padding(4.dp),
@@ -276,8 +283,8 @@ fun ScreenArt(model: AppModel) {
   val lang by model.lang.collectAsState()
   val place by model.place.collectAsState()
   val focused by model.focused.collectAsState()
-  val drift = rememberInfiniteTransition(label = "drift")
-  val zoom by drift.animateFloat(1.0f, 1.08f, infiniteRepeatable(tween(24_000), RepeatMode.Reverse), label = "zoom")
+  // The slow drift redraws the whole screen texture every frame; only while the picture is seen.
+  val zoom = if (place == Place.Home || place == Place.Title) driftZoom() else 1f
   Directional(lang.isRTL) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
       AnimatedContent(focused to place, transitionSpec = { fadeIn(tween(700)) togetherWith fadeOut(tween(700)) }, label = "art") { (tile, where) ->

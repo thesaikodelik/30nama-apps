@@ -120,7 +120,7 @@ class AppModel(
   /** Signed-in users and the demo go straight home; everyone else sees the code first, with a way in as a guest. */
   fun start() {
     scope.launch {
-      runCatching { catalog.prepare() }.onFailure { Log.w(TAG, "prepare: $it") }
+      safely { catalog.prepare() }.onFailure { Log.w(TAG, "prepare: $it") }
       if (catalog.signedIn || catalog.isDemo) goHome() else startLogin()
     }
   }
@@ -142,9 +142,11 @@ class AppModel(
   }
 
   fun loadHome() {
-    scope.launch {
+    // A newer load (another language) replaces an older one still on its way.
+    homeJob?.cancel()
+    homeJob = scope.launch {
       _rowsFailed.value = false
-      runCatching { catalog.home() }
+      safely { catalog.home() }
           .onSuccess {
             _rows.value = it
             if (_focused.value == null) _focused.value = it.firstOrNull()?.tiles?.firstOrNull()
@@ -163,11 +165,13 @@ class AppModel(
   fun open(tile: Tile) {
     _focused.value = tile
     _details.value = null
+    _notice.value = null
+    playJob?.cancel()
     _place.value = Place.Title
     detailsJob?.cancel()
     detailsJob =
         scope.launch {
-          runCatching { catalog.details(tile) }
+          safely { catalog.details(tile) }
               .onSuccess {
                 _details.value = it
                 _season.value = it.resume?.season ?: it.seasons.firstOrNull()?.number ?: 1
@@ -184,7 +188,7 @@ class AppModel(
     trailerJob?.cancel()
     trailerJob =
         scope.launch {
-          val url = runCatching { catalog.trailer(d) }.getOrNull() ?: return@launch
+          val url = safely { catalog.trailer(d) }.getOrNull() ?: return@launch
           // Only if the user is still looking at this title.
           if (_place.value != Place.Title || _details.value !== d) return@launch
           val s = Stream(url = url, title = d.tile.title, preview = true)
@@ -217,6 +221,8 @@ class AppModel(
     when (_place.value) {
       Place.Playing -> stop()
       Place.Title -> {
+        detailsJob?.cancel()
+        playJob?.cancel()
         stopTrailer()
         _place.value = Place.Home
       }
@@ -227,7 +233,9 @@ class AppModel(
   fun play(episode: Episode? = null) {
     val d = _details.value ?: return
     trailerJob?.cancel()
-    scope.launch {
+    // One request at a time: a second press, or an episode after Play, replaces the first.
+    playJob?.cancel()
+    playJob = scope.launch {
       _notice.value = null
       val s =
           try {
@@ -244,6 +252,8 @@ class AppModel(
         _notice.value = loc(app.nama.core.S.noStream)
         return@launch
       }
+      // The user may have gone back while the stream was being asked for.
+      if (_place.value != Place.Title || _details.value !== d) return@launch
       _trailer.value = null
       _stream.value = s
       _place.value = Place.Playing
@@ -255,6 +265,18 @@ class AppModel(
   }
 
   private var reportJob: Job? = null
+  private var homeJob: Job? = null
+  private var playJob: Job? = null
+
+  /** runCatching that lets cancellation through, so a replaced job doesn't read as an error. */
+  private inline fun <T> safely(block: () -> T): Result<T> =
+      try {
+        Result.success(block())
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        Result.failure(e)
+      }
 
   /** Keeps the server's "continue watching" current, in the 30-second steps it records. */
   private fun reportWhilePlaying(s: Stream) {
@@ -344,6 +366,26 @@ class AppModel(
         }
       }
     }
+  }
+
+  private var resumeTrailer = false
+
+  /** Called when the system takes over the headset (home, menus). */
+  fun pauseForSystem() {
+    when (_place.value) {
+      Place.Playing -> video.setPaused(true)
+      Place.Title -> if (_trailer.value != null) {
+        resumeTrailer = true
+        video.setPaused(true)
+      }
+      else -> Unit
+    }
+  }
+
+  /** Back from the system: a trailer carries on; a film stays paused until the user plays it. */
+  fun resumeFromSystem() {
+    if (resumeTrailer && _place.value == Place.Title && _trailer.value != null) video.setPaused(false)
+    resumeTrailer = false
   }
 
   fun dismissNotice() {

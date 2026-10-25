@@ -63,19 +63,39 @@ class LiveCatalog(private val context: Context) : Catalog {
       prefs.edit().putString("host", host).apply()
       prefs.getString("token", null)?.let { token ->
         api.setToken(token)
-        // An expired session reads as no profile; the app then asks to sign in again.
-        user = api.profile(token)
-        if (user == null) {
-          api.setToken(null)
-          prefs.edit().remove("token").apply()
-        }
+        user = restore(token)
       }
       prepared = true
     }
   }
 
+  /**
+   * The saved session's user. Only the server saying the session is over signs the user out; a
+   * network failure on the way keeps the token, so waking up offline doesn't cost a sign-in.
+   */
+  private suspend fun restore(token: String): User? {
+    val e =
+        try {
+          api.call("user")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          Log.w("Nama", "profile: $e")
+          return User(token)
+        }
+    if (e.success) return User.from(e.result, fallbackToken = token) ?: User(token)
+    if (APIClient.isLoginRequired(e.message)) {
+      api.setToken(null)
+      prefs.edit().remove("token").apply()
+      return null
+    }
+    return User(token)
+  }
+
   override suspend fun home(): List<Row> {
     prepare()
+    // Read once: a language switch while this is on its way starts a load of its own.
+    val lang = lang
     api.setLanguage(lang)
     val loc = Loc(lang)
     val feed = api.home()
@@ -84,14 +104,15 @@ class LiveCatalog(private val context: Context) : Catalog {
       runCatching { api.continueWatching(background = true) }
           .getOrNull()
           ?.takeIf { it.isNotEmpty() }
-          ?.let { list -> rows += Row("continue", loc(S.continueWatching), list.map { tile(it, loc) }, landscape = true) }
+          ?.let { list -> rows += Row("continue", loc(S.continueWatching), list.map { tile(it, loc, lang) }, landscape = true) }
     }
-    feed.heroes.takeIf { it.isNotEmpty() }?.let { rows += Row("featured", loc(S.featured), it.map { p -> tile(p, loc) }, landscape = true) }
-    for (section in feed.sections) rows += Row(section.key, loc.title(forSection = section.key), section.posts.map { tile(it, loc) })
-    return rows
+    feed.heroes.takeIf { it.isNotEmpty() }?.let { rows += Row("featured", loc(S.featured), it.map { p -> tile(p, loc, lang) }, landscape = true) }
+    for (section in feed.sections) rows += Row(section.key, loc.title(forSection = section.key), section.posts.map { tile(it, loc, lang) })
+    // The server can list a title twice in one row; the lists key their items by id.
+    return rows.map { r -> r.copy(tiles = r.tiles.distinctBy { it.id }) }
   }
 
-  private fun tile(post: Post, loc: Loc): Tile {
+  private fun tile(post: Post, loc: Loc, lang: Lang): Tile {
     val key = post.id.toString()
     posts[key] = post
     val resume = post.resume
@@ -120,6 +141,7 @@ class LiveCatalog(private val context: Context) : Catalog {
   override suspend fun details(tile: Tile): Details {
     prepare()
     val id = tile.id.toInt()
+    val lang = lang
     val post = api.single(id) ?: posts[tile.id] ?: error("no title")
     posts[tile.id] = post
     val loc = Loc(lang)
@@ -131,12 +153,12 @@ class LiveCatalog(private val context: Context) : Catalog {
         }
     val resumeItem = result?.let { r -> r.items.getOrNull(r.startIndex).takeIf { r.resume != null } }
     return Details(
-        tile = tile(post, loc).copy(backdrop = (post.cover ?: post.poster.url(428.0))?.toString() ?: tile.backdrop),
+        tile = tile(post, loc, lang).copy(backdrop = (post.cover ?: post.poster.url(428.0))?.toString() ?: tile.backdrop),
         overview = post.plot(lang).ifBlank { null },
         runtimeMinutes = post.runtimeMinutes,
         logo = logoIndex()?.logo(post.imdbID, lang)?.toString(),
         director = post.directors.firstOrNull(),
-        people = post.cast.take(16).map { Person(it.name, it.role ?: loc(S.cast), it.poster?.url(160.0)?.toString()) },
+        people = post.cast.distinctBy { it.name }.take(16).map { Person(it.name, it.role ?: loc(S.cast), it.poster?.url(160.0)?.toString()) },
         seasons = if (post.isSeries) seasons else emptyList(),
         resume = resumeItem?.takeIf { post.isSeries }?.let(::episodeOf),
     )

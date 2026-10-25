@@ -93,35 +93,72 @@ class Placed(val entity: Entity) {
       pose = spot
       placedOnce = true
     }
-    target = if (on) spot else Pose(spot.t + spot.forward() * 0.12f, spot.q)
+    val next = if (on) spot else Pose(spot.t + spot.forward() * 0.12f, spot.q)
+    if (!samePose(next, target) || targetScale != scaleTo) settled = false
+    target = next
     shown = on
   }
+
+  private var wasVisible: Boolean? = null
+  private var settled = false
+  private var lastBias = -1f
+  private var lastBrightness = -1f
+  private var lookingUp = false
 
   fun step(dt: Float) {
     val k = 1f - exp(-dt * 7.5f)
     val kf = 1f - exp(-dt * 6f)
-    pose = Pose(pose.t.lerp(target.t, k), pose.q.slerp(target.q, k))
-    scale += (targetScale - scale) * k
+    // Ease toward the target, then stop writing once there: a settled or hidden panel costs nothing.
+    val moving = !settled || (wasVisible == true && !samePose(pose, target)) || abs(targetScale - scale) > 1e-4f
+    if (moving) {
+      pose = Pose(pose.t.lerp(target.t, k), pose.q.slerp(target.q, k))
+      scale += (targetScale - scale) * k
+      if (samePose(pose, target) && abs(targetScale - scale) < 1e-4f) {
+        pose = target
+        scale = targetScale
+        settled = true
+      } else settled = false
+    }
     opacity += (targetOpacity - opacity) * kf
     if (abs(targetOpacity - opacity) < 0.003f) opacity = targetOpacity
     val visible = opacity > 0.004f
-    entity.setComponent(Visible(visible))
-    if (visible) {
+    if (visible != wasVisible) {
+      entity.setComponent(Visible(visible))
+      wasVisible = visible
+      settled = false
+    }
+    if (visible && (moving || stretchY != lastStretch)) {
       entity.setComponent(Transform(pose))
       entity.setComponent(Scale(Vector3(scale, scale * stretchY, scale)))
+      lastStretch = stretchY
     }
     // A layer fades in the compositor; otherwise Compose fades the content. Never both, or a fade
     // would run at the square of its value.
     val l = layer
     shownBrightness += (brightness - shownBrightness) * kf
-    if (l != null) l.setColorScaleBias(Vector4(shownBrightness, shownBrightness, shownBrightness, opacity), Vector4(0f))
-    fade.floatValue = if (l != null) 1f else opacity
+    if (abs(brightness - shownBrightness) < 0.002f) shownBrightness = brightness
+    if (l != null && (opacity != lastBias || shownBrightness != lastBrightness)) {
+      l.setColorScaleBias(Vector4(shownBrightness, shownBrightness, shownBrightness, opacity), Vector4(0f))
+      lastBias = opacity
+      lastBrightness = shownBrightness
+    }
+    val f = if (l != null) 1f else opacity
+    if (fade.floatValue != f) fade.floatValue = f
   }
+
+  private var lastStretch = 1f
+
+  private fun samePose(a: Pose, b: Pose) = a.t.distanceTo(b.t) < 0.0005f && abs(a.q.dot(b.q)) > 0.99999f
 
   /** Looks up the panel's compositor layer once it exists; until then the Compose fade carries it. */
   fun resolveLayer(objects: SceneObjectSystem) {
-    if (layer != null) return
-    objects.getSceneObject(entity)?.thenAccept { so -> layer = (so as? PanelSceneObject)?.getLayer() }
+    if (layer != null || lookingUp) return
+    val future = objects.getSceneObject(entity) ?: return
+    lookingUp = true
+    future.thenAccept { so ->
+      layer = (so as? PanelSceneObject)?.getLayer()
+      lookingUp = false
+    }
   }
 }
 
@@ -154,6 +191,7 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
   private var roomLight = 1f
   private var lutLight = -1f
   private var lastButtons = 0
+  private var lastSeekAt = 0L
 
   private fun place(id: Int): Placed =
       Placed(Entity.create(listOf(Panel(id), Transform(), Visible(false), Scale(Vector3(1f)))))
@@ -279,9 +317,18 @@ class Stage(private val scene: Scene, private val model: AppModel, private val o
       if (pressed and (ButtonBits.ButtonB or ButtonBits.ButtonY) != 0) model.back()
       return
     }
+    // A stick hovering at its threshold can report several pushes; one jump per quarter second.
+    val now = System.currentTimeMillis()
+    val canSeek = now - lastSeekAt > 250
     when {
-      pressed and (ButtonBits.ButtonThumbRL or ButtonBits.ButtonThumbLL) != 0 -> model.video.seekBy(-10.0)
-      pressed and (ButtonBits.ButtonThumbRR or ButtonBits.ButtonThumbLR) != 0 -> model.video.seekBy(10.0)
+      pressed and (ButtonBits.ButtonThumbRL or ButtonBits.ButtonThumbLL) != 0 -> if (canSeek) {
+        lastSeekAt = now
+        model.video.seekBy(-10.0)
+      }
+      pressed and (ButtonBits.ButtonThumbRR or ButtonBits.ButtonThumbLR) != 0 -> if (canSeek) {
+        lastSeekAt = now
+        model.video.seekBy(10.0)
+      }
       pressed and (ButtonBits.ButtonA or ButtonBits.ButtonX) != 0 -> model.video.setPaused(!model.video.state.value.paused)
       pressed and (ButtonBits.ButtonB or ButtonBits.ButtonY) != 0 -> model.back()
     }

@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
@@ -51,7 +54,8 @@ class NamaActivity : AppSystemActivity() {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
   private lateinit var video: VideoEngine
   private lateinit var model: AppModel
-  private var stage: Stage? = null
+  // Observable, so a panel composed before the stage exists picks up its fades once it does.
+  private var stage by mutableStateOf<Stage?>(null)
   private var lastTick = 0L
 
   override fun registerFeatures(): List<SpatialFeature> = listOf(VRFeature(this), ComposeFeature())
@@ -95,6 +99,18 @@ class NamaActivity : AppSystemActivity() {
   override fun onRecenter(isUserInitiated: Boolean) {
     super.onRecenter(isUserInitiated)
     stage?.recenter()
+  }
+
+  // The Meta button or the universal menu takes the user away from the app: hold the film, and the
+  // trailer, until they come back.
+  override fun onVRPause() {
+    super.onVRPause()
+    model.pauseForSystem()
+  }
+
+  override fun onVRReady() {
+    super.onVRReady()
+    model.resumeFromSystem()
   }
 
   override fun onHMDUnmounted() {

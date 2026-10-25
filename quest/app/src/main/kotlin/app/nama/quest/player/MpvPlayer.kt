@@ -111,6 +111,12 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
   @Volatile private var fellBack = false
   @Volatile private var wantedSubLanguage: String? = null
   @Volatile private var subsAdded = false
+  /**
+   * Set when a new file is asked for and cleared by its StartFile. Until then, file events and
+   * file properties still in flight belong to the previous file (a trailer replaced by the film)
+   * and are dropped, so they can't add subtitles, trigger a fallback or show a stale frame size.
+   */
+  @Volatile private var awaitingStart = false
   @Volatile private var released = false
 
   init {
@@ -222,9 +228,14 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
 
   override fun stop() {
     current = null
+    main.removeCallbacksAndMessages(null)
     mpv.command("stop")
-    update { MpvState(mode = it.mode) }
+    update { fresh(it) }
   }
+
+  /** A state for a new file: what belongs to the file is reset, what belongs to mpv is kept. */
+  private fun fresh(old: MpvState, loading: Boolean = false) =
+      MpvState(mode = old.mode, paused = old.paused, hwdecCurrent = old.hwdecCurrent, loading = loading)
 
   override fun release() {
     if (released) return
@@ -275,7 +286,10 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
 
   private fun open(stream: Stream, startAt: Double) {
     subsAdded = false
-    update { MpvState(mode = it.mode, loading = true) }
+    awaitingStart = true
+    // Retries and checks queued for the previous file must not act on this one.
+    main.removeCallbacksAndMessages(null)
+    update { fresh(it, loading = true) }
 
     // Headers go one by one: a plain string list would split on the commas inside values.
     mpv.command("change-list", "http-header-fields", "clr", "")
@@ -351,6 +365,8 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
   // Mpv.Listener (event thread) ---------------------------------------------
 
   override fun onEvent(event: Mpv.Event) {
+    if (event is Mpv.Event.StartFile) awaitingStart = false
+    else if (awaitingStart && (event == Mpv.Event.FileLoaded || event == Mpv.Event.PlaybackRestart || event is Mpv.Event.EndFile)) return
     when (event) {
       is Mpv.Event.StartFile -> update { it.copy(loading = true, eofReached = false, error = null) }
       Mpv.Event.FileLoaded -> {
@@ -384,6 +400,7 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
   }
 
   override fun onPropertyChange(name: String, value: Any?) {
+    if (awaitingStart && name in FILE_PROPERTIES) return
     when (name) {
       "time-pos" -> {
         val t = value as? Double ?: 0.0
@@ -456,6 +473,13 @@ class MpvPlayer(private val config: Config = Config()) : VideoEngine, Mpv.Listen
     const val TAG = "Nama"
 
     val BITMAP_SUB_CODECS = setOf("hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "xsub", "pgssub", "vobsub")
+
+    /** Properties that describe the current file rather than the player. */
+    val FILE_PROPERTIES =
+        setOf(
+            "time-pos", "duration", "demuxer-cache-duration", "video-params/w", "video-params/h",
+            "video-params/aspect", "sub-text", "eof-reached", "track-list", "paused-for-cache",
+        )
 
     val OBSERVED =
         listOf(
