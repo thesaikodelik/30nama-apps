@@ -113,6 +113,13 @@ class PanelShots {
         if (System.getProperty("nama.trace") != null) println("PanelShots: ${System.currentTimeMillis() % 100000} shot $name")
       }
 
+      // The magazines: a cover, the open cover page, and a title page.
+      val shelf = Shelf { model.rows.value }
+      take("mag-cover", Layout.COVER_W, Layout.COVER_H, NamaActivity.DP_COVER) { app.nama.quest.ui.MagazineCover(model, shelf, 0) }
+      shelf.open(0)
+      take("mag-page-0", Layout.PAGE_W, Layout.PAGE_H, NamaActivity.DP_PAGE) { app.nama.quest.ui.MagazinePage(model, shelf, { true }) { it.pageA } }
+      take("mag-page-1", Layout.PAGE_W, Layout.PAGE_H, NamaActivity.DP_PAGE) { app.nama.quest.ui.MagazinePage(model, shelf, { false }) { it.pageB } }
+
       // The wall, section by section, then what opens on top of it.
       for (section in Section.entries) {
         model.go(section)

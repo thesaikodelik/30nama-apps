@@ -64,6 +64,8 @@ android {
       all {
         // The snapshots take minutes; they run only when asked for: -Pshots
         if (!project.hasProperty("shots")) it.exclude("**/PanelShots*")
+        // The 3D scene simulator likewise: -Psim
+        if (!project.hasProperty("sim")) it.exclude("**/SceneSim*") else it.systemProperty("nama.sim", rootProject.file("build/sim").absolutePath)
         it.failOnNoDiscoveredTests = false
         it.systemProperty("roborazzi.test.record", "true")
         it.systemProperty("nama.shots", rootProject.file("build/shots").absolutePath)

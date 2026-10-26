@@ -285,7 +285,32 @@ class AppModel(
     _focused.value = tile
   }
 
-  fun open(tile: Tile) {
+  /**
+   * Set while a film was started straight from a magazine page: the title panels stay away, and
+   * the end of the film goes back to the magazine instead of the title page.
+   */
+  var quickPlay = false
+    private set
+
+  /** From a magazine page: straight to the film, and back to the magazine after. */
+  fun openAndPlay(tile: Tile) {
+    open(tile, quick = true)
+    scope.launch {
+      while (_details.value == null && _notice.value == null && _place.value == Place.Title) delay(50)
+      if (_details.value != null && _place.value == Place.Title) play()
+      playJob?.join()
+      // Refused or no stream: say why, and stay with the magazine.
+      if (quickPlay && _place.value == Place.Title) {
+        _notice.value?.let(::showToast)
+        quickPlay = false
+        detailsJob?.cancel()
+        _place.value = Place.Home
+      }
+    }
+  }
+
+  fun open(tile: Tile, quick: Boolean = false) {
+    quickPlay = quick
     _focused.value = tile
     _details.value = null
     _notice.value = null
@@ -298,7 +323,7 @@ class AppModel(
               .onSuccess {
                 _details.value = it
                 _season.value = it.resume?.season ?: it.seasons.firstOrNull()?.number ?: 1
-                startTrailer(it)
+                if (!quickPlay) startTrailer(it)
               }
               .onFailure {
                 Log.w(TAG, "details: $it")
@@ -448,7 +473,8 @@ class AppModel(
     video.stop()
     _stream.value = null
     _next.value = null
-    _place.value = if (_details.value != null) Place.Title else Place.Home
+    _place.value = if (_details.value != null && !quickPlay) Place.Title else Place.Home
+    quickPlay = false
     refreshAfterPlayback()
   }
 

@@ -12,4 +12,15 @@
   <item type="id" name="panel_controls" />
   <item type="id" name="panel_subtitles" />
   <item type="id" name="panel_toast" />
+  <item type="id" name="panel_table" />
+  <item type="id" name="panel_mag_0" />
+  <item type="id" name="panel_mag_1" />
+  <item type="id" name="panel_mag_2" />
+  <item type="id" name="panel_mag_3" />
+  <item type="id" name="panel_mag_4" />
+  <item type="id" name="panel_mag_5" />
+  <item type="id" name="panel_page_a" />
+  <item type="id" name="panel_page_b" />
+  <item type="id" name="panel_leaf_front" />
+  <item type="id" name="panel_leaf_back" />
 </resources>

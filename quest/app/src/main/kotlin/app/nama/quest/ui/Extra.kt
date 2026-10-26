@@ -22,6 +22,8 @@ enum class X(val en: String, val fa: String, val ar: String) {
   nothingLoaded("The catalogue didn't load.", "فهرست بارگذاری نشد.", "لم يتم تحميل القائمة."),
   storylineAndCrew("Story", "داستان", "القصة"),
   runtime("Runtime", "مدت", "المدة"),
+  titles("titles", "عنوان", "عنوانًا"),
+  thisWeek("This week's issue", "شمارهٔ این هفته", "عدد هذا الأسبوع"),
   ;
 
   operator fun invoke(lang: Lang): String =

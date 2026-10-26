@@ -2,6 +2,7 @@ package app.nama.quest
 
 import android.util.Log
 import androidx.compose.runtime.mutableFloatStateOf
+import android.net.Uri
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
 import com.meta.spatial.core.Quaternion
@@ -14,6 +15,8 @@ import com.meta.spatial.runtime.PanelSceneObject
 import com.meta.spatial.runtime.Scene
 import com.meta.spatial.runtime.SceneLayer
 import com.meta.spatial.toolkit.Controller
+import com.meta.spatial.toolkit.Mesh
+import com.meta.spatial.toolkit.MeshManager
 import com.meta.spatial.toolkit.Panel
 import com.meta.spatial.toolkit.Scale
 import com.meta.spatial.toolkit.SceneObjectSystem
@@ -37,7 +40,7 @@ object Layout {
   const val SCREEN_H = SCREEN_W * 9f / 16f
   const val SCREEN_D = 2.9f
 
-  val screenHome = Spot(0f, 0.95f, SCREEN_D)
+  val screenHome = Spot(0f, 0.2f, SCREEN_D)
   val screenTitle = Spot(0f, 0.24f, SCREEN_D)
   val screenPlay = Spot(0f, 0.18f, SCREEN_D - 0.05f)
   const val PLAY_SCALE = 1.18f
@@ -60,6 +63,20 @@ object Layout {
 
   val controls = Spot(0f, -0.5f, 1.1f, faceEye = true)
   val toast = Spot(0f, -0.2f, 0.95f, faceEye = true)
+
+  // Magazines (design.md). Sizes in metres; the page is a little larger than A4 so a whole title
+  // fits on it at reading distance.
+  const val COVER_W = 0.21f
+  const val COVER_H = 0.28f
+  const val PAGE_W = 0.34f
+  const val PAGE_H = 0.45f
+  const val TABLE_W = 1.1f
+  const val TABLE_H = 0.62f
+  /** Where the virtual table's top is when the room has none: ahead, and at a seated lap's height. */
+  val virtualTable = Spot(0f, -0.5f, 0.62f)
+  /** The open magazine: held this far ahead and this far under the eye. */
+  const val BOOK_D = 0.5f
+  const val BOOK_Y = -0.24f
 }
 
 /** A place relative to the head. [faceEye] tilts the panel to look straight at the eyes. */
@@ -84,10 +101,14 @@ class Placed(val entity: Entity) {
   private var shown = false
   private var placedOnce = false
 
-  fun show(spot: Pose, on: Boolean, scaleTo: Float = 1f) {
+  /** [arrive]: come in from a little farther away; things that move on a table just fade in place. */
+  fun show(spot: Pose, on: Boolean, scaleTo: Float = 1f, arrive: Boolean = true) {
     targetOpacity = if (on) 1f else 0f
     targetScale = scaleTo
-    if (on && !shown && opacity < 0.02f) {
+    if (!arrive && on && !shown && opacity < 0.02f) {
+      pose = spot
+      scale = scaleTo
+    } else if (on && !shown && opacity < 0.02f) {
       // Arrive from a little farther away and smaller, so a panel settles in instead of popping.
       pose = Pose(spot.t + spot.forward() * 0.18f, spot.q)
       scale = scaleTo * 0.94f
@@ -100,6 +121,17 @@ class Placed(val entity: Entity) {
     if (!samePose(next, target) || targetScale != scaleTo) settled = false
     target = next
     shown = on
+  }
+
+  /** Puts the panel exactly at [p] this frame, shown or not at once: for things the stage animates itself. */
+  fun put(p: Pose, on: Boolean) {
+    target = p
+    pose = p
+    targetOpacity = if (on) 1f else 0f
+    opacity = targetOpacity
+    placedOnce = true
+    shown = on
+    settled = false
   }
 
   private var wasVisible: Boolean? = null
@@ -173,6 +205,10 @@ class Stage(
     private val alongGaze: Boolean = false,
     /** Debug captures: degrees to aim the gaze layout up (+) or down (-), to frame the wall below the screen. */
     private val gazeTilt: Float = 0f,
+    private val shelf: Shelf? = null,
+    private val surface: SurfaceFinder? = null,
+    private val meshes: MeshManager? = null,
+    private val art: MagazineArt? = null,
 ) {
   val login = place(R.id.panel_login)
   val wall = place(R.id.panel_home)
@@ -186,13 +222,37 @@ class Stage(
   val controls = place(R.id.panel_controls)
   val subtitles = place(R.id.panel_subtitles)
   val toast = place(R.id.panel_toast)
-  private val all = listOf(login, wall, screenArt, video, logoGlow, logo, info, episodes, cast, controls, subtitles, toast)
+  val table = place(R.id.panel_table)
+  val covers = listOf(R.id.panel_mag_0, R.id.panel_mag_1, R.id.panel_mag_2, R.id.panel_mag_3, R.id.panel_mag_4, R.id.panel_mag_5).map(::place)
+  val pageA = place(R.id.panel_page_a)
+  val pageB = place(R.id.panel_page_b)
+  // The magazines' bodies (Blender models), the open one, and its paper.
+  private var bodiesRtl = true
+  val bodies = List(6) { model(CLOSED_RTL) }
+  val openBody = model(OPEN)
+  private val sheetPageA = Sheet(COLS, ROWS, art?.blank ?: Paper.blank(), art?.blank ?: Paper.blank())
+  private val sheetPageB = Sheet(COLS, ROWS, art?.blank ?: Paper.blank(), art?.blank ?: Paper.blank())
+  private val leafSheet = Sheet(COLS, ROWS, art?.blank ?: Paper.blank(), art?.blank ?: Paper.blank())
+  val sheetA = paper(sheetPageA)
+  val sheetB = paper(sheetPageB)
+  val leaf = paper(leafSheet)
+  private val laid = HashMap<Sheet, Int>()
+  private val cx = FloatArray(COLS + 1)
+  private val cy = FloatArray(COLS + 1)
+  private val cnx = FloatArray(COLS + 1)
+  private val cny = FloatArray(COLS + 1)
+  private var slidAt = 0L
+  private var slideIndex = -1
+  private val all = listOf(login, wall, screenArt, video, logoGlow, logo, info, episodes, cast, controls, subtitles, toast, table, pageA, pageB, openBody, sheetA, sheetB, leaf) + covers + bodies
   private val byPanel = mapOf(
       R.id.panel_login to login, R.id.panel_home to wall, R.id.panel_screen_art to screenArt,
       R.id.panel_video to video, R.id.panel_logo_glow to logoGlow, R.id.panel_logo to logo,
       R.id.panel_title_info to info, R.id.panel_episodes to episodes, R.id.panel_cast to cast,
       R.id.panel_controls to controls, R.id.panel_subtitles to subtitles, R.id.panel_toast to toast,
-  )
+      R.id.panel_table to table, R.id.panel_page_a to pageA, R.id.panel_page_b to pageB,
+  ) + coverIds.zip(covers)
+
+  private val coverIds get() = listOf(R.id.panel_mag_0, R.id.panel_mag_1, R.id.panel_mag_2, R.id.panel_mag_3, R.id.panel_mag_4, R.id.panel_mag_5)
 
   fun fadeOf(panelId: Int): Float = byPanel[panelId]?.fade?.floatValue ?: 1f
 
@@ -207,6 +267,15 @@ class Stage(
 
   private fun place(id: Int): Placed =
       Placed(Entity.create(listOf(Panel(id), Transform(), Visible(false), Scale(Vector3(1f)))))
+
+  private fun model(uri: String): Placed =
+      Placed(Entity.create(listOf(Mesh(Uri.parse(uri)), Transform(), Visible(false), Scale(Vector3(1f)))))
+
+  private fun paper(sheet: Sheet): Placed {
+    val e = Entity.create(listOf(Transform(), Visible(false), Scale(Vector3(1f))))
+    meshes?.setMeshForEntityDirectly(e, sheet.mesh)
+    return Placed(e)
+  }
 
   fun recenter() {
     val head = scene.getViewerPose()
@@ -243,8 +312,12 @@ class Stage(
       Log.i("Nama", "layout origin ${origin?.t} after ${"%.2f".format(waited)}s")
     }
     all.forEach { it.resolveLayer(objects) }
+    surface?.tick(dt, scene.getViewerPose())
+    shelf?.step(dt)
     readControllers()
     arrange()
+    arrangeMagazines()
+    slide()
     all.forEach { it.step(dt) }
     dimRoom(dt)
   }
@@ -260,7 +333,8 @@ class Stage(
     val videoUp = (playing || trailerOn) && st.position > 0.05 && st.videoWidth > 0
 
     login.show(at(Layout.login), where == Place.Login)
-    wall.show(at(Layout.wall), where == Place.Home)
+    // The magazines are home now; the wall stays for what the bar opened (search, settings).
+    wall.show(at(Layout.wall), where == Place.Home && shelf == null)
 
     val screenSpot = when (where) {
       Place.Starting, Place.Home, Place.Login -> Layout.screenHome
@@ -275,7 +349,8 @@ class Stage(
     video.brightness = if (trailerOn) TRAILER_BRIGHTNESS else 1f
     video.stretchY = if (st.videoWidth > 0) ((16f / 9f) / st.aspect).coerceIn(0.4f, 1.4f) else 1f
 
-    val onTitle = where == Place.Title
+    // Straight from a magazine to the film: the title page stays away meanwhile.
+    val onTitle = where == Place.Title && !model.quickPlay
     logoGlow.show(at(Layout.logoGlow), onTitle)
     logo.show(at(Layout.logo), onTitle)
     info.show(at(Layout.info), onTitle)
@@ -292,6 +367,82 @@ class Stage(
     toast.show(at(Layout.toast), model.toast.value != null)
     val h = Layout.SCREEN_H * screenScale
     subtitles.show(at(screenSpot.copy(y = screenSpot.y - h / 2 + 0.2f, d = screenSpot.d - 0.08f)), playing && st.subtitle.isNotBlank())
+  }
+
+  /**
+   * The magazines (design.md): closed bodies (the Blender models) with their covers lying in a
+   * pile on the table, then side by side along it; the one chosen comes up in front of the eyes
+   * and opens, its pages printed on paper that bends into the gutter, and a turning page that
+   * lifts by its corner. The others stay where they lie.
+   */
+  private fun arrangeMagazines() {
+    val sh = shelf ?: return
+    val o = origin ?: return
+    val home = model.place.value == Place.Home || (model.place.value == Place.Title && model.quickPlay)
+    // Level with the room; debug captures along a lying headset's gaze use its own frame instead.
+    val up = if (alongGaze) o.up() else Vector3(0f, 1f, 0f)
+    val fwd = if (alongGaze) o.forward() else o.forward().let { Vector3(it.x, 0f, it.z) }.normalize()
+    val right = if (alongGaze) o.right() else o.right().let { Vector3(it.x, 0f, it.z) }.normalize()
+    val rtl = model.lang.value.isRTL
+    // Debug captures lay out along the gaze of a headset lying on a desk: a real table would be out of the picture.
+    val real = if (alongGaze) null else surface?.top
+    // Until the search for a real table is over, nothing is put down, so nothing jumps.
+    val ready = alongGaze || surface == null || surface.done
+    val top = real ?: at(Layout.virtualTable).t
+    if (rtl != bodiesRtl) {
+      bodiesRtl = rtl
+      bodies.forEach { it.entity.setComponent(Mesh(Uri.parse(if (rtl) CLOSED_RTL else CLOSED_LTR))) }
+    }
+    val r = MagazineLayout(o.t, up, fwd, right, top, rtl).compute(sh, home, ready, real == null, System.currentTimeMillis())
+    table.show(r.table.pose, r.table.visible, arrive = false)
+    for (k in bodies.indices) {
+      bodies[k].show(r.bodies[k].pose, r.bodies[k].visible, r.bodies[k].scale, arrive = false)
+      covers[k].show(r.covers[k].pose, r.covers[k].visible, r.covers[k].scale, arrive = false)
+    }
+    openBody.show(r.openBody.pose, r.openBody.visible, arrive = false)
+    sheetA.put(r.pages.pose, r.pages.visible)
+    sheetB.put(r.pages.pose, r.pages.visible)
+    leaf.put(r.leaf.pose, r.leaf.visible)
+    if (r.pages.visible) {
+      layPage(sheetPageA, r.sideA, sh.pageA)
+      layPage(sheetPageB, -r.sideA, sh.pageB)
+    }
+    if (r.leaf.visible) {
+      (art?.page(sh.leafFront) ?: art?.blank)?.let(leafSheet::setFront)
+      (art?.page(sh.leafBack) ?: art?.blank)?.let(leafSheet::setBack)
+      leafSheet.lay(r.leafSide, r.leafTurn)
+    }
+    pageA.show(r.overlayA.pose, r.overlayA.visible, arrive = false)
+    pageB.show(r.overlayB.pose, r.overlayB.visible, arrive = false)
+  }
+
+  /** Lays [sheet] open on [side] showing [page], updating it only when the page changes. */
+  private fun layPage(sheet: Sheet, side: Float, page: Int) {
+    val key = page * 4 + (if (side > 0) 1 else 0) + (if (art?.page(page) != null) 2 else 0)
+    if (laid[sheet] == key) return
+    val tex = art?.page(page) ?: art?.blank ?: return
+    sheet.setFront(tex)
+    sheet.lay(side, 0f)
+    laid[sheet] = key
+  }
+
+  /** The screen shows the home slider: the featured row, one title after another. */
+  private fun slide() {
+    if (model.place.value != Place.Home) return
+    val featured = model.rows.value.firstOrNull()?.tiles.orEmpty()
+    if (featured.isEmpty()) return
+    val now = System.currentTimeMillis()
+    if (now - slidAt < SLIDE_MS && model.focused.value != null) return
+    slidAt = now
+    slideIndex = (slideIndex + 1) % featured.size
+    model.focus(featured[slideIndex])
+  }
+
+  private fun rotate(v: Vector3, axis: Vector3, angle: Float): Vector3 {
+    val k = axis.normalize()
+    val c = cos(angle)
+    val s = sin(angle)
+    return v * c + k.cross(v) * s + k * (k.dot(v) * (1f - c))
   }
 
   /** A spot relative to the layout origin, turned to face the viewer. */
@@ -338,6 +489,17 @@ class Stage(
     if (pressed == 0) return
     poke()
     if (model.place.value != Place.Playing) {
+      val sh = shelf
+      if (model.place.value == Place.Home && sh != null) {
+        // The next page lies where the reading goes: left in Persian, right in English.
+        val left = pressed and (ButtonBits.ButtonThumbRL or ButtonBits.ButtonThumbLL) != 0
+        val right = pressed and (ButtonBits.ButtonThumbRR or ButtonBits.ButtonThumbLR) != 0
+        val rtl = model.lang.value.isRTL
+        if (left) sh.turn(if (rtl) 1 else -1)
+        if (right) sh.turn(if (rtl) -1 else 1)
+        if (pressed and (ButtonBits.ButtonB or ButtonBits.ButtonY) != 0 && !sh.back()) model.back()
+        return
+      }
       if (pressed and (ButtonBits.ButtonB or ButtonBits.ButtonY) != 0) model.back()
       return
     }
@@ -359,6 +521,16 @@ class Stage(
   }
 
   companion object {
+    private const val CLOSED_RTL = "apk:///models/magazine_closed_rtl.glb"
+    private const val CLOSED_LTR = "apk:///models/magazine_closed_ltr.glb"
+    private const val OPEN = "apk:///models/magazine_open.glb"
+    /** Columns of the paper grid across a page: enough for a smooth bend. */
+    private const val COLS = 28
+    /** Rows down the page: the corner lifts first, so the turning page twists as it bends. */
+    private const val ROWS = 12
+    private const val SLIDE_MS = 8_000L
+    private const val PI = Math.PI.toFloat()
+    private const val PI_2 = PI / 2
     private const val CONTROLS_HIDE_MS = 4_000L
     private const val ROOM_DIM_PLAYING = 0.22f
     private const val ROOM_DIM_PAUSED = 0.55f
