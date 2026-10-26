@@ -383,6 +383,8 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
       }
     }
     val state = rememberLazyListState()
+    // A still for each tile in view, one at a time, from the episode itself.
+    LaunchedEffect(shelf) { for ((_, item) in shown) app.stills.still(item) }
     // Coming down from the header lands on the episode to resume, not on whichever tile is nearest.
     val landing = shown.firstOrNull { it.index == resumeIndex } ?: shown.firstOrNull()
     LaunchedEffect(shelf) { landing?.let { l -> state.scrollToItem(shown.indexOf(l).coerceAtLeast(0)) } }
@@ -399,7 +401,7 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
             // The "Episodes" button, and coming down from the header the first time, land here.
             modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
             radius = Theme.tileRadius, scale = 1.07f,
-        ) { EpisodeTile(item, index + 1, progress, watched = item.fileID in app.watched) }
+        ) { EpisodeTile(item, index + 1, progress, watched = item.fileID in app.watched, still = app.stills.known[item.fileID]) }
       }
     }
   }
@@ -407,7 +409,7 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
 
 /** Episode tile. The API has no stills, so the tile is typographic: a big number and the title. */
 @Composable
-fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlaying: Boolean = false, watched: Boolean = false) {
+fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlaying: Boolean = false, watched: Boolean = false, still: androidx.compose.ui.graphics.ImageBitmap? = null) {
   val loc = LocalLoc.current
   val number = Episode.label(item.episodeRaw, position)
   val shape = RoundedCornerShape(Theme.tileRadius)
@@ -417,13 +419,18 @@ fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlay
           .background(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)))
           .border(1.dp, Color.White.copy(alpha = 0.10f), shape),
   ) {
+    if (still != null) {
+      androidx.compose.foundation.Image(still, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+      // Dark enough for the number and the title over any picture.
+      Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.8f)))))
+    }
     Column(Modifier.fillMaxSize().padding(24.dp)) {
       Row(verticalAlignment = Alignment.Top) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
           Text(
               loc.num(if (number.length == 1) "0$number" else number),
               style = app(if (number.length > 3) 44 else 64, FontWeight.ExtraBold),
-              color = if (nowPlaying) Theme.accent else Theme.text3,
+              color = if (nowPlaying) Theme.accent else if (still != null) Theme.text1.copy(alpha = 0.8f) else Theme.text3,
           )
         }
         Spacer(Modifier.weight(1f))

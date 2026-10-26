@@ -172,6 +172,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   private val network = OkHttpDataSource.Factory(cdn).setUserAgent(USER_AGENT)
   private val disk = Disk.cache(context)
   private val readAhead = disk?.let { ReadAhead(it, network, priority) }
+  /** Frames for the seek bar. */
+  val preview = SeekPreview(context, network)
 
   val player: ExoPlayer = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
       .setMediaSourceFactory(
@@ -244,6 +246,11 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       subtitleOffset = prefs.getFloat("series.${post.id}.offset", 0f).toDouble()
       speed = prefs.getFloat("series.${post.id}.speed", 1f)
     }
+    player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+      override fun onVideoDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+        preview.filmDecoder(decoderName)
+      }
+    })
     player.addListener(object : Player.Listener {
       override fun onPlaybackStateChanged(state: Int) {
         buffering = state == Player.STATE_BUFFERING
@@ -312,6 +319,9 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     resumedAt = at?.takeIf { it > 60 }
     startedAt = System.currentTimeMillis()
     load(q, at)
+    // Previews come from the smallest rendition: a tiny picture, at the least cost to the line.
+    val lowest = current.qualities.filter { !it.isAuto }.minByOrNull { it.height } ?: current.qualities.firstOrNull()
+    preview.use(lowest?.url(AudioMix.stereo)?.toString())
     if (subtitleLanguage.startsWith(FOUND)) subtitleLanguage = "fa"
     selectSubtitle(subtitleLanguage, remember = false)
     lookForSubtitles()
@@ -389,6 +399,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     keep()
     prefs.edit().putLong("bitrate", bandwidth.bitrateEstimate).apply()
     scope.cancel()
+    preview.close()
     session?.release()
     player.release()
     onClose()

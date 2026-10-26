@@ -59,6 +59,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -399,7 +400,23 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
   val shown = seekTarget ?: engine.position
   val fraction = if (d > 0) (shown / d).toFloat().coerceIn(0f, 1f) else 0f
   val ready = if (d > 0) (engine.buffered / d).toFloat().coerceIn(0f, 1f) else 0f
+  // While seeking, the picture at that point rides above the bar's thumb.
+  LaunchedEffect(seekTarget) { seekTarget?.let { engine.preview.want(it) } }
+  val frame = engine.preview.frame
   Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    if (seekTarget != null && frame != null) {
+      BoxWithConstraints(Modifier.fillMaxWidth().height(200.dp)) {
+        val card = 320.dp
+        val x = (maxWidth * fraction - card / 2).coerceIn(0.dp, maxWidth - card)
+        Column(Modifier.offset(x = x).width(card), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          androidx.compose.foundation.Image(
+              frame.second.asImageBitmap(), null,
+              Modifier.width(card).height(180.dp).clip(RoundedCornerShape(14.dp)).border(2.dp, Color.White, RoundedCornerShape(14.dp)),
+              contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+          )
+        }
+      }
+    }
     BoxWithConstraints(Modifier.fillMaxWidth().height(24.dp)) {
       val rtl = false
       Box(
