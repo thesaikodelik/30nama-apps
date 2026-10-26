@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,10 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 
 /** One choice in a sheet. */
-data class SheetAction(val title: String, val icon: ImageVector? = null, val primary: Boolean = false, val run: () -> Unit)
+data class SheetAction(val title: String, val icon: ImageVector? = null, val primary: Boolean = false, val selected: Boolean = false, val run: () -> Unit)
 
 /** A small set of choices over the page, as a held select brings up a context menu on the Apple TV. */
-data class SheetSpec(val title: String?, val actions: List<SheetAction>, val message: String? = null)
+data class SheetSpec(val title: String?, val actions: List<SheetAction>, val message: String? = null, val focus: Int = 0)
 
 /** Shows the sheet [AppModel.sheet] asks for; the rest of the screen cannot take focus meanwhile. */
 class Sheets {
@@ -56,7 +57,12 @@ fun SheetHost(sheets: Sheets) {
   val spec = sheets.shown ?: return
   val first = remember(spec) { FocusRequester() }
   BackHandler { sheets.dismiss() }
-  LaunchedEffect(spec) { runCatching { first.requestFocus() } }
+  val list = androidx.compose.foundation.lazy.rememberLazyListState()
+  LaunchedEffect(spec) {
+    list.scrollToItem(spec.focus.coerceIn(0, (spec.actions.size - 1).coerceAtLeast(0)))
+    androidx.compose.runtime.withFrameNanos {}
+    runCatching { first.requestFocus() }
+  }
   val shape = RoundedCornerShape(36.dp)
   Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
     Column(
@@ -66,17 +72,28 @@ fun SheetHost(sheets: Sheets) {
     ) {
       spec.title?.let { Text(it, style = app(34, FontWeight.Bold), color = Theme.text1, textAlign = TextAlign.Center, maxLines = 2) }
       spec.message?.let { Text(it, style = app(26), color = Theme.text2, textAlign = TextAlign.Center) }
-      spec.actions.forEachIndexed { i, a ->
-        PillButton(
-            a.title,
-            onClick = {
-              sheets.dismiss()
-              a.run()
-            },
-            modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-            kind = if (a.primary) PillKind.Primary else PillKind.Secondary,
-            icon = a.icon,
-        )
+      // A long list (every genre) scrolls; the first choice, or the current one, has focus.
+      androidx.compose.foundation.lazy.LazyColumn(
+          Modifier.heightIn(max = 640.dp),
+          state = list,
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.spacedBy(14.dp),
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp),
+      ) {
+        items(spec.actions.size) { i ->
+          val a = spec.actions[i]
+          PillButton(
+              a.title,
+              onClick = {
+                sheets.dismiss()
+                a.run()
+              },
+              modifier = if (i == spec.focus) Modifier.focusRequester(first) else Modifier,
+              kind = if (a.primary) PillKind.Primary else PillKind.Secondary,
+              icon = a.icon,
+              selected = a.selected,
+          )
+        }
       }
     }
   }

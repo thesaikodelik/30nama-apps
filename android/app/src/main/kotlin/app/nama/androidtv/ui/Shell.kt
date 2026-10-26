@@ -197,6 +197,11 @@ private fun TabRoot(tab: Tab) {
   when (tab) {
     Tab.home -> HomeScreen()
     Tab.search -> SearchScreen()
+    Tab.movies -> CatalogScreen("movies", loc(S.movies))
+    Tab.series -> CatalogScreen("series", loc(S.series))
+    Tab.anime -> CatalogScreen("anime", loc(S.anime))
+    Tab.browse -> BrowseScreen()
+    Tab.profile -> ProfileScreen()
     else -> Placeholder(tab.name)
   }
 }
@@ -205,7 +210,10 @@ private fun TabRoot(tab: Tab) {
 private fun RouteScreen(route: Route) {
   when (route) {
     is Route.Details -> DetailsScreen(route)
-    else -> Placeholder(route.toString())
+    is Route.Catalog -> CatalogScreen(route.slug, route.title)
+    is Route.PersonPage -> PersonScreen(route.person)
+    Route.Schedule -> ScheduleScreen()
+    Route.TopLists -> TopListsScreen()
   }
 }
 

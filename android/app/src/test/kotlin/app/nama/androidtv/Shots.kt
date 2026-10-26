@@ -112,6 +112,11 @@ class Shots {
       }
       nav.tab = Tab.home
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
+      for ((name, route) in listOf("schedule" to Route.Schedule, "toplists" to Route.TopLists, "person" to Route.PersonPage(app.nama.core.Person("Sample Actor", siteID = 1, imdb = "nm0000001")))) {
+        nav.push(route)
+        take("route-$name")
+        nav.pop()
+      }
       for ((kind, id) in listOf("movie" to MOVIE, "series" to SERIES)) {
         nav.push(Route.Details(id, null))
         take("title-$kind")
@@ -160,6 +165,17 @@ class Shots {
       lastRequest = System.currentTimeMillis()
       val body = String(request.body ?: ByteArray(0))
       val path = url.substringAfter("/action/", "")
+      // The website's own API, by the path after its address.
+      if ("/api/v1/" in url) {
+        val site = url.substringAfter("/api/v1/").removePrefix("action/")
+        val name = when {
+          site.startsWith("schedule") -> "site_schedule"
+          site.startsWith("toplist") -> "site_toplist"
+          site.startsWith("single/id") -> "site_person"
+          else -> "site_advanced_search"
+        }
+        return HttpResponse(200, emptyMap(), File(fixtures, "$name.json").readBytes())
+      }
       val file =
           when {
             path.isEmpty() -> return ok("""[{"location":"WORLD","host":"https://api.example.com/api/v2"}]""")
@@ -171,6 +187,7 @@ class Shots {
             path == "user" -> return ok(USER)
             path == "qrlogin_code" -> return ok("""{"success":true,"msg":null,"result":{"code":"5c5635fd"}}""")
             path == "qrlogin_login" -> return ok("""{"success":false,"msg":"not yet","result":{}}""")
+            path == "advanced_search_parameters" -> return ok(PARAMETERS)
             path == "test" -> return ok("""{"success":true,"msg":null,"result":{}}""")
             else -> return ok("""{"success":true,"msg":null,"result":{}}""")
           }
@@ -196,6 +213,14 @@ class Shots {
   companion object {
     const val MOVIE = 685883
     const val SERIES = 469773
+    /** What the catalogue filters offer, cut down; the server sends far more. */
+    val PARAMETERS =
+        """{"success":true,"msg":null,"result":{
+          "genre":[{"name":"اکشن","value":"action"},{"name":"درام","value":"drama"},{"name":"کمدی","value":"comedy"}],
+          "type":[{"name":"فیلم","value":"movie"},{"name":"سریال","value":"series"},{"name":"انیمه","value":"anime"}],
+          "country":[{"name":"آمریکا","value":"usa"},{"name":"ایران","value":"iran"},{"name":"ژاپن","value":"japan"}],
+          "imdb_rate":[{"name":"بالای ۵","value":"5"},{"name":"بالای ۷","value":"7"},{"name":"بالای ۸","value":"8"}],
+          "min_year":1950,"max_year":2026}}"""
     /** A made-up member; nothing here belongs to a real account. */
     val USER =
         """{"success":true,"msg":null,"result":{"user_id":"1","user_name":"sample.viewer","user_type":"VIP","user_expire":{"days":"212","g":"2027-05-25 12:00:00","j":"1406-03-04 12:00:00"}}}"""
