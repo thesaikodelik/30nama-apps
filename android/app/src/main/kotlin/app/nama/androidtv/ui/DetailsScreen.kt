@@ -73,6 +73,7 @@ import app.nama.core.single
 import kotlinx.coroutines.launch
 
 /** A title's page: the pitch and the play button over its backdrop, then episodes, storyline and cast. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DetailsScreen(route: Route.Details) {
   val app = LocalApp.current
@@ -153,10 +154,15 @@ fun DetailsScreen(route: Route.Details) {
     loadStream(quietly = false)
   }
   // Focus starts on Play once the page is there to hold it.
+  val scroll = rememberScrollState()
+  val margin = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.toPx() }
+  val minimal = remember(margin) { Minimal(margin) }
   LaunchedEffect(post != null) {
     if (post == null) return@LaunchedEffect
     withFrameNanos {}
     runCatching { play.requestFocus() }
+    // The page starts at its top, whatever focus did on the way.
+    scroll.scrollTo(0)
   }
   LaunchedEffect(post?.id) {
     val p = post ?: return@LaunchedEffect
@@ -169,7 +175,7 @@ fun DetailsScreen(route: Route.Details) {
   Box(Modifier.fillMaxSize()) {
     Stage(post, dim = if (inHeader) 0.12f else 0.62f, settleMs = 0)
     when {
-      post != null -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(56.dp)) {
+      post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(56.dp)) {
         Header(
             post, stream, items, playWhenReady && streamPending, trailer,
             play = play,
@@ -184,7 +190,7 @@ fun DetailsScreen(route: Route.Details) {
         if (post.plot(loc.lang).length > 260 || facts(post, loc).isNotEmpty()) Story(post)
         if (post.cast.isNotEmpty()) Cast(post)
         Spacer(Modifier.height(40.dp))
-      }
+      } }
       failed -> ErrorState {
         failed = false
         scope.launch { attempt { app.api.single(route.id) }?.let { loaded = it } ?: run { failed = true } }
@@ -232,7 +238,7 @@ private fun Header(
   val scope = rememberCoroutineScope()
   // Bottom-aligned so the buttons sit at the same height whatever the title's length, with the
   // next section's heading peeking below as a cue to scroll.
-  Box(modifier.fillMaxWidth().height(880.dp).padding(start = Theme.edge), contentAlignment = Alignment.BottomStart) {
+  Box(modifier.fillMaxWidth().heightIn(min = 880.dp).padding(start = Theme.edge, top = 90.dp), contentAlignment = Alignment.BottomStart) {
     Column(Modifier.widthIn(max = 1000.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
       Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Eyebrow(loc.kindLine(post))

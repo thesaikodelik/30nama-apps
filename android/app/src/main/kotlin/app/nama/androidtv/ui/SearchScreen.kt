@@ -129,7 +129,8 @@ fun SearchScreen() {
       }
     }
   }
-  LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
+  val chrome = LocalChrome.current
+  LaunchedEffect(Unit) { if (chrome.rootShown) runCatching { firstKey.requestFocus() } }
 
   Box(Modifier.fillMaxSize().background(Theme.bg0)) {
     Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(60.dp)) {

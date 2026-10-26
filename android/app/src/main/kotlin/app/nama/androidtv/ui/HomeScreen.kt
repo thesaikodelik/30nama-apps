@@ -118,12 +118,20 @@ fun HomeScreen() {
       return@LaunchedEffect
     }
     feed = loaded
-    continuing = app.continueWatching()
+    val reached = app.continueWatchingIfReachable()
+    continuing = reached.orEmpty()
+    app.mirrorHome(reached)
     forYou = app.ratings.recommend(loaded.sections.flatMap { it.posts }, limit = 14)
   }
-  LaunchedEffect(feed != null) { if (feed != null && browsing == null) runCatching { play.requestFocus() } }
+  // Focus to Play once there is a page, unless a page opened over home has the screen.
+  LaunchedEffect(feed != null) { if (feed != null && browsing == null && chrome.rootShown) runCatching { play.requestFocus() } }
   // Back from the player, or a title taken off the row: ask for "continue watching" again.
-  LaunchedEffect(app.watchVersion, app.continueVersion) { if (feed != null) app.continueWatchingIfReachable()?.let { continuing = it } }
+  LaunchedEffect(app.watchVersion, app.continueVersion) {
+    if (feed == null) return@LaunchedEffect
+    val reached = app.continueWatchingIfReachable()
+    reached?.let { continuing = it }
+    app.mirrorHome(reached)
+  }
   // Billboard text follows focus after a beat, so a held remote does not strobe it.
   LaunchedEffect(browsing) {
     delay(140)
@@ -386,7 +394,8 @@ private fun ContinueCard(post: Post) {
     Column(Modifier.align(Alignment.BottomStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       Text(post.title(loc.lang), style = app(24, FontWeight.Bold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
       val resume = post.resume
-      val label = resume?.let { r ->
+      val app = LocalApp.current
+      val label = if (post.id in app.newEpisodes) "● ${loc(S.newEpisode)}" else resume?.let { r ->
         listOfNotNull(
             if (r.season != null && r.episode != null) loc.episodeTag(r.season!!, Episode.label(r.episode, 1)) else null,
             r.remainingMinutes?.let { "${loc.num(it)} ${loc(S.minLeft)}" },

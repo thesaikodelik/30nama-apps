@@ -107,3 +107,20 @@ fun ScreenUnits(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalDensity provides density) { content() }
   }
 }
+
+/**
+ * Scrolls only as far as it takes to show what has focus, with a margin, as the Apple TV does.
+ * Compose on a TV otherwise keeps the focused item a third of the way down the screen, which pulls
+ * a title page's header up off the top as soon as its Play button has focus.
+ */
+@androidx.compose.foundation.ExperimentalFoundationApi
+class Minimal(private val margin: Float) : androidx.compose.foundation.gestures.BringIntoViewSpec {
+  override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+    val end = offset + size
+    return when {
+      offset < margin -> offset - margin
+      end > containerSize - margin -> minOf(end - containerSize + margin, offset - margin)
+      else -> 0f
+    }
+  }
+}

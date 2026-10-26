@@ -60,6 +60,8 @@ import kotlinx.coroutines.delay
 /** What a page tells the shell: whether it is scrolled to its top, where the tab bar belongs. */
 class Chrome {
   var pageAtTop by mutableStateOf(true)
+  /** The tab's root page is the one on screen (nothing opened over it), and may take focus. */
+  var rootShown by mutableStateOf(true)
   /** Moves focus up into the tab bar, as Back does from a page's root. */
   val bar = FocusRequester()
 }
@@ -149,9 +151,17 @@ fun MainScreen(onExit: () -> Unit) {
     }
   }
 
+  // A row of the TV's home screen: its title over home.
+  LaunchedEffect(app.pendingOpen) {
+    val (id, play) = app.pendingOpen ?: return@LaunchedEffect
+    app.pendingOpen = null
+    nav.reset()
+    nav.push(Route.Details(id, null, autoplay = play))
+  }
   CompositionLocalProvider(LocalChrome provides chrome) {
     Box(Modifier.fillMaxSize()) {
       val route = nav.top
+      chrome.rootShown = route == null
       val sheet = app.sheets.shown != null
       val root = remember { FocusRequester() }
       // Back at a tab's root: focus returns to where it was before the page was opened.

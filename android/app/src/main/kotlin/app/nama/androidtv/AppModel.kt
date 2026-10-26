@@ -222,6 +222,9 @@ class AppModel(
   }
 
   private fun clearSession() {
+    // Nothing of this account stays on the TV's home screen.
+    scope.launch { app.nama.androidtv.WatchNext.clear(context) }
+    newEpisodes = emptySet()
     user = null
     lists = emptyMap()
     account.edit().remove("token").remove("profile").apply()
@@ -374,6 +377,53 @@ class AppModel(
     if (!done) {
       set(was)
       showToast(loc(S.error))
+    }
+  }
+
+  // MARK: The TV's home screen
+
+  /** Followed series with an episode out since they were last watched. */
+  var newEpisodes by mutableStateOf<Set<Int>>(emptySet())
+    private set
+  private val news = app.nama.androidtv.data.NewEpisodes(store.getString("newEpisodes", null))
+
+  /** A row of the TV's home screen was chosen: the title to open, and whether to play it on. */
+  var pendingOpen by mutableStateOf<Pair<Int, Boolean>?>(null)
+
+  fun openFromLauncher(id: Int, play: Boolean) {
+    pendingOpen = id to play
+  }
+
+  /**
+   * Mirrors "continue watching", and followed series with a new episode, onto the TV's home screen.
+   * [continuing] null means 30nama did not answer: the row is left as it is.
+   */
+  fun mirrorHome(continuing: List<Post>?) {
+    if (!isLoggedIn) return
+    scope.launch {
+      // The series the viewer follows: on their watchlist or their "let me know" list.
+      val followed = mutableListOf<Post>()
+      for (group in listOf("notify", "watchlist")) {
+        attempt { api.get("user_list", mapOf("action" to "list", "group" to group, "page" to "1", "orderby" to "add_list", "order" to "DESC"), background = true) }
+            ?.let { followed += app.nama.core.PostPage.from(it).posts.filter { p -> p.isSeries } }
+      }
+      val resume = continuing.orEmpty().associate { it.id to (it.resume?.time ?: 0.0) }
+      app.nama.androidtv.WatchNext.removed(context).forEach { news.dismiss(it) }
+      val out = news.look(java.time.Instant.now(), followed.distinctBy { it.id }.associate { it.id to it.nextEpisodeDay }, resume)
+      store.edit().putString("newEpisodes", news.json()).apply()
+      newEpisodes = out
+      val entries = continuing.orEmpty().map { app.nama.androidtv.WatchNext.Entry(it, it.id in out) } +
+          followed.filter { it.id in out && continuing.orEmpty().none { c -> c.id == it.id } }.distinctBy { it.id }.map { app.nama.androidtv.WatchNext.Entry(it, true) }
+      app.nama.androidtv.WatchNext.sync(context, entries, settings.lang, known = continuing != null)
+    }
+  }
+
+  /** Debug builds: three titles from home on the TV's home screen, to see the row without an account. */
+  fun demoWatchNext() {
+    if (!BuildConfig.DEBUG) return
+    scope.launch {
+      val posts = attempt { home() }?.sections?.flatMap { it.posts }?.take(3).orEmpty()
+      app.nama.androidtv.WatchNext.sync(context, posts.mapIndexed { i, p -> app.nama.androidtv.WatchNext.Entry(p, news = i == 2) }, settings.lang, known = true)
     }
   }
 

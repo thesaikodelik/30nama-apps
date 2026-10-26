@@ -8,6 +8,17 @@ import app.nama.androidtv.ui.Nav
 import app.nama.androidtv.ui.NamaRoot
 
 class MainActivity : ComponentActivity() {
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    fromLauncher(intent)
+  }
+
+  /** A row of the TV's home screen opens its title, or plays it on, over home (so Back lands there). */
+  private fun fromLauncher(intent: android.content.Intent) {
+    val id = intent.getIntExtra(WatchNext.OPEN, 0).takeIf { it > 0 } ?: return
+    (application as NamaApp).model.openFromLauncher(id, intent.getBooleanExtra(WatchNext.PLAY, false))
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     val nama = application as NamaApp
@@ -16,6 +27,8 @@ class MainActivity : ComponentActivity() {
     // that language, to look at a screen in each without going through Settings.
     if (BuildConfig.DEBUG) intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let { lang -> model.update { it.copy(lang = lang) } } }
     if (savedInstanceState == null && model.phase == AppModel.Phase.Booting) model.boot()
+    if (savedInstanceState == null) fromLauncher(intent)
+    if (BuildConfig.DEBUG && intent.getBooleanExtra("watchnext_demo", false)) model.demoWatchNext()
     setContent {
       // Debug builds: `--es tab settings` opens on that tab.
       val nav = remember { Nav().apply { if (BuildConfig.DEBUG) intent.getStringExtra("tab")?.let { t -> app.nama.androidtv.ui.Tab.entries.firstOrNull { it.name == t }?.let { tab = it } } } }
