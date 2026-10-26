@@ -51,6 +51,8 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.nama.androidtv.AppModel
+import app.nama.androidtv.player.PlayerScreen
+import app.nama.androidtv.player.TrailerScreen
 import app.nama.core.Lang
 import app.nama.core.S
 import kotlinx.coroutines.delay
@@ -97,14 +99,19 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
       Box(Modifier.fillMaxSize().background(Theme.bg0)) {
         // A new language or account means a different catalogue: every tab starts over.
         key(app.contentVersion) {
+          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null)) {
           when (app.phase) {
             AppModel.Phase.Booting -> if (splashGone) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
             AppModel.Phase.Failed -> ErrorState("${app.loc(S.noConnection)}. ${app.loc(S.tryAgain)}") { app.boot() }
             AppModel.Phase.Login -> LoginScreen()
             AppModel.Phase.Main -> MainScreen(onExit)
           }
+          }
         }
         if (!splashGone) Box(Modifier.zIndex(10f)) { Splash(leaving = leaving, ready = app.homeLoaded || (app.phase != AppModel.Phase.Main && app.phase != AppModel.Phase.Booting)) }
+        // The player, and a trailer, over everything; what is under them cannot take focus meanwhile.
+        app.playback?.let { request -> Box(Modifier.fillMaxSize().zIndex(15f)) { PlayerScreen(request) } }
+        app.trailer?.let { (_, url) -> Box(Modifier.fillMaxSize().zIndex(15f)) { TrailerScreen(url) } }
         AnimatedVisibility(
             visible = app.toast != null,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).zIndex(20f),
@@ -129,7 +136,7 @@ fun MainScreen(onExit: () -> Unit) {
 
   // Back: a page off the stack; at a tab's root, up to the tab bar; from the bar, home; from
   // home's bar, a second press within three seconds leaves.
-  BackHandler(enabled = app.playback == null && app.sheets.shown == null) {
+  BackHandler(enabled = app.playback == null && app.trailer == null && app.sheets.shown == null) {
     when {
       nav.pop() -> Unit
       !barFocused -> runCatching { chrome.bar.requestFocus() }

@@ -39,6 +39,8 @@ data class PlaybackRequest(
     val index: Int,
     /** Position to resume from, when it belongs to the item being started. */
     val resume: ContinueWatching?,
+    /** An episode chosen from the list, rather than Play: it starts there, whatever was watched later. */
+    val pickedByUser: Boolean = false,
 )
 
 /**
@@ -50,7 +52,7 @@ class AppModel(
     private val scope: CoroutineScope,
     transport: Transport? = null,
     siteKey: String? = BuildConfig.SITE_KEY.ifEmpty { null },
-    http: okhttp3.OkHttpClient = okhttp3.OkHttpClient(),
+    val http: okhttp3.OkHttpClient = okhttp3.OkHttpClient(),
 ) {
   enum class Phase { Booting, Failed, Login, Main }
 
@@ -69,6 +71,17 @@ class AppModel(
 
   fun setKey(name: String, value: String?) {
     keys.edit().apply { if (value.isNullOrBlank()) remove(name) else putString(name, value.trim()) }.apply()
+  }
+
+  /** Persian subtitles from SubSource, for what 30nama has none for. */
+  val finder = app.nama.androidtv.data.SubtitleFinder(http) { key("subsource") }
+
+  /** This TV's own record of where each title was left. */
+  val kept = app.nama.androidtv.data.KeptProgress(context.getSharedPreferences("progress", Context.MODE_PRIVATE))
+
+  /** Work that outlives the screen that started it (a report as the player closes). */
+  fun background(block: suspend () -> Unit) {
+    scope.launch { attempt { block() } }
   }
 
   /** Logos and trailers from TMDB and Aparat. */

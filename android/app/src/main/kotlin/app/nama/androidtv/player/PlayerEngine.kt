@@ -1,0 +1,593 @@
+package app.nama.androidtv.player
+
+import android.content.Context
+import android.util.Log
+import androidx.annotation.OptIn
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import androidx.media3.session.MediaSession
+import app.nama.androidtv.AppModel
+import app.nama.androidtv.PlaybackRequest
+import app.nama.androidtv.attempt
+import app.nama.androidtv.data.Resume
+import app.nama.androidtv.ui.TV
+import app.nama.core.AudioMix
+import app.nama.core.Episode
+import app.nama.core.Lang
+import app.nama.core.Post
+import app.nama.core.Quality
+import app.nama.core.S
+import app.nama.core.StreamItem
+import app.nama.core.SubSource
+import app.nama.core.SubtitleTrack
+import app.nama.core.WatchProgress
+import app.nama.core.reportProgress
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+
+/** When playback stops by itself, for falling asleep to. */
+sealed interface Sleep {
+  data object Off : Sleep
+  data object EndOfEpisode : Sleep
+  data class Minutes(val n: Int) : Sleep
+}
+
+/** What the player offers to do right now, as the pill over the picture. */
+data class Offer(val kind: Kind, val countdown: Float? = null) {
+  enum class Kind { Intro, Recap, Next, StartOver }
+}
+
+/**
+ * One film or series playing (the Apple TV's PlayerEngine), on Media3. 30nama's streams are plain
+ * HLS. Subtitles are separate files, drawn by the app itself rather than by Media3, so that their
+ * look, their timing nudge and the Persian fixes in core are the same as in the other apps.
+ */
+@OptIn(UnstableApi::class)
+class PlayerEngine(private val context: Context, private val app: AppModel, request: PlaybackRequest, http: OkHttpClient, private val pickedByUser: Boolean) {
+  val post: Post = request.post
+  val items: List<StreamItem> = request.items
+  private val serverResume = request.resume
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+  private val prefs = context.getSharedPreferences("player", Context.MODE_PRIVATE)
+  private val loc get() = app.loc
+
+  // MARK: State the screen reads
+
+  var index by mutableIntStateOf(request.index.coerceIn(0, (items.size - 1).coerceAtLeast(0)))
+    private set
+  val current: StreamItem get() = items[index]
+  var position by mutableDoubleStateOf(0.0)
+    private set
+  var duration by mutableDoubleStateOf(0.0)
+    private set
+  var buffered by mutableDoubleStateOf(0.0)
+    private set
+  var playing by mutableStateOf(false)
+    private set
+  var buffering by mutableStateOf(true)
+    private set
+  var quality by mutableStateOf<Quality?>(null)
+    private set
+  /** Which of the server's mixes is open. Stereo is what a TV's own speakers can play. */
+  var mix by mutableStateOf(app.settings.audioMix)
+    private set
+  /** "off", "fa", "en", or [FOUND] and a SubSource candidate's id. */
+  var subtitleLanguage by mutableStateOf(app.settings.defaultSubtitle)
+    private set
+  /** Seconds the subtitles are shown later (or, negative, earlier) than their file says. */
+  var subtitleOffset by mutableDoubleStateOf(0.0)
+    private set
+  var cue by mutableStateOf("")
+    private set
+  /** Persian subtitles found on SubSource for an item 30nama gives none for, best first. */
+  var found by mutableStateOf<List<SubSource.Candidate>>(emptyList())
+    private set
+  var sleep by mutableStateOf<Sleep>(Sleep.Off)
+    private set
+  var speed by mutableFloatStateOf(1f)
+    private set
+  var offer by mutableStateOf<Offer?>(null)
+    private set
+  /** Width over height of the picture, as it should be shown. */
+  var aspect by mutableStateOf<Float?>(null)
+    private set
+  /** The audio languages of the stream, when there is more than one, and the one playing. */
+  var audioTracks by mutableStateOf<List<String>>(emptyList())
+    private set
+  var audioTrack by mutableStateOf<String?>(null)
+    private set
+  /** The film's frame rate, once the stream says it. */
+  var frameRate by mutableFloatStateOf(0f)
+    private set
+
+  // MARK: The player
+
+  /**
+   * The CDN signs every segment's address for the address that asked for the stream. Behind a VPN
+   * or a carrier with several exits, some connections then get 403 for good. The player has its
+   * own pool of plain HTTP/1.1 connections, so that one bad connection does not carry every segment,
+   * and on a 403 the pool is emptied and the request tried again on a new one. Learnt from 30namaTV.
+   */
+  private val cdn = http.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).connectionPool(ConnectionPool()).readTimeout(20, TimeUnit.SECONDS).build()
+
+  private val retries = object : DefaultLoadErrorHandlingPolicy(MIN_RETRIES) {
+    override fun getRetryDelayMsFor(info: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+      val e = info.exception
+      if (e is HttpDataSource.InvalidResponseCodeException && e.responseCode == 403 && info.errorCount <= MIN_RETRIES) {
+        cdn.connectionPool.evictAll()
+        return 200
+      }
+      return super.getRetryDelayMsFor(info)
+    }
+
+    // Never to another quality on a failure: the user chose this one.
+    override fun getFallbackSelectionFor(options: LoadErrorHandlingPolicy.FallbackOptions, info: LoadErrorHandlingPolicy.LoadErrorInfo): LoadErrorHandlingPolicy.FallbackSelection? = null
+  }
+
+  private val bandwidth = DefaultBandwidthMeter.Builder(context)
+      // The last speed this TV measured, else 6 Mb/s: Media3's own guess of 1 Mb/s held a fast line
+      // at 480p for half a minute.
+      .setInitialBitrateEstimate(prefs.getLong("bitrate", 6_000_000L))
+      .build()
+
+  /** The player always comes first; fetching ahead onto the disk waits while it loads. */
+  private val priority = androidx.media3.common.PriorityTaskManager()
+  private val network = OkHttpDataSource.Factory(cdn).setUserAgent(USER_AGENT)
+  private val disk = Disk.cache(context)
+  private val readAhead = disk?.let { ReadAhead(it, network, priority) }
+
+  val player: ExoPlayer = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+      .setMediaSourceFactory(
+          DefaultMediaSourceFactory(
+              disk?.let {
+                Routing(network, androidx.media3.datasource.cache.CacheDataSource.Factory().setCache(it).setUpstreamDataSourceFactory(network).setCacheKeyFactory { s -> Disk.key(s.uri.toString()) })
+              } ?: network)
+              .setLoadErrorHandlingPolicy(retries))
+      .setPriorityTaskManager(priority)
+      .setLoadControl(
+          DefaultLoadControl.Builder()
+              .setBufferDurationsMs(50_000, 120_000, 2_500, 5_000)
+              // A third of the heap and no more: a paused film and a subtitle search once ran a 2 GB TV out of memory.
+              .setTargetBufferBytes(minOf(Runtime.getRuntime().maxMemory() / 3, 96L * 1024 * 1024).toInt())
+              .build())
+      .setBandwidthMeter(bandwidth)
+      .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+      .setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS)
+      .setSeekBackIncrementMs(10_000)
+      .setSeekForwardIncrementMs(10_000)
+      .build()
+
+  /**
+   * The system's view of playback, for the remote's media keys, HDMI-CEC and the Assistant: next
+   * and previous are episodes, and stop is a pause.
+   */
+  private val session: MediaSession? = runCatching {
+    MediaSession.Builder(context, object : ForwardingPlayer(player) {
+      override fun getAvailableCommands(): Player.Commands =
+          super.getAvailableCommands().buildUpon().add(COMMAND_SEEK_TO_NEXT).add(COMMAND_SEEK_TO_PREVIOUS).build()
+
+      override fun isCommandAvailable(command: Int): Boolean = command == COMMAND_SEEK_TO_NEXT || command == COMMAND_SEEK_TO_PREVIOUS || super.isCommandAvailable(command)
+
+      override fun seekToNext() {
+        next()
+      }
+
+      override fun seekToPrevious() {
+        previous()
+      }
+
+      override fun stop() {
+        player.pause()
+      }
+    }).setId("nama-${System.nanoTime()}").build()
+  }.onFailure { Log.w(AppModel.TAG, "media session: $it") }.getOrNull()
+
+  // MARK: Bookkeeping
+
+  private var track = SubtitleTrack()
+  private val subtitleCache = HashMap<String, SubtitleTrack>()
+  private var subtitleJob: Job? = null
+  private var findJob: Job? = null
+  private var sleepJob: Job? = null
+  /** The last position reported for the current item, so the same one is not sent twice. */
+  private var reportedTime = 0
+  /** The stretch last jumped over by itself, so that one the user goes back into is left alone. */
+  private var skippedOn: String? = null
+  /** Episodes that started by themselves with no key pressed in between. */
+  private var unattended = 0
+  /** Where the current file was resumed, for "Start over" in its first ten seconds. */
+  private var resumedAt: Double? = null
+  private var startedAt = 0L
+  private var closed = false
+  private var onClose: () -> Unit = {}
+
+  init {
+    // A series keeps its subtitle timing and its speed from one episode, and one evening, to the next.
+    if (post.isSeries) {
+      subtitleOffset = prefs.getFloat("series.${post.id}.offset", 0f).toDouble()
+      speed = prefs.getFloat("series.${post.id}.speed", 1f)
+    }
+    player.addListener(object : Player.Listener {
+      override fun onPlaybackStateChanged(state: Int) {
+        buffering = state == Player.STATE_BUFFERING
+        if (state == Player.STATE_ENDED) finished()
+      }
+
+      override fun onIsPlayingChanged(isPlaying: Boolean) {
+        playing = isPlaying
+        if (!isPlaying) report()
+      }
+
+      override fun onPlayerError(error: PlaybackException) {
+        Log.w(AppModel.TAG, "playback: ${error.errorCodeName} ${error.cause}")
+        if (closed) return
+        app.showToast(loc(S.playError))
+        close()
+      }
+
+      override fun onVideoSizeChanged(size: VideoSize) {
+        val f = player.videoFormat
+        val decoder = if (size.width > 0) size.width * size.pixelWidthHeightRatio to size.height.toFloat() else null
+        val stream = f?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width * it.pixelWidthHeightRatio to it.height.toFloat() }
+        aspect = filmShape(decoder, stream)
+        f?.frameRate?.takeIf { it > 0 }?.let { frameRate = it }
+      }
+
+      override fun onTracksChanged(tracks: Tracks) {
+        val langs = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.mapNotNull { g -> g.mediaTrackGroup.getFormat(0).language }.distinct()
+        audioTracks = if (langs.size > 1) langs else emptyList()
+        audioTrack = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }?.mediaTrackGroup?.getFormat(0)?.language
+      }
+    })
+  }
+
+  /** Starts playback; [onClose] is called once, however it ends. */
+  fun begin(onClose: () -> Unit) {
+    this.onClose = onClose
+    if (items.isEmpty()) return close()
+    val start = Resume.start(items, index, serverResume, app.kept.get(post.id), pickedByUser)
+    start(start.index, start.seconds)
+    scope.launch { ticker() }
+    readAhead?.follow(scope, player) { app.settings.readAhead }
+    // Every ten seconds, where playback is, as on the Apple TV.
+    scope.launch {
+      while (isActive) {
+        delay(10_000)
+        report()
+      }
+    }
+  }
+
+  // MARK: Items
+
+  /** Starts item [i], from [at] if given. */
+  fun start(i: Int, at: Double? = null) {
+    if (i !in items.indices) return close()
+    report()
+    keep()
+    index = i
+    reportedTime = 0
+    val q = current.quality(app.settings.preferAdaptive)
+    if (q == null) {
+      app.showToast(loc(S.noStream))
+      return close()
+    }
+    resumedAt = at?.takeIf { it > 60 }
+    startedAt = System.currentTimeMillis()
+    load(q, at)
+    if (subtitleLanguage.startsWith(FOUND)) subtitleLanguage = "fa"
+    selectSubtitle(subtitleLanguage, remember = false)
+    lookForSubtitles()
+  }
+
+  private fun load(q: Quality, at: Double?) {
+    quality = q
+    val url = q.url(mix).toString()
+    val title = post.title(loc.lang)
+    val line = if (post.isSeries || items.size > 1) loc.episodeTag(current.season, Episode.label(current.episodeRaw, index + 1)) + (current.title(loc.lang)?.let { " — $it" } ?: "") else null
+    val item = MediaItem.Builder()
+        .setUri(url)
+        .apply { if (url.contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }
+        .setMediaMetadata(
+            MediaMetadata.Builder().setTitle(title).setSubtitle(line).setDisplayTitle(title)
+                .apply { post.poster.url(428.0)?.let { setArtworkUri(android.net.Uri.parse(it.toString())) } }
+                .build())
+        .build()
+    player.setMediaItem(item, ((at ?: 0.0) * 1000).toLong())
+    player.setPlaybackSpeed(speed)
+    player.prepare()
+    player.play()
+    offer = null
+  }
+
+  fun next() {
+    if (index + 1 < items.size) start(index + 1)
+  }
+
+  /** Back to the start of this episode if it has run more than ten seconds, else the one before. */
+  fun previous() {
+    if (position > 10 || index == 0) seekTo(0.0) else start(index - 1)
+  }
+
+  private fun finished() {
+    if (closed) return
+    if (sleep == Sleep.EndOfEpisode) {
+      sleep = Sleep.Off
+      return close()
+    }
+    if (index + 1 < items.size && app.settings.autoplayNext) {
+      // After three episodes in a row with no key pressed, nobody may be watching: stop there,
+      // without a dialog asking.
+      if (unattended >= 3) {
+        app.showToast(TV.stillWatchingStopped(loc.lang))
+        return close()
+      }
+      unattended++
+      start(index + 1)
+    } else close()
+  }
+
+  /** A key was pressed: someone is watching. */
+  fun attended() {
+    unattended = 0
+  }
+
+  fun togglePlay() {
+    if (player.isPlaying) player.pause()
+    else {
+      if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
+      player.play()
+    }
+  }
+
+  fun seekTo(seconds: Double) {
+    player.seekTo((seconds.coerceAtLeast(0.0) * 1000).toLong())
+    position = seconds.coerceAtLeast(0.0)
+  }
+
+  fun close() {
+    if (closed) return
+    closed = true
+    report()
+    keep()
+    prefs.edit().putLong("bitrate", bandwidth.bitrateEstimate).apply()
+    scope.cancel()
+    session?.release()
+    player.release()
+    onClose()
+  }
+
+  // MARK: Menus
+
+  fun chooseQuality(q: Quality) {
+    if (q == quality) return
+    load(q, position)
+  }
+
+  fun chooseMix(m: AudioMix) {
+    if (m == mix) return
+    mix = m
+    app.update { it.copy(audioMix = m) }
+    quality?.let { load(it, position) }
+  }
+
+  fun chooseAudioTrack(language: String) {
+    val group = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.mediaTrackGroup.getFormat(0).language == language } ?: return
+    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0)).build()
+  }
+
+  fun chooseSpeed(s: Float) {
+    speed = s
+    player.setPlaybackSpeed(s)
+    if (post.isSeries) prefs.edit().putFloat("series.${post.id}.speed", s).apply()
+  }
+
+  fun chooseSleep(s: Sleep) {
+    sleep = s
+    sleepJob?.cancel()
+    if (s !is Sleep.Minutes) return
+    sleepJob = scope.launch {
+      delay(s.n * 60_000L)
+      sleep = Sleep.Off
+      // Only if the film is actually playing; a paused one is left as it is.
+      if (player.isPlaying) player.pause()
+    }
+  }
+
+  /** Moves the subtitles by [seconds], in quarter seconds; zero puts them back. */
+  fun nudgeSubtitles(seconds: Double) {
+    subtitleOffset = if (seconds == 0.0) 0.0 else (Math.round((subtitleOffset + seconds) * 4) / 4.0).coerceIn(-10.0, 10.0)
+    if (post.isSeries) prefs.edit().putFloat("series.${post.id}.offset", subtitleOffset.toFloat()).apply()
+    cue = track.text(position - subtitleOffset)
+  }
+
+  // MARK: Subtitles
+
+  /**
+   * 30nama has no Persian subtitle for this item: look on SubSource, and show the best one at once
+   * if Persian is what the user watches with.
+   */
+  private fun lookForSubtitles() {
+    findJob?.cancel()
+    found = emptyList()
+    if (current.subtitles["fa"] != null) return
+    val item = index
+    val query = SubSource.Query(post.titleEnglish ?: post.title(Lang.en), post.year, post.imdbID, post.isSeries, if (post.isSeries) current.season else null)
+    val release = listOfNotNull(current.title(Lang.en), quality?.label).joinToString(" ")
+    val episode = if (post.isSeries) current.episodeNumber else null
+    findJob = scope.launch {
+      val list = attempt { app.finder.candidates(query, release, episode) }.orEmpty()
+      if (index != item) return@launch
+      found = list.take(6)
+      if (subtitleLanguage == "fa") list.firstOrNull()?.let { selectSubtitle(FOUND + it.id, remember = false) }
+    }
+  }
+
+  /** Subtitles are separate WebVTT files, not tracks of the stream: fetched here and drawn over the video. */
+  fun selectSubtitle(language: String, remember: Boolean) {
+    subtitleLanguage = language
+    if (remember) app.update { it.copy(defaultSubtitle = if (language.startsWith(FOUND)) "fa" else language) }
+    subtitleJob?.cancel()
+    track = SubtitleTrack()
+    cue = ""
+    if (language.startsWith(FOUND)) {
+      val id = language.removePrefix(FOUND)
+      val candidate = found.firstOrNull { it.id == id } ?: return
+      val season = if (post.isSeries) current.season else null
+      val episode = if (post.isSeries) current.episodeNumber else null
+      subtitleJob = scope.launch {
+        val text = attempt { app.finder.text(candidate, season, episode) }
+        if (subtitleLanguage != language) return@launch
+        if (text == null) app.showToast(loc(S.subFailed)) else track = withContext(Dispatchers.Default) { SubtitleTrack.vtt(text) }
+      }
+      return
+    }
+    if (language == "off") return
+    val url = current.subtitles[language]?.toString() ?: return
+    subtitleCache[url]?.let {
+      track = it
+      return
+    }
+    subtitleJob = scope.launch {
+      val text = withContext(Dispatchers.IO) {
+        attempt {
+          // The debug build's test subtitles come inline.
+          if (url.startsWith("data:")) String(android.util.Base64.decode(url.substringAfter("base64,"), android.util.Base64.DEFAULT))
+          else cdn.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+        }
+      }
+      if (text == null) {
+        app.showToast(loc(S.subFailed))
+        return@launch
+      }
+      val parsed = withContext(Dispatchers.Default) { SubtitleTrack.vtt(text) }
+      subtitleCache[url] = parsed
+      if (subtitleLanguage == language) track = parsed
+    }
+  }
+
+  // MARK: Every quarter second
+
+  private suspend fun ticker() {
+    while (scope.isActive) {
+      delay(250)
+      if (closed) return
+      val t = player.currentPosition / 1000.0
+      position = t
+      duration = player.duration.takeIf { it != C.TIME_UNSET }?.div(1000.0) ?: 0.0
+      buffered = player.bufferedPosition / 1000.0
+      val text = track.text(t - subtitleOffset)
+      if (text != cue) cue = text
+      tick(t)
+    }
+  }
+
+  private fun tick(t: Double) {
+    val item = current
+    val skip = item.skipTarget(t)
+    val credits = item.creditsStart?.takeIf { it > 0 }
+    // Without a mark for the credits, the last 25 seconds stand in for it.
+    val creditsAt = credits ?: (duration - 25).takeIf { duration > 120 }
+    val hasNext = index + 1 < items.size
+    // Watched once the credits begin, or most of the file has played.
+    if (duration > 60 && (credits != null && t >= credits || t / duration > 0.95)) app.setWatched(item.fileID, true)
+    offer = when {
+      skip != null -> {
+        // Once per stretch: going back into it on purpose is not undone.
+        val stretch = "${item.id}@${skip.to}"
+        if (app.settings.autoSkip && skippedOn != stretch && player.isPlaying) {
+          skippedOn = stretch
+          seekTo(skip.to)
+          null
+        } else Offer(if (skip.isIntro) Offer.Kind.Intro else Offer.Kind.Recap)
+      }
+      hasNext && creditsAt != null && t >= creditsAt -> {
+        val counting = app.settings.autoplayNext && sleep != Sleep.EndOfEpisode && unattended < 3 && duration > creditsAt
+        Offer(Offer.Kind.Next, if (counting) (((t - creditsAt) / (duration - creditsAt)).toFloat().coerceIn(0f, 1f) * 50).toInt() / 50f else null)
+      }
+      // A title picked up part-way offers to start over for its first ten seconds.
+      resumedAt != null && System.currentTimeMillis() - startedAt < 10_000 -> Offer(Offer.Kind.StartOver)
+      else -> null
+    }
+  }
+
+  /** Acts on the pill: skips the stretch, starts the next episode, or goes back to the start. */
+  fun acceptOffer() {
+    when (offer?.kind) {
+      Offer.Kind.Intro, Offer.Kind.Recap -> current.skipTarget(position)?.let { seekTo(it.to) }
+      Offer.Kind.Next -> next()
+      Offer.Kind.StartOver -> {
+        resumedAt = null
+        seekTo(0.0)
+      }
+      null -> Unit
+    }
+    offer = null
+  }
+
+  // MARK: Progress
+
+  /**
+   * Tells the server where playback is, which drives "continue watching" on every device. The
+   * position goes up in steps of thirty seconds, which is how the 30nama website reports it.
+   */
+  private fun report() {
+    if (!app.isLoggedIn) return
+    val seconds = player.currentPosition / 1000.0
+    val time = (seconds.toInt() / 30) * 30
+    if (time <= 0 || time == reportedTime) return
+    reportedTime = time
+    val progress = WatchProgress(post, current, app.user?.id, seconds, duration)
+    val api = app.api
+    app.background { api.reportProgress(progress) }
+  }
+
+  /** This TV's own record of where the title was left. */
+  private fun keep() {
+    val seconds = player.currentPosition / 1000.0
+    if (seconds > 5) app.kept.put(post.id, current.fileID, seconds)
+  }
+
+  companion object {
+    const val FOUND = "found:"
+    private const val MIN_RETRIES = 10
+    private const val USER_AGENT = "30nama-androidtv"
+  }
+}

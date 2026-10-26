@@ -57,6 +57,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import app.nama.androidtv.DemoStream
 import app.nama.androidtv.PlaybackRequest
 import app.nama.androidtv.attempt
 import app.nama.core.Episode
@@ -107,12 +108,21 @@ fun DetailsScreen(route: Route.Details) {
       return
     }
     val s = stream?.takeIf { it.items.isNotEmpty() } ?: return explainNoStream()
-    app.play(PlaybackRequest(p, s.items, index ?: s.startIndex, s.resume))
+    app.play(PlaybackRequest(p, s.items, index ?: s.startIndex, s.resume, pickedByUser = index != null))
   }
 
   /** Stream files need a subscription; guests only get them for free titles. */
   suspend fun loadStream(quietly: Boolean) {
     val p = loaded ?: route.preview ?: return
+    if (DemoStream.enabled) {
+      stream = DemoStream.result(p).also { r -> r.items.getOrNull(r.startIndex)?.let { shelf = Shelf.of(r.items, it) } }
+      streamPending = false
+      if (playWhenReady) {
+        playWhenReady = false
+        startPlayback()
+      }
+      return
+    }
     if (!app.isLoggedIn && !p.freeStream) {
       streamPending = false
       if (playWhenReady) {

@@ -82,6 +82,7 @@ dependencies {
   implementation(libs.media3.datasource.okhttp)
   implementation(libs.media3.session)
   implementation(libs.media3.inspector)
+  implementation(libs.media3.ui.compose)
   implementation(libs.okhttp)
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)

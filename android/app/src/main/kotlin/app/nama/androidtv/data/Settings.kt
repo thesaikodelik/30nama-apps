@@ -27,6 +27,8 @@ data class Settings(
     val reduceMotion: Boolean = false,
     /** How much of what is left of a title to fetch ahead onto the disk, in percent. */
     val readAhead: Int = 25,
+    /** Switch the TV's refresh rate to the film's frame rate, even where that blanks the screen. */
+    val matchFrameRate: Boolean = false,
 ) {
   companion object {
     val subtitleSizes = listOf(38, 46, 54)
@@ -48,6 +50,7 @@ data class Settings(
           preferAdaptive = p.getBoolean("adaptive", d.preferAdaptive),
           reduceMotion = p.getBoolean("calm", d.reduceMotion),
           readAhead = p.getInt("readAhead", d.readAhead).takeIf { it in readAheadChoices } ?: d.readAhead,
+          matchFrameRate = p.getBoolean("matchFrameRate", d.matchFrameRate),
       )
     }
   }
@@ -66,6 +69,7 @@ data class Settings(
         .putBoolean("adaptive", preferAdaptive)
         .putBoolean("calm", reduceMotion)
         .putInt("readAhead", readAhead)
+        .putBoolean("matchFrameRate", matchFrameRate)
         .apply()
   }
 }
