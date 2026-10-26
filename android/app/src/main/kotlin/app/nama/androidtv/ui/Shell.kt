@@ -196,6 +196,7 @@ private fun TabRoot(tab: Tab) {
   val loc = LocalLoc.current
   when (tab) {
     Tab.home -> HomeScreen()
+    Tab.search -> SearchScreen()
     else -> Placeholder(tab.name)
   }
 }

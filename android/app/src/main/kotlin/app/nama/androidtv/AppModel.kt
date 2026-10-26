@@ -373,6 +373,15 @@ class AppModel(
     }
   }
 
+  // MARK: Search
+
+  fun recentSearches(): List<String> =
+      store.getString("recentSearches", null)?.let { runCatching { Json.parse(it).array.mapNotNull { q -> q.text } }.getOrNull() } ?: emptyList()
+
+  fun saveRecentSearches(list: List<String>) {
+    store.edit().putString("recentSearches", Json.of(list).serialize()).apply()
+  }
+
   // MARK: Watched and ratings
 
   fun setWatched(fileID: String, on: Boolean) {
