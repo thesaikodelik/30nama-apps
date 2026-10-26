@@ -93,6 +93,7 @@ xcodebuild -project 30nama.xcodeproj -scheme 30nama-mac -destination 'platform=m
 ./gradlew test                 # pure-Kotlin core, no headset needed
 ./gradlew :app:testDebugUnitTest -Pshots   # every panel as a PNG in build/shots, three languages
 ./gradlew installDebug         # build and install on the headset over adb
+tools/hot-reload.sh            # changed models into the running debug app, no rebuild
 adb logcat -s Nama:*
 ```
 

@@ -72,7 +72,7 @@ class NamaActivity : AppSystemActivity() {
   override fun registerFeatures(): List<SpatialFeature> {
     // The room scan and the depth sensor: where the user's own table is, for the magazines.
     mruk = MRUKFeature(this, systemManager)
-    return listOf(VRFeature(this), ComposeFeature(), mruk)
+    return listOf(VRFeature(this), ComposeFeature(), mruk) + debugFeatures(this)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {

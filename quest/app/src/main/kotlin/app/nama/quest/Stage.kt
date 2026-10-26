@@ -230,6 +230,7 @@ class Stage(
   val pageB = place(R.id.panel_page_b)
   // The magazines' bodies (Blender models), the open one, and its paper.
   private var bodiesRtl = true
+  private var bodiesVersion = assetVersion()
   val bodies = List(6) { model(CLOSED_RTL) }
   val openBody = model(OPEN)
   private val sheetPageA = Sheet(COLS, ROWS, art?.blank ?: Paper.blank(), art?.blank ?: Paper.blank())
@@ -399,8 +400,11 @@ class Stage(
     // Until the search for a real table is over, nothing is put down, so nothing jumps.
     val ready = alongGaze || surface == null || surface.done
     val top = real ?: at(Layout.virtualTable).t
-    if (rtl != bodiesRtl) {
+    // A new language turns the spines; a model sent by tools/hot-reload.sh (debug) replaces them all.
+    if (rtl != bodiesRtl || assetVersion() != bodiesVersion) {
       bodiesRtl = rtl
+      if (assetVersion() != bodiesVersion) openBody.entity.setComponent(Mesh(Uri.parse(OPEN)))
+      bodiesVersion = assetVersion()
       bodies.forEach { it.entity.setComponent(Mesh(Uri.parse(if (rtl) CLOSED_RTL else CLOSED_LTR))) }
     }
     val r = MagazineLayout(o.t, up, fwd, right, top, rtl).compute(sh, home, ready, real == null, System.currentTimeMillis())
@@ -541,9 +545,10 @@ class Stage(
   }
 
   companion object {
-    private const val CLOSED_RTL = "apk:///models/magazine_closed_rtl.glb"
-    private const val CLOSED_LTR = "apk:///models/magazine_closed_ltr.glb"
-    private const val OPEN = "apk:///models/magazine_open.glb"
+    // From the apk, or in debug builds the latest one sent by tools/hot-reload.sh.
+    private val CLOSED_RTL get() = assetUri("models/magazine_closed_rtl.glb")
+    private val CLOSED_LTR get() = assetUri("models/magazine_closed_ltr.glb")
+    private val OPEN get() = assetUri("models/magazine_open.glb")
     /** Columns of the paper grid across a page: enough for a smooth bend. */
     private const val COLS = 28
     /** Rows down the page: the corner lifts first, so the turning page twists as it bends. */
