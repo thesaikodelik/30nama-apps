@@ -89,9 +89,9 @@ struct DetailsView: View {
             while !streamTried, ContinuousClock.now - start < .seconds(2) {
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            // None from TMDB in time, as always where it is filtered: Aparat may have one. Its
-            // button joins the row when it is found.
-            if await trailerLook == nil { Task { await AparatStore.shared.look(for: preview) } }
+            // In Iran TMDB and YouTube are filtered: Aparat may have one. Its button joins the row
+            // when it is found. Elsewhere the trailer is TMDB's or there is none, as it always was.
+            if await trailerLook == nil, app.inIran { Task { await AparatStore.shared.look(for: preview) } }
             guard !Task.isCancelled else { return }
             for step in 1...7 {
                 withAnimation(calm ? nil : .spring(response: 0.42, dampingFraction: 0.82)) { revealed = step }

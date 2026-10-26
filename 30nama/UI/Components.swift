@@ -378,7 +378,8 @@ struct SiteErrorState: View {
                 retry()
             }
         }
-        .task { outOfReach = !(await app.api.siteInReach) }
+        // Only in Iran, where the site is filtered and a VPN is the answer; elsewhere as before.
+        .task { outOfReach = app.inIran ? !(await app.api.siteInReach) : false }
     }
 }
 

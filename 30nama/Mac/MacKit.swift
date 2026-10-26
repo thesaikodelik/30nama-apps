@@ -152,7 +152,8 @@ struct SiteRetry: View {
             .buttonStyle(GlassButtonStyle())
         }
         .frame(maxWidth: .infinity)
-        .task { outOfReach = site ? !(await app.api.siteInReach) : false }
+        // Only in Iran, where the site is filtered and a VPN is the answer; elsewhere the button alone, as before.
+        .task { outOfReach = site && app.inIran ? !(await app.api.siteInReach) : false }
     }
 }
 
