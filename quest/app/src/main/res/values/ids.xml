@@ -12,6 +12,8 @@
   <item type="id" name="panel_controls" />
   <item type="id" name="panel_subtitles" />
   <item type="id" name="panel_toast" />
+  <!-- debug builds only: the note for Claude -->
+  <item type="id" name="panel_note" />
   <item type="id" name="panel_table" />
   <item type="id" name="panel_mag_0" />
   <item type="id" name="panel_mag_1" />

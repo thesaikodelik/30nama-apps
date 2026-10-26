@@ -153,6 +153,7 @@ class NamaActivity : AppSystemActivity() {
     val dt = if (lastTick == 0L) 0f else ((now - lastTick) / 1e9f).coerceAtMost(0.1f)
     lastTick = now
     stage?.tick(dt)
+    debugTick(this, model, shelf)
   }
 
   override fun onRecenter(isUserInitiated: Boolean) {
@@ -222,7 +223,7 @@ class NamaActivity : AppSystemActivity() {
                 )
               },
           ),
-      )
+      ) + debugPanels()
 
   /** A Compose panel. Density is in dp per metre: near panels are drawn finer than far ones. */
   private fun ui(

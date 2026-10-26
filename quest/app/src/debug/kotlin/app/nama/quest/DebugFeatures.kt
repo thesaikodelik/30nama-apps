@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.util.Log
 import com.meta.spatial.core.SpatialFeature
 import com.meta.spatial.toolkit.AppSystemActivity
+import com.meta.spatial.toolkit.PanelRegistration
 import java.io.File
 
 /**
@@ -20,6 +21,11 @@ fun debugFeatures(activity: AppSystemActivity): List<SpatialFeature> {
   HotAssets.start(activity)
   return emptyList()
 }
+
+/** Debug panels: the note for Claude (Notes). */
+fun debugPanels(): List<PanelRegistration> = listOf(Notes.panel())
+
+fun debugTick(activity: AppSystemActivity, model: AppModel, shelf: Shelf) = Notes.tick(activity, model, shelf)
 
 /** Where the app reads [path] (relative to the apk's assets) from. */
 fun assetUri(path: String): String = HotAssets.uri(path) ?: "apk:///$path"

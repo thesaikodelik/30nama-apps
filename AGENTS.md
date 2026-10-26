@@ -94,6 +94,7 @@ xcodebuild -project 30nama.xcodeproj -scheme 30nama-mac -destination 'platform=m
 ./gradlew :app:testDebugUnitTest -Pshots   # every panel as a PNG in build/shots, three languages
 ./gradlew installDebug         # build and install on the headset over adb
 tools/hot-reload.sh            # changed models into the running debug app, no rebuild
+tools/notes.sh                 # notes from inside the headset (left stick click), each with a screenshot
 adb logcat -s Nama:*
 ```
 
