@@ -24,6 +24,7 @@ class KeyCheck(http: OkHttpClient) {
     val request = when (service) {
       "tmdb" -> TMDB.request("configuration", key = key)
       "subsource" -> SubSource.searchRequest(SubSource.Query("Inception", 2010, "tt1375666", false, null), key)
+      "gemini" -> HttpRequest(GEMINI_MODELS, headers = mapOf("x-goog-api-key" to key))
       else -> return KeyState.Unset
     }
     return withContext(Dispatchers.IO) {
@@ -32,6 +33,8 @@ class KeyCheck(http: OkHttpClient) {
           when {
             code in 200..299 -> KeyState.Works
             code == 401 || code == 403 -> KeyState.Rejected
+            // Gemini answers a wrong key with 400 API_KEY_INVALID.
+            code == 400 && service == "gemini" -> KeyState.Rejected
             else -> KeyState.Unreachable
           }
         }
@@ -39,6 +42,10 @@ class KeyCheck(http: OkHttpClient) {
         KeyState.Unreachable
       }
     }
+  }
+
+  private companion object {
+    const val GEMINI_MODELS = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1"
   }
 
   private fun send(r: HttpRequest): Int {

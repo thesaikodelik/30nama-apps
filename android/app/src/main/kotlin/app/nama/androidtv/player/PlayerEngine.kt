@@ -34,7 +34,9 @@ import androidx.media3.session.MediaSession
 import app.nama.androidtv.AppModel
 import app.nama.androidtv.PlaybackRequest
 import app.nama.androidtv.attempt
+import app.nama.androidtv.data.Gemini
 import app.nama.androidtv.data.Resume
+import app.nama.androidtv.data.Translation
 import app.nama.androidtv.ui.TV
 import app.nama.core.AudioMix
 import app.nama.core.Episode
@@ -108,7 +110,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   /** Which of the server's mixes is open. Stereo is what a TV's own speakers can play. */
   var mix by mutableStateOf(app.settings.audioMix)
     private set
-  /** "off", "fa", "en", or [FOUND] and a SubSource candidate's id. */
+  /** "off", "fa", "en", [FOUND] and a SubSource candidate's id, or [TRANSLATED]. */
   var subtitleLanguage by mutableStateOf(app.settings.defaultSubtitle)
     private set
   /** Seconds the subtitles are shown later (or, negative, earlier) than their file says. */
@@ -119,6 +121,19 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   /** Persian subtitles found on SubSource for an item 30nama gives none for, best first. */
   var found by mutableStateOf<List<SubSource.Candidate>>(emptyList())
     private set
+  /** SubSource has been asked about this item (and [found] is its answer). */
+  private var searched by mutableStateOf(false)
+  /** How much of the translation has come, 0 to 1, while there is one. */
+  var translated by mutableStateOf<Float?>(null)
+    private set
+
+  /**
+   * A translation can be offered: no Persian subtitle anywhere, an English one to start from, the
+   * viewer's own Gemini key, and not on the Iranian server, where Google is out of reach.
+   */
+  val canTranslate: Boolean
+    get() = current.subtitles["fa"] == null && searched && found.isEmpty() && current.subtitles["en"] != null &&
+        app.key("gemini") != null && !app.inIran
   var sleep by mutableStateOf<Sleep>(Sleep.Off)
     private set
   var speed by mutableFloatStateOf(1f)
@@ -323,6 +338,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     val lowest = current.qualities.filter { !it.isAuto }.minByOrNull { it.height } ?: current.qualities.firstOrNull()
     preview.use(lowest?.url(AudioMix.stereo)?.toString())
     if (subtitleLanguage.startsWith(FOUND)) subtitleLanguage = "fa"
+    // A translation goes on into the next episode, if that has nothing Persian either.
+    if (subtitleLanguage == TRANSLATED && current.subtitles["fa"] != null) subtitleLanguage = "fa"
     selectSubtitle(subtitleLanguage, remember = false)
     lookForSubtitles()
   }
@@ -458,6 +475,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   private fun lookForSubtitles() {
     findJob?.cancel()
     found = emptyList()
+    searched = false
     if (current.subtitles["fa"] != null) return
     val item = index
     val query = SubSource.Query(post.titleEnglish ?: post.title(Lang.en), post.year, post.imdbID, post.isSeries, if (post.isSeries) current.season else null)
@@ -467,6 +485,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       val list = attempt { app.finder.candidates(query, release, episode) }.orEmpty()
       if (index != item) return@launch
       found = list.take(6)
+      searched = true
       if (subtitleLanguage == "fa") list.firstOrNull()?.let { selectSubtitle(FOUND + it.id, remember = false) }
     }
   }
@@ -474,10 +493,15 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   /** Subtitles are separate WebVTT files, not tracks of the stream: fetched here and drawn over the video. */
   fun selectSubtitle(language: String, remember: Boolean) {
     subtitleLanguage = language
-    if (remember) app.update { it.copy(defaultSubtitle = if (language.startsWith(FOUND)) "fa" else language) }
+    if (remember) app.update { it.copy(defaultSubtitle = if (language.startsWith(FOUND) || language == TRANSLATED) "fa" else language) }
     subtitleJob?.cancel()
     track = SubtitleTrack()
     cue = ""
+    translated = null
+    if (language == TRANSLATED) {
+      translate()
+      return
+    }
     if (language.startsWith(FOUND)) {
       val id = language.removePrefix(FOUND)
       val candidate = found.firstOrNull { it.id == id } ?: return
@@ -497,20 +521,57 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       return
     }
     subtitleJob = scope.launch {
-      val text = withContext(Dispatchers.IO) {
-        attempt {
-          // The debug build's test subtitles come inline.
-          if (url.startsWith("data:")) String(android.util.Base64.decode(url.substringAfter("base64,"), android.util.Base64.DEFAULT))
-          else cdn.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
-        }
-      }
-      if (text == null) {
-        app.showToast(loc(S.subFailed))
-        return@launch
-      }
-      val parsed = withContext(Dispatchers.Default) { SubtitleTrack.vtt(text) }
-      subtitleCache[url] = parsed
+      val parsed = load(url) ?: return@launch app.showToast(loc(S.subFailed))
       if (subtitleLanguage == language) track = parsed
+    }
+  }
+
+  /** A subtitle file, fetched and read, or from the ones already read. */
+  private suspend fun load(url: String): SubtitleTrack? {
+    subtitleCache[url]?.let { return it }
+    val text = withContext(Dispatchers.IO) {
+      attempt {
+        // The debug build's test subtitles come inline.
+        if (url.startsWith("data:")) String(android.util.Base64.decode(url.substringAfter("base64,"), android.util.Base64.DEFAULT))
+        else cdn.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+      }
+    } ?: return null
+    return withContext(Dispatchers.Default) { SubtitleTrack.vtt(text) }.also { subtitleCache[url] = it }
+  }
+
+  /**
+   * The English subtitle translated by Gemini (Translation.kt). The film goes on with the English
+   * lines; each batch replaces its lines as it arrives, starting from where the viewer is.
+   */
+  private fun translate() {
+    val url = current.subtitles["en"]?.toString() ?: return
+    val key = app.key("gemini") ?: return
+    val item = index
+    subtitleJob = scope.launch {
+      val source = load(url) ?: return@launch app.showToast(loc(S.subFailed))
+      if (subtitleLanguage != TRANSLATED || index != item) return@launch
+      var cues = source.cues
+      track = source
+      val target = Translation.target(app.settings.lang)
+      val title = post.titleEnglish ?: post.title(Lang.en)
+      val count = Translation.batchCount(cues)
+      // A signed address changes from one evening to the next; the file it names does not.
+      val name = url.substringBefore('?')
+      var done = 0
+      translated = 0f
+      for (n in Translation.order(count, Translation.batchAt(cues, position - subtitleOffset))) {
+        when (val o = app.gemini.translate(key, name, target, title, n, Translation.batch(cues, n))) {
+          is Gemini.Outcome.Lines -> {
+            cues = Translation.apply(cues, n, o.lines)
+            track = SubtitleTrack(SubtitleTrack.directed(cues))
+            cue = track.text(position - subtitleOffset)
+          }
+          Gemini.Outcome.Rejected -> return@launch app.showToast(TV.keyRejected(app.settings.lang))
+          Gemini.Outcome.Unavailable -> return@launch app.showToast(TV.translationStopped(app.settings.lang))
+        }
+        done++
+        translated = done.toFloat() / count
+      }
     }
   }
 
@@ -598,6 +659,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
 
   companion object {
     const val FOUND = "found:"
+    const val TRANSLATED = "translated"
     private const val MIN_RETRIES = 10
     private const val USER_AGENT = "30nama-androidtv"
   }

@@ -86,6 +86,7 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import app.nama.androidtv.PlaybackRequest
+import app.nama.androidtv.data.Translation
 import app.nama.androidtv.ui.CardSurface
 import app.nama.androidtv.ui.EpisodeTile
 import app.nama.androidtv.ui.Icons
@@ -474,6 +475,13 @@ private fun SidePanel(engine: PlayerEngine, panel: Panel, close: () -> Unit) {
         seen[c.name] = n
         val code = PlayerEngine.FOUND + c.id
         list += Choice("${loc(S.persian)} · ${c.name}" + if (n > 1) " (${loc.num(n)})" else "", engine.subtitleLanguage == code) { engine.selectSubtitle(code, true) }
+      }
+      // English put into Persian by Gemini, when there is nothing Persian to choose.
+      if (engine.canTranslate || engine.subtitleLanguage == PlayerEngine.TRANSLATED) {
+        val target = Translation.target(loc.lang)
+        val name = if (target == Lang.ar) Lang.ar.nativeName else loc(S.persian)
+        val progress = engine.translated?.takeIf { it < 1f }?.let { " (${loc.num((it * 100).toInt())}${if (loc.lang == Lang.en) "%" else "٪"})" }.orEmpty()
+        list += Choice("$name · ${tv(TV.machineTranslation)}$progress", engine.subtitleLanguage == PlayerEngine.TRANSLATED) { engine.selectSubtitle(PlayerEngine.TRANSLATED, true) }
       }
       // The nudge in words, never a sign: a minus would land at the wrong end of a Persian line.
       val quarter = loc.num("0.25")

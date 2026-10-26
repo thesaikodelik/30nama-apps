@@ -67,6 +67,7 @@ import app.nama.androidtv.data.SubtitleBackground
 import app.nama.androidtv.data.SubtitleColor
 import app.nama.core.AudioMix
 import app.nama.core.Lang
+import app.nama.core.Loc
 import app.nama.core.S
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -190,6 +191,7 @@ fun SettingsScreen() {
           Section.Services -> {
             KeyRow("tmdb", loc(S.tmdbKey), loc(S.tmdbKeyHint), { help = it }, first) { editing = "tmdb" }
             KeyRow("subsource", loc(S.subsourceKey), loc(S.subsourceKeyHint), { help = it }) { editing = "subsource" }
+            KeyRow("gemini", tv(TV.geminiKey), tv(TV.geminiKeyHint), { help = it }) { editing = "gemini" }
           }
           Section.About -> {
             Fact(loc(S.version), BuildConfig.VERSION_NAME)
@@ -354,7 +356,7 @@ private fun KeyCard(service: String, close: () -> Unit) {
   // The page the phone opens: in the app's language, right to left for Persian, nothing fetched from anywhere.
   val lang = loc.lang
   val server = remember {
-    KeyServer.open(page = { sent, error -> keyPage(lang, if (service == "tmdb") loc(S.tmdbKey) else loc(S.subsourceKey), sent, error) }) { key ->
+    KeyServer.open(page = { sent, error -> keyPage(lang, serviceName(service, lang), sent, error) }) { key ->
       scope.launch { save(key) }
     }
   }
@@ -369,15 +371,23 @@ private fun KeyCard(service: String, close: () -> Unit) {
     if (typing) typing = false else close()
   }
   LaunchedEffect(Unit) { runCatching { fieldButton.requestFocus() } }
-  val address = server?.address ?: if (service == "tmdb") "https://www.themoviedb.org/settings/api" else "https://subsource.net/profile"
+  val address = server?.address ?: when (service) {
+    "tmdb" -> "https://www.themoviedb.org/settings/api"
+    "gemini" -> "https://aistudio.google.com/apikey"
+    else -> "https://subsource.net/profile"
+  }
   val qr = remember(address) { qrImage(address) }
   val shape = RoundedCornerShape(36.dp)
 
   Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
     Row(Modifier.width(1500.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        Text(if (service == "tmdb") loc(S.tmdbKey) else loc(S.subsourceKey), style = app(40, FontWeight.Bold), color = Theme.text1)
-        Text(if (service == "tmdb") loc(S.tmdbKeyHint) else loc(S.subsourceKeyHint), style = app(24).copy(lineHeight = app(24).fontSize * 1.5f), color = Theme.text2)
+        Text(serviceName(service, loc.lang), style = app(40, FontWeight.Bold), color = Theme.text1)
+        Text(when (service) {
+          "tmdb" -> loc(S.tmdbKeyHint)
+          "gemini" -> tv(TV.geminiKeyHint)
+          else -> loc(S.subsourceKeyHint)
+        }, style = app(24).copy(lineHeight = app(24).fontSize * 1.5f), color = Theme.text2)
         // Keys are Latin letters and digits: read left to right, in a face where 0 and O differ. The
         // field is a button until pressed, so moving past it does not throw the system keyboard up.
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -438,6 +448,12 @@ private fun KeyCard(service: String, close: () -> Unit) {
       }
     }
   }
+}
+
+private fun serviceName(service: String, lang: Lang): String = when (service) {
+  "tmdb" -> Loc(lang)(S.tmdbKey)
+  "gemini" -> TV.geminiKey(lang)
+  else -> Loc(lang)(S.subsourceKey)
 }
 
 /** The one page the key server serves: a field, a button, and nothing loaded from anywhere else. */

@@ -80,6 +80,18 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   licenses("Licences", "مجوزها", "التراخيص"),
   sectionApp("App", "برنامه", "التطبيق"),
   save("Save", "ذخیره", "حفظ"),
+  machineTranslation("machine translation", "ترجمهٔ ماشینی", "ترجمة آلية"),
+  translationStopped(
+      "Translation paused: Gemini's free requests for today are used up, or it could not be reached. The rest stays in English.",
+      "ترجمه ایستاد: درخواست‌های رایگان امروز Gemini تمام شده یا در دسترس نیست. بقیه انگلیسی می‌ماند.",
+      "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
+  ),
+  geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  geminiKeyHint(
+      "Optional. Made free in Google AI Studio with your Google account. Translates the English subtitle into Persian when a title has no Persian one anywhere. Google's free tier may use what is sent to improve its models.",
+      "اختیاری. رایگان در Google AI Studio با حساب گوگل خودتان ساخته می‌شود. وقتی عنوانی هیچ‌جا زیرنویس فارسی ندارد، زیرنویس انگلیسی را به فارسی ترجمه می‌کند. گوگل در نسخهٔ رایگان ممکن است متن فرستاده‌شده را برای بهتر کردن مدل‌هایش به کار ببرد.",
+      "اختياري. يُنشأ مجاناً في Google AI Studio بحساب Google الخاص بك. يترجم الترجمة الإنجليزية إلى الفارسية حين لا توجد ترجمة فارسية لعنوان ما. قد تستخدم Google في الفئة المجانية ما يُرسل لتحسين نماذجها.",
+  ),
   retry("Try again", "دوباره", "إعادة المحاولة"),
   allowInstalls("Allow 30nama to install apps", "اجازهٔ نصب برنامه به ۳۰نما", "اسمح لـ۳۰نما بتثبيت التطبيقات"),
   installing("Installing", "در حال نصب", "جارٍ التثبيت"),
