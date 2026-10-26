@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- The app draws everything itself; the window is the app's own near-black, never white. -->
+  <style name="Theme.Nama" parent="android:Theme.Material.NoActionBar">
+    <item name="android:windowBackground">@color/bg0</item>
+    <item name="android:colorBackground">@color/bg0</item>
+    <item name="android:statusBarColor">@color/bg0</item>
+    <item name="android:navigationBarColor">@color/bg0</item>
+  </style>
+</resources>

@@ -1,0 +1,11 @@
+.gradle
+.kotlin
+.idea
+*.iml
+build/
+local.properties
+.cxx
+# signing material stays on the release machine
+*.keystore
+*.jks
+keystore.properties

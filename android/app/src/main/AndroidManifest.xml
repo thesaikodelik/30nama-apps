@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+  <!-- A TV app first; it also opens on a phone or tablet, where touch is not needed either. -->
+  <uses-feature android:name="android.software.leanback" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+  <!--
+    Predictive back stays off: from Android 16 it stops Back arriving as a key, and the app's
+    focus moves (rail, panels, the player) are made of keys.
+  -->
+  <application
+    android:name=".NamaApp"
+    android:allowBackup="false"
+    android:banner="@drawable/banner"
+    android:enableOnBackInvokedCallback="false"
+    android:icon="@mipmap/ic_launcher"
+    android:label="@string/app_name"
+    android:supportsRtl="true"
+    android:theme="@style/Theme.Nama">
+
+    <!--
+      A remote or keyboard connecting is a configuration change; without these the screen, and the
+      film playing on it, would start over.
+    -->
+    <activity
+      android:name=".MainActivity"
+      android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|density|uiMode"
+      android:exported="true"
+      android:launchMode="singleTask"
+      android:screenOrientation="landscape">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+        <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
