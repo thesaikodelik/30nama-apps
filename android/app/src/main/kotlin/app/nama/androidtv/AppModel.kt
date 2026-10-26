@@ -105,6 +105,9 @@ class AppModel(
    */
   var inIran by mutableStateOf(false)
     private set
+  /** The server this TV reached 30nama through, for Settings > About. */
+  var apiHost by mutableStateOf<String?>(null)
+    private set
   /** Bumped when the catalogue itself may differ: sign-in, sign-out, language. */
   var contentVersion by mutableIntStateOf(0)
     private set
@@ -156,6 +159,7 @@ class AppModel(
             return@launch
           }
       account.edit().putString("host", host).apply()
+      apiHost = runCatching { java.net.URI(host).host }.getOrNull() ?: host
       inIran = api.inIran
       savedUser()?.let { saved ->
         user = saved

@@ -17,7 +17,8 @@ class MainActivity : ComponentActivity() {
     if (BuildConfig.DEBUG) intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let { lang -> model.update { it.copy(lang = lang) } } }
     if (savedInstanceState == null && model.phase == AppModel.Phase.Booting) model.boot()
     setContent {
-      val nav = remember { Nav() }
+      // Debug builds: `--es tab settings` opens on that tab.
+      val nav = remember { Nav().apply { if (BuildConfig.DEBUG) intent.getStringExtra("tab")?.let { t -> app.nama.androidtv.ui.Tab.entries.firstOrNull { it.name == t }?.let { tab = it } } } }
       NamaRoot(model, nav, onExit = { finish() }, lively = nama.lively)
     }
   }

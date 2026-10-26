@@ -202,7 +202,7 @@ private fun TabRoot(tab: Tab) {
     Tab.anime -> CatalogScreen("anime", loc(S.anime))
     Tab.browse -> BrowseScreen()
     Tab.profile -> ProfileScreen()
-    else -> Placeholder(tab.name)
+    Tab.settings -> SettingsScreen()
   }
 }
 
