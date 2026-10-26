@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -127,6 +129,30 @@ fun PillButton(
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).size(26.dp, 4.dp).background(Theme.accent, capsule))
       }
     }
+  }
+}
+
+/**
+ * A round button with only an icon, for actions with a state of their own (on a list or not):
+ * glass at rest, white in focus, the accent while on.
+ */
+@Composable
+fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false) {
+  Surface(
+      onClick = onClick,
+      modifier = modifier.semantics { contentDescription = label },
+      shape = ClickableSurfaceDefaults.shape(CircleShape),
+      colors = ClickableSurfaceDefaults.colors(
+          containerColor = if (on) Theme.accent.copy(alpha = 0.9f) else Theme.glass,
+          focusedContainerColor = Color.White,
+          contentColor = Color.White,
+          focusedContentColor = if (on) Theme.accent else Theme.focusInk,
+      ),
+      border = ClickableSurfaceDefaults.border(border = Border(BorderStroke(1.dp, Theme.glassEdge), shape = CircleShape)),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+      glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(Color.White.copy(alpha = 0.3f), 18.dp)),
+  ) {
+    Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(32.dp)) }
   }
 }
 

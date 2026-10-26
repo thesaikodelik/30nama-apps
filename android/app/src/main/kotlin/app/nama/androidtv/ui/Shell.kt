@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -143,17 +145,34 @@ fun MainScreen(onExit: () -> Unit) {
   CompositionLocalProvider(LocalChrome provides chrome) {
     Box(Modifier.fillMaxSize()) {
       val route = nav.top
-      // Each tab and each page keeps its own state (scroll, focus) while another is shown.
-      val key = "${nav.tab}/${nav.stack(nav.tab).size}"
       val sheet = app.sheets.shown != null
+      val root = remember { FocusRequester() }
+      // Back at a tab's root: focus returns to where it was before the page was opened.
+      LaunchedEffect(route) {
+        if (route != null) {
+          barFocused = false
+          return@LaunchedEffect
+        }
+        withFrameNanos {}
+        runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
+      }
       Box(Modifier.fillMaxSize().blockFocus(sheet)) {
-        holder.SaveableStateProvider(key) {
-          if (route == null) TabRoot(nav.tab) else RouteScreen(route)
+        // The tab's root page stays alive, hidden, under what is opened on top of it, so its
+        // scroll, focus and loaded rows are all still there on the way back.
+        Box(
+            Modifier.fillMaxSize().blockFocus(route != null).graphicsLayer { alpha = if (route == null) 1f else 0f }
+                .focusRequester(root).focusRestorer()) {
+          holder.SaveableStateProvider(nav.tab.name) { TabRoot(nav.tab) }
+        }
+        if (route != null) {
+          // Each page keeps its own saved state while another is shown over it.
+          holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
         }
       }
       val barShown = barFocused || (route == null && chrome.pageAtTop)
       val shown by animateFloatAsState(if (barShown) 1f else 0f, tween(260), label = "bar")
-      TabBar(
+      // A page opened on top of a tab has the screen to itself, as on the Apple TV.
+      if (route == null) TabBar(
           Modifier.align(Alignment.TopCenter).padding(top = 40.dp).graphicsLayer {
             alpha = shown
             translationY = -40f * (1f - shown)
@@ -177,6 +196,7 @@ private fun TabRoot(tab: Tab) {
 @Composable
 private fun RouteScreen(route: Route) {
   when (route) {
+    is Route.Details -> DetailsScreen(route)
     else -> Placeholder(route.toString())
   }
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.test.core.app.ApplicationProvider
 import app.nama.androidtv.ui.NamaRoot
 import app.nama.androidtv.ui.Nav
+import app.nama.androidtv.ui.Route
 import app.nama.androidtv.ui.Tab
 import app.nama.core.HttpResponse
 import app.nama.core.Lang
@@ -111,6 +112,12 @@ class Shots {
       }
       nav.tab = Tab.home
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
+      for ((kind, id) in listOf("movie" to MOVIE, "series" to SERIES)) {
+        nav.push(Route.Details(id, null))
+        take("title-$kind")
+        take("title-$kind-below", listOf(Key.DirectionDown, Key.DirectionDown, Key.DirectionDown))
+        nav.pop()
+      }
     }
   }
 
@@ -187,6 +194,7 @@ class Shots {
   }
 
   companion object {
+    const val MOVIE = 685883
     const val SERIES = 469773
     /** A made-up member; nothing here belongs to a real account. */
     val USER =

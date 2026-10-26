@@ -50,6 +50,7 @@ class AppModel(
     private val scope: CoroutineScope,
     transport: Transport? = null,
     siteKey: String? = BuildConfig.SITE_KEY.ifEmpty { null },
+    http: okhttp3.OkHttpClient = okhttp3.OkHttpClient(),
 ) {
   enum class Phase { Booting, Failed, Login, Main }
 
@@ -58,6 +59,21 @@ class AppModel(
   private val store = context.getSharedPreferences("app", Context.MODE_PRIVATE)
 
   val api = APIClient(APIConfig(site = SiteConfig(key = siteKey)), transport)
+  private val keys = context.getSharedPreferences("keys", Context.MODE_PRIVATE)
+
+  /**
+   * A key the user made with their own account on another service ("tmdb", "subsource"). It stays
+   * on this TV; the app works in full without it.
+   */
+  fun key(name: String): String? = keys.getString(name, null)?.trim()?.ifEmpty { null }
+
+  fun setKey(name: String, value: String?) {
+    keys.edit().apply { if (value.isNullOrBlank()) remove(name) else putString(name, value.trim()) }.apply()
+  }
+
+  /** Logos and trailers from TMDB and Aparat. */
+  val extras = app.nama.androidtv.data.Extras(context, http, { key("tmdb") }, { inIran })
+
   /** A small set of choices over the page (a held select), shown by the shell. */
   val sheets = app.nama.androidtv.ui.Sheets()
 
@@ -366,6 +382,18 @@ class AppModel(
 
   fun play(request: PlaybackRequest) {
     playback = request
+  }
+
+  /** A trailer playing full screen in the app's player (Aparat's; YouTube's open in the YouTube app). */
+  var trailer by mutableStateOf<Pair<String, java.net.URI>?>(null)
+    private set
+
+  fun playTrailer(title: String, url: java.net.URI) {
+    trailer = title to url
+  }
+
+  fun closeTrailer() {
+    trailer = null
   }
 
   fun closePlayer() {

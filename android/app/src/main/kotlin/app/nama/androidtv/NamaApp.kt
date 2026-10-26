@@ -13,7 +13,7 @@ class NamaApp : Application() {
   /** One connection pool for pictures and the player's helpers; the API has its own transport in core. */
   val http: OkHttpClient by lazy { OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build() }
 
-  val model: AppModel by lazy { AppModel(this, MainScope(), ReadOnly.transport()) }
+  val model: AppModel by lazy { AppModel(this, MainScope(), ReadOnly.transport(), http = http) }
 
   /**
    * Whether this TV can afford motion that never ends (a drifting backdrop, a hero that turns by
