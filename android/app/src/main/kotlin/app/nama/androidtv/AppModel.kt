@@ -58,6 +58,8 @@ class AppModel(
   private val store = context.getSharedPreferences("app", Context.MODE_PRIVATE)
 
   val api = APIClient(APIConfig(site = SiteConfig(key = siteKey)), transport)
+  /** A small set of choices over the page (a held select), shown by the shell. */
+  val sheets = app.nama.androidtv.ui.Sheets()
 
   var phase by mutableStateOf(Phase.Booting)
     private set

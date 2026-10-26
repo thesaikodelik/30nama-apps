@@ -127,7 +127,7 @@ fun MainScreen(onExit: () -> Unit) {
 
   // Back: a page off the stack; at a tab's root, up to the tab bar; from the bar, home; from
   // home's bar, a second press within three seconds leaves.
-  BackHandler(enabled = app.playback == null) {
+  BackHandler(enabled = app.playback == null && app.sheets.shown == null) {
     when {
       nav.pop() -> Unit
       !barFocused -> runCatching { chrome.bar.requestFocus() }
@@ -145,8 +145,11 @@ fun MainScreen(onExit: () -> Unit) {
       val route = nav.top
       // Each tab and each page keeps its own state (scroll, focus) while another is shown.
       val key = "${nav.tab}/${nav.stack(nav.tab).size}"
-      holder.SaveableStateProvider(key) {
-        if (route == null) TabRoot(nav.tab) else RouteScreen(route)
+      val sheet = app.sheets.shown != null
+      Box(Modifier.fillMaxSize().blockFocus(sheet)) {
+        holder.SaveableStateProvider(key) {
+          if (route == null) TabRoot(nav.tab) else RouteScreen(route)
+        }
       }
       val barShown = barFocused || (route == null && chrome.pageAtTop)
       val shown by animateFloatAsState(if (barShown) 1f else 0f, tween(260), label = "bar")
@@ -157,6 +160,7 @@ fun MainScreen(onExit: () -> Unit) {
           },
           focusedChange = { barFocused = it },
       )
+      SheetHost(app.sheets)
     }
   }
 }
