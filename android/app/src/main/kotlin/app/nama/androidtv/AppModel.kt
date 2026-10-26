@@ -86,6 +86,7 @@ class AppModel(
 
   /** Episode stills taken from the episodes themselves. */
   val stills = app.nama.androidtv.player.EpisodeStills(context, http)
+  val updater = Updater(context, http, scope)
 
   /** Logos and trailers from TMDB and Aparat. */
   val extras = app.nama.androidtv.data.Extras(context, http, { key("tmdb") }, { inIran })

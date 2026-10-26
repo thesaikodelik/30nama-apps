@@ -60,8 +60,12 @@ import kotlinx.coroutines.delay
 /** What a page tells the shell: whether it is scrolled to its top, where the tab bar belongs. */
 class Chrome {
   var pageAtTop by mutableStateOf(true)
-  /** The tab's root page is the one on screen (nothing opened over it), and may take focus. */
+  /** The tab's root page is the one on screen (nothing opened over it). */
   var rootShown by mutableStateOf(true)
+  /** The viewer is on the tab bar: a tab opening as they cross it must leave focus there. */
+  var barFocused by mutableStateOf(false)
+  /** A page may move focus into itself when it opens. */
+  val mayTakeFocus get() = rootShown && !barFocused
   /** Moves focus up into the tab bar, as Back does from a page's root. */
   val bar = FocusRequester()
 }
@@ -100,8 +104,21 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
 
       Box(Modifier.fillMaxSize().background(Theme.bg0)) {
         // A new language or account means a different catalogue: every tab starts over.
+        val updater = app.updater
+        val failed = (updater.state as? app.nama.androidtv.Updater.State.Failed)?.takeIf { updater.showFailure && app.playback == null }
+        // What had focus before the failure card came up gets it back when the card goes.
+        val content = remember { FocusRequester() }
+        var cardWasUp by remember { mutableStateOf(false) }
+        LaunchedEffect(failed != null) {
+          if (failed != null) cardWasUp = true
+          else if (cardWasUp) {
+            cardWasUp = false
+            withFrameNanos {}
+            runCatching { content.requestFocus() }
+          }
+        }
         key(app.contentVersion) {
-          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null)) {
+          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null || failed != null).focusRequester(content).focusRestorer()) {
           when (app.phase) {
             AppModel.Phase.Booting -> if (splashGone) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
             AppModel.Phase.Failed -> ErrorState("${app.loc(S.noConnection)}. ${app.loc(S.tryAgain)}") { app.boot() }
@@ -114,6 +131,18 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         // The player, and a trailer, over everything; what is under them cannot take focus meanwhile.
         app.playback?.let { request -> Box(Modifier.fillMaxSize().zIndex(15f)) { PlayerScreen(request) } }
         app.trailer?.let { (_, url) -> Box(Modifier.fillMaxSize().zIndex(15f)) { TrailerScreen(url) } }
+        // The updater's word: it arrived, a new one is out, or it went wrong.
+        val updatedTo = tv(TV.updatedTo)
+        val newOut = tv(TV.newVersionInSettings)
+        val newVersion = app.loc(S.newVersion)
+        LaunchedEffect(updater.arrived, splashGone) { if (splashGone) updater.arrived?.let { app.showToast("$updatedTo ${it}") } }
+        // Once the opening title has gone and Settings can be reached, or it would be said to nobody.
+        LaunchedEffect(updater.state, splashGone, app.phase) {
+          if (splashGone && app.phase == AppModel.Phase.Main) (updater.state as? app.nama.androidtv.Updater.State.Available)?.let { app.showToast("$newVersion ${it.release.version} $newOut") }
+        }
+        failed?.let { failed ->
+          UpdateFailedCard(failed.page, retry = { updater.showFailure = false; updater.check() }, close = { updater.showFailure = false })
+        }
         AnimatedVisibility(
             visible = app.toast != null,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).zIndex(20f),
@@ -168,6 +197,7 @@ fun MainScreen(onExit: () -> Unit) {
       LaunchedEffect(route) {
         if (route != null) {
           barFocused = false
+          chrome.barFocused = false
           return@LaunchedEffect
         }
         withFrameNanos {}
@@ -194,7 +224,10 @@ fun MainScreen(onExit: () -> Unit) {
             alpha = shown
             translationY = -40f * (1f - shown)
           },
-          focusedChange = { barFocused = it },
+          focusedChange = {
+            barFocused = it
+            chrome.barFocused = it
+          },
       )
       SheetHost(app.sheets)
     }
@@ -256,6 +289,9 @@ private fun TabBar(modifier: Modifier, focusedChange: (Boolean) -> Unit) {
           .background(Theme.surface.copy(alpha = 0.72f), shape)
           .border(1.dp, Theme.glassEdge, shape)
           .padding(8.dp)
+          // Coming up from a page lands on the open tab, not on whichever is nearest, which would
+          // open that one instead.
+          .focusRestorer(chrome.bar)
           .onFocusChanged { focusedChange(it.hasFocus) },
       horizontalArrangement = Arrangement.spacedBy(4.dp),
       verticalAlignment = Alignment.CenterVertically,

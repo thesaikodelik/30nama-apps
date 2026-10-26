@@ -19,6 +19,11 @@ class MainActivity : ComponentActivity() {
     (application as NamaApp).model.openFromLauncher(id, intent.getBooleanExtra(WatchNext.PLAY, false))
   }
 
+  override fun onResume() {
+    super.onResume()
+    (application as NamaApp).model.updater.resumed()
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     val nama = application as NamaApp
@@ -28,6 +33,7 @@ class MainActivity : ComponentActivity() {
     if (BuildConfig.DEBUG) intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let { lang -> model.update { it.copy(lang = lang) } } }
     if (savedInstanceState == null && model.phase == AppModel.Phase.Booting) model.boot()
     if (savedInstanceState == null) fromLauncher(intent)
+    if (savedInstanceState == null) model.updater.start()
     if (BuildConfig.DEBUG && intent.getBooleanExtra("watchnext_demo", false)) model.demoWatchNext()
     setContent {
       // Debug builds: `--es tab settings` opens on that tab.

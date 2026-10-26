@@ -34,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -56,6 +58,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.nama.androidtv.BuildConfig
+import app.nama.androidtv.Updater
 import app.nama.androidtv.data.KeyCheck
 import app.nama.androidtv.data.KeyServer
 import app.nama.androidtv.data.KeyState
@@ -99,7 +102,7 @@ fun SettingsScreen() {
   Ambient {
     Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
       // Sections.
-      Column(Modifier.width(320.dp).focusRestorer(pills.getValue(section)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Column(Modifier.width(320.dp).enterAt(pills.getValue(section)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Wordmark(56)
         Spacer(Modifier.height(18.dp))
         for (sec in Section.entries) {
@@ -115,7 +118,7 @@ fun SettingsScreen() {
         }
       }
       // Rows.
-      Column(Modifier.width(820.dp).verticalScroll(rememberScrollState()).focusRestorer(firstRow), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(Modifier.width(820.dp).verticalScroll(rememberScrollState()).enterAt(firstRow), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val first = Modifier.focusRequester(firstRow)
         when (section) {
           Section.Account -> {
@@ -190,8 +193,19 @@ fun SettingsScreen() {
           }
           Section.About -> {
             Fact(loc(S.version), BuildConfig.VERSION_NAME)
+            val updater = app.updater
+            val (label, value) = updateRow(updater.state, updater.current)
+            val installing = updater.state is Updater.State.Installing || updater.state is Updater.State.NeedsPermission
+            Choice(label, value, Help(tv(if (installing) TV.installHint else TV.updateHint)), { help = it }, first) {
+              when (val st = updater.state) {
+                is Updater.State.Available -> updater.install(st.release)
+                is Updater.State.Failed -> updater.showFailure = true
+                Updater.State.Idle, Updater.State.UpToDate -> updater.check()
+                else -> Unit
+              }
+            }
             Fact(loc(S.apiHost), app.apiHost ?: "—")
-            Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }, first) {}
+            Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }) {}
             Text(loc(S.unofficial), Modifier.padding(top = 18.dp, start = 6.dp), style = app(24).copy(lineHeight = app(24).fontSize * 1.5f), color = Theme.text3)
           }
         }
@@ -202,6 +216,10 @@ fun SettingsScreen() {
   }
   editing?.let { service -> KeyCard(service) { editing = null } }
 }
+
+/** Focus coming into this column from outside always lands on [target], whatever is level with where it came from. */
+private fun Modifier.enterAt(target: FocusRequester): Modifier =
+    focusProperties { onEnter = { if (!target.requestFocus()) cancelFocusChange() } }.focusGroup()
 
 @Composable
 private fun SectionPill(name: String, selected: Boolean, modifier: Modifier, onFocus: () -> Unit) {

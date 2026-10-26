@@ -43,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -130,7 +132,7 @@ fun SearchScreen() {
     }
   }
   val chrome = LocalChrome.current
-  LaunchedEffect(Unit) { if (chrome.rootShown) runCatching { firstKey.requestFocus() } }
+  LaunchedEffect(Unit) { if (chrome.mayTakeFocus) runCatching { firstKey.requestFocus() } }
 
   Box(Modifier.fillMaxSize().background(Theme.bg0)) {
     Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(60.dp)) {
@@ -187,32 +189,59 @@ fun SearchScreen() {
 
 @Composable
 private fun SearchField(query: String, set: (String) -> Unit, focus: FocusRequester, prompt: String) {
-  val interaction = remember { MutableInteractionSource() }
-  val focused by interaction.collectIsFocusedAsState()
   val shape = RoundedCornerShape(50)
-  Row(
-      Modifier.fillMaxWidth().height(76.dp)
-          .background(if (focused) Color.White else Theme.glass, shape)
-          .border(1.dp, Theme.glassEdge, shape)
-          .padding(horizontal = 28.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(14.dp),
-  ) {
-    Icon(Icons.search, null, Modifier.size(30.dp), tint = if (focused) Theme.focusInk else Theme.text2)
-    Box(Modifier.weight(1f)) {
-      if (query.isEmpty()) Text(prompt, style = app(27), color = if (focused) Theme.focusInk.copy(alpha = 0.5f) else Theme.text3, maxLines = 1)
-      // The system keyboard opens from here, with its own languages and its dictation.
+  // A button until pressed: the system keyboard opens from here (with its own languages and its
+  // dictation), but only when asked, so moving up past the field to the tabs does not throw it up.
+  var typing by remember { mutableStateOf(false) }
+  val field = remember { FocusRequester() }
+  val done = {
+    typing = false
+    runCatching { focus.requestFocus() }
+  }
+  if (typing) {
+    BackHandler { done() }
+    Row(
+        Modifier.fillMaxWidth().height(76.dp).background(Color.White, shape).border(2.dp, Theme.accent, shape).padding(horizontal = 28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+      Icon(Icons.search, null, Modifier.size(30.dp), tint = Theme.focusInk)
       BasicTextField(
           value = query,
           onValueChange = set,
-          modifier = Modifier.fillMaxWidth().focusRequester(focus),
-          textStyle = app(27, FontWeight.Medium).copy(color = if (focused) Theme.focusInk else Theme.text1),
+          modifier = Modifier.weight(1f).focusRequester(field).onFocusChanged { if (!it.hasFocus && typing) typing = false },
+          textStyle = app(27, FontWeight.Medium).copy(color = Theme.focusInk),
           singleLine = true,
           cursorBrush = SolidColor(Theme.accent),
           keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-          keyboardActions = KeyboardActions(onSearch = {}),
-          interactionSource = interaction,
+          keyboardActions = KeyboardActions(onSearch = { done() }),
       )
+    }
+    LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
+  } else {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    Surface(
+        onClick = { typing = true },
+        modifier = Modifier.fillMaxWidth().height(76.dp).focusRequester(focus),
+        interactionSource = interaction,
+        shape = ClickableSurfaceDefaults.shape(shape),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
+        border = ClickableSurfaceDefaults.border(border = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Theme.glassEdge))),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+      Row(Modifier.fillMaxSize().padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Icon(Icons.search, null, Modifier.size(30.dp), tint = if (focused) Theme.focusInk else Theme.text2)
+        Text(
+            query.ifEmpty { prompt }, style = app(27, if (query.isEmpty()) FontWeight.Normal else FontWeight.Medium),
+            color = when {
+              query.isNotEmpty() -> Color.Unspecified
+              focused -> Theme.focusInk.copy(alpha = 0.5f)
+              else -> Theme.text3
+            },
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+      }
     }
   }
 }

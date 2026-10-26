@@ -80,6 +80,26 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   licenses("Licences", "مجوزها", "التراخيص"),
   sectionApp("App", "برنامه", "التطبيق"),
   save("Save", "ذخیره", "حفظ"),
+  retry("Try again", "دوباره", "إعادة المحاولة"),
+  allowInstalls("Allow 30nama to install apps", "اجازهٔ نصب برنامه به ۳۰نما", "اسمح لـ۳۰نما بتثبيت التطبيقات"),
+  installing("Installing", "در حال نصب", "جارٍ التثبيت"),
+  updatedTo("Updated to", "به‌روز شد به نسخهٔ", "تم التحديث إلى"),
+  newVersionInSettings("is out. Settings › About", "آمده است. تنظیمات › درباره", "متوفر. الإعدادات › حول"),
+  updateHint(
+      "New versions come from the project's GitHub page. Each is checked against the project's signature before it is installed.",
+      "نسخه‌های تازه از صفحهٔ گیت‌هاب پروژه می‌آیند. هر کدام پیش از نصب با امضای پروژه سنجیده می‌شود.",
+      "تأتي الإصدارات الجديدة من صفحة المشروع على GitHub. يُتحقق من كل منها بتوقيع المشروع قبل تثبيته.",
+  ),
+  installHint(
+      "Android asks to confirm. 30nama then closes for the update; if it does not open again by itself, open it from the TV's home screen.",
+      "اندروید تأیید می‌خواهد. بعد ۳۰نما برای به‌روزرسانی بسته می‌شود؛ اگر خودش دوباره باز نشد، از صفحهٔ اصلی تلویزیون بازش کنید.",
+      "يطلب أندرويد التأكيد. ثم يُغلق ۳۰نما للتحديث؛ إن لم يُفتح من تلقاء نفسه، افتحه من الشاشة الرئيسية للتلفاز.",
+  ),
+  updateFailedHint(
+      "Scan this with a phone to download the new version by hand. Each step of the update is written in update.log, in the app's files.",
+      "این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید. هر قدم به‌روزرسانی در فایل update.log، میان فایل‌های برنامه، نوشته شده است.",
+      "امسح هذا بهاتف لتنزيل الإصدار الجديد يدوياً. كل خطوة من التحديث مكتوبة في update.log ضمن ملفات التطبيق.",
+  ),
   ;
 
   operator fun invoke(lang: Lang): String =

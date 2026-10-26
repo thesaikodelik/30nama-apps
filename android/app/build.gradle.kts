@@ -9,6 +9,11 @@ android {
   namespace = "app.nama.androidtv"
   compileSdk = 37
 
+  // Kept only on this computer, never committed: the website's key and the release APK key.
+  val local = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+  }
+
   defaultConfig {
     // "app.30nama.androidtv" was asked for, but no part of an Android package name may start with
     // a digit; the apps use Nama for 30nama wherever a name must start with a letter (AGENTS.md).
@@ -16,22 +21,45 @@ android {
     // Android 6: the oldest TVs still in use (Sony's 2017 sets run 7, some boxes 6).
     minSdk = 23
     targetSdk = 36
-    versionCode = 1
-    versionName = "0.1.0"
+    // The version, and a code Android compares that grows with it: 1.2.3 is 10203. A test of the
+    // updater builds a higher one with -Pnama.version=0.1.1 (never published).
+    val version = (project.findProperty("nama.version") as String?) ?: "0.1.0"
+    versionName = version
+    versionCode = version.split('.').map(String::toInt).let { (a, b, c) -> a * 10000 + b * 100 + c }
     // The website's API key, from local.properties (never committed). Without it the app works in
     // full; only what comes from the website's own API stays hidden, as on the Mac and Windows.
-    val local = Properties().apply {
-      rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-    }
     buildConfigField("String", "SITE_KEY", "\"${local.getProperty("nama.siteKey", "")}\"")
+  }
+
+  // The release APK key lives only on the computer that builds releases (AGENTS.md). Without it a
+  // release build is left unsigned.
+  val keystore = local.getProperty("nama.keystore")?.let(::file)?.takeIf { it.exists() }
+  signingConfigs {
+    if (keystore != null) create("release") {
+      storeFile = keystore
+      storePassword = local.getProperty("nama.keystorePassword")
+      keyAlias = "nama"
+      keyPassword = local.getProperty("nama.keystorePassword")
+    }
   }
 
   buildTypes {
     release {
+      signingConfig = signingConfigs.findByName("release")
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      buildConfigField("String", "TEST_FEED", "\"\"")
     }
+    // The updater tried as a viewer would meet it (AGENTS.md): a release build in all but the feed,
+    // which comes from a server on the computer the emulator runs on, with a higher version that is
+    // never published. Its own manifest lets that one address use plain http.
+    create("userTest") {
+      initWith(getByName("release"))
+      matchingFallbacks += "release"
+      buildConfigField("String", "TEST_FEED", "\"http://10.0.2.2:18765/releases.json\"")
+    }
+    debug { buildConfigField("String", "TEST_FEED", "\"\"") }
   }
   buildFeatures {
     compose = true
