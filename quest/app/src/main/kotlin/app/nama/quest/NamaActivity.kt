@@ -98,9 +98,15 @@ class NamaActivity : AppSystemActivity() {
         environmentIntensity = 0.3f,
     )
     surface = SurfaceFinder(mruk)
+    // Debug: the scene and its pictures as files, for the computer to draw the same (SceneDump).
+    val dump = if (BuildConfig.DEBUG && intent.getBooleanExtra("dump", false)) SceneDump(java.io.File(getExternalFilesDir(null), "scene")) { kind, n ->
+      if (kind == "cover") "cover$n.png" else if (n < 0) "blank.png" else "p${if (n > 8) 2 + (n - 2) % 7 else n}.png"
+    } else null
     stage = Stage(scene, model, systemManager.findSystem<SceneObjectSystem>(), alongGaze = BuildConfig.DEBUG && intent.getBooleanExtra("gaze", false),
         gazeTilt = if (BuildConfig.DEBUG) intent.getFloatExtra("tilt", 0f) else 0f, shelf = shelf, surface = surface,
-        meshes = systemManager.findSystem<MeshCreationSystem>().meshManager, art = MagazineArt(this, scope, model, shelf))
+        meshes = systemManager.findSystem<MeshCreationSystem>().meshManager, art = MagazineArt(this, scope, model, shelf),
+        dump = dump)
+    dump?.let { d -> scope.launch(kotlinx.coroutines.Dispatchers.IO) { while (model.rows.value.isEmpty()) kotlinx.coroutines.delay(100); d.art(this@NamaActivity, model, shelf.magazines()) } }
     if (checkSelfPermission(USE_SCENE) == PackageManager.PERMISSION_GRANTED) surface.start(true) { scene.getViewerPose() }
     else requestPermissions(arrayOf(USE_SCENE), SCENE_REQUEST)
     model.start()

@@ -66,6 +66,8 @@ android {
         if (!project.hasProperty("shots")) it.exclude("**/PanelShots*")
         // The 3D scene simulator likewise: -Psim
         if (!project.hasProperty("sim")) it.exclude("**/SceneSim*") else it.systemProperty("nama.sim", rootProject.file("build/sim").absolutePath)
+        // The interactive viewer's data: -Pviewer (quest/tools/sim/view)
+        if (!project.hasProperty("viewer")) it.exclude("**/SceneExport*") else it.systemProperty("nama.viewer", rootProject.file("build/viewer").absolutePath)
         it.failOnNoDiscoveredTests = false
         it.systemProperty("roborazzi.test.record", "true")
         it.systemProperty("nama.shots", rootProject.file("build/shots").absolutePath)

@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شبیه‌ساز مجله‌های کوئست</title>
+<style>
+  :root { --bg: #111114; --ink: #f3efe7; --ink2: rgba(243,239,231,.65); --glass: rgba(30,29,35,.9); --red: #e5383b; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: Vazirmatn, Tahoma, sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; }
+  .bar { position: fixed; top: 12px; right: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+  .bar > * { pointer-events: auto; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--glass); border-radius: 99px; }
+  button { font: inherit; font-size: 14px; color: var(--ink2); background: none; border: 0; border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ink); color: #141316; font-weight: 700; }
+  .act { background: var(--glass); color: var(--ink); }
+  .act:hover { background: #3a3842; }
+  .help { position: fixed; bottom: 12px; right: 12px; max-width: 420px; background: var(--glass); border-radius: 14px; padding: 10px 14px; font-size: 13px; line-height: 1.8; color: var(--ink2); }
+  .help b { color: var(--ink); }
+  .state { position: fixed; bottom: 12px; left: 12px; background: var(--glass); border-radius: 10px; padding: 6px 12px; font-size: 13px; direction: ltr; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div class="bar">
+  <div class="seg"><button id="l-fa" aria-pressed="true">فارسی</button><button id="l-en" aria-pressed="false">English</button></div>
+  <div class="seg"><button id="c-eye" aria-pressed="true">دید چشم</button><button id="c-free" aria-pressed="false">دوربین آزاد</button></div>
+  <button class="act" id="b-back">برگشت (B)</button>
+  <button class="act" id="b-prev">صفحهٔ قبل</button>
+  <button class="act" id="b-next">صفحهٔ بعد</button>
+  <button class="act" id="b-slow">آهسته: خاموش</button>
+</div>
+<div class="help">
+  <b>کلیک</b> روی دستهٔ مجله‌ها: ردیف می‌شوند. روی یکی از ردیف: جلو می‌آید. روی جلد مجلهٔ بسته: باز می‌شود.
+  روی نیمهٔ صفحه‌ها: ورق می‌خورد. <b>کلیدها:</b> ← و → مثل تامب‌استیک، B برگشت.
+  <b>دید چشم:</b> با کشیدن ماوس سر را بچرخانید. <b>دوربین آزاد:</b> بچرخانید، اسکرول کنید.
+  همهٔ جاها از همان کد برنامه آمده‌اند (SceneExport).
+</div>
+<div class="state" id="state"></div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// The Spatial SDK's world is left-handed (x right, y up, z forward); three.js is right-handed.
+// Everything is drawn mirrored in z: a point (x, y, z) at (x, y, -z), a rotation (w, x, y, z) as
+// (w, -x, -y, z), and every model's own numbers mirrored too (scale z by -1), so what shows is
+// what the headset shows.
+const P = (p) => new THREE.Vector3(p[0], p[1], -p[2]);
+const Q = (q) => new THREE.Quaternion(-q[1], -q[2], q[3], q[0]);
+
+const scene = JSON.parse(await (await fetch("scene.json")).text());
+// The headset's own pictures (view --device): covers, contents and posters as it printed them.
+const art = await fetch("art.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById("view").appendChild(renderer.domElement);
+const world = new THREE.Scene();
+world.background = new THREE.Color(0x1a1a1e);
+world.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+sun.position.set(0.5, 3, 1);
+world.add(sun);
+
+const eyePos = P(scene.eye);
+const camera = new THREE.PerspectiveCamera(85, innerWidth / innerHeight, 0.02, 50);
+camera.position.copy(eyePos);
+let yaw = 0, pitch = -0.55;
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enabled = false;
+function eyeLook() {
+  camera.position.copy(eyePos);
+  const d = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(eyePos.clone().add(d));
+}
+eyeLook();
+
+const loader = new THREE.TextureLoader();
+const texCache = {};
+function tex(name, forPaper) {
+  const key = name + (forPaper ? "|p" : "");
+  if (!texCache[key]) {
+    const t = loader.load(name);
+    t.colorSpace = THREE.SRGBColorSpace;
+    // Paper counts v from the picture's top, as on the headset.
+    if (forPaper) t.flipY = false;
+    texCache[key] = t;
+  }
+  return texCache[key];
+}
+
+// A thing placed in SDK terms; eases to its target like the stage's Placed.
+function holder(obj) {
+  const h = new THREE.Group();
+  h.add(obj);
+  world.add(h);
+  return { h, target: null, s: 1, ts: 1, on: false, firstTime: true };
+}
+function setTarget(item, place, extraScale = 1) {
+  item.target = { p: P(place.pose.p), q: Q(place.pose.q) };
+  item.ts = place.s * extraScale;
+  item.on = place.on;
+  if (item.firstTime || !item.h.visible) {
+    item.h.position.copy(item.target.p);
+    item.h.quaternion.copy(item.target.q);
+    item.s = item.ts;
+    item.firstTime = false;
+  }
+  item.h.visible = item.on;
+}
+function ease(item, dt) {
+  if (!item.target) return;
+  const k = 1 - Math.exp(-dt * 7.5);
+  item.h.position.lerp(item.target.p, k);
+  item.h.quaternion.slerp(item.target.q, k);
+  item.s += (item.ts - item.s) * k;
+  item.h.scale.set(item.s, item.s, -item.s);
+}
+
+// Models: the same glTF files as the app.
+const gltf = new GLTFLoader();
+async function model(file) {
+  const g = await gltf.loadAsync(file);
+  g.scene.traverse((o) => { if (o.isMesh) o.material.side = THREE.DoubleSide; });
+  return g.scene;
+}
+const closedRtl = await model("magazine_closed_rtl.glb");
+const closedLtr = await model("magazine_closed_ltr.glb");
+const openModel = await model("magazine_open.glb");
+
+function panel(w, h, texture, color) {
+  const m = texture ? new THREE.MeshBasicMaterial({ map: tex(texture), side: THREE.DoubleSide }) : new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+  return mesh;
+}
+
+const bodies = [], covers = [];
+for (let k = 0; k < 6; k++) {
+  const b = holder(closedRtl.clone(true));
+  b.k = k;
+  bodies.push(b);
+  const c = holder(panel(scene.cover[0], scene.cover[1], art ? `m${k}-p0.jpg` : `cover${k}.png`));
+  c.k = k;
+  covers.push(c);
+}
+// The virtual table as VirtualTable draws it: rounded, dark wood fading out from the middle.
+function tableTexture() {
+  const c = document.createElement("canvas");
+  c.width = 1100; c.height = 620;
+  const g = c.getContext("2d");
+  const r = g.createRadialGradient(550, 310, 0, 550, 310, 630);
+  r.addColorStop(0, "#5A4637"); r.addColorStop(0.5, "#3A2C22"); r.addColorStop(1, "#2A2019");
+  g.fillStyle = r;
+  g.beginPath(); g.roundRect(0, 0, 1100, 620, 40); g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const table = holder(new THREE.Mesh(new THREE.PlaneGeometry(scene.table[0], scene.table[1]), new THREE.MeshBasicMaterial({ map: tableTexture(), transparent: true, side: THREE.DoubleSide })));
+const openBody = holder(openModel);
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(scene.screen.w, scene.screen.h), art ? new THREE.MeshBasicMaterial({ map: tex("screen.jpg") }) : new THREE.MeshBasicMaterial({ color: 0x3a2a3a }));
+screen.position.copy(P(scene.screen.pos));
+world.add(screen);
+
+// Paper: the same shape PaperShape gives on the headset, played back frame by frame.
+const paper = scene.paper;
+function sheet() {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(paper.count * 6), 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(paper.count * 4), 2));
+  g.setIndex(paper.indices);
+  const half = paper.indices.length / 2;
+  g.addGroup(0, half, 0);
+  g.addGroup(half, half, 1);
+  const front = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.85 });
+  const back = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.85 });
+  const mesh = new THREE.Mesh(g, [front, back]);
+  const item = holder(mesh);
+  item.mesh = mesh;
+  return item;
+}
+function lay(item, side, frame) {
+  const s = side > 0 ? paper.plus : paper.minus;
+  item.mesh.geometry.attributes.position.array.set(s.frames[frame]);
+  item.mesh.geometry.attributes.position.needsUpdate = true;
+  item.mesh.geometry.attributes.uv.array.set(s.uv);
+  item.mesh.geometry.attributes.uv.needsUpdate = true;
+  item.mesh.geometry.computeVertexNormals();
+}
+function print(item, front, back) {
+  item.mesh.material[0].map = tex(front, true); item.mesh.material[0].needsUpdate = true;
+  item.mesh.material[1].map = tex(back, true); item.mesh.material[1].needsUpdate = true;
+}
+const sheetA = sheet(), sheetB = sheet(), leaf = sheet();
+const pageCount = () => (art ? art.pages[chosen] : 9);
+function pageTex(n) {
+  if (n < 0) return "blank.png";
+  const m = pageCount();
+  const k = n < m ? n : 2 + ((n - 2) % (m - 2));
+  return art ? `m${chosen}-p${k}.jpg` : `p${k}.png`;
+}
+
+// The shelf, as Shelf.kt: page 0 the cover, 1 the contents, then a title a page; spread s shows
+// 2s-1 and 2s; spread 0 is the magazine shut.
+let lang = "fa", phase = "pile", chosen = 0, spread = 0, turning = 0, turnT = 0, target = 0;
+let pageA = -1, pageB = 0, leafFront = -1, leafBack = -1, slow = false, prevPhase = "pile", changedAt = 0;
+const L = () => scene.langs[lang];
+
+function stateKey() {
+  if (phase === "open") return (spread === 0 && turning === 0 ? "shut" : "open") + chosen;
+  return phase;
+}
+function apply() {
+  const st = L().states[stateKey()];
+  const now = performance.now();
+  // One after another off the pile; back onto it the other way, as the headset staggers them.
+  bodies.forEach((b, k) => {
+    const delay = phase === "row" && prevPhase === "pile" ? k * 70 : prevPhase === "row" && phase === "pile" ? (5 - k) * 50 : 0;
+    setTimeout(() => { setTarget(b, st.bodies[k]); setTarget(covers[k], st.covers[k]); }, delay);
+  });
+  setTarget(table, st.table);
+  setTarget(openBody, st.open);
+  const book = { pose: L().book, on: st.open.on, s: 1 };
+  for (const it of [sheetA, sheetB]) setTarget(it, book);
+  setTarget(leaf, { pose: L().book, on: st.open.on && turning !== 0, s: 1 });
+  const sideA = st.sideA;
+  lay(sheetA, sideA, 0); print(sheetA, pageTex(pageA), "blank.png");
+  lay(sheetB, -sideA, 0); print(sheetB, pageTex(pageB), "blank.png");
+  if (turning) print(leaf, pageTex(leafFront), pageTex(leafBack));
+  document.getElementById("state").textContent = `${lang} · ${stateKey()} · spread ${spread} · pages ${pageA}|${pageB}` + (turning ? ` · turning ${leafFront}→${leafBack}` : "");
+}
+function setPhase(p) { prevPhase = phase; phase = p; changedAt = performance.now(); apply(); }
+function touch(k) {
+  if (phase === "pile") setPhase("row");
+  else if (phase === "row") { chosen = k; spread = 0; pageA = -1; pageB = 0; turning = 0; setPhase("open"); }
+}
+function back() {
+  if (turning) return;
+  if (phase === "open") setPhase("row");
+  else if (phase === "row") setPhase("pile");
+}
+function turn(dir) {
+  if (turning || phase !== "open") return;
+  const last = Math.floor(pageCount() / 2);
+  const to = Math.max(0, Math.min(last, spread + dir));
+  if (to === spread) return;
+  target = to; turning = dir; turnT = 0;
+  const a = spread * 2 - 1, n = to * 2 - 1;
+  if (dir > 0) { pageA = a; pageB = n + 1; leafFront = a + 1; leafBack = n; }
+  else { pageA = n; pageB = a + 1; leafFront = a; leafBack = n + 1; }
+  apply();
+}
+
+// Input: what a touch or a trigger does on the headset.
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let dragged = false, down = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; dragged = false; });
+renderer.domElement.addEventListener("pointermove", (e) => {
+  if (!down) return;
+  const dx = e.clientX - down[0], dy = e.clientY - down[1];
+  if (Math.abs(dx) + Math.abs(dy) > 4) dragged = true;
+  if (!orbit.enabled && dragged) { yaw -= dx * 0.004; pitch = Math.max(-1.4, Math.min(1.2, pitch - dy * 0.004)); down = [e.clientX, e.clientY]; eyeLook(); }
+});
+renderer.domElement.addEventListener("pointerup", (e) => {
+  const wasDrag = dragged;
+  down = null;
+  if (wasDrag) return;
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const pick = (items) => items.filter((i) => i.h.visible).flatMap((i) => ray.intersectObject(i.h, true).map((hit) => ({ hit, i })));
+  const hits = [...pick(covers), ...pick(bodies), ...pick([sheetA, sheetB])].sort((a, b) => a.hit.distance - b.hit.distance);
+  if (!hits.length) return;
+  const { i } = hits[0];
+  if (i === sheetA) turn(-1);
+  else if (i === sheetB) turn(1);
+  else if (phase === "open" && spread === 0 && i.k === chosen) turn(1);
+  else if (i.k !== undefined) touch(i.k);
+});
+addEventListener("keydown", (e) => {
+  const rtl = lang === "fa";
+  if (e.key === "ArrowLeft") turn(rtl ? 1 : -1);
+  if (e.key === "ArrowRight") turn(rtl ? -1 : 1);
+  if (e.key === "b" || e.key === "B" || e.key === "Escape") back();
+});
+const press = (id, on) => document.getElementById(id).setAttribute("aria-pressed", String(on));
+document.getElementById("l-fa").onclick = () => { lang = "fa"; press("l-fa", true); press("l-en", false); swapBodies(); apply(); };
+document.getElementById("l-en").onclick = () => { lang = "en"; press("l-fa", false); press("l-en", true); swapBodies(); apply(); };
+document.getElementById("c-eye").onclick = () => { orbit.enabled = false; press("c-eye", true); press("c-free", false); eyeLook(); };
+document.getElementById("c-free").onclick = () => { orbit.enabled = true; orbit.target.set(0, 0.8, -0.55); press("c-eye", false); press("c-free", true); };
+document.getElementById("b-back").onclick = back;
+document.getElementById("b-next").onclick = () => turn(1);
+document.getElementById("b-prev").onclick = () => turn(-1);
+document.getElementById("b-slow").onclick = (e) => { slow = !slow; e.target.textContent = "آهسته: " + (slow ? "روشن" : "خاموش"); };
+function swapBodies() {
+  bodies.forEach((b) => { b.h.clear(); b.h.add((lang === "fa" ? closedRtl : closedLtr).clone(true)); });
+}
+addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+apply();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000) * (slow ? 0.2 : 1);
+  last = now;
+  for (const it of [...bodies, ...covers, table, openBody, sheetA, sheetB, leaf]) ease(it, dt);
+  if (turning) {
+    turnT += dt / scene.turnSeconds;
+    const sideA = L().states[stateKey()].sideA;
+    const lifted = turning > 0 ? -sideA : sideA;
+    if (turnT >= 1) {
+      spread = target; pageA = spread * 2 - 1; pageB = spread * 2; turning = 0; leafFront = leafBack = -1;
+      apply();
+    } else {
+      leaf.h.visible = true;
+      lay(leaf, lifted, Math.round(turnT * 30));
+    }
+  }
+  if (orbit.enabled) orbit.update();
+  renderer.render(world, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

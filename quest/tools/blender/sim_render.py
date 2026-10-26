@@ -14,6 +14,9 @@ from mathutils import Matrix, Quaternion, Vector
 
 ROOT = os.path.abspath(sys.argv[sys.argv.index("--") + 1])
 MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "app", "src", "main", "assets", "models")
+FOV = float(os.environ.get("NAMA_FOV", "76"))
+VFOV = float(os.environ.get("NAMA_VFOV", "89"))
+SHIFT = tuple(float(v) for v in os.environ.get("NAMA_SHIFT", "0,-0.05").split(","))
 S = Matrix(((1, 0, 0), (0, 0, 1), (0, 1, 0)))
 
 
@@ -150,8 +153,20 @@ def render(scene_file):
     co = bpy.data.objects.new("eye", cam)
     scn.collection.objects.link(co)
     eye, target = to_b(data["eye"]), to_b(data["target"])
+    fwd = (target - eye).normalized()
+    up = to_b(data["up"]).normalized() if "up" in data else Vector((0, 0, 1))
+    right = fwd.cross(up).normalized()
+    up = right.cross(fwd).normalized()
+    if "up" in data:
+        # A dump from the headset: drawn like the headset's own screenshot (the share button, or
+        # the metacam service), from the middle of the head, square, about 90 degrees wide.
+        cam.sensor_fit = "HORIZONTAL"
+        cam.angle = math.radians(FOV)
+        scn.render.resolution_x = 1440
+        scn.render.resolution_y = round(1440 * math.tan(math.radians(VFOV) / 2) / math.tan(math.radians(FOV) / 2))
+        cam.shift_x, cam.shift_y = SHIFT
     co.location = eye
-    co.rotation_euler = (target - eye).to_track_quat("-Z", "Z").to_euler()
+    co.rotation_euler = Matrix((right, up, -fwd)).transposed().to_euler()
     scn.camera = co
     scn.render.filepath = scene_file.replace(".json", ".png")
     bpy.ops.render.render(write_still=True)

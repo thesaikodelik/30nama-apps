@@ -209,6 +209,8 @@ class Stage(
     private val surface: SurfaceFinder? = null,
     private val meshes: MeshManager? = null,
     private val art: MagazineArt? = null,
+    /** Debug: write what the magazines look like now, for the computer to draw the same. */
+    private val dump: SceneDump? = null,
 ) {
   val login = place(R.id.panel_login)
   val wall = place(R.id.panel_home)
@@ -242,6 +244,7 @@ class Stage(
   private val cnx = FloatArray(COLS + 1)
   private val cny = FloatArray(COLS + 1)
   private var slidAt = 0L
+  private var dumpedAt = 0L
   private var slideIndex = -1
   private val all = listOf(login, wall, screenArt, video, logoGlow, logo, info, episodes, cast, controls, subtitles, toast, table, pageA, pageB, openBody, sheetA, sheetB, leaf) + covers + bodies
   private val byPanel = mapOf(
@@ -279,6 +282,13 @@ class Stage(
 
   fun recenter() {
     val head = scene.getViewerPose()
+    // The system recenters as the app starts, before tracking has a head: laying out then puts
+    // everything around the floor's origin, out of sight. Wait for the real pose instead.
+    if (head.t.length() < 0.01f) {
+      origin = null
+      waited = 0f
+      return
+    }
     if (alongGaze) {
       val a = Math.toRadians(gazeTilt.toDouble())
       val f = head.forward()
@@ -394,6 +404,16 @@ class Stage(
       bodies.forEach { it.entity.setComponent(Mesh(Uri.parse(if (rtl) CLOSED_RTL else CLOSED_LTR))) }
     }
     val r = MagazineLayout(o.t, up, fwd, right, top, rtl).compute(sh, home, ready, real == null, System.currentTimeMillis())
+    if (dump != null && System.currentTimeMillis() - dumpedAt > 1500 && home) {
+      dumpedAt = System.currentTimeMillis()
+      val key = when {
+        sh.turning != 0 -> "turn"
+        sh.phase == ShelfPhase.Open -> if (sh.closed) "shut" else "open"
+        else -> sh.phase.name.lowercase()
+      }
+      val head = scene.getViewerPose()
+      dump.write("dev-$key", sh, r, rtl, head, head.forward(), o)
+    }
     table.show(r.table.pose, r.table.visible, arrive = false)
     for (k in bodies.indices) {
       bodies[k].show(r.bodies[k].pose, r.bodies[k].visible, r.bodies[k].scale, arrive = false)

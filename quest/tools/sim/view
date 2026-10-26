@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# The magazines on the computer: builds the scene from the app's own layout code, draws the test
+# pictures, and opens the interactive viewer in the browser. Run from quest/: tools/sim/view
+# With --device, the covers, pages and screen are the headset's own: it is started once with
+# "--ez dump true" (a debug build) and what it printed is pulled from it.
+set -e
+cd "$(dirname "$0")/../.."
+./gradlew -q :app:testDebugUnitTest -Pviewer --tests app.nama.quest.SceneExport
+python tools/blender/sim_textures.py build/viewer
+cp app/src/main/assets/models/*.glb tools/sim/viewer.html build/viewer/
+rm -f build/viewer/art.json build/viewer/m*-p*.jpg build/viewer/screen.jpg
+if [ "$1" = "--device" ]; then
+  D=/sdcard/Android/data/app.nama.quest/files/scene/art
+  adb shell rm -rf "$D"
+  adb shell am force-stop app.nama.quest
+  adb shell am start -n app.nama.quest/.NamaActivity --ez dump true >/dev/null
+  echo "Waiting for the headset's pictures..."
+  until adb shell ls "$D/art.json" >/dev/null 2>&1; do sleep 2; done
+  adb pull "$D/." build/viewer/ >/dev/null
+fi
+PORT=${PORT:-8765}
+echo "Viewer: http://localhost:$PORT/viewer.html  (Ctrl+C to stop)"
+( sleep 1; start "" "http://localhost:$PORT/viewer.html" 2>/dev/null || xdg-open "http://localhost:$PORT/viewer.html" 2>/dev/null || open "http://localhost:$PORT/viewer.html" ) &
+cd build/viewer && python -m http.server "$PORT"
