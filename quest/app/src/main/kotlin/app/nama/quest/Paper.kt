@@ -187,6 +187,7 @@ class Sheet(cols: Int, rows: Int, front: SceneTexture, back: SceneTexture) {
   val mesh: SceneMesh
 
   init {
+    shape.lay(1f, 0f)
     tri.updatePrimitives(0, shape.indices)
     tri.updateGeometry(0, shape.pos, shape.nor, shape.uv, col)
     mesh = SceneMesh.fromTriangleMesh(tri, false)
@@ -198,6 +199,7 @@ class Sheet(cols: Int, rows: Int, front: SceneTexture, back: SceneTexture) {
 
   fun lay(side: Float, turn: Float) {
     shape.lay(side, turn)
+    tri.updatePrimitives(0, shape.indices)
     tri.updateGeometry(0, shape.pos, shape.nor, shape.uv, col)
     mesh.updateWithTriangleMesh(tri, false)
   }

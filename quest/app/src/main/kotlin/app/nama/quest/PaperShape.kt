@@ -69,11 +69,42 @@ class PaperShape(val cols: Int, val rows: Int) {
         }
       }
     }
+    wind()
+  }
+
+  /**
+   * Turns each triangle to face the way its normal does. A page left of the spine is the right
+   * one mirrored, which reverses its triangles; the SDK flips the normal of a triangle seen from
+   * behind (double-sided paper), so that page was lit from its back: ambient only, a dull grey.
+   */
+  private fun wind() {
+    for (k in indices.indices step 3) {
+      val a = indices[k]
+      val b = indices[k + 1]
+      val c = indices[k + 2]
+      val ux = pos[b * 3] - pos[a * 3]
+      val uy = pos[b * 3 + 1] - pos[a * 3 + 1]
+      val uz = pos[b * 3 + 2] - pos[a * 3 + 2]
+      val vx = pos[c * 3] - pos[a * 3]
+      val vy = pos[c * 3 + 1] - pos[a * 3 + 1]
+      val vz = pos[c * 3 + 2] - pos[a * 3 + 2]
+      val facing = (uy * vz - uz * vy) * nor[a * 3] + (uz * vx - ux * vz) * nor[a * 3 + 1] + (ux * vy - uy * vx) * nor[a * 3 + 2]
+      if (facing * WINDING < 0f) {
+        indices[k + 1] = c
+        indices[k + 2] = b
+      }
+    }
   }
 
   companion object {
     /** How far (of the turn) the page's bottom trails its top. */
     private const val CORNER_LAG = 0.1f
+
+    /**
+     * The sign of (b - a) x (c - a) . normal for a triangle the SDK draws as facing its normal
+     * (its world is left-handed). Measured on the headset: with +1 both pages went dull.
+     */
+    private const val WINDING = -1f
 
     /**
      * The paper's cross-section across a page on [side], [turn] of the way over: column i (0 at

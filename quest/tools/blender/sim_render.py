@@ -35,30 +35,81 @@ def world(item, scale=1.0):
     return m @ Matrix.Diagonal((scale, scale, scale, 1))
 
 
-def image_material(name, path, emit=False):
-    m = bpy.data.materials.get(name)
+def unlit(m, color_socket=None, rgb=None):
+    """A panel: the SDK draws its picture as it is, with no light on it."""
+    nt = m.node_tree
+    e = nt.nodes.new("ShaderNodeEmission")
+    e.inputs["Strength"].default_value = 1.0
+    if color_socket is not None:
+        nt.links.new(color_socket, e.inputs["Color"])
+    else:
+        e.inputs["Color"].default_value = (*rgb, 1)
+    nt.links.new(e.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
+
+
+def image_material(name, path, panel=False):
+    m = bpy.data.materials.get(name + ("#panel" if panel else ""))
     if m:
         return m
-    m = bpy.data.materials.new(name)
+    m = bpy.data.materials.new(name + ("#panel" if panel else ""))
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes["Principled BSDF"]
     t = nt.nodes.new("ShaderNodeTexImage")
     t.image = bpy.data.images.load(path, check_existing=True)
     nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
-    if emit:
-        nt.links.new(t.outputs["Color"], b.inputs["Emission Color"])
-        b.inputs["Emission Strength"].default_value = 0.6
+    # Paper.material: roughness 0.8, not metal.
     b.inputs["Roughness"].default_value = 0.8
+    if panel:
+        unlit(m, t.outputs["Color"])
     m.use_backface_culling = False
     return m
 
 
-def color_material(name, rgb):
-    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+def srgb(c):
+    c /= 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def wood_material():
+    # The virtual table is a panel too; its colour as the headset shows it.
+    m = bpy.data.materials.get("wood")
+    if m:
+        return m
+    m = bpy.data.materials.new("wood")
     m.use_nodes = True
-    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*rgb, 1)
+    unlit(m, rgb=tuple(srgb(c) for c in (43, 30, 24)))
     return m
+
+
+def headset_lighting(scn):
+    """NamaActivity.setLightingEnvironment as Blender light. The SDK's shader divides diffuse by pi
+    (Filament's convention, as Blender's sun does): measured on the headset, paper (F4F0E8) facing
+    away from the sun shows 94, which is ambient 0.4 / pi, and facing it 148, with the sun's 1.6."""
+    scn.view_settings.view_transform = "Standard"
+    scn.view_settings.look = "None"
+    scn.world = bpy.data.worlds.new("headset")
+    scn.world.use_nodes = True
+    nt = scn.world.node_tree
+    bg = nt.nodes["Background"]
+    bg.inputs["Color"].default_value = (0.4 / math.pi,) * 3 + (1,)
+    bg.inputs["Strength"].default_value = 1.0
+    # The ambient light lights the scene; the eye sees black behind it, as with the room hidden.
+    black = nt.nodes.new("ShaderNodeBackground")
+    black.inputs["Color"].default_value = (0, 0, 0, 1)
+    path = nt.nodes.new("ShaderNodeLightPath")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(path.outputs["Is Camera Ray"], mix.inputs["Fac"])
+    nt.links.new(bg.outputs["Background"], mix.inputs[1])
+    nt.links.new(black.outputs["Background"], mix.inputs[2])
+    nt.links.new(mix.outputs["Shader"], nt.nodes["World Output"].inputs["Surface"])
+    sun = bpy.data.lights.new("sun", "SUN")
+    sun.energy = 1.6
+    sun.angle = math.radians(0.5)
+    ob = bpy.data.objects.new("sun", sun)
+    scn.collection.objects.link(ob)
+    # sunDirection = -(1, 3, -2), the way the light travels; a Blender sun shines along its -Z.
+    ob.rotation_euler = to_b((-1, -3, 2)).normalized().to_track_quat("-Z", "Y").to_euler()
 
 
 def panel(item):
@@ -77,9 +128,9 @@ def panel(item):
     bpy.context.scene.collection.objects.link(ob)
     tex = item["tex"]
     if tex == "wood":
-        ob.data.materials.append(color_material("wood", (0.25, 0.16, 0.1)))
+        ob.data.materials.append(wood_material())
     else:
-        ob.data.materials.append(image_material(tex, os.path.join(ROOT, tex), emit=True))
+        ob.data.materials.append(image_material(tex, os.path.join(ROOT, tex), panel=True))
     ob.matrix_world = world(item)
 
 
@@ -132,22 +183,16 @@ def sheet(item):
     ob.matrix_world = world(item)
 
 
-def render(scene_file):
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+def build(scene_file):
+    """The scene into the current Blender scene, lit as on the headset, with its camera at the eye.
+    Also used in the open Blender over MCP, to look at the headset's scene before sending models."""
     scn = bpy.context.scene
     scn.render.engine = "BLENDER_EEVEE"
     scn.render.resolution_x, scn.render.resolution_y = 1400, 1000
-    scn.world = bpy.data.worlds.new("w")
-    scn.world.use_nodes = True
-    scn.world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.06, 0.06, 0.07, 1)
-    scn.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.0
     data = json.load(open(scene_file))
     for it in data["items"]:
         {"panel": panel, "glb": glb, "sheet": sheet}[it["kind"]](it)
-    for loc, energy in (((0.3, 0.2, 2.2), 60), ((-0.8, -0.3, 1.8), 25)):
-        bpy.ops.object.light_add(type="AREA", location=loc)
-        bpy.context.object.data.energy = energy
-        bpy.context.object.data.size = 1.5
+    headset_lighting(scn)
     cam = bpy.data.cameras.new("eye")
     cam.lens = 16
     co = bpy.data.objects.new("eye", cam)
@@ -168,11 +213,18 @@ def render(scene_file):
     co.location = eye
     co.rotation_euler = Matrix((right, up, -fwd)).transposed().to_euler()
     scn.camera = co
+
+
+def render(scene_file):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    build(scene_file)
+    scn = bpy.context.scene
     scn.render.filepath = scene_file.replace(".json", ".png")
     bpy.ops.render.render(write_still=True)
 
 
-for f in sorted(os.listdir(ROOT)):
-    if f.endswith(".json") and f != "textures.json":
-        render(os.path.join(ROOT, f))
-print("rendered", ROOT)
+if __name__ == "__main__":
+    for f in sorted(os.listdir(ROOT)):
+        if f.endswith(".json") and f != "textures.json" and f != "art.json":
+            render(os.path.join(ROOT, f))
+    print("rendered", ROOT)
