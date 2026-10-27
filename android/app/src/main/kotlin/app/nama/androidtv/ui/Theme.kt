@@ -81,6 +81,13 @@ val Vazirmatn = FontFamily(
 fun app(size: Int, weight: FontWeight = FontWeight.Normal): TextStyle =
     TextStyle(fontFamily = Vazirmatn, fontSize = size.sp, fontWeight = weight)
 
+/**
+ * The colour of the title this part of the screen is about, from its poster (`Post.tint()`), as the
+ * Mac's `hue`: the bright button throws light in it and glass gets a rim of it, so each title's
+ * page is lit in its own colour. Null where no one title is on stage.
+ */
+val LocalHue = compositionLocalOf<Color?> { null }
+
 /** Interface strings in the chosen language. */
 val LocalLoc = staticCompositionLocalOf { Loc(Lang.en) }
 

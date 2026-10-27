@@ -4,6 +4,13 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -67,6 +74,7 @@ import app.nama.core.Person
 import app.nama.core.Post
 import app.nama.core.S
 import app.nama.core.StreamItem
+import app.nama.core.SubSource
 import app.nama.core.StreamResult
 import app.nama.core.TrailerVideo
 import app.nama.core.single
@@ -172,23 +180,29 @@ fun DetailsScreen(route: Route.Details) {
   // Back from the player: pick up the new resume point.
   LaunchedEffect(app.watchVersion) { if (stream != null) loadStream(quietly = true) }
 
+  // The page is lit in the colour of the title it is about, as on the Mac.
+  CompositionLocalProvider(LocalHue provides post?.tint()) {
   Box(Modifier.fillMaxSize()) {
-    Stage(post, dim = if (inHeader) 0.12f else 0.62f, settleMs = 0)
+    Stage(post, dim = if (inHeader) 0.3f else 0.62f, settleMs = 0)
     when {
-      post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(56.dp)) {
+      post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(64.dp)) {
         Header(
             post, stream, items, playWhenReady && streamPending, trailer,
             play = play,
             onPlay = { startPlayback() },
-            onEpisodes = { runCatching { episodesFocus.requestFocus() } },
             onTrailer = { t -> openTrailer(t, post, app, scope, context) },
             modifier = Modifier.onFocusChanged { inHeader = it.hasFocus },
         )
-        if (post.isSeries && items.isNotEmpty()) {
+        if (post.isSeries && items.size > 1) {
           Episodes(items, stream, shelf ?: Shelf.of(items, items.first()), { shelf = it }, episodesFocus) { startPlayback(it) }
         }
-        if (post.plot(loc.lang).length > 260 || facts(post, loc).isNotEmpty()) Story(post)
         if (post.cast.isNotEmpty()) Cast(post)
+        // From TMDB, with the user's own key: the people behind the camera, and reviews.
+        app.extras.known[post.id]?.let { extra ->
+          if (extra.crew.isNotEmpty()) Crew(extra.crew)
+          if (extra.reviews.isNotEmpty()) Reviews(extra.reviews)
+        }
+        Facts(post)
         Spacer(Modifier.height(40.dp))
       } }
       failed -> ErrorState {
@@ -196,6 +210,7 @@ fun DetailsScreen(route: Route.Details) {
         scope.launch { attempt { app.api.single(route.id) }?.let { loaded = it } ?: run { failed = true } }
       }
     }
+  }
   }
 }
 
@@ -220,6 +235,10 @@ private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.App
 
 // MARK: Header
 
+/**
+ * The Mac's header: the poster, lit in its own colour, beside what the title is (its logo or its
+ * name, scores, standing, story) and one row of everything to do with it.
+ */
 @Composable
 private fun Header(
     post: Post,
@@ -229,64 +248,190 @@ private fun Header(
     trailer: TrailerVideo?,
     play: FocusRequester,
     onPlay: () -> Unit,
-    onEpisodes: () -> Unit,
     onTrailer: (TrailerVideo) -> Unit,
     modifier: Modifier,
 ) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val scope = rememberCoroutineScope()
-  // Bottom-aligned so the buttons sit at the same height whatever the title's length, with the
-  // next section's heading peeking below as a cue to scroll.
-  Box(modifier.fillMaxWidth().heightIn(min = 880.dp).padding(start = Theme.edge, top = 90.dp), contentAlignment = Alignment.BottomStart) {
-    Column(Modifier.widthIn(max = 1000.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-      Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Eyebrow(loc.kindLine(post))
-        if (post.persianSubtitle) Chip {
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.subtitles, null, Modifier.size(22.dp), tint = Theme.text1)
-            Text(loc(S.persianSub), style = app(22, FontWeight.SemiBold), color = Theme.text1)
-          }
-        }
-        if (post.isSeries) {
-          val date = if (loc.lang == Lang.fa) post.nextEpisodeDate.jalali else post.nextEpisodeDate.gregorian
-          date?.let {
-            // The server words its caption in Persian; other languages get their own.
-            val caption = post.nextEpisodeCaption?.takeIf { loc.lang == Lang.fa } ?: loc(S.nextEpisode)
-            Text(
-                "$caption · ${loc.num(it)}",
-                Modifier.height(42.dp).background(Theme.accent, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 6.dp),
-                style = app(22, FontWeight.SemiBold), color = Color.White, maxLines = 1,
-            )
-          }
+  val hue = LocalHue.current ?: Color.White
+  val shape = RoundedCornerShape(24.dp)
+  Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = 140.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
+    // Over its blur code at once, the large picture following.
+    Box(
+        Modifier.size(360.dp, 540.dp)
+            .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
+            .clip(shape)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
+    ) {
+      RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 300)
+      RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
+    }
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+      Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2)
+      TitleArt(post, size = 84)
+      Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true) }
+      Standing(post)
+      Text(
+          post.plot(loc.lang), Modifier.widthIn(max = 1150.dp),
+          style = app(27).copy(lineHeight = app(27).fontSize * 1.55f), color = Theme.text2, maxLines = 6, overflow = TextOverflow.Ellipsis,
+      )
+      // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
+      Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play), kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, icon = Icons.film) }
+        Mine(post)
+        if (app.isLoggedIn) {
+          RoundButton(Icons.bookmarkOutline, loc(S.watchlist), { scope.launch { app.toggleList(post, "watchlist") } }, on = app.isListed(post, "watchlist"), onIcon = Icons.bookmark)
+          RoundButton(Icons.heartOutline, loc(S.favorites), { scope.launch { app.toggleList(post, "favorite") } }, on = app.isListed(post, "favorite"), onIcon = Icons.heart)
         }
       }
+      val progress = stream?.resume?.progress ?: 0.0
+      if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp)) { ProgressBar(progress) }
+      if (post.updates.isNotEmpty()) UpdatesTicker(post.updates)
+    }
+  }
+}
+
+/** What the user makes of the title: "Your rating" and five stars, in one pane of glass. */
+@Composable
+private fun Mine(post: Post) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  val capsule = RoundedCornerShape(50)
+  Row(
+      Modifier.height(76.dp).glass(capsule).padding(start = 30.dp, end = 18.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(loc(S.yourRating), style = app(24, FontWeight.SemiBold), color = Theme.text2, maxLines = 1)
+    StarRating(app.ratings.stars(post.id)) { app.rate(post, it) }
+  }
+}
+
+/**
+ * A title's name, as the Mac's `TitleArt`: its logo from TMDB when there is one, else the name in
+ * large type with its other name under it. The logo is mostly in English; in Persian or Arabic the
+ * name in that language follows it in smaller type. Not shown until TMDB answers (two seconds at
+ * most), so the name does not flash up and give way to the logo.
+ */
+@Composable
+private fun TitleArt(post: Post, size: Int) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  // Null while TMDB is asked; then the logo, or none.
+  var logo by remember(post.id) { mutableStateOf<Result<java.net.URI?>?>(app.extras.known[post.id]?.let { Result.success(it.logo) }) }
+  LaunchedEffect(post.id) {
+    if (logo != null) return@LaunchedEffect
+    val found = kotlinx.coroutines.withTimeoutOrNull(2_000) { app.extras.info(post, loc.lang) }
+    logo = Result.success(found?.logo ?: app.extras.known[post.id]?.logo)
+  }
+  // A logo that comes later still replaces the name.
+  val late = app.extras.known[post.id]?.logo
+  val url = logo?.getOrNull() ?: late
+  val shown by animateFloatAsState(if (logo != null || late != null) 1f else 0f, tween(450), label = "title")
+  Column(Modifier.graphicsLayer { alpha = shown }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    if (url != null) {
+      coil3.compose.AsyncImage(
+          model = url.toString(), contentDescription = post.title(loc.lang),
+          modifier = Modifier.heightIn(max = (size * 2.4f).dp).widthIn(max = (size * 8).dp),
+          contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+      )
+      // Only a name in another script: a series with no Persian name would repeat the logo.
+      if (loc.lang != Lang.en && SubSource.simple(post.title(loc.lang)) != SubSource.simple(post.title(Lang.en))) {
+        Text(post.title(loc.lang), style = app((size * 0.38f).toInt(), FontWeight.SemiBold), color = Theme.text1)
+      }
+    } else {
       Text(
           post.title(loc.lang),
-          style = app(92, FontWeight.ExtraBold).copy(brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.82f)))),
+          style = app(size, FontWeight.ExtraBold).copy(brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.84f)))),
           maxLines = 2, overflow = TextOverflow.Ellipsis,
       )
       post.alternateTitle(loc.lang)?.let { Text(it, style = app(30, FontWeight.Medium), color = Theme.text2, maxLines = 1) }
-      Box(Modifier.padding(top = 4.dp)) { MetaLine(post, genres = 3, expanded = true) }
-      Text(
-          post.plot(loc.lang), Modifier.widthIn(max = 880.dp),
-          style = app(28).copy(lineHeight = app(28).fontSize * 1.45f), color = Theme.text2, maxLines = 4, overflow = TextOverflow.Ellipsis,
-      )
-      Row(Modifier.padding(top = 18.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play), kind = PillKind.Primary, icon = Icons.play, busy = busy)
-        if (post.isSeries && items.isNotEmpty()) PillButton(loc(S.episodes), onEpisodes, icon = Icons.list)
-        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, icon = Icons.film) }
-        if (app.isLoggedIn) {
-          RoundButton(Icons.bookmark, loc(S.watchlist), { scope.launch { app.toggleList(post, "watchlist") } }, on = app.isListed(post, "watchlist"))
-          RoundButton(Icons.heart, loc(S.favorites), { scope.launch { app.toggleList(post, "favorite") } }, on = app.isListed(post, "favorite"))
+    }
+  }
+}
+
+/**
+ * Where the title stands, as 30nama's own apps show it: places on the top lists, an exclusive
+ * subtitle, and how many voted for it and keep it.
+ */
+@Composable
+private fun Standing(post: Post) {
+  val loc = LocalLoc.current
+  val ranked = post.imdbTop250 != null || post.siteTop100 != null || post.exclusiveSubtitle
+  // Each a run of its own: Latin, digits and Persian in one string fall out of order.
+  val counts = listOfNotNull(
+      post.imdbVotes?.let { listOf("IMDb", Fmt.count(it, loc.lang), loc(S.votes)) },
+      post.inWatchlists?.let { listOf(Fmt.count(it, loc.lang), loc(S.inWatchlists)) },
+      post.inFavorites?.let { listOf(Fmt.count(it, loc.lang), loc(S.inFavorites)) },
+  )
+  if (!ranked && counts.isEmpty()) return
+  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (ranked) {
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        post.imdbTop250?.let { Rank(loc(S.imdbTop250), it, Theme.imdb) }
+        post.siteTop100?.let { Rank(loc(S.siteTop100), it, Theme.accent) }
+        if (post.exclusiveSubtitle) Chip {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.subtitles, null, Modifier.size(20.dp), tint = Theme.good)
+            Text(loc(S.exclusiveSub), style = app(22, FontWeight.SemiBold), color = Theme.text1)
+          }
         }
       }
-      Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(loc(S.yourRating), style = app(24, FontWeight.Medium), color = Theme.text2)
-        StarRating(app.ratings.stars(post.id)) { app.rate(post, it) }
+    }
+    if (counts.isNotEmpty()) {
+      Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        counts.forEachIndexed { i, parts ->
+          if (i > 0) Text("·", style = app(22), color = Theme.text3)
+          Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { parts.forEach { Text(it, style = app(22), color = Theme.text3) } }
+        }
       }
-      val progress = stream?.resume?.progress ?: 0.0
-      if (progress > 0 && !post.isSeries) Box(Modifier.width(300.dp)) { ProgressBar(progress) }
+    }
+  }
+}
+
+@Composable
+private fun Rank(list: String, place: Int, tint: Color) {
+  val loc = LocalLoc.current
+  Chip {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+      Icon(Icons.trophy, null, Modifier.size(20.dp), tint = tint)
+      Text(list, style = app(22, FontWeight.SemiBold), color = Theme.text1)
+      CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(loc.num("#$place"), style = app(22, FontWeight.SemiBold), color = Theme.text1) }
+    }
+  }
+}
+
+/**
+ * What 30nama has lately added or mended on the title, one change at a time with its day, the next
+ * coming in every few seconds. Still when there is one, and when motion is turned down.
+ */
+@Composable
+private fun UpdatesTicker(updates: List<app.nama.core.TitleUpdate>) {
+  val loc = LocalLoc.current
+  val calm = LocalCalm.current
+  var index by remember(updates) { mutableStateOf(0) }
+  LaunchedEffect(updates, calm) {
+    if (updates.size < 2 || calm) return@LaunchedEffect
+    while (true) {
+      kotlinx.coroutines.delay(4_000)
+      index = (index + 1) % updates.size
+    }
+  }
+  androidx.compose.animation.AnimatedContent(
+      updates[index.coerceAtMost(updates.size - 1)], Modifier.height(36.dp).widthIn(max = 1100.dp),
+      transitionSpec = {
+        (androidx.compose.animation.fadeIn(tween(500)) + androidx.compose.animation.slideInVertically(tween(500)) { it / 3 }) togetherWith
+            (androidx.compose.animation.fadeOut(tween(500)) + androidx.compose.animation.slideOutVertically(tween(500)) { -it / 3 })
+      },
+      label = "updates",
+  ) { update ->
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+      update.day(loc.lang == Lang.fa)?.let { day ->
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(loc.num(day), style = app(22), color = Theme.text3) }
+      }
+      Text(loc.num(update.title), style = app(22, FontWeight.SemiBold), color = Theme.text1, maxLines = 1)
+      update.content?.let { Text(loc.num(it), style = app(22), color = Theme.text2, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
   }
 }
@@ -302,12 +447,12 @@ private fun playLabel(post: Post, stream: StreamResult?, items: List<StreamItem>
 
 /**
  * Five stars. Pressing a star gives that many; pressing it again takes half a star off, and a
- * third press clears the rating.
+ * third press clears the rating. Lit in the title's colour, as on the Mac.
  */
 @Composable
 private fun StarRating(value: Double?, set: (Double?) -> Unit) {
-  val loc = LocalLoc.current
-  Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+  val hue = LocalHue.current ?: Theme.imdb
+  Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
     for (n in 1..5) {
       val v = value ?: 0.0
       val icon = if (v >= n) Icons.star else if (v >= n - 0.5) Icons.starHalf else Icons.starOutline
@@ -324,17 +469,16 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
           },
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
-          colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
-          scale = ClickableSurfaceDefaults.scale(focusedScale = 1.35f),
+          colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),
+          scale = ClickableSurfaceDefaults.scale(focusedScale = 1.2f),
       ) {
         // A half star fills from the reading start, so it is mirrored in a right-to-left language.
         Icon(
-            icon, null, Modifier.size(52.dp).padding(8.dp).then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
-            tint = if (focused) Color.White else if (v > n - 1) Theme.imdb else Theme.text3,
+            icon, null, Modifier.size(50.dp).padding(8.dp).then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
+            tint = if (focused) Theme.focusInk else if (v >= n - 0.5) hue else Theme.text3,
         )
       }
     }
-    value?.let { Text(loc.num(Fmt.score(it)), Modifier.padding(start = 10.dp), style = app(26, FontWeight.Bold), color = Theme.text1) }
   }
 }
 
@@ -355,6 +499,8 @@ private data class Shelf(val season: Int, val group: Int) {
   }
 }
 
+/** The Mac's episode list: seasons as choices on lines that wrap, then the episodes in a grid. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shelf, choose: (Shelf) -> Unit, focus: FocusRequester, play: (Int) -> Unit) {
   val app = LocalApp.current
@@ -364,56 +510,83 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
   val groups = (inSeason.size + Shelf.SIZE - 1) / Shelf.SIZE
   val shown = inSeason.drop(shelf.group * Shelf.SIZE).take(Shelf.SIZE)
   val resumeIndex = stream?.startIndex ?: 0
+  // Coming down from the header lands on the episode to resume, not on whichever tile is nearest.
+  val landing = shown.firstOrNull { it.index == resumeIndex } ?: shown.firstOrNull()
 
-  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
-    Row(Modifier.padding(start = Theme.edge), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Bottom) {
-      SectionTitle(loc(S.episodes))
-      Text("${loc.num(inSeason.size)} ${loc(S.episodeCount)}", style = app(24), color = Theme.text3)
-    }
+  Column(Modifier.padding(horizontal = Theme.edge), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    SectionTitle(loc(S.episodes))
     if (seasons.size > 1 || groups > 1) {
-      LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      // On lines of their own that wrap, so every season is in sight.
+      androidx.compose.foundation.layout.FlowRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         for (s in seasons) {
           val count = items.count { it.season == s }
           val parts = if (s == shelf.season) (count + Shelf.SIZE - 1) / Shelf.SIZE else 1
           for (g in 0 until parts) {
-            item(key = "$s-$g") {
-              val name = if (parts > 1) {
-                val from = g * Shelf.SIZE + 1
-                val to = minOf(count, (g + 1) * Shelf.SIZE)
-                "${loc(S.season)} ${loc.num(s)} · ${loc.num(from)}–${loc.num(to)}"
-              } else "${loc(S.season)} ${loc.num(s)}"
-              PillButton(name, { choose(Shelf(s, g)) }, kind = PillKind.Chip, selected = s == shelf.season && g == shelf.group)
-            }
+            val name = if (parts > 1) {
+              val from = g * Shelf.SIZE + 1
+              val to = minOf(count, (g + 1) * Shelf.SIZE)
+              "${loc(S.season)} ${loc.num(s)} · ${loc.num(from)}–${loc.num(to)}"
+            } else "${loc(S.season)} ${loc.num(s)}"
+            PillButton(name, { choose(Shelf(s, g)) }, kind = PillKind.Chip, selected = s == shelf.season && g == shelf.group)
           }
         }
       }
     }
-    val state = rememberLazyListState()
-    // A still for each tile in view, one at a time, from the episode itself.
-    LaunchedEffect(shelf) { for ((_, item) in shown) app.stills.still(item) }
-    // Coming down from the header lands on the episode to resume, not on whichever tile is nearest.
-    val landing = shown.firstOrNull { it.index == resumeIndex } ?: shown.firstOrNull()
-    LaunchedEffect(shelf) { landing?.let { l -> state.scrollToItem(shown.indexOf(l).coerceAtLeast(0)) } }
-    LazyRow(
-        Modifier.focusRestorer(focus),
-        state = state,
-        contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-      items(shown, key = { it.value.id }) { (index, item) ->
-        val progress = stream?.resume?.takeIf { it.fileID == item.fileID }?.progress ?: 0.0
-        CardSurface(
-            onClick = { play(index) },
-            // The "Episodes" button, and coming down from the header the first time, land here.
-            modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
-            radius = Theme.tileRadius, scale = 1.07f,
-        ) { EpisodeTile(item, index + 1, progress, watched = item.fileID in app.watched, still = app.stills.known[item.fileID]) }
+    Column(Modifier.focusRestorer(focus), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      shown.chunked(4).forEach { line ->
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+          line.forEach { (index, item) ->
+            val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
+            EpisodeRow(
+                item, resume?.progress, watched = item.fileID in app.watched,
+                modifier = Modifier.weight(1f).then(if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier),
+            ) { play(index) }
+          }
+          repeat(4 - line.size) { Spacer(Modifier.weight(1f)) }
+        }
       }
     }
   }
 }
 
-/** Episode tile. The API has no stills, so the tile is typographic: a big number and the title. */
+/** One episode, as the Mac's tile: its number, name and length, a tick once watched, and how far in. */
+@Composable
+private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, modifier: Modifier, onClick: () -> Unit) {
+  val loc = LocalLoc.current
+  val hue = LocalHue.current ?: Theme.accent
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  val shape = RoundedCornerShape(22.dp)
+  Surface(
+      onClick = onClick,
+      modifier = modifier,
+      interactionSource = interaction,
+      shape = ClickableSurfaceDefaults.shape(shape),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.07f), focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+  ) {
+    Box(Modifier.fillMaxWidth().height(104.dp)) {
+      Row(Modifier.fillMaxSize().padding(horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(60.dp), contentAlignment = Alignment.Center) {
+          if (focused) Icon(Icons.play, null, Modifier.size(30.dp))
+          else Text(loc.num(item.episodeRaw ?: "${item.episodeNumber}"), style = app(34, FontWeight.ExtraBold), color = if (progress != null) hue else Theme.text2, maxLines = 1)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}", style = app(25, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+          item.durationMinutes?.let { Text("${loc.num(it)} ${loc(S.min)}", style = app(20), color = if (focused) Theme.focusInk.copy(alpha = 0.6f) else Theme.text3) }
+        }
+        if (watched) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.good)
+      }
+      if (progress != null && progress > 0) {
+        Box(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp, bottom = 9.dp).fillMaxWidth().height(5.dp)) {
+          Box(Modifier.fillMaxWidth(progress.toFloat().coerceIn(0.03f, 1f)).fillMaxHeight().background(hue, RoundedCornerShape(50)))
+        }
+      }
+    }
+  }
+}
+
+/** Episode tile for the player's list. The API has no stills, so the tile is typographic: a big number and the title. */
 @Composable
 fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlaying: Boolean = false, watched: Boolean = false, still: androidx.compose.ui.graphics.ImageBitmap? = null) {
   val loc = LocalLoc.current
@@ -426,7 +599,7 @@ fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlay
           .border(1.dp, Color.White.copy(alpha = 0.10f), shape),
   ) {
     if (still != null) {
-      androidx.compose.foundation.Image(still, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+      androidx.compose.foundation.Image(still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
       // Dark enough for the number and the title over any picture.
       Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.8f)))))
     }
@@ -453,56 +626,97 @@ fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlay
   }
 }
 
-// MARK: Storyline and cast
+// MARK: People and facts
 
-private fun facts(post: Post, loc: app.nama.core.Loc): List<Pair<String, String>> {
-  fun row(key: S, values: List<String>): Pair<String, String>? {
-    if (values.isEmpty()) return null
-    // Names mostly arrive in Latin script; a Persian comma between them reads as a typo.
-    val latin = values.joinToString("").all { it.code < 0x0600 }
-    return loc(key) to values.take(3).joinToString(if (latin || loc.lang == Lang.en) ", " else "، ")
+/** The Mac's cast: faces in a row, each with a name and a part, opening their titles where it can. */
+@Composable
+private fun Cast(post: Post) {
+  val app = LocalApp.current
+  val nav = LocalNav.current
+  val loc = LocalLoc.current
+  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    SectionTitle(loc(S.cast), Modifier.padding(start = Theme.edge))
+    LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(30.dp)) {
+      items(post.cast, key = { it.id }) { person ->
+        // Who they are and their titles come from the site API, by 30nama's id or the IMDb one.
+        val opens = app.api.hasSite && (person.siteID != null || person.imdb != null)
+        Face(person.name, person.role, person.poster?.url(160.0), person.poster?.blurhash) { if (opens) nav.push(Route.PersonPage(person)) }
+      }
+    }
   }
-  return listOfNotNull(
-      row(S.creator, post.creators),
-      row(S.director, post.directors),
-      row(S.writer, post.writers),
-      row(S.network, post.networks),
-      row(S.country, post.countries),
-      row(S.originalLanguage, listOfNotNull(post.language)),
-      row(S.status, listOfNotNull(post.airStatus)),
-  )
+}
+
+/** From TMDB, with the user's own key: the people behind the camera. */
+@Composable
+private fun Crew(people: List<app.nama.core.TMDB.Person>) {
+  val loc = LocalLoc.current
+  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    SectionTitle(loc(S.crew), Modifier.padding(start = Theme.edge))
+    LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(30.dp)) {
+      items(people, key = { it.name + it.job }) { person -> Face(person.name, loc.job(person.job), person.photo, null) {} }
+    }
+  }
 }
 
 @Composable
-private fun Story(post: Post) {
-  val loc = LocalLoc.current
-  // The header shows four lines of plot; anything longer is given in full here.
-  val longPlot = post.plot(loc.lang).length > 260
-  val rows = facts(post, loc)
+private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: String?, onClick: () -> Unit) {
+  val hue = LocalHue.current ?: Theme.accent
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
-  Column(Modifier.padding(horizontal = Theme.edge), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-    SectionTitle(loc(if (longPlot) S.storyline else S.information))
-    // A row that takes focus, so the remote can come down to it and the page scrolls.
-    Surface(
-        onClick = {},
-        interactionSource = interaction,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Theme.tileRadius)),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.025f),
-    ) {
-      Row(Modifier.fillMaxWidth().heightIn(min = 86.dp).padding(horizontal = 34.dp, vertical = 28.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
-        if (longPlot) Text(post.plot(loc.lang), Modifier.weight(1f), style = app(27).copy(lineHeight = app(27).fontSize * 1.5f))
-        Column(Modifier.then(if (longPlot) Modifier.width(560.dp) else Modifier.weight(1f)), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-          rows.chunked(if (longPlot) 1 else 2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-              pair.forEach { (label, value) ->
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                  Text(label, Modifier.width(150.dp), style = app(24, FontWeight.Medium), color = (if (focused) Theme.focusInk else Theme.text1).copy(alpha = 0.55f))
-                  Text(value, style = app(24, FontWeight.Medium), maxLines = 2)
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    Column(Modifier.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Surface(
+          onClick = onClick,
+          interactionSource = interaction,
+          shape = ClickableSurfaceDefaults.shape(CircleShape),
+          colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
+          scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+          border = ClickableSurfaceDefaults.border(focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(4.dp, hue), shape = CircleShape)),
+      ) {
+        Box(Modifier.size(160.dp), contentAlignment = Alignment.Center) {
+          Icon(Icons.person, null, Modifier.size(56.dp), tint = Theme.text3)
+          photo?.let { RemoteImage(it, Modifier.fillMaxSize().clip(CircleShape), blurhash = blurhash, pixelWidth = 200) }
+        }
+      }
+      Text(name, style = app(22, FontWeight.SemiBold), color = if (focused) hue else Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      role?.let { Text(it, style = app(20), color = Theme.text3, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+  }
+}
+
+/** From TMDB, with the user's own key: reviews, in the language they were written in, cut short. */
+@Composable
+private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
+  val loc = LocalLoc.current
+  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    SectionTitle(loc(S.reviews), Modifier.padding(start = Theme.edge))
+    LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+      items(list) { review ->
+        val interaction = remember { MutableInteractionSource() }
+        val focused by interaction.collectIsFocusedAsState()
+        val shape = RoundedCornerShape(26.dp)
+        Surface(
+            onClick = {},
+            interactionSource = interaction,
+            shape = ClickableSurfaceDefaults.shape(shape),
+            colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.14f)),
+            border = ClickableSurfaceDefaults.border(
+                border = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)), shape = shape),
+                focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.6f)), shape = shape),
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+        ) {
+          // Written left to right whatever the interface reads in.
+          CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(Modifier.size(560.dp, 300.dp).padding(26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(review.author, Modifier.weight(1f), style = app(24, FontWeight.Bold), color = Theme.text1, maxLines = 1)
+                review.rating?.let {
+                  Icon(Icons.star, null, Modifier.size(20.dp), tint = Theme.imdb)
+                  Text(" ${loc.num(Fmt.score(it))}/${loc.num(10)}", style = app(20, FontWeight.Bold), color = Theme.text2)
                 }
               }
-              if (pair.size == 1 && !longPlot) Spacer(Modifier.weight(1f))
+              Text(review.text, style = androidx.compose.ui.text.TextStyle(fontSize = app(22).fontSize, lineHeight = app(22).fontSize * 1.4f), color = Theme.text2, maxLines = 7, overflow = TextOverflow.Ellipsis)
             }
           }
         }
@@ -511,47 +725,48 @@ private fun Story(post: Post) {
   }
 }
 
-@Composable
-private fun Cast(post: Post) {
-  val app = LocalApp.current
-  val nav = LocalNav.current
-  val loc = LocalLoc.current
-  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
-    SectionTitle(loc(S.cast), Modifier.padding(start = Theme.edge))
-    LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-      items(post.cast, key = { it.id }) { person ->
-        // Who they are and their titles come from the site API, by 30nama's id or the IMDb one:
-        // without either, the face only takes the focus.
-        val opens = app.api.hasSite && (person.siteID != null || person.imdb != null)
-        Face(person) { if (opens) nav.push(Route.PersonPage(person)) }
-      }
-    }
+private fun facts(post: Post, loc: app.nama.core.Loc): List<Pair<String, String>> {
+  fun row(key: S, values: List<String>): Pair<String, String>? {
+    if (values.isEmpty()) return null
+    return loc(key) to values.joinToString(if (loc.lang == Lang.en) ", " else "، ")
   }
+  return listOfNotNull(
+      row(S.director, post.directors),
+      row(S.creator, post.creators),
+      row(S.writer, post.writers),
+      row(S.network, post.networks),
+      row(S.country, post.countries),
+      row(S.originalLanguage, listOfNotNull(post.language)),
+      row(S.otherLanguages, post.otherLanguages),
+      row(S.budget, listOfNotNull(post.budget)),
+  )
 }
 
+/**
+ * The Mac's facts at the foot of the page: a label and its value on each line. One block that takes
+ * focus without showing much, so the remote can come down to it and the page scrolls to the end.
+ */
 @Composable
-private fun Face(person: Person, onClick: () -> Unit) {
+private fun Facts(post: Post) {
+  val loc = LocalLoc.current
+  val rows = facts(post, loc)
+  if (rows.isEmpty()) return
   val interaction = remember { MutableInteractionSource() }
-  val focused by interaction.collectIsFocusedAsState()
-  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    Column(Modifier.width(190.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-      Surface(
-          onClick = onClick,
-          interactionSource = interaction,
-          shape = ClickableSurfaceDefaults.shape(CircleShape),
-          colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
-          scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-          border = ClickableSurfaceDefaults.border(focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(4.dp, Color.White), shape = CircleShape)),
-      ) {
-        Box(Modifier.size(170.dp), contentAlignment = Alignment.Center) {
-          val words = person.name.split(" ").filter { it.isNotEmpty() }
-          val initials = listOfNotNull(words.firstOrNull()?.firstOrNull(), if (words.size > 1) words.last().firstOrNull() else null).joinToString("").uppercase()
-          Text(initials, style = app(44, FontWeight.Bold), color = Theme.text3)
-          person.poster?.let { RemoteImage(it.url(170.0), Modifier.fillMaxSize().clip(CircleShape), blurhash = it.blurhash, pixelWidth = 220) }
+  Surface(
+      onClick = {},
+      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp),
+      interactionSource = interaction,
+      shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(22.dp)),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+  ) {
+    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      rows.forEach { (label, value) ->
+        Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+          Text(label, Modifier.width(200.dp), style = app(23, FontWeight.Medium), color = Theme.text3)
+          Text(value, style = app(25), color = Theme.text1, maxLines = 2)
         }
       }
-      Text(person.name, style = app(22, FontWeight.SemiBold), color = if (focused) Color.White else Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-      Text(person.role ?: " ", style = app(20), color = Theme.text3, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
   }
 }
