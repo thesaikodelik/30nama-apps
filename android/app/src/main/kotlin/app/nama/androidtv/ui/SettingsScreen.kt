@@ -1,5 +1,9 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import app.nama.androidtv.R
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -104,9 +108,10 @@ fun SettingsScreen() {
   Ambient {
     Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
       // Sections.
-      Column(Modifier.width(320.dp).enterAt(pills.getValue(section)), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Wordmark(56)
-        Spacer(Modifier.height(18.dp))
+      Column(Modifier.width(320.dp).enterAt(pills.getValue(section)), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // The Mac's logo column: the 30nama mark, and the line that says what this app is.
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.nama_logo), null, Modifier.width(265.dp))
+        Text(loc(S.unofficial), Modifier.padding(top = 10.dp, bottom = 26.dp), style = app(17), color = Theme.text3, maxLines = 2)
         for (sec in Section.entries) {
           val name = when (sec) {
             Section.Account -> loc(S.account)
@@ -120,7 +125,10 @@ fun SettingsScreen() {
         }
       }
       // Rows.
-      Column(Modifier.width(820.dp).verticalScroll(rememberScrollState()).enterAt(firstRow), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      // The Mac's group: its name small above, the rows in one pane of glass.
+      Column(Modifier.width(860.dp).verticalScroll(rememberScrollState()).padding(bottom = 60.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Text(sectionName(section), Modifier.padding(start = 10.dp), style = app(18, FontWeight.SemiBold), color = Theme.text3)
+      Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(21.dp), fill = 0.03f).padding(vertical = 10.dp).enterAt(firstRow), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         val first = Modifier.focusRequester(firstRow)
         when (section) {
           Section.Account -> {
@@ -220,15 +228,28 @@ fun SettingsScreen() {
             }
             Fact(loc(S.apiHost), app.apiHost ?: "—")
             Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }) {}
-            Text(loc(S.unofficial), Modifier.padding(top = 18.dp, start = 6.dp), style = app(24).copy(lineHeight = app(24).fontSize * 1.5f), color = Theme.text3)
           }
         }
+      }
       }
       // What the focused row does.
       HelpPanel(section, help, Modifier.weight(1f))
     }
   }
   editing?.let { service -> KeyCard(service) { editing = null } }
+}
+
+@Composable
+private fun sectionName(sec: Section): String {
+  val loc = LocalLoc.current
+  return when (sec) {
+    Section.Account -> loc(S.account)
+    Section.Playback -> loc(S.playback)
+    Section.Subtitles -> loc(S.subtitles)
+    Section.App -> tv(TV.sectionApp)
+    Section.Services -> loc(S.services)
+    Section.About -> loc(S.about)
+  }
 }
 
 /** Focus coming into this column from outside always lands on [target], whatever is level with where it came from. */
@@ -240,53 +261,89 @@ private fun SectionPill(name: String, selected: Boolean, modifier: Modifier, onF
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   LaunchedEffect(focused) { if (focused) onFocus() }
+  // As the bar's tabs: the open one under lit glass, the rest dim words that brighten in focus.
   Surface(
       onClick = onFocus,
       modifier = modifier.fillMaxWidth(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
       colors = ClickableSurfaceDefaults.colors(
-          containerColor = if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
-          focusedContainerColor = Color.White,
-          contentColor = if (selected) Theme.text1 else Theme.text2,
-          focusedContentColor = Theme.focusInk,
+          containerColor = Color.Transparent,
+          focusedContainerColor = Color.Transparent,
+          contentColor = if (selected) Theme.text1 else Theme.text1.copy(alpha = 0.7f),
+          focusedContentColor = Theme.text1,
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
-  ) { Text(name, Modifier.padding(horizontal = 28.dp, vertical = 16.dp), style = app(28, FontWeight.SemiBold), maxLines = 1) }
+  ) {
+    Box(Modifier.fillMaxWidth().then(if (selected || focused) Modifier.glass(RoundedCornerShape(50), lit = true, fill = if (focused) 0.08f else 0f, veil = 0f) else Modifier)) {
+      Text(name, Modifier.padding(horizontal = 26.dp, vertical = 14.dp), style = app(25, FontWeight.SemiBold), maxLines = 1)
+    }
+  }
 }
 
-/** A setting that changes in place when pressed. */
+/**
+ * A setting that changes in place when pressed, as the Mac's row with a menu: the name at the start,
+ * the value in a glass capsule with an up-down mark at the end. In focus the row lights, as the
+ * Mac's under the pointer, and the capsule turns white.
+ */
 @Composable
 private fun Choice(label: String, value: String?, help: Help, show: (Help) -> Unit, modifier: Modifier = Modifier, onClick: () -> Unit) {
+  Row(label, help, show, modifier, onClick) { focused ->
+    value?.let {
+      val shape = RoundedCornerShape(50)
+      Row(
+          Modifier.width(390.dp).height(55.dp).then(if (focused) Modifier.background(Color.White, shape) else Modifier.glass(shape, fill = 0.08f, veil = 0.3f)).padding(horizontal = 22.dp),
+          verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+      ) {
+        Text(it, Modifier.weight(1f), style = app(20, FontWeight.Medium), color = if (focused) Theme.focusInk else Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(Icons.upDown, null, Modifier.size(20.dp), tint = if (focused) Theme.focusInk.copy(alpha = 0.6f) else Theme.text3)
+      }
+    }
+  }
+}
+
+/** A switch, as the Mac's: red when on, grey when off. */
+@Composable
+private fun Toggle(label: String, on: Boolean, hint: String, show: (Help) -> Unit, flip: () -> Unit) {
+  val loc = LocalLoc.current
+  Row(label, Help(hint, listOf(loc(S.on), loc(S.off)), loc(if (on) S.on else S.off)), show, Modifier, flip) { focused ->
+    val knob by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Theme.focusSpring(), label = "switch")
+    Box(
+        Modifier.size(60.dp, 34.dp).background(if (on) Theme.accent else Color.White.copy(alpha = if (focused) 0.35f else 0.2f), RoundedCornerShape(50))
+            .border(if (focused) 2.dp else 0.dp, Color.White.copy(alpha = if (focused) 0.9f else 0f), RoundedCornerShape(50)).padding(3.dp),
+    ) {
+      // From the start edge when off, to the end when on.
+      Box(Modifier.align(androidx.compose.ui.BiasAlignment((knob * 2 - 1), 0f)).size(28.dp).background(Color.White, CircleShape))
+    }
+  }
+}
+
+/** One row of a group: the name, and what [trailing] draws at the end. */
+@Composable
+private fun Row(label: String, help: Help, show: (Help) -> Unit, modifier: Modifier, onClick: () -> Unit, trailing: @Composable (Boolean) -> Unit) {
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   LaunchedEffect(focused, help) { if (focused) show(help) }
   Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth().padding(horizontal = 10.dp),
       interactionSource = interaction,
-      shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Theme.tileRadius)),
-      colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+      shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.1f), contentColor = Theme.text1, focusedContentColor = Theme.text1),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
   ) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 86.dp).padding(horizontal = 34.dp), verticalAlignment = Alignment.CenterVertically) {
-      Text(label, Modifier.weight(1f), style = app(28, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
-      value?.let { Text(it, style = app(26), color = (if (focused) Theme.focusInk else Theme.text1).copy(alpha = 0.7f), maxLines = 1) }
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+      Text(label, Modifier.weight(1f), style = app(20, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+      trailing(focused)
     }
   }
 }
 
 @Composable
-private fun Toggle(label: String, on: Boolean, hint: String, show: (Help) -> Unit, flip: () -> Unit) {
-  val loc = LocalLoc.current
-  Choice(label, loc(if (on) S.on else S.off), Help(hint, listOf(loc(S.on), loc(S.off)), loc(if (on) S.on else S.off)), show, onClick = flip)
-}
-
-@Composable
 private fun Fact(label: String, value: String, color: Color = Theme.text3) {
-  Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 34.dp), verticalAlignment = Alignment.CenterVertically) {
-    Text(label, Modifier.weight(1f), style = app(28, FontWeight.Medium), color = Theme.text2)
-    Text(value, style = app(26), color = color, maxLines = 1)
+  androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 26.dp), verticalAlignment = Alignment.CenterVertically) {
+    Text(label, Modifier.weight(1f), style = app(20, FontWeight.Medium), color = Theme.text1)
+    Text(value, style = app(20), color = color, maxLines = 1)
   }
 }
 
@@ -302,14 +359,14 @@ private fun KeyRow(service: String, label: String, hint: String, show: (Help) ->
 private fun HelpPanel(section: Section, help: Help?, modifier: Modifier) {
   val app = LocalApp.current
   val shape = RoundedCornerShape(Theme.tileRadius + 6.dp)
-  Column(modifier.heightIn(min = 560.dp).background(Theme.glass, shape).border(1.dp, Theme.glassEdge, shape).padding(34.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+  Column(modifier.heightIn(min = 560.dp).glass(shape, fill = 0.03f).padding(34.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
     help?.let { h ->
-      Text(h.text, style = app(25).copy(lineHeight = app(25).fontSize * 1.5f), color = Theme.text2)
+      Text(h.text, style = app(21).copy(lineHeight = app(21).fontSize * 1.5f), color = Theme.text2)
       if (h.values.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         h.values.forEach { v ->
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(26.dp)) { if (v == h.current) Icon(Icons.check, null, Modifier.size(26.dp), tint = Theme.accent) }
-            Text(v, style = app(25, if (v == h.current) FontWeight.SemiBold else FontWeight.Normal), color = if (v == h.current) Theme.text1 else Theme.text3)
+            Text(v, style = app(21, if (v == h.current) FontWeight.SemiBold else FontWeight.Normal), color = if (v == h.current) Theme.text1 else Theme.text3)
           }
         }
       }
