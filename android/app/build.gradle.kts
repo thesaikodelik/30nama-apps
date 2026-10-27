@@ -85,6 +85,8 @@ android {
         it.systemProperty("roborazzi.test.record", "true")
         it.systemProperty("nama.shots", rootProject.file("build/shots").absolutePath)
         it.systemProperty("nama.fixtures", rootProject.file("../Tests/NamaCoreTests/Fixtures").absolutePath)
+        // The Mac's screens, which every Android screen is set beside (docs/design).
+        it.systemProperty("nama.design", rootProject.file("../docs/design/mac").absolutePath)
         (project.findProperty("shots.lang") as String?)?.let { lang -> it.systemProperty("nama.lang", lang) }
         (project.findProperty("shots.only") as String?)?.let { only -> it.systemProperty("nama.only", only) }
         it.maxHeapSize = "3g"

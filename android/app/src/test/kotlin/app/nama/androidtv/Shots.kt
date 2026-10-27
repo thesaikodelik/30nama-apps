@@ -112,6 +112,8 @@ class Shots {
       }
       nav.tab = Tab.home
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
+      // On down to the top tens, as the Mac's home-top10.
+      take("home-top10", List(4) { Key.DirectionDown })
       for ((name, route) in listOf("schedule" to Route.Schedule, "toplists" to Route.TopLists, "person" to Route.PersonPage(app.nama.core.Person("Sample Actor", siteID = 1, imdb = "nm0000001")))) {
         nav.push(route)
         take("route-$name")
@@ -122,6 +124,40 @@ class Shots {
         take("title-$kind")
         take("title-$kind-below", listOf(Key.DirectionDown, Key.DirectionDown, Key.DirectionDown))
         nav.pop()
+      }
+    }
+    compare()
+  }
+
+  /**
+   * Each Android shot beside the Mac's of the same name, the Mac's on the left and Android's on the
+   * right, in build/shots/compare/<lang>: the Mac app is the reference for how every screen looks
+   * (docs/design). The Mac's were taken as a guest, so Android's guest shot is used where there is
+   * one. Arabic is set beside the Mac's Persian, which reads the same way.
+   */
+  private fun compare() {
+    val design = File(System.getProperty("nama.design") ?: "../../docs/design/mac")
+    for (lang in listOf("en", "fa", "ar")) {
+      val mac = File(design, if (lang == "ar") "fa" else lang).listFiles { f -> f.extension == "jpg" || f.extension == "png" } ?: continue
+      for (ref in mac) {
+        val name = ref.nameWithoutExtension
+        val shot = listOf("guest-$name", name.removePrefix("guest-"), name).map { File(out, "$lang/$it.png") }.firstOrNull { it.exists() } ?: continue
+        val left = android.graphics.BitmapFactory.decodeFile(ref.path) ?: continue
+        val right = android.graphics.BitmapFactory.decodeFile(shot.path) ?: continue
+        val w = 1920
+        val h = 1080
+        val band = 64
+        val sheet = Bitmap.createBitmap(w * 2 + 24, h + band, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(android.graphics.Color.rgb(40, 42, 48))
+        val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 34f; isFakeBoldText = true }
+        canvas.drawText("Mac · ${ref.name}", 24f, 44f, label)
+        canvas.drawText("Android TV · ${shot.name}", w + 24f + 24f, 44f, label)
+        val filter = Paint(Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(left, null, android.graphics.Rect(0, band, w, band + h), filter)
+        canvas.drawBitmap(right, null, android.graphics.Rect(w + 24, band, w * 2 + 24, band + h), filter)
+        val target = File(out, "compare/$lang/$name.png").apply { parentFile?.mkdirs() }
+        target.outputStream().use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
       }
     }
   }
