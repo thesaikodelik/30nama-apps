@@ -1,5 +1,7 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,10 +58,17 @@ import kotlinx.coroutines.launch
 /** Backdrop for list screens: the base colour with a faint warm glow from the top corner. */
 @Composable
 fun Ambient(content: @Composable () -> Unit) {
+  // The Mac's AmbientBackground: a warm light from the top end corner, a cool one from the bottom
+  // start, each a gradient that costs nothing. Its 900 and 800 points are ×1.2 on a 1920 screen.
+  val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
   Box(
       Modifier.fillMaxSize()
           .background(Theme.bg0)
-          .background(Brush.radialGradient(listOf(Theme.accent.copy(alpha = 0.10f), Color.Transparent), radius = 2200f, center = androidx.compose.ui.geometry.Offset(3800f, 0f)))) {
+          .drawBehind {
+            val end = if (rtl) 0f else size.width
+            drawRect(Brush.radialGradient(listOf(Theme.accent.copy(alpha = 0.16f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(end, 0f), radius = 1080.dp.toPx()))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF2B3A67).copy(alpha = 0.25f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width - end, size.height), radius = 960.dp.toPx()))
+          }) {
     content()
   }
 }
@@ -89,12 +98,13 @@ fun PagedGrid(
       GridCells.FixedSize(Theme.posterWidth),
       Modifier.fillMaxSize().focusRestorer(),
       state = state,
-      contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 150.dp, bottom = 80.dp),
-      horizontalArrangement = Arrangement.spacedBy(32.dp),
-      verticalArrangement = Arrangement.spacedBy(44.dp),
+      contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
+      horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.Start),
+      verticalArrangement = Arrangement.spacedBy(26.dp),
   ) {
     header()
-    itemsIndexed(posts, key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }, titled = true) }
+    // A wall of posters, as the Mac's: each one's name comes up on it in focus.
+    itemsIndexed(posts, key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }) }
     if (loading) {
       items(if (posts.isEmpty()) 14 else 7) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).padding(bottom = 8.dp), Theme.cardRadius) }
     }
@@ -176,30 +186,35 @@ fun CatalogScreen(slug: String, title: String) {
     } else {
       PagedGrid(posts, loading, ::loadNext, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
-          Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-              Text(title, style = app(56, FontWeight.Bold), color = Theme.text1)
-              total?.let { Text("${Fmt.count(it, loc.lang)} ${loc(S.results)}", Modifier.padding(bottom = 10.dp), style = app(24), color = Theme.text3) }
+          // The Mac's header: the name and its count at the start, the orders at the end, and the
+          // filters as menus under the name.
+          Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.fillMaxWidth().focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Text(title, style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1)
+                total?.let { Text("${Fmt.count(it, loc.lang)} ${loc(S.results)}", Modifier.padding(bottom = 8.dp), style = app(20, FontWeight.Medium), color = Theme.text3) }
+              }
+              sorts.forEach { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
             }
-            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 10.dp)) {
-              items(sorts) { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
+            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 10.dp)) {
               options?.let { o ->
                 val all = loc(S.allChoices)
+                val menu = Icons.chevronDown
                 item {
                   val name = o.genres.firstOrNull { it.value == filter.genre }?.name ?: loc(S.genres)
-                  PillButton(name, { choose(S.genres, listOf(all to null) + o.genres.map { it.name to it.value }, filter.genre) { filter = filter.copy(genre = it) } }, kind = PillKind.Chip, selected = filter.genre != null)
+                  PillButton(name, { choose(S.genres, listOf(all to null) + o.genres.map { it.name to it.value }, filter.genre) { filter = filter.copy(genre = it) } }, kind = PillKind.Chip, selected = filter.genre != null, trailing = menu)
                 }
                 item {
                   val name = o.countries.firstOrNull { it.value == filter.country }?.name ?: loc(S.country)
-                  PillButton(name, { choose(S.country, listOf(all to null) + o.countries.map { it.name to it.value }, filter.country) { filter = filter.copy(country = it) } }, kind = PillKind.Chip, selected = filter.country != null)
+                  PillButton(name, { choose(S.country, listOf(all to null) + o.countries.map { it.name to it.value }, filter.country) { filter = filter.copy(country = it) } }, kind = PillKind.Chip, selected = filter.country != null, trailing = menu)
                 }
                 item {
                   val name = o.scores.firstOrNull { it.value == filter.score }?.name ?: loc(S.minScore)
-                  PillButton(name, { choose(S.minScore, listOf(all to null) + o.scores.map { it.name to it.value }, filter.score) { filter = filter.copy(score = it) } }, kind = PillKind.Chip, selected = filter.score != null)
+                  PillButton(name, { choose(S.minScore, listOf(all to null) + o.scores.map { it.name to it.value }, filter.score) { filter = filter.copy(score = it) } }, kind = PillKind.Chip, selected = filter.score != null, trailing = menu)
                 }
                 item {
                   val name = filter.decade?.let { loc.num("${it}s") } ?: loc(S.decade)
-                  PillButton(name, { choose(S.decade, listOf(all to null) + o.decades.map { loc.num("${it}s") to it.toString() }, filter.decade?.toString()) { filter = filter.copy(decade = it?.toIntOrNull()) } }, kind = PillKind.Chip, selected = filter.decade != null)
+                  PillButton(name, { choose(S.decade, listOf(all to null) + o.decades.map { loc.num("${it}s") to it.toString() }, filter.decade?.toString()) { filter = filter.copy(decade = it?.toIntOrNull()) } }, kind = PillKind.Chip, selected = filter.decade != null, trailing = menu)
                 }
                 if (!filter.isEmpty) item { PillButton(loc(S.reset), { filter = Filter() }, kind = PillKind.Chip, icon = Icons.close) }
               }
@@ -212,7 +227,10 @@ fun CatalogScreen(slug: String, title: String) {
   }
 }
 
-/** Entry point to the whole catalogue: categories as chips, genres as picture tiles. */
+/**
+ * Entry point to the whole catalogue, as the Mac's: what only the website has (the weekly schedule,
+ * the top lists) as wide glass tiles, then the genres and the categories as picture tiles.
+ */
 @Composable
 fun BrowseScreen() {
   val app = LocalApp.current
@@ -231,32 +249,59 @@ fun BrowseScreen() {
     val m = menu
     when {
       m != null -> LazyVerticalGrid(
-          GridCells.Fixed(4),
+          GridCells.Adaptive(273.dp),
           Modifier.fillMaxSize().focusRestorer(),
-          contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 150.dp, bottom = 80.dp),
-          horizontalArrangement = Arrangement.spacedBy(32.dp),
-          verticalArrangement = Arrangement.spacedBy(32.dp),
+          contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
+          horizontalArrangement = Arrangement.spacedBy(20.dp),
+          verticalArrangement = Arrangement.spacedBy(20.dp),
       ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-          Column(verticalArrangement = Arrangement.spacedBy(30.dp)) {
-            Text(loc(S.browse), style = app(56, FontWeight.Bold), color = Theme.text1)
-            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
-              // What only the 30nama website has, through its own API.
-              if (app.api.hasSite) {
-                item { PillButton(loc(S.weeklySchedule), { nav.push(Route.Schedule) }, kind = PillKind.Chip) }
-                item { PillButton(loc(S.topLists), { nav.push(Route.TopLists) }, kind = PillKind.Chip) }
-              }
-              items(m.categories) { c -> PillButton(c.name, { nav.push(Route.Catalog(c.slug, c.name)) }, kind = PillKind.Chip) }
+        // What only the 30nama website has, through its own API.
+        if (app.api.hasSite) {
+          item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(Modifier.padding(bottom = 22.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+              SiteTile(loc(S.weeklySchedule), Icons.calendar, Modifier.weight(1f)) { nav.push(Route.Schedule) }
+              SiteTile(loc(S.topLists), Icons.trophy, Modifier.weight(1f)) { nav.push(Route.TopLists) }
             }
-            Text(loc(S.genres), Modifier.padding(top = 6.dp), style = app(34, FontWeight.Bold), color = Theme.text1)
           }
         }
-        items(m.genres.size) { i -> GenreTile(m.genres[i]) { nav.push(Route.Catalog(m.genres[i].slug, m.genres[i].name)) } }
+        if (m.genres.isNotEmpty()) {
+          item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.genres), style = app(34, FontWeight.Bold), color = Theme.text1) }
+          items(m.genres.size) { i -> GenreTile(m.genres[i]) { nav.push(Route.Catalog(m.genres[i].slug, m.genres[i].name)) } }
+        }
+        if (m.categories.isNotEmpty()) {
+          item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.categories), Modifier.padding(top = 22.dp), style = app(34, FontWeight.Bold), color = Theme.text1) }
+          items(m.categories.size) { i -> GenreTile(m.categories[i]) { nav.push(Route.Catalog(m.categories[i].slug, m.categories[i].name)) } }
+        }
       }
       failed -> ErrorState { reload++ }
       else -> Box(Modifier.fillMaxSize().padding(start = Theme.edge, top = 260.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) { repeat(4) { Skeleton(Modifier.size(416.dp, 234.dp), Theme.tileRadius) } }
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) { repeat(6) { Skeleton(Modifier.size(273.dp, 153.dp), 18.dp) } }
       }
+    }
+  }
+}
+
+/** The Mac's `SiteTile`: a wide glass tile with an icon in the title's colour and a name. */
+@Composable
+private fun SiteTile(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
+  val shape = RoundedCornerShape(18.dp)
+  val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  androidx.tv.material3.Surface(
+      onClick = onClick,
+      modifier = modifier,
+      interactionSource = interaction,
+      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
+      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.12f)),
+      border = androidx.tv.material3.ClickableSurfaceDefaults.border(
+          border = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), shape = shape),
+          focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.6.dp, Color.White.copy(alpha = 0.9f)), shape = shape),
+      ),
+      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+  ) {
+    Row(Modifier.fillMaxWidth().height(99.dp).padding(horizontal = 26.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+      androidx.tv.material3.Icon(icon, null, Modifier.size(32.dp), tint = LocalHue.current ?: Theme.accent)
+      Text(title, style = app(24, FontWeight.Bold), color = Theme.text1, maxLines = 1)
     }
   }
 }
@@ -264,13 +309,14 @@ fun BrowseScreen() {
 @Composable
 private fun GenreTile(genre: MenuEntry, onClick: () -> Unit) {
   val loc = LocalLoc.current
-  CardSurface(onClick, radius = Theme.tileRadius, scale = 1.06f) {
-    Box(Modifier.size(416.dp, 234.dp).clip(RoundedCornerShape(Theme.tileRadius)).background(Theme.surface)) {
-      RemoteImage(genre.full ?: genre.thumb, Modifier.fillMaxSize(), pixelWidth = 500)
-      Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.1f), Color.Black.copy(alpha = 0.88f)))))
-      Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
-        Text(genre.name, style = app(34, FontWeight.Bold), color = Theme.text1)
-        genre.count?.let { Text(Fmt.count(it, loc.lang), style = app(21, FontWeight.Medium), color = Theme.text2) }
+  // The Mac's BrowseTile: a picture under a dark wash, the name and the count over its foot.
+  CardSurface(onClick, radius = 18.dp, scale = 1.03f) {
+    Box(Modifier.fillMaxWidth().height(153.dp).background(Theme.surface2)) {
+      RemoteImage(genre.thumb ?: genre.full, Modifier.fillMaxSize(), pixelWidth = 400)
+      Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.1f), Color.Black.copy(alpha = 0.8f)))))
+      Column(Modifier.align(Alignment.BottomStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(genre.name, style = app(22, FontWeight.Bold), color = Color.White, maxLines = 1)
+        genre.count?.takeIf { it > 0 }?.let { Text("${Fmt.count(it, loc.lang)} ${loc(S.results)}", style = app(16, FontWeight.Medium), color = Color.White.copy(alpha = 0.7f)) }
       }
     }
   }

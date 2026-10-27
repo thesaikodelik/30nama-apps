@@ -134,10 +134,14 @@ fun SearchScreen() {
   val chrome = LocalChrome.current
   LaunchedEffect(Unit) { if (chrome.mayTakeFocus) runCatching { firstKey.requestFocus() } }
 
-  Box(Modifier.fillMaxSize().background(Theme.bg0)) {
-    Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(60.dp)) {
-      Column(Modifier.width(520.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        SearchField(query, { query = it }, field, loc(S.searchPrompt))
+  // The Mac's search page: the field, a glass capsule under the bar, then a wall of posters. The
+  // keyboard stays beside the wall: a TV has none of its own in Persian (TASKS.md).
+  Ambient {
+    Column(Modifier.fillMaxSize().padding(top = 130.dp), verticalArrangement = Arrangement.spacedBy(30.dp)) {
+      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(1040.dp)) { SearchField(query, { query = it }, field, loc(S.searchPrompt)) }
+      }
+      Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
         Keyboard(
             persian = persian,
             first = firstKey,
@@ -153,33 +157,35 @@ fun SearchScreen() {
                 }
               }
             } else null,
+            modifier = Modifier.width(420.dp),
         )
-      }
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        if (query.isBlank() && recents.items.isNotEmpty()) {
-          Text(tv(TV.recentSearches), style = app(26, FontWeight.SemiBold), color = Theme.text2)
-          LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(recents.items) { r -> PillButton(r, { query = r }, kind = PillKind.Chip) }
-            item { PillButton(tv(TV.clear), { recents.clear() }, kind = PillKind.Chip, icon = Icons.close) }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+          if (query.isBlank() && recents.items.isNotEmpty()) {
+            Text(tv(TV.recentSearches), style = app(24, FontWeight.SemiBold), color = Theme.text3)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              items(recents.items) { r -> PillButton(r, { query = r }, kind = PillKind.Chip) }
+              item { PillButton(tv(TV.clear), { recents.clear() }, kind = PillKind.Chip, icon = Icons.close) }
+            }
           }
-        }
-        note?.let { Text(it, style = app(26), color = Theme.text2) }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-          Text(heading, style = app(34, FontWeight.Bold), color = Theme.text1)
-          if (searching) Spinner(Modifier.size(30.dp))
-        }
-        LazyVerticalGrid(
-            GridCells.Fixed(5),
-            Modifier.fillMaxSize().focusRestorer(),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(32.dp),
-            verticalArrangement = Arrangement.spacedBy(44.dp),
-        ) {
-          items(results, key = { it.id }) { post ->
-            PosterCard(post, {
-              if (query.trim().length >= 2) recents.add(query.trim())
-              nav.push(Route.Details(post))
-            }, titled = true)
+          note?.let { Text(it, style = app(25), color = Theme.text2) }
+          Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(heading, style = app(30, FontWeight.Bold), color = Theme.text1)
+            if (searching) Spinner(Modifier.size(30.dp))
+          }
+          // A wall of posters, as the Mac's: each one's name comes up on it in focus.
+          LazyVerticalGrid(
+              GridCells.FixedSize(Theme.posterWidth),
+              Modifier.fillMaxSize().focusRestorer(),
+              contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+              horizontalArrangement = Arrangement.spacedBy(20.dp),
+              verticalArrangement = Arrangement.spacedBy(22.dp),
+          ) {
+            items(results, key = { it.id }) { post ->
+              PosterCard(post, {
+                if (query.trim().length >= 2) recents.add(query.trim())
+                nav.push(Route.Details(post))
+              })
+            }
           }
         }
       }
@@ -201,16 +207,16 @@ private fun SearchField(query: String, set: (String) -> Unit, focus: FocusReques
   if (typing) {
     BackHandler { done() }
     Row(
-        Modifier.fillMaxWidth().height(76.dp).background(Color.White, shape).border(2.dp, Theme.accent, shape).padding(horizontal = 28.dp),
+        Modifier.fillMaxWidth().height(70.dp).glass(shape, lit = true, fill = 0.10f).border(2.dp, Theme.accent, shape).padding(horizontal = 28.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      Icon(Icons.search, null, Modifier.size(30.dp), tint = Theme.focusInk)
+      Icon(Icons.search, null, Modifier.size(28.dp), tint = Theme.text1)
       BasicTextField(
           value = query,
           onValueChange = set,
           modifier = Modifier.weight(1f).focusRequester(field).onFocusChanged { if (!it.hasFocus && typing) typing = false },
-          textStyle = app(27, FontWeight.Medium).copy(color = Theme.focusInk),
+          textStyle = app(25, FontWeight.Medium).copy(color = Theme.text1),
           singleLine = true,
           cursorBrush = SolidColor(Theme.accent),
           keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -223,22 +229,18 @@ private fun SearchField(query: String, set: (String) -> Unit, focus: FocusReques
     val focused by interaction.collectIsFocusedAsState()
     Surface(
         onClick = { typing = true },
-        modifier = Modifier.fillMaxWidth().height(76.dp).focusRequester(focus),
+        modifier = Modifier.fillMaxWidth().height(70.dp).focusRequester(focus),
         interactionSource = interaction,
         shape = ClickableSurfaceDefaults.shape(shape),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
-        border = ClickableSurfaceDefaults.border(border = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Theme.glassEdge))),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1, focusedContentColor = Theme.text1),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
     ) {
-      Row(Modifier.fillMaxSize().padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Icon(Icons.search, null, Modifier.size(30.dp), tint = if (focused) Theme.focusInk else Theme.text2)
+      // The Mac's field: glass, lit in focus.
+      Row(Modifier.fillMaxSize().glass(shape, fill = if (focused) 0.10f else 0.04f).then(if (focused) Modifier.border(2.dp, Color.White.copy(alpha = 0.75f), shape) else Modifier).padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Icon(Icons.search, null, Modifier.size(28.dp), tint = Theme.text2)
         Text(
-            query.ifEmpty { prompt }, style = app(27, if (query.isEmpty()) FontWeight.Normal else FontWeight.Medium),
-            color = when {
-              query.isNotEmpty() -> Color.Unspecified
-              focused -> Theme.focusInk.copy(alpha = 0.5f)
-              else -> Theme.text3
-            },
+            query.ifEmpty { prompt }, style = app(25, FontWeight.Medium),
+            color = if (query.isNotEmpty()) Theme.text1 else Theme.text3,
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
       }
@@ -256,11 +258,11 @@ private const val COLUMNS = 7
  * It is laid out right to left in Persian in every interface language.
  */
 @Composable
-private fun Keyboard(persian: Boolean, first: FocusRequester, type: (String) -> Unit, delete: () -> Unit, clear: () -> Unit, switch: () -> Unit, voice: (() -> Unit)?) {
+private fun Keyboard(persian: Boolean, first: FocusRequester, type: (String) -> Unit, delete: () -> Unit, clear: () -> Unit, switch: () -> Unit, voice: (() -> Unit)?, modifier: Modifier = Modifier) {
   val loc = LocalLoc.current
   val letters = if (persian) PERSIAN + "۱۲۳۴۵۶۷۸۹۰" else LATIN + "1234567890"
   CompositionLocalProvider(LocalLayoutDirection provides if (persian) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-    Column(Modifier.focusRestorer(first), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.focusRestorer(first), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Key(tv(TV.space), Modifier.weight(2f)) { type(" ") }
         if (persian) Key(tv(TV.zwnj), Modifier.weight(3f)) { type("‌") } else Key("'", Modifier.weight(1f)) { type("'") }
@@ -285,15 +287,20 @@ private fun Keyboard(persian: Boolean, first: FocusRequester, type: (String) -> 
 
 @Composable
 private fun Key(text: String?, modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  val shape = RoundedCornerShape(16.dp)
   Surface(
       onClick = onClick,
       onLongClick = onLong,
-      modifier = modifier.height(62.dp),
-      shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
-      colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
+      modifier = modifier.height(60.dp),
+      interactionSource = interaction,
+      shape = ClickableSurfaceDefaults.shape(shape),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
   ) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    // Glass keys, white under focus as every button the remote lands on.
+    Box(Modifier.fillMaxSize().then(if (focused) Modifier else Modifier.glass(shape, fill = 0.06f, veil = 0.35f)), contentAlignment = Alignment.Center) {
       if (icon != null) Icon(icon, null, Modifier.size(28.dp))
       else Text(text.orEmpty(), style = app(if ((text?.length ?: 0) > 1) 22 else 28, FontWeight.SemiBold), maxLines = 1)
     }

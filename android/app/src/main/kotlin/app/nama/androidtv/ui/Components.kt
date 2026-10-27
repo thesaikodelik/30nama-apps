@@ -99,6 +99,7 @@ fun PillButton(
     icon: ImageVector? = null,
     busy: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    trailing: ImageVector? = null,
 ) {
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
@@ -140,6 +141,7 @@ fun PillButton(
         if (busy) Spinner(Modifier.size(26.dp), color = if (white) Theme.focusInk else Color.White)
         else if (icon != null) Icon(icon, null, Modifier.size(if (chip) 24.dp else 28.dp))
         Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
+        if (trailing != null) Icon(trailing, null, Modifier.size(24.dp))
       }
     }
   }
