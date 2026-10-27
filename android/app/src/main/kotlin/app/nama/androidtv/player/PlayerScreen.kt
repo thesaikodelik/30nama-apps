@@ -141,7 +141,13 @@ fun PlayerScreen(request: PlaybackRequest) {
   // Leaving the app (Home, another input) pauses; nothing plays to an empty room.
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   DisposableEffect(lifecycle) {
-    val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP) engine.player.pause() }
+    // Leaving the app pauses the film and drops the sleep timer, which would otherwise stop it out of the blue on coming back.
+    val observer = LifecycleEventObserver { _, e ->
+      if (e == Lifecycle.Event.ON_STOP) {
+        engine.player.pause()
+        engine.chooseSleep(Sleep.Off)
+      }
+    }
     lifecycle.addObserver(observer)
     onDispose { lifecycle.removeObserver(observer) }
   }

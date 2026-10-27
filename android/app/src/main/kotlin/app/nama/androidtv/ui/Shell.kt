@@ -77,13 +77,16 @@ val LocalChrome = compositionLocalOf { Chrome() }
 /** The whole app: the opening title over the phase it is in, toasts, and the player over everything. */
 @Composable
 fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro: Boolean = true) {
+  // The TV's own "animations off" (an accessibility setting) counts as reduced motion too.
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val systemCalm = remember { systemAnimationsOff(context) }
   ScreenUnits {
     CompositionLocalProvider(
         LocalApp provides app,
         LocalNav provides nav,
         LocalLoc provides app.loc,
-        LocalCalm provides app.settings.reduceMotion,
-        LocalLively provides (lively && !app.settings.reduceMotion),
+        LocalCalm provides (app.settings.reduceMotion || systemCalm),
+        LocalLively provides (lively && !app.settings.reduceMotion && !systemCalm),
         LocalLayoutDirection provides if (app.settings.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
       // The opening title runs its course once; after that it only waits, a little, on the network.
@@ -342,3 +345,7 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
     }
   }
 }
+
+/** Animations switched off for the whole TV, in its accessibility or developer settings. */
+fun systemAnimationsOff(context: android.content.Context): Boolean =
+    runCatching { android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)

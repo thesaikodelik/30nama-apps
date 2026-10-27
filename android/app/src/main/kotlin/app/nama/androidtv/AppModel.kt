@@ -125,6 +125,8 @@ class AppModel(
     private set
   /** The home page has arrived at least once since launch. */
   var homeLoaded by mutableStateOf(false)
+  /** Home is last time's page, because 30nama could not be reached. */
+  var homeOffline by mutableStateOf(false)
     private set
   /** The ids of the titles in each of the user's 30nama lists ("watchlist", "favorite", "notify"). */
   var lists by mutableStateOf<Map<String, Set<Int>>>(emptyMap())
@@ -304,11 +306,13 @@ class AppModel(
         }
       }
       homeLoaded = true
+      homeOffline = false
       feed
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      cachedHome() ?: throw e
+      Log.w(TAG, "home: $e; the saved page instead")
+      cachedHome()?.also { homeOffline = true } ?: throw e
     }
   }
 

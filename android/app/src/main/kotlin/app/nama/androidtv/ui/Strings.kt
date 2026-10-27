@@ -27,6 +27,11 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "كم مما تبقى من العنوان يُحفظ مسبقاً على التلفاز، للاتصال البطيء أو غير المستقر.",
   ),
   offline("No internet. Showing what was saved.", "اینترنت وصل نیست. آخرین نسخهٔ ذخیره‌شده نشان داده می‌شود.", "لا يوجد اتصال. يُعرض آخر ما حُفظ."),
+  motionOffBySystem(
+      "Animations are off for the whole TV in its own settings, so the app keeps still whatever this says.",
+      "انیمیشن‌ها در تنظیمات خود تلویزیون خاموش‌اند، پس برنامه هر چه این‌جا باشد بی‌حرکت می‌ماند.",
+      "الرسوم المتحركة متوقفة للتلفاز كله في إعداداته، لذا يبقى التطبيق ثابتاً مهما كان هذا الخيار.",
+  ),
   matchFrameRate("Match frame rate", "هماهنگی نرخ تصویر", "مطابقة معدل الإطارات"),
   matchFrameRateHint(
       "Switch the TV to the film's own frame rate, so motion is smooth. Most TVs go black for a moment when it switches.",
@@ -76,6 +81,7 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   keyLooksWrong("That doesn't look like a key.", "این شبیه کلید نیست.", "هذا لا يبدو مفتاحاً."),
   pasteKey("Paste the key here", "کلید را این‌جا بچسبانید", "الصق المفتاح هنا"),
   clearCaches("Clear saved pictures and video", "پاک کردن تصویرها و ویدئوهای ذخیره‌شده", "مسح الصور والفيديو المحفوظة"),
+  megabytes("MB", "مگابایت", "ميغابايت"),
   cleared("Cleared", "پاک شد", "تم المسح"),
   licenses("Licences", "مجوزها", "التراخيص"),
   sectionApp("App", "برنامه", "التطبيق"),

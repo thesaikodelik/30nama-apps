@@ -113,7 +113,7 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     val imdb = post.imdbID ?: return null
     // The redirect lands on the title's own page; that address is all that is wanted of it.
     val page = withContext(Dispatchers.IO) {
-      attempt { http.newCall(Request.Builder().url(TMDB.publicPage(imdb).toString()).head().header("User-Agent", AGENT).build()).execute().use { URI(it.request.url.toString()) } }
+      guarded(TMDB.publicPage(imdb).toString()) { http.newCall(Request.Builder().url(TMDB.publicPage(imdb).toString()).head().header("User-Agent", AGENT).build()).execute().use { URI(it.request.url.toString()) } }
     } ?: return null
     var info = TMDB.Info()
     for (language in if (lang == Lang.fa) listOf("fa", "en") else listOf("en")) {
@@ -147,7 +147,7 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   suspend fun aparatFile(uid: String): URI? = json(Aparat.videoRequest(uid))?.let(Aparat::fileInVideo)
 
   private suspend fun json(r: HttpRequest): Json? = withContext(Dispatchers.IO) {
-    attempt {
+    guarded(r.url) {
       val b = Request.Builder().url(r.url)
       r.headers.forEach { (k, v) -> b.header(k, v) }
       http.newCall(b.build()).execute().use { if (it.code == 200) Json.parse(it.body!!.bytes()) else null }
@@ -155,7 +155,28 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   }
 
   private suspend fun text(url: String): String? = withContext(Dispatchers.IO) {
-    attempt { http.newCall(Request.Builder().url(url).header("User-Agent", AGENT).build()).execute().use { if (it.code == 200) it.body!!.string() else null } }
+    guarded(url) { http.newCall(Request.Builder().url(url).header("User-Agent", AGENT).build()).execute().use { if (it.code == 200) it.body!!.string() else null } }
+  }
+
+  /** Until when TMDB is not asked: after it failed to answer, a minute, as 30namaTV does. */
+  @Volatile private var tmdbQuietUntil = 0L
+
+  /**
+   * One request. TMDB not answering (a timeout, a reset connection) holds every request to it for a
+   * minute, so a home page of forty titles does not wait out forty timeouts on a filtered line.
+   */
+  private inline fun <T> guarded(url: String, block: () -> T?): T? {
+    val tmdb = url.contains("themoviedb.org")
+    if (tmdb && System.currentTimeMillis() < tmdbQuietUntil) return null
+    return try {
+      block()
+    } catch (e: java.io.IOException) {
+      if (tmdb) tmdbQuietUntil = System.currentTimeMillis() + 60_000
+      null
+    } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
+      null
+    }
   }
 
   companion object {

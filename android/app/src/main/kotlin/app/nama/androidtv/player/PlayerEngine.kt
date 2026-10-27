@@ -611,6 +611,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
         } else Offer(if (skip.isIntro) Offer.Kind.Intro else Offer.Kind.Recap)
       }
       hasNext && creditsAt != null && t >= creditsAt -> {
+        warmNext()
         val counting = app.settings.autoplayNext && sleep != Sleep.EndOfEpisode && unattended < 3 && duration > creditsAt
         Offer(Offer.Kind.Next, if (counting) (((t - creditsAt) / (duration - creditsAt)).toFloat().coerceIn(0f, 1f) * 50).toInt() / 50f else null)
       }
@@ -618,6 +619,18 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       resumedAt != null && System.currentTimeMillis() - startedAt < 10_000 -> Offer(Offer.Kind.StartOver)
       else -> null
     }
+  }
+
+  private var warmed = -1
+
+  /** Once per episode, as its credits begin: the next one's opening onto the disk. */
+  private fun warmNext() {
+    if (warmed == index) return
+    warmed = index
+    val next = items.getOrNull(index + 1) ?: return
+    val url = next.quality(app.settings.preferAdaptive)?.url(mix)?.toString() ?: return
+    if (!url.contains(".m3u8")) return
+    readAhead?.warm(scope, url, quality?.height?.takeIf { it > 0 })
   }
 
   /** Acts on the pill: skips the stretch, starts the next episode, or goes back to the start. */

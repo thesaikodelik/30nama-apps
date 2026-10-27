@@ -59,6 +59,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.nama.androidtv.BuildConfig
 import app.nama.androidtv.Updater
+import app.nama.androidtv.player.Disk
 import app.nama.androidtv.data.KeyCheck
 import app.nama.androidtv.data.KeyServer
 import app.nama.androidtv.data.KeyState
@@ -126,7 +127,8 @@ fun SettingsScreen() {
             val user = app.user
             Fact(loc(S.account), user?.name ?: loc(S.guestAccount))
             user?.type?.let { Fact(loc(S.accountType), loc.accountType(it)) }
-            user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it) }
+            // Under a week left, in red, as a nudge to renew.
+            user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it, if ((user.daysLeft(java.time.Instant.now()) ?: 99) < 7) Theme.accent else Theme.text3) }
             if (user != null) {
               Choice(loc(S.signOut), null, Help(loc(S.signOutBody)), { help = it }, first) {
                 app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
@@ -177,13 +179,23 @@ fun SettingsScreen() {
             Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }, first) {
               app.update { it.copy(lang = next(it.lang, Lang.entries.toList())) }
             }
-            Toggle(loc(S.reduceMotion), s.reduceMotion, tv(TV.motionHint), { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
             val context = LocalContext.current
+            val systemCalm = remember { systemAnimationsOff(context) }
+            val motionHint = tv(TV.motionHint) + if (systemCalm) "\n\n" + tv(TV.motionOffBySystem) else ""
+            Toggle(loc(S.reduceMotion), s.reduceMotion, motionHint, { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
             val scope = rememberCoroutineScope()
             val cleared = tv(TV.cleared)
-            Choice(tv(TV.clearCaches), null, Help(tv(TV.clearCaches)), { help = it }) {
+            // What the pictures, the episode stills and the read-ahead video take on the TV.
+            var used by remember { mutableStateOf<Long?>(null) }
+            LaunchedEffect(Unit) { used = withContext(Dispatchers.IO) { cacheBytes(context) } }
+            Choice(tv(TV.clearCaches), used?.let { "${loc.num((it / (1L shl 20)).toInt())} ${tv(TV.megabytes)}" }, Help(tv(TV.clearCaches)), { help = it }) {
               scope.launch {
-                withContext(Dispatchers.IO) { listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() } }
+                used = withContext(Dispatchers.IO) {
+                  listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() }
+                  // The video cache stays open while the app runs: emptied entry by entry, not deleted.
+                  Disk.cache(context)?.let { c -> c.keys.toList().forEach { k -> runCatching { c.removeResource(k) } } }
+                  cacheBytes(context)
+                }
                 app.showToast(cleared)
               }
             }
@@ -198,7 +210,7 @@ fun SettingsScreen() {
             val updater = app.updater
             val (label, value) = updateRow(updater.state, updater.current)
             val installing = updater.state is Updater.State.Installing || updater.state is Updater.State.NeedsPermission
-            Choice(label, value, Help(tv(if (installing) TV.installHint else TV.updateHint)), { help = it }, first) {
+            Choice(label, value.ifEmpty { null }, Help(tv(if (installing) TV.installHint else TV.updateHint)), { help = it }, first) {
               when (val st = updater.state) {
                 is Updater.State.Available -> updater.install(st.release)
                 is Updater.State.Failed -> updater.showFailure = true
@@ -271,10 +283,10 @@ private fun Toggle(label: String, on: Boolean, hint: String, show: (Help) -> Uni
 }
 
 @Composable
-private fun Fact(label: String, value: String) {
+private fun Fact(label: String, value: String, color: Color = Theme.text3) {
   Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 34.dp), verticalAlignment = Alignment.CenterVertically) {
     Text(label, Modifier.weight(1f), style = app(28, FontWeight.Medium), color = Theme.text2)
-    Text(value, style = app(26), color = Theme.text3, maxLines = 1)
+    Text(value, style = app(26), color = color, maxLines = 1)
   }
 }
 
@@ -473,3 +485,7 @@ h1{font-size:24px}input{width:100%;box-sizing:border-box;height:56px;border-radi
 button{margin-top:16px;width:100%;height:56px;border:0;border-radius:28px;background:#f0454a;color:#fff;font-size:18px;font-weight:600}.err{color:#f0454a}.done{color:#62d39b;font-size:20px}</style></head>
 <body><main><h1><span style="color:#f0454a">30</span>nama · ${esc(title)}</h1>$body</main></body></html>"""
 }
+
+/** Bytes in the app's caches: pictures, episode stills and read-ahead video. */
+private fun cacheBytes(context: android.content.Context): Long =
+    listOf("images", "frames", "video").sumOf { d -> context.cacheDir.resolve(d).walkBottomUp().filter { it.isFile }.sumOf { it.length() } }

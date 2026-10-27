@@ -39,7 +39,8 @@ import app.nama.core.S
 fun updateRow(state: Updater.State, current: String): Pair<String, String> {
   val loc = LocalLoc.current
   return when (state) {
-    Updater.State.Idle -> loc(S.checkForUpdate) to current
+    // The version is the row above; nothing to add until there is news.
+    Updater.State.Idle -> loc(S.checkForUpdate) to ""
     Updater.State.Checking -> loc(S.checkForUpdate) to "…"
     Updater.State.UpToDate -> loc(S.checkForUpdate) to loc(S.upToDate)
     is Updater.State.Available -> "${loc(S.newVersion)} ${state.release.version}" to loc(S.installUpdate)

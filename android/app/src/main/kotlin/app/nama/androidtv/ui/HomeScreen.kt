@@ -123,6 +123,14 @@ fun HomeScreen() {
     app.mirrorHome(reached)
     forYou = app.ratings.recommend(loaded.sections.flatMap { it.posts }, limit = 14)
   }
+  // Without a connection home stays as it was saved, says so, and tries again every half minute.
+  val offlineNote = tv(TV.offline)
+  LaunchedEffect(app.homeOffline) { if (app.homeOffline) app.showToast(offlineNote) }
+  LaunchedEffect(app.homeOffline, reload) {
+    if (!app.homeOffline) return@LaunchedEffect
+    delay(30_000)
+    reload++
+  }
   // Focus to Play once there is a page, unless a page opened over home has the screen.
   LaunchedEffect(feed != null) { if (feed != null && browsing == null && chrome.mayTakeFocus) runCatching { play.requestFocus() } }
   // Back from the player, or a title taken off the row: ask for "continue watching" again.

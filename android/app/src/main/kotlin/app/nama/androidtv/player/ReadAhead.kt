@@ -20,6 +20,10 @@ import androidx.media3.datasource.cache.CacheWriter
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsManifest
+import androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist
+import androidx.media3.exoplayer.hls.playlist.HlsMultivariantPlaylist
+import androidx.media3.exoplayer.hls.playlist.HlsPlaylist
+import androidx.media3.exoplayer.hls.playlist.HlsPlaylistParser
 import app.nama.androidtv.AppModel
 import java.io.File
 import java.util.TreeSet
@@ -178,6 +182,43 @@ class ReadAhead(private val cache: Cache, private val upstream: DataSource.Facto
         if (failures >= 3) return@launch
         if (!ok) delay(2_000)
       }
+    }
+  }
+
+  /**
+   * The first [seconds] of another file onto the disk: the next episode, as the credits of this one
+   * roll, so that autoplay starts at once. A master playlist is narrowed to the rendition [height]
+   * tall, or the nearest. One segment at a time, below the playing film, and given up on any error.
+   */
+  fun warm(scope: CoroutineScope, url: String, height: Int?, seconds: Int = 30) {
+    scope.launch(Dispatchers.IO) {
+      runCatching {
+        val source = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstream)
+            .setCacheKeyFactory { Disk.key(it.uri.toString()) }
+            .setUpstreamPriorityTaskManager(priority)
+            .setUpstreamPriority(C.PRIORITY_DOWNLOAD)
+            .createDataSource()
+        fun playlist(u: String): HlsPlaylist {
+          // The stream opens the source itself, and closes it.
+          return androidx.media3.datasource.DataSourceInputStream(upstream.createDataSource(), DataSpec(Uri.parse(u))).use {
+            HlsPlaylistParser().parse(Uri.parse(u), it)
+          }
+        }
+        var media = playlist(url)
+        if (media is HlsMultivariantPlaylist) {
+          val variant = media.variants.minByOrNull { v -> height?.let { kotlin.math.abs(v.format.height - it) } ?: -v.format.bitrate } ?: return@launch
+          media = playlist(variant.url.toString())
+        }
+        val list = media as? HlsMediaPlaylist ?: return@launch
+        val base = Uri.parse(list.baseUri)
+        for (s in list.segments) {
+          if (!isActive || s.relativeStartTimeUs >= seconds * 1_000_000L) break
+          val spec = DataSpec.Builder().setUri(base.resolve(s.url)).setPosition(s.byteRangeOffset).setLength(s.byteRangeLength).build()
+          CacheWriter(source, spec, null, null).cache()
+        }
+      }.onFailure { Log.i(AppModel.TAG, "warm next: $it") }
     }
   }
 
