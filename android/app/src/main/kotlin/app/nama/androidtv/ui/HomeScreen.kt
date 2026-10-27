@@ -161,8 +161,11 @@ fun HomeScreen() {
     }
   }
 
+  // Home is lit in the featured title's colour, from its scene picture, as on the Mac.
+  val light = rememberSceneTint(featured)
+  CompositionLocalProvider(LocalHue provides light) {
   Box(Modifier.fillMaxSize()) {
-    Stage(featured)
+    Stage(featured, tint = light)
     when {
       feed != null -> {
         Rows(
@@ -183,6 +186,7 @@ fun HomeScreen() {
       failed -> ErrorState { reload++ }
       else -> HomeSkeleton()
     }
+  }
   }
 }
 

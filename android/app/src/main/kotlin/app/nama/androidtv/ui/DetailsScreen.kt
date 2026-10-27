@@ -181,9 +181,11 @@ fun DetailsScreen(route: Route.Details) {
   LaunchedEffect(app.watchVersion) { if (stream != null) loadStream(quietly = true) }
 
   // The page is lit in the colour of the title it is about, as on the Mac.
-  CompositionLocalProvider(LocalHue provides post?.tint()) {
+  // In the colour of its scene picture once that is worked out (SceneTint), the poster's until then.
+  val hue = rememberSceneTint(post)
+  CompositionLocalProvider(LocalHue provides hue) {
   Box(Modifier.fillMaxSize()) {
-    Stage(post, dim = if (inHeader) 0.3f else 0.62f, settleMs = 0)
+    Stage(post, dim = 0.3f, settleMs = 0, tint = hue)
     when {
       post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(64.dp)) {
         Header(
