@@ -1,5 +1,8 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.foundation.layout.wrapContentSize
+
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -93,8 +96,8 @@ fun ProfileScreen() {
     Stage(favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post, dim = 0.5f, glow = false)
     LazyColumn(
         Modifier.fillMaxSize().focusRestorer(),
-        contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 170.dp, bottom = 80.dp),
-        verticalArrangement = Arrangement.spacedBy(48.dp),
+        contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
       item { Header(watchlist, favorites, sizes) }
       if (!ratings.isEmpty) item { Insights() }
@@ -104,8 +107,8 @@ fun ProfileScreen() {
       if (ratings.isEmpty) {
         item {
           Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(loc(S.noRatingsYet), style = app(34, FontWeight.Bold), color = Theme.text1)
-            Text(loc(S.rateHint), style = app(26), color = Theme.text2)
+            Text(loc(S.noRatingsYet), style = app(26, FontWeight.Bold), color = Theme.text1)
+            Text(loc(S.rateHint), style = app(19), color = Theme.text2)
           }
         }
         if (starters.isNotEmpty()) item { Shelf(loc(S.startWithThese), starters) }
@@ -113,68 +116,125 @@ fun ProfileScreen() {
         item { Shelf(loc(S.yourRating), ratings.newestFirst.mapNotNull { it.post }, stars = ratings.newestFirst.associate { it.postID to it.stars }) }
       }
       notes?.takeIf { it.items.isNotEmpty() }?.let { page -> item { Notifications(page) { notes = it } } }
-      if (!app.isLoggedIn) item { PillButton(loc(S.signIn), { app.requestSignIn() }, kind = PillKind.Primary) }
     }
   }
 }
 
+/**
+ * The Mac's profile card (Mac/ProfileView.swift): one pane of glass with the picture, the name and
+ * its plan, a line from a film said to the viewer; across from them the counts as figures, and the
+ * buttons under them.
+ */
 @Composable
 private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val user = app.user
-  Row(horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
+  val shape = RoundedCornerShape(36.dp)
+  Row(
+      Modifier.fillMaxWidth().glass(shape, fill = 0.04f).padding(horizontal = 36.dp, vertical = 31.dp),
+      horizontalArrangement = Arrangement.spacedBy(29.dp), verticalAlignment = Alignment.CenterVertically,
+  ) {
     Box(
-        Modifier.size(180.dp).clip(CircleShape).background(accentGradient, CircleShape).border(3.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.1f))), CircleShape),
+        Modifier.size(156.dp).colouredGlow(Theme.accent, 0.4f, 34.dp, CircleShape, y = 10.dp).clip(CircleShape).background(accentGradient, CircleShape)
+            .border(2.6.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.1f))), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
       val words = user?.name?.split(" ")?.filter { it.isNotEmpty() }.orEmpty()
       val initials = listOfNotNull(words.firstOrNull()?.firstOrNull(), if (words.size > 1) words.last().firstOrNull() else null).joinToString("").uppercase()
       if (initials.isNotEmpty()) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(initials, style = app(64, FontWeight.ExtraBold), color = Color.White) }
-      } else Icon(Icons.person, null, Modifier.size(90.dp), tint = Color.White)
-      user?.avatar?.let { RemoteImage(it, Modifier.fillMaxSize(), pixelWidth = 240) }
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(initials, style = app(55, FontWeight.ExtraBold), color = Color.White) }
+      } else Icon(Icons.person, null, Modifier.size(60.dp), tint = Color.White)
+      user?.avatar?.let { RemoteImage(it, Modifier.fillMaxSize(), pixelWidth = 200) }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-      Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(user?.name ?: loc(S.guestAccount), style = app(60, FontWeight.ExtraBold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(user?.name ?: loc(S.guestAccount), style = app(44, FontWeight.ExtraBold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         user?.type?.let {
           Text(
               loc.accountType(it),
-              Modifier.background(Brush.verticalGradient(listOf(goldLight, gold)), RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 4.dp),
-              style = app(22, FontWeight.Bold), color = Theme.focusInk,
+              Modifier.background(Brush.verticalGradient(listOf(goldLight, gold)), RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 3.dp),
+              style = app(17, FontWeight.Bold), color = Theme.focusInk,
           )
         }
       }
-      Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        val r = app.ratings
-        if (!r.isEmpty) {
-          Stat(loc.num(r.count), loc(S.ratedCount))
-          r.average?.let { Stat(loc.num(Fmt.score(it)), loc(S.averageRating), star = true) }
-        }
-        if (watchlist.isNotEmpty()) Stat(loc.num(sizes["watchlist"] ?: watchlist.size), loc(S.watchlist))
-        if (favorites.isNotEmpty()) Stat(loc.num(sizes["favorite"] ?: favorites.size), loc(S.favorites))
+      // A guest otherwise has no way in from here but the settings.
+      if (user == null) Text(loc(S.signInHint), Modifier.widthIn(max = 600.dp), style = app(19), color = Theme.text2)
+      Box(Modifier.padding(top = 12.dp)) { Quote(user?.name) }
+    }
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(23.dp)) {
+      Figures(watchlist, favorites, sizes)
+      Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+        if (user == null) PillButton(loc(S.signIn), { app.requestSignIn() }, kind = PillKind.Primary, icon = Icons.person)
+        else PillButton(loc(S.signOut), {
+          app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
+        }, icon = Icons.signOut)
       }
-      // For the user's own eyes, and not the point of the page: kept small and quiet.
-      user?.let { loc.subscriptionLine(it) }?.let { Text(it, style = app(21), color = Theme.text3) }
     }
   }
 }
 
+/** The counts as figures with a word under each: the lists, what was rated and how, the plan's days. */
 @Composable
-private fun Stat(value: String, label: String, star: Boolean = false) {
-  val shape = RoundedCornerShape(Theme.tileRadius)
-  Column(
-      Modifier.widthIn(min = 150.dp).heightIn(min = 96.dp).background(Theme.glass, shape).border(1.dp, Theme.glassEdge, shape).padding(horizontal = 26.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(2.dp),
-  ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-      if (star) Icon(Icons.star, null, Modifier.size(24.dp), tint = gold)
-      Text(value, style = app(36, FontWeight.ExtraBold), color = Theme.text1)
+private fun Figures(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  val r = app.ratings
+  Row(horizontalArrangement = Arrangement.spacedBy(36.dp), verticalAlignment = Alignment.Top) {
+    @Composable fun figure(value: String, label: String, star: Boolean = false) {
+      Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (star) Icon(Icons.star, null, Modifier.size(17.dp), tint = gold)
+          Text(value, style = app(34, FontWeight.ExtraBold), color = Theme.text1)
+        }
+        Text(label, style = app(16, FontWeight.Medium), color = Theme.text3, maxLines = 1)
+      }
     }
-    Text(label, style = app(20, FontWeight.Medium), color = Theme.text3)
+    if (watchlist.isNotEmpty()) figure(loc.num(sizes["watchlist"] ?: watchlist.size), loc(S.watchlist))
+    if (favorites.isNotEmpty()) figure(loc.num(sizes["favorite"] ?: favorites.size), loc(S.favorites))
+    if (!r.isEmpty) {
+      figure(loc.num(r.count), loc(S.ratedCount))
+      r.average?.let { figure(loc.num(Fmt.score(it)), loc(S.averageRating), star = true) }
+    }
+    app.user?.daysLeft(java.time.Instant.now())?.let { figure(loc.num(it), loc(S.subscriptionDays)) }
   }
 }
+
+/**
+ * A line from a film, in the film's own English, said to the viewer by first name where a line has
+ * one, and under it the film, its year and its director: the Mac's greeting. One is picked each
+ * time the app opens. Written left to right inside a Persian page, kept to the name's edge.
+ */
+@Composable
+private fun Quote(name: String?) {
+  val hue = LocalHue.current ?: Theme.accent
+  val first = name?.split(" ")?.firstOrNull()
+  val line = remember(first) { picked?.takeIf { it.first == first }?.second ?: app.nama.core.MovieLines.pick(first).also { picked = first to it } }
+  val serif = androidx.compose.ui.text.font.FontFamily.Serif
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    Column(Modifier.widthIn(max = 806.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Box {
+        // Hung at the line's start without taking room of its own.
+        Text("\u201C", Modifier.size(0.dp).wrapContentSize(Alignment.TopStart, unbounded = true).offset(x = (-3).dp, y = (-16).dp), style = androidx.compose.ui.text.TextStyle(fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = app(65).fontSize), color = hue.copy(alpha = 0.75f))
+        Text(
+            line.text, Modifier.padding(start = 34.dp),
+            style = androidx.compose.ui.text.TextStyle(fontFamily = serif, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = app(25).fontSize, lineHeight = app(25).fontSize * 1.3f),
+            color = Theme.text1.copy(alpha = 0.92f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+      }
+      Row(Modifier.padding(start = 34.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(21.dp, 2.6.dp).background(hue, RoundedCornerShape(50)))
+        Text(
+            "${line.film.uppercase()} · ${line.year} · ${line.directors.joinToString(", ")}",
+            style = app(14, FontWeight.SemiBold).copy(letterSpacing = androidx.compose.ui.unit.TextUnit(1f, androidx.compose.ui.unit.TextUnitType.Sp)), color = Theme.text3, maxLines = 1,
+        )
+      }
+    }
+  }
+}
+
+/** The line of this opening of the app, and the first name it was picked for. */
+private var picked: Pair<String?, app.nama.core.MovieLine>? = null
 
 /** What the ratings add up to: the genres that do best, and how generous the user is with stars. */
 @Composable
@@ -218,7 +278,7 @@ private fun Insights() {
 @Composable
 private fun Panel(title: String, modifier: Modifier, content: @Composable () -> Unit) {
   val shape = RoundedCornerShape(Theme.tileRadius + 6.dp)
-  Column(modifier.height(300.dp).background(Theme.glass, shape).border(1.dp, Theme.glassEdge, shape).padding(30.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+  Column(modifier.height(300.dp).glass(shape, fill = 0.04f).padding(30.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
     Text(title, style = app(24, FontWeight.SemiBold), color = Theme.text3)
     content()
   }
@@ -229,8 +289,8 @@ private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = n
   val nav = LocalNav.current
   val loc = LocalLoc.current
   Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-    Text(title, style = app(32, FontWeight.Bold), color = Theme.text1)
-    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(24.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    Text(title, style = app(30, FontWeight.Bold), color = Theme.text1)
+    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(21.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
       items(posts, key = { it.id }) { post ->
         Box {
           PosterCard(post, { nav.push(Route.Details(post)) })

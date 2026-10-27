@@ -141,7 +141,7 @@ class Shots {
       val mac = File(design, if (lang == "ar") "fa" else lang).listFiles { f -> f.extension == "jpg" || f.extension == "png" } ?: continue
       for (ref in mac) {
         val name = ref.nameWithoutExtension
-        val shot = listOf("guest-$name", name.removePrefix("guest-"), name).map { File(out, "$lang/$it.png") }.firstOrNull { it.exists() } ?: continue
+        val shot = listOf(name, "guest-$name", name.removePrefix("guest-")).map { File(out, "$lang/$it.png") }.firstOrNull { it.exists() } ?: continue
         val left = android.graphics.BitmapFactory.decodeFile(ref.path) ?: continue
         val right = android.graphics.BitmapFactory.decodeFile(shot.path) ?: continue
         val w = 1920
