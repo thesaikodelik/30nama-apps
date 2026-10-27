@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,15 +22,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +52,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -58,17 +63,18 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.nama.androidtv.attempt
-import app.nama.core.Lang
 import app.nama.core.Post
 import app.nama.core.PostPage
 import app.nama.core.S
 import kotlinx.coroutines.delay
 
 /**
- * Search. Many TVs' own keyboards have no Persian, so the app has its own beside the field, driven
- * by the remote (with an English layout too, and the system's keyboard one press away on the
- * field). Results fill the grid as the typing pauses. Recent searches come back when the field is
- * empty, saved only once one of their results was opened: most people type and go down to the
+ * Search, as the Apple TV's: the field, one line of letters under it, and the results under that,
+ * all on one page that scrolls, so going down to the results takes the keyboard up out of the way.
+ * Many TVs' own keyboards have no Persian, so the line is the app's own: English first, as most
+ * titles are searched by their English names, Persian a press away (and the system's keyboard on
+ * the field). Results fill the wall as the typing pauses. Recent searches come back when the field
+ * is empty, saved only once one of their results was opened: most people type and go down to the
  * results rather than press "search". Learnt from 30namaTV.
  */
 @Composable
@@ -82,10 +88,12 @@ fun SearchScreen() {
   var heading by remember { mutableStateOf("") }
   var note by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
-  var persian by rememberSaveable { mutableStateOf(loc.lang != Lang.en) }
+  var persian by rememberSaveable { mutableStateOf(false) }
+  var digits by rememberSaveable { mutableStateOf(false) }
   val recents = remember { Recents(app) }
   val field = remember { FocusRequester() }
   val firstKey = remember { FocusRequester() }
+  val grid = rememberLazyGridState()
 
   val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
     if (r.resultCode == Activity.RESULT_OK) r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { query = it }
@@ -93,7 +101,8 @@ fun SearchScreen() {
   val canSpeak = remember { Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(context.packageManager) != null }
 
   LaunchedEffect(query) {
-    val text = query.trim()
+    // The server finds nothing for two spaces running, which a remote types easily.
+    val text = query.trim().replace(Regex("\\s+"), " ")
     if (text.length < 2) {
       // With nothing to search for yet, what is popular instead of an empty screen.
       val feed = attempt { app.home() }
@@ -132,177 +141,242 @@ fun SearchScreen() {
     }
   }
   val chrome = LocalChrome.current
-  LaunchedEffect(Unit) { if (chrome.mayTakeFocus) runCatching { firstKey.requestFocus() } }
+  // The keyboard is a lazy grid's first item, laid out a frame or two after this starts.
+  LaunchedEffect(Unit) {
+    repeat(10) {
+      if (!chrome.mayTakeFocus || runCatching { firstKey.requestFocus() }.isSuccess) return@LaunchedEffect
+      delay(50)
+    }
+  }
 
-  // The Mac's search page: the field, a glass capsule under the bar, then a wall of posters. The
-  // keyboard stays beside the wall: a TV has none of its own in Persian (TASKS.md).
+  // As the Apple TV's: down from the keyboard, it goes up out of sight whole, the bar with it; back
+  // on the keyboard, the page returns to its top. Not halfway, the field caught under the bar.
+  var onKeyboard by remember { mutableStateOf(false) }
+  var onPage by remember { mutableStateOf(false) }
+  // Past the grid's top padding as well (130, less the 26 between items), so no strip of the
+  // keyboard is left at the top; what follows keeps a margin of its own from the screen's edge.
+  val past = with(LocalDensity.current) { 104.dp.roundToPx() }
+  LaunchedEffect(onKeyboard, onPage) {
+    when {
+      onKeyboard -> grid.animateScrollToItem(0)
+      onPage && grid.firstVisibleItemIndex == 0 && grid.layoutInfo.totalItemsCount > 1 -> grid.animateScrollToItem(1, past)
+    }
+  }
+  val atTop by remember { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
+  LaunchedEffect(atTop) { chrome.pageAtTop = atTop }
+  DisposableEffect(Unit) { onDispose { chrome.pageAtTop = true } }
+
+  // The Mac's search page (the field a dark capsule under the bar, then a wall of posters) with
+  // the Apple TV's keyboard, a line of letters between the two. One grid holds it all.
   Ambient {
-    Column(Modifier.fillMaxSize().padding(top = 130.dp), verticalArrangement = Arrangement.spacedBy(30.dp)) {
-      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(Modifier.width(1040.dp)) { SearchField(query, { query = it }, field, loc(S.searchPrompt)) }
-      }
-      Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-        Keyboard(
-            persian = persian,
-            first = firstKey,
-            type = { query += it },
-            delete = { query = query.dropLast(1) },
-            clear = { query = "" },
-            switch = { persian = !persian },
-            voice = if (canSpeak) {
-              {
-                runCatching {
-                  voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                      .putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (loc.lang == Lang.en) "en-US" else "fa-IR"))
+    LazyVerticalGrid(
+        GridCells.FixedSize(Theme.posterWidth),
+        Modifier.fillMaxSize().focusRestorer().onFocusChanged { onPage = it.hasFocus },
+        state = grid,
+        contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(26.dp),
+    ) {
+      item(span = { GridItemSpan(maxLineSpan) }, key = "keyboard") {
+        Column(
+            Modifier.fillMaxWidth().onFocusChanged { onKeyboard = it.hasFocus },
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          Box(Modifier.width(840.dp)) { SearchField(query, { query = it }, field, loc(S.searchPrompt), searching) }
+          Keyboard(
+              persian = persian,
+              digits = digits,
+              first = firstKey,
+              type = { query += it },
+              delete = { query = query.dropLast(1) },
+              clear = { query = "" },
+              switchLanguage = { persian = !persian; digits = false },
+              switchDigits = { digits = !digits },
+              voice = if (canSpeak) {
+                {
+                  runCatching {
+                    voice.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (persian) "fa-IR" else "en-US"))
+                  }
                 }
-              }
-            } else null,
-            modifier = Modifier.width(420.dp),
-        )
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+              } else null,
+          )
+        }
+      }
+      item(span = { GridItemSpan(maxLineSpan) }, key = "heading") {
+        Column(Modifier.fillMaxWidth().padding(top = 30.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
           if (query.isBlank() && recents.items.isNotEmpty()) {
-            Text(tv(TV.recentSearches), style = app(24, FontWeight.SemiBold), color = Theme.text3)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Centred under the keyboard, as the Mac's chips sit under its field.
+            Text(tv(TV.recentSearches), Modifier.align(Alignment.CenterHorizontally), style = app(24, FontWeight.SemiBold), color = Theme.text3)
+            LazyRow(Modifier.align(Alignment.CenterHorizontally).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
               items(recents.items) { r -> PillButton(r, { query = r }, kind = PillKind.Chip) }
               item { PillButton(tv(TV.clear), { recents.clear() }, kind = PillKind.Chip, icon = Icons.close) }
             }
           }
           note?.let { Text(it, style = app(25), color = Theme.text2) }
-          Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(heading, style = app(30, FontWeight.Bold), color = Theme.text1)
-            if (searching) Spinner(Modifier.size(30.dp))
-          }
-          // A wall of posters, as the Mac's: each one's name comes up on it in focus.
-          LazyVerticalGrid(
-              GridCells.FixedSize(Theme.posterWidth),
-              Modifier.fillMaxSize().focusRestorer(),
-              contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
-              horizontalArrangement = Arrangement.spacedBy(20.dp),
-              verticalArrangement = Arrangement.spacedBy(22.dp),
-          ) {
-            items(results, key = { it.id }) { post ->
-              PosterCard(post, {
-                if (query.trim().length >= 2) recents.add(query.trim())
-                nav.push(Route.Details(post))
-              })
-            }
-          }
+          Text(heading, style = app(30, FontWeight.Bold), color = Theme.text1)
         }
+      }
+      // A wall of posters, as the Mac's: each one's name comes up on it in focus.
+      items(results, key = { it.id }) { post ->
+        PosterCard(post, {
+          val text = query.trim().replace(Regex("\\s+"), " ")
+          if (text.length >= 2) recents.add(text)
+          nav.push(Route.Details(post))
+        })
       }
     }
   }
 }
 
+/**
+ * The Mac's field: a capsule, left to right in every language (titles are searched by their
+ * English names), the magnifier at the start or a spinner while searching, and a round clear button
+ * at the end once there is text.
+ */
 @Composable
-private fun SearchField(query: String, set: (String) -> Unit, focus: FocusRequester, prompt: String) {
+private fun SearchField(query: String, set: (String) -> Unit, focus: FocusRequester, prompt: String, searching: Boolean) {
   val shape = RoundedCornerShape(50)
   // A button until pressed: the system keyboard opens from here (with its own languages and its
   // dictation), but only when asked, so moving up past the field to the tabs does not throw it up.
   var typing by remember { mutableStateOf(false) }
-  val field = remember { FocusRequester() }
+  var focused by remember { mutableStateOf(false) }
+  val input = remember { FocusRequester() }
   val done = {
     typing = false
     runCatching { focus.requestFocus() }
   }
-  if (typing) {
-    BackHandler { done() }
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    // Not glass: the Mac's field is a flat dark capsule, white 0.07 on the page with a faint hairline
+    // (docs/design/mac tab-search). In focus, where the Mac shows its cursor, a little lighter with
+    // a soft white edge, as a TV's focus must be seen from the sofa.
+    val active = focused || typing
     Row(
-        Modifier.fillMaxWidth().height(70.dp).glass(shape, lit = true, fill = 0.10f).border(2.dp, Theme.accent, shape).padding(horizontal = 28.dp),
+        Modifier.fillMaxWidth().height(70.dp).onFocusChanged { focused = it.hasFocus }
+            .background(Color.White.copy(alpha = if (active) 0.12f else 0.07f), shape)
+            .border(if (active) 2.dp else 1.dp, Color.White.copy(alpha = if (active) 0.55f else 0.08f), shape)
+            .padding(start = 28.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      Icon(Icons.search, null, Modifier.size(28.dp), tint = Theme.text1)
-      BasicTextField(
-          value = query,
-          onValueChange = set,
-          modifier = Modifier.weight(1f).focusRequester(field).onFocusChanged { if (!it.hasFocus && typing) typing = false },
-          textStyle = app(25, FontWeight.Medium).copy(color = Theme.text1),
-          singleLine = true,
-          cursorBrush = SolidColor(Theme.accent),
-          keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-          keyboardActions = KeyboardActions(onSearch = { done() }),
-      )
-    }
-    LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
-  } else {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    Surface(
-        onClick = { typing = true },
-        modifier = Modifier.fillMaxWidth().height(70.dp).focusRequester(focus),
-        interactionSource = interaction,
-        shape = ClickableSurfaceDefaults.shape(shape),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1, focusedContentColor = Theme.text1),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-    ) {
-      // The Mac's field: glass, lit in focus.
-      Row(Modifier.fillMaxSize().glass(shape, fill = if (focused) 0.10f else 0.04f).then(if (focused) Modifier.border(2.dp, Color.White.copy(alpha = 0.75f), shape) else Modifier).padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Icon(Icons.search, null, Modifier.size(28.dp), tint = Theme.text2)
-        Text(
-            query.ifEmpty { prompt }, style = app(25, FontWeight.Medium),
-            color = if (query.isNotEmpty()) Theme.text1 else Theme.text3,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
+      Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+        if (searching) Spinner(Modifier.size(26.dp)) else Icon(Icons.search, null, Modifier.size(28.dp), tint = Theme.text3)
       }
+      if (typing) {
+        BackHandler { done() }
+        BasicTextField(
+            value = query,
+            onValueChange = set,
+            modifier = Modifier.weight(1f).focusRequester(input).onFocusChanged { if (!it.hasFocus && typing) typing = false },
+            textStyle = app(25, FontWeight.Medium).copy(color = Theme.text1),
+            singleLine = true,
+            cursorBrush = SolidColor(Color.White),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { done() }),
+        )
+        LaunchedEffect(Unit) { runCatching { input.requestFocus() } }
+      } else {
+        Surface(
+            onClick = { typing = true },
+            modifier = Modifier.weight(1f).fillMaxSize().focusRequester(focus),
+            colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1, focusedContentColor = Theme.text1),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        ) {
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+            Text(
+                query.ifEmpty { prompt }, style = app(25, FontWeight.Medium),
+                color = if (query.isNotEmpty()) Theme.text1 else Theme.text3,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+          }
+        }
+      }
+      if (query.isNotEmpty()) RoundKey(Icons.close, 46.dp) { set(""); runCatching { focus.requestFocus() } }
     }
   }
 }
 
 private const val PERSIAN = "ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیآءئؤ"
 private const val LATIN = "abcdefghijklmnopqrstuvwxyz"
-private const val COLUMNS = 7
+// Digits stay Latin in Persian too: 30nama writes the numbers in its titles so ("1917", "2046").
+private const val DIGITS = "1234567890-:'&.!?"
 
 /**
- * The app's own keyboard: the letters in alphabetical order (the remote reaches any one fastest
- * that way, unlike a typewriter's), digits, a space, a half space (the Persian ZWNJ) and delete.
- * It is laid out right to left in Persian in every interface language.
+ * The Apple TV's keyboard: every letter on one line, in alphabetical order (the remote reaches any
+ * one fastest that way, unlike a typewriter's), then space and delete at its end (held, it clears). Under it, smaller: digits, the other language, a half space (the Persian ZWNJ), the
+ * microphone and clear. English first; Persian is laid out right to left in every interface language.
  */
 @Composable
-private fun Keyboard(persian: Boolean, first: FocusRequester, type: (String) -> Unit, delete: () -> Unit, clear: () -> Unit, switch: () -> Unit, voice: (() -> Unit)?, modifier: Modifier = Modifier) {
-  val loc = LocalLoc.current
-  val letters = if (persian) PERSIAN + "۱۲۳۴۵۶۷۸۹۰" else LATIN + "1234567890"
-  CompositionLocalProvider(LocalLayoutDirection provides if (persian) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-    Column(modifier.focusRestorer(first), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Key(tv(TV.space), Modifier.weight(2f)) { type(" ") }
-        if (persian) Key(tv(TV.zwnj), Modifier.weight(3f)) { type("‌") } else Key("'", Modifier.weight(1f)) { type("'") }
-        Key(null, Modifier.weight(2f), icon = Icons.backspace, onLong = clear) { delete() }
-      }
-      letters.chunked(COLUMNS).forEachIndexed { r, row ->
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          row.forEachIndexed { c, ch ->
-            Key(ch.toString(), Modifier.weight(1f).then(if (r == 0 && c == 0) Modifier.focusRequester(first) else Modifier)) { type(ch.toString()) }
-          }
-          repeat(COLUMNS - row.length) { Spacer(Modifier.weight(1f)) }
+private fun Keyboard(
+    persian: Boolean,
+    digits: Boolean,
+    first: FocusRequester,
+    type: (String) -> Unit,
+    delete: () -> Unit,
+    clear: () -> Unit,
+    switchLanguage: () -> Unit,
+    switchDigits: () -> Unit,
+    voice: (() -> Unit)?,
+) {
+  val keys = if (digits) DIGITS else if (persian) PERSIAN else LATIN
+  Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    CompositionLocalProvider(LocalLayoutDirection provides if (persian && !digits) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+      Row(
+          Modifier.fillMaxWidth().height(76.dp).glass(RoundedCornerShape(50), fill = 0.04f).padding(horizontal = 14.dp).focusRestorer(first),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        keys.forEachIndexed { i, ch ->
+          LineKey(ch.toString(), Modifier.weight(1f).then(if (i == 0) Modifier.focusRequester(first) else Modifier)) { type(ch.toString()) }
         }
+        LineKey(tv(TV.space), Modifier.weight(2.2f)) { type(" ") }
+        LineKey(null, Modifier.weight(1.6f), icon = Icons.backspace, onLong = clear) { delete() }
       }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Key(if (persian) "ABC" else "فا", Modifier.weight(2f)) { switch() }
-        if (voice != null) Key(null, Modifier.weight(2f), icon = Icons.mic) { voice() }
-        Key(tv(TV.clear), Modifier.weight(3f)) { clear() }
-      }
+    }
+    Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      PillButton(if (digits) (if (persian) "ابپ" else "abc") else "123", switchDigits, kind = PillKind.Chip)
+      PillButton(if (persian) "English" else "فارسی", switchLanguage, kind = PillKind.Chip)
+      if (persian) PillButton(tv(TV.zwnj), { type("‌") }, kind = PillKind.Chip)
+      if (voice != null) RoundKey(Icons.mic, 58.dp, voice)
+      PillButton(tv(TV.clear), clear, kind = PillKind.Chip)
     }
   }
 }
 
+/** One key on the line: a letter on the glass, a white tile lifted under focus. */
 @Composable
-private fun Key(text: String?, modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
-  val interaction = remember { MutableInteractionSource() }
-  val focused by interaction.collectIsFocusedAsState()
-  val shape = RoundedCornerShape(16.dp)
+private fun LineKey(text: String?, modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+  val shape = RoundedCornerShape(14.dp)
   Surface(
       onClick = onClick,
       onLongClick = onLong,
       modifier = modifier.height(60.dp),
-      interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.18f),
   ) {
-    // Glass keys, white under focus as every button the remote lands on.
-    Box(Modifier.fillMaxSize().then(if (focused) Modifier else Modifier.glass(shape, fill = 0.06f, veil = 0.35f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
       if (icon != null) Icon(icon, null, Modifier.size(28.dp))
-      else Text(text.orEmpty(), style = app(if ((text?.length ?: 0) > 1) 22 else 28, FontWeight.SemiBold), maxLines = 1)
+      else Text(text.orEmpty(), style = app(if ((text?.length ?: 0) > 1) 21 else 27, FontWeight.SemiBold), maxLines = 1)
+    }
+  }
+}
+
+/** A round glass button with an icon, white in focus. */
+@Composable
+private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  Surface(
+      onClick = onClick,
+      modifier = Modifier.size(size),
+      interactionSource = interaction,
+      shape = ClickableSurfaceDefaults.shape(CircleShape),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text2, focusedContentColor = Theme.focusInk),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+  ) {
+    Box(Modifier.fillMaxSize().then(if (focused) Modifier else Modifier.glass(CircleShape, fill = 0.10f)), contentAlignment = Alignment.Center) {
+      Icon(icon, null, Modifier.size(size * 0.48f))
     }
   }
 }

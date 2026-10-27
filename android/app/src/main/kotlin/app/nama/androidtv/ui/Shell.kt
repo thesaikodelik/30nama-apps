@@ -188,6 +188,7 @@ fun MainScreen(onExit: () -> Unit) {
   val holder = rememberSaveableStateHolder()
   var barFocused by remember { mutableStateOf(false) }
   var lastBack by remember { mutableLongStateOf(0L) }
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
   val loc = app.loc
 
   // Back: a page off the stack; at a tab's root, up to the tab bar; from the bar, home; from
@@ -256,6 +257,19 @@ fun MainScreen(onExit: () -> Unit) {
             barFocused = it
             chrome.barFocused = it
           },
+          // Down from the bar goes back to where the viewer was on the tab's page, or into its
+          // first item. Left to the geometric search, it found nothing below: a page that is one
+          // grid (a catalogue, search) starts under the bar, not below it.
+          down = {
+            if (route != null) false
+            else {
+              scope.launch {
+                withFrameNanos {}
+                runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
+              }
+              true
+            }
+          },
       )
       SheetHost(app.sheets)
     }
@@ -302,7 +316,7 @@ fun Placeholder(text: String) {
  * beat, as tvOS does, so a held remote crossing it does not build every page on the way.
  */
 @Composable
-private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, focusedChange: (Boolean) -> Unit) {
+private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, focusedChange: (Boolean) -> Unit, down: () -> Boolean) {
   val nav = LocalNav.current
   val loc = LocalLoc.current
   val chrome = LocalChrome.current
@@ -350,6 +364,12 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
             when (e.key) {
               androidx.compose.ui.input.key.Key.DirectionLeft -> step(forward = rtl)
               androidx.compose.ui.input.key.Key.DirectionRight -> step(forward = !rtl)
+              androidx.compose.ui.input.key.Key.DirectionDown -> {
+                // A tab still waiting its beat opens now, so Down goes into the page it shows.
+                pending?.let { nav.tab = it }
+                pending = null
+                down()
+              }
               else -> false
             }
           },
