@@ -16,9 +16,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "30nama-androidtv"
 
-// The logic shared with the Quest app, read where it lives (nothing is written into quest/; the
-// build output goes to android/build/core). It moves to kotlin-core/ later: then this line points there.
+// The Apple TV app's logic (30nama/Core) in Kotlin, read where it lives (its build output goes to
+// android/build/core). Not quest/core: the Quest app is unfinished and its copy is its own.
 include(":core")
-project(":core").projectDir = file("../quest/core")
+project(":core").projectDir = file("../kotlin-core")
 
 include(":app")
