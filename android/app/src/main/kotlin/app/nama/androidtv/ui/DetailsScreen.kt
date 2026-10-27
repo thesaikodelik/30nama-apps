@@ -177,6 +177,9 @@ fun DetailsScreen(route: Route.Details) {
     // Only once a trailer has been found, so there is never a button that leads nowhere.
     trailer = app.extras.trailer(p, loc.lang, app.inIran)
   }
+  // The bar stays over the page while it is at its top, and steps out of the way below.
+  val chrome = LocalChrome.current
+  LaunchedEffect(scroll) { androidx.compose.runtime.snapshotFlow { scroll.value < 60 }.collect { chrome.routeAtTop = it } }
   // Back from the player: pick up the new resume point.
   LaunchedEffect(app.watchVersion) { if (stream != null) loadStream(quietly = true) }
 

@@ -1,5 +1,25 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.layout.Spacer
+import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.scale
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -60,6 +80,8 @@ import kotlinx.coroutines.delay
 /** What a page tells the shell: whether it is scrolled to its top, where the tab bar belongs. */
 class Chrome {
   var pageAtTop by mutableStateOf(true)
+  /** The same for a page opened over a tab (a title's page), which scrolls on its own. */
+  var routeAtTop by mutableStateOf(true)
   /** The tab's root page is the one on screen (nothing opened over it). */
   var rootShown by mutableStateOf(true)
   /** The viewer is on the tab bar: a tab opening as they cross it must leave focus there. */
@@ -219,14 +241,17 @@ fun MainScreen(onExit: () -> Unit) {
           holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
         }
       }
-      val barShown = barFocused || (route == null && chrome.pageAtTop)
+      // Over every page, as on the Mac; it steps out of the way once a page scrolls down.
+      val barShown = barFocused || (if (route == null) chrome.pageAtTop else chrome.routeAtTop)
       val shown by animateFloatAsState(if (barShown) 1f else 0f, tween(260), label = "bar")
-      // A page opened on top of a tab has the screen to itself, as on the Apple TV.
-      if (route == null) TabBar(
-          Modifier.align(Alignment.TopCenter).padding(top = 40.dp).graphicsLayer {
+      LaunchedEffect(route) { chrome.routeAtTop = true }
+      TabBar(
+          Modifier.align(Alignment.TopCenter).padding(top = 30.dp).graphicsLayer {
             alpha = shown
             translationY = -40f * (1f - shown)
           },
+          routeOpen = route != null,
+          onBack = { nav.pop() },
           focusedChange = {
             barFocused = it
             chrome.barFocused = it
@@ -269,54 +294,171 @@ fun Placeholder(text: String) {
 }
 
 /**
- * The tab bar: a glass capsule of tab names. Moving focus along it opens each tab after a beat,
- * as tvOS does, so a held remote crossing it does not build every page on the way.
+ * The Mac's top bar (Mac/MacShell.swift, docs/design "نوار بالا"): a glass capsule at the top centre;
+ * the tabs' words a little dim, full under focus with a faint pill; the open tab under a lit glass
+ * pill that runs to the next like a drop of liquid, its leading edge first. Search and Settings go
+ * by their icons, Profile by its icon and name. With a page open over a tab, the pill goes out and
+ * a round glass Back button comes in beside the bar. Moving focus along it opens each tab after a
+ * beat, as tvOS does, so a held remote crossing it does not build every page on the way.
  */
 @Composable
-private fun TabBar(modifier: Modifier, focusedChange: (Boolean) -> Unit) {
+private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, focusedChange: (Boolean) -> Unit) {
   val nav = LocalNav.current
   val loc = LocalLoc.current
   val chrome = LocalChrome.current
-  // Persian names are short enough for all eight tabs; in English and Arabic search and settings
-  // go by their icons alone, as is usual on tvOS.
-  val roomy = loc.lang == Lang.fa
+  val calm = LocalCalm.current
   var pending by remember { mutableStateOf<Tab?>(null) }
   LaunchedEffect(pending) {
     val next = pending ?: return@LaunchedEffect
     delay(300)
     nav.tab = next
   }
-  val shape = RoundedCornerShape(50)
+  val back = remember { FocusRequester() }
+  // Coming up from a page lands on the open tab, or on Back while a page is open, not on whichever
+  // is nearest, which would open that one instead: from outside, only that one takes focus.
+  var inside by remember { mutableStateOf(false) }
+  var focusedTab by remember { mutableStateOf<Tab?>(null) }
+  // Along the bar by its order, Back first while it is there: the geometric search went the wrong
+  // way here, past the open tab to the one beyond it.
+  val steps = remember { Tab.entries.associateWith { FocusRequester() } }
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+  fun step(forward: Boolean): Boolean {
+    val order = Tab.entries
+    val at = order.indexOfFirst { t -> focusedTab == t }
+    if (at < 0) {
+      // On Back: forward is the first tab.
+      if (forward) runCatching { steps.getValue(order.first()).requestFocus() }
+      return true
+    }
+    val next = at + if (forward) 1 else -1
+    when {
+      next in order.indices -> runCatching { steps.getValue(order[next]).requestFocus() }
+      next < 0 && routeOpen -> runCatching { back.requestFocus() }
+    }
+    return true
+  }
+  // Where each tab sits in the bar, for the pill to go to.
+  val places = remember { mutableStateMapOf<Tab, Rect>() }
   Row(
       modifier
-          .background(Theme.surface.copy(alpha = 0.72f), shape)
-          .border(1.dp, Theme.glassEdge, shape)
-          .padding(8.dp)
-          // Coming up from a page lands on the open tab, not on whichever is nearest, which would
-          // open that one instead.
-          .focusRestorer(chrome.bar)
-          .onFocusChanged { focusedChange(it.hasFocus) },
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
+          .onFocusChanged {
+            inside = it.hasFocus
+            focusedChange(it.hasFocus)
+          }
+          .onPreviewKeyEvent { e ->
+            if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (e.key) {
+              androidx.compose.ui.input.key.Key.DirectionLeft -> step(forward = rtl)
+              androidx.compose.ui.input.key.Key.DirectionRight -> step(forward = !rtl)
+              else -> false
+            }
+          },
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
       verticalAlignment = Alignment.CenterVertically,
   ) {
-    for (tab in Tab.entries) {
-      val (title, icon) = when (tab) {
-        Tab.search -> loc(S.search) to Icons.search
-        Tab.home -> loc(S.home) to null
-        Tab.movies -> loc(S.movies) to null
-        Tab.series -> loc(S.series) to null
-        Tab.anime -> loc(S.anime) to null
-        Tab.browse -> loc(S.browse) to null
-        Tab.profile -> loc(S.profile) to Icons.person
-        Tab.settings -> loc(S.settings) to Icons.settings
+    // Back has a place of its own beside the bar, kept while hidden, and the same room is kept on
+    // the other side, so the bar stays centred and its tabs do not shift as Back comes and goes.
+    BackDisc(routeOpen, onBack, Modifier.focusRequester(back).onFocusChanged { if (it.hasFocus) focusedTab = null })
+    Box(Modifier.glass(RoundedCornerShape(50)).padding(6.dp)) {
+      LiquidPill(if (routeOpen) null else places[nav.tab], calm)
+      Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (tab in Tab.entries) {
+          val (title, icon) = when (tab) {
+            Tab.search -> loc(S.search) to Icons.search
+            Tab.home -> loc(S.home) to null
+            Tab.movies -> loc(S.movies) to null
+            Tab.series -> loc(S.series) to null
+            Tab.anime -> loc(S.anime) to null
+            Tab.browse -> loc(S.browse) to null
+            Tab.profile -> loc(S.profile) to Icons.personCircle
+            Tab.settings -> loc(S.settings) to Icons.gear
+          }
+          TabItem(
+              title = title, icon = icon, iconOnly = tab == Tab.search || tab == Tab.settings, selected = nav.tab == tab && !routeOpen,
+              modifier = (if (tab == nav.tab) Modifier.focusRequester(chrome.bar) else Modifier)
+                  .focusRequester(steps.getValue(tab))
+                  .onFocusChanged { if (it.hasFocus) focusedTab = tab }
+                  .focusProperties { canFocus = inside || (!routeOpen && tab == nav.tab) }
+                  .onGloballyPositioned { places[tab] = Rect(it.positionInParent(), it.size.toSize()) },
+              // While a page is open over the tab, moving along the bar only moves; pressing goes.
+              onFocus = { if (nav.tab != tab && !routeOpen) pending = tab },
+              onClick = {
+                pending = null
+                if (nav.tab == tab) while (nav.pop()) Unit else nav.tab = tab
+              },
+          )
+        }
       }
-      val iconOnly = icon != null && !roomy && tab != Tab.profile
-      TabItem(
-          title = title, icon = icon, iconOnly = iconOnly, selected = nav.tab == tab,
-          modifier = if (tab == nav.tab) Modifier.focusRequester(chrome.bar) else Modifier,
-          onFocus = { if (nav.tab != tab) pending = tab },
-          onClick = { pending = null; nav.tab = tab },
-      )
+    }
+    Spacer(Modifier.size(58.dp))
+  }
+}
+
+/**
+ * The open tab's pill, of lit glass. Moving to another tab its two edges travel apart, the leading
+ * one quicker, so it stretches toward the new tab and settles there: the Mac's drop of liquid,
+ * drawn with two springs instead of a blurred metaball, which a weak TV could not pay for.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.LiquidPill(target: Rect?, calm: Boolean) {
+  val density = LocalDensity.current
+  val left = remember { Animatable(0f) }
+  val right = remember { Animatable(0f) }
+  var placed by remember { mutableStateOf(false) }
+  LaunchedEffect(target) {
+    target ?: return@LaunchedEffect
+    if (!placed || calm) {
+      left.snapTo(target.left)
+      right.snapTo(target.right)
+      placed = true
+      return@LaunchedEffect
+    }
+    val towardRight = target.left > left.value
+    val quick = spring<Float>(dampingRatio = 0.8f, stiffness = 520f)
+    val slow = spring<Float>(dampingRatio = 0.86f, stiffness = 170f)
+    launch { left.animateTo(target.left, if (towardRight) slow else quick) }
+    launch { right.animateTo(target.right, if (towardRight) quick else slow) }
+  }
+  val shown by animateFloatAsState(if (target != null && placed) 1f else 0f, tween(200), label = "pill")
+  val top = target?.top ?: 0f
+  val height = target?.height ?: 0f
+  with(density) {
+    Box(
+        // Measured from the left edge, so placed from it too, whichever way the interface reads.
+        Modifier
+            .align(androidx.compose.ui.AbsoluteAlignment.TopLeft)
+            .absoluteOffset { IntOffset(left.value.toInt(), top.toInt()) }
+            .size((right.value - left.value).coerceAtLeast(0f).toDp(), height.toDp())
+            .graphicsLayer { alpha = shown }
+            .glass(RoundedCornerShape(50), lit = true, veil = 0f),
+    )
+  }
+}
+
+/** The Mac's round glass Back button beside the bar, while a page is open over a tab. */
+@Composable
+private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) {
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  val shown by animateFloatAsState(if (shownNow) 1f else 0f, tween(220), label = "back")
+  Surface(
+      onClick = onBack,
+      enabled = shownNow,
+      // Hidden, it takes no focus: a TV's Surface keeps it even when disabled.
+      modifier = modifier.focusProperties { canFocus = shownNow }.graphicsLayer {
+        alpha = shown
+        scaleX = 0.8f + 0.2f * shown
+        scaleY = 0.8f + 0.2f * shown
+      },
+      interactionSource = interaction,
+      shape = ClickableSurfaceDefaults.shape(CircleShape),
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1.copy(alpha = 0.85f), focusedContentColor = Theme.text1),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+  ) {
+    Box(Modifier.size(58.dp).glass(CircleShape, lit = focused), contentAlignment = Alignment.Center) {
+      Box(Modifier.size(46.dp).background(Color.White.copy(alpha = if (focused) 0.12f else 0f), CircleShape))
+      // The arrow points back in the reading direction.
+      Icon(Icons.chevronBack, null, Modifier.size(28.dp).then(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier))
     }
   }
 }
@@ -326,22 +468,24 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   LaunchedEffect(focused) { if (focused) onFocus() }
+  // Dark words on the dark bar until the pill is under them; full under focus, as under the Mac's pointer.
+  val ink by animateColorAsState(if (selected || focused) Theme.text1 else Theme.text1.copy(alpha = 0.7f), tween(180), label = "ink")
   Surface(
       onClick = onClick,
       modifier = modifier,
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
       colors = ClickableSurfaceDefaults.colors(
-          containerColor = if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
-          focusedContainerColor = Color.White,
-          contentColor = if (selected) Theme.text1 else Theme.text2,
-          focusedContentColor = Theme.focusInk,
+          containerColor = Color.Transparent,
+          focusedContainerColor = if (selected) Color.Transparent else Color.White.copy(alpha = 0.12f),
+          contentColor = ink,
+          focusedContentColor = ink,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
   ) {
-    Row(Modifier.height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       if (icon != null) Icon(icon, title, Modifier.size(26.dp))
-      if (!iconOnly) Text(title, style = app(25, FontWeight.Bold), maxLines = 1)
+      if (!iconOnly) Text(title, style = app(25, FontWeight.SemiBold), maxLines = 1)
     }
   }
 }

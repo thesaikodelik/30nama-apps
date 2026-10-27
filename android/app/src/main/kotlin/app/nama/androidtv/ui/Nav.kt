@@ -24,7 +24,7 @@ sealed interface Route {
   data object TopLists : Route
 }
 
-/** Search first, as most apps have it; the user's own page last, by settings. */
+/** The Mac's order: Search first, then the catalogue, the user's own page, and Settings last. */
 @Suppress("EnumEntryName")
 enum class Tab { search, home, movies, series, anime, browse, profile, settings }
 
