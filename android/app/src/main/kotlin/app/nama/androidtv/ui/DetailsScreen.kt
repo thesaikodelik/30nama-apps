@@ -300,7 +300,7 @@ private fun Mine(post: Post) {
   val loc = LocalLoc.current
   val capsule = RoundedCornerShape(50)
   Row(
-      Modifier.height(76.dp).glass(capsule).padding(start = 30.dp, end = 18.dp),
+      Modifier.height(76.dp).glass(capsule, fill = 0.10f).padding(start = 30.dp, end = 18.dp),
       horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(loc(S.yourRating), style = app(24, FontWeight.SemiBold), color = Theme.text2, maxLines = 1)

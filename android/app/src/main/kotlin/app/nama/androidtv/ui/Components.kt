@@ -70,9 +70,12 @@ private val capsule = RoundedCornerShape(percent = 50)
 val accentGradient = Brush.linearGradient(listOf(Theme.accentLight, Theme.accent, Theme.accentDeep))
 
 /**
- * Buttons and chips, as on the Mac: the one bright button on a screen (play, sign in) is white,
- * throwing light in the colour of the title it is about ([LocalHue]); everything else is a pane of
- * glass with a rim of that colour. In focus, on a TV, glass turns white and every button lifts.
+ * Buttons, as the Mac's (docs/design, "دکمه‌ها و چیپ‌ها"); a TV's focus is the Mac's hover.
+ *  - [PillKind.Primary], the one bright button on a screen (play, sign in): white, throwing light
+ *    in the colour of the title it is about ([LocalHue]), white light where there is none.
+ *  - [PillKind.Secondary], everything else: glass filled with white 0.10, 0.20 and lit in focus.
+ *  - [PillKind.Chip], one choice among a few (a season, a sort): the chosen one white, the others
+ *    white 0.10. Sizes are the Apple TV app's, as a TV is seen from the sofa.
  */
 @Composable
 fun PillButton(
@@ -89,8 +92,9 @@ fun PillButton(
   val focused by interaction.collectIsFocusedAsState()
   val chip = kind == PillKind.Chip
   val primary = kind == PillKind.Primary
+  val white = primary || (chip && selected)
   val hue = LocalHue.current
-  val glow = hue ?: Color.White
+  val light = hue ?: Color.White
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
@@ -98,32 +102,30 @@ fun PillButton(
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(capsule),
       colors = ClickableSurfaceDefaults.colors(
-          containerColor = if (primary || (chip && selected)) Color.White else Color.Transparent,
-          focusedContainerColor = Color.White,
-          pressedContainerColor = Color.White,
-          contentColor = when {
-            primary || (chip && selected) -> Theme.focusInk
-            chip -> Theme.text2
-            else -> Theme.text1
-          },
-          focusedContentColor = Theme.focusInk,
-          pressedContentColor = Theme.focusInk,
+          containerColor = Color.Transparent,
+          focusedContainerColor = Color.Transparent,
+          pressedContainerColor = Color.Transparent,
+          contentColor = if (white) Theme.focusInk else if (chip) Theme.text2 else Theme.text1,
+          focusedContentColor = if (white) Theme.focusInk else Theme.text1,
+          pressedContentColor = if (white) Theme.focusInk else Theme.text1,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.07f, pressedScale = 1f),
-      glow = ClickableSurfaceDefaults.glow(
-          glow = if (primary) Glow(glow.copy(alpha = if (hue == null) 0.2f else 0.45f), 18.dp) else Glow.None,
-          focusedGlow = Glow(glow.copy(alpha = if (hue == null) 0.35f else 0.7f), 26.dp),
-      ),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = if (primary) 1.04f else if (chip) 1.05f else 1.03f, pressedScale = 0.96f),
   ) {
     Box(
         Modifier
             .height(if (chip) 58.dp else 76.dp)
-            .then(if (focused || primary || (chip && selected)) Modifier else Modifier.glass(capsule))
-            .padding(horizontal = if (chip) 30.dp else 40.dp),
+            .then(
+                when {
+                  // The light the bright button throws is the colour of the title it is about.
+                  white -> Modifier.colouredGlow(light, if (primary) (if (hue == null) (if (focused) 0.45f else 0.2f) else (if (focused) 0.75f else 0.45f)) else if (focused) 0.35f else 0f, if (focused) 28.dp else 17.dp, capsule)
+                      .background(Color.White, capsule)
+                  else -> Modifier.glass(capsule, lit = focused, fill = if (focused) 0.20f else 0.10f)
+                })
+            .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (busy) Spinner(Modifier.size(26.dp), color = if (focused || primary) Theme.focusInk else Color.White)
+        if (busy) Spinner(Modifier.size(26.dp), color = if (white) Theme.focusInk else Color.White)
         else if (icon != null) Icon(icon, null, Modifier.size(if (chip) 24.dp else 28.dp))
         Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
       }
@@ -132,20 +134,9 @@ fun PillButton(
 }
 
 /**
- * The Mac's glass: a faint white pane with a rim, the rim in the colour of the title on stage
- * ([LocalHue]) and brightest at the top.
- */
-@Composable
-fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape, fill: Float = 0.1f): Modifier {
-  val hue = LocalHue.current
-  val rim = if (hue != null) Brush.verticalGradient(listOf(hue.copy(alpha = 0.6f), hue.copy(alpha = 0.1f)))
-  else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.06f)))
-  return this.background(Color.White.copy(alpha = fill), shape).border(1.5.dp, rim, shape)
-}
-
-/**
- * A round button for a state of its own (on a list or not), as the Mac's list toggles: glass, the
- * icon filled in and in the title's colour while on; white in focus.
+ * A round button for a state of its own (on a list or not), as the Mac's list toggles: glass
+ * filled with white 0.10, the icon filled in and in the title's colour while on. In focus, lit
+ * glass with white 0.20.
  */
 @Composable
 fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, onIcon: ImageVector? = null) {
@@ -159,14 +150,13 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(
           containerColor = Color.Transparent,
-          focusedContainerColor = Color.White,
+          focusedContainerColor = Color.Transparent,
           contentColor = if (on) hue else Theme.text1,
-          focusedContentColor = if (on) hue else Theme.focusInk,
+          focusedContentColor = if (on) hue else Color.White,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-      glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(Color.White.copy(alpha = 0.3f), 18.dp)),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).then(if (focused) Modifier else Modifier.glass(CircleShape)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -301,9 +291,9 @@ fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: 
   val loc = LocalLoc.current
   val scores: @Composable (Boolean) -> Unit = { all ->
     post.imdbScore?.let { ScoreChip("IMDb", Theme.imdb, Fmt.score(it)) }
-    // Fresh at 60% and above, as on the site.
-    post.rottenTomatoes?.let { ScoreChip("RT", if (it >= 60) Color(0xFFFA4B2A) else Color(0xFF7BB661), "$it%") }
-    if (all) post.metacritic?.let { ScoreChip("MC", if (it >= 61) Color(0xFF66CC33) else if (it >= 40) Color(0xFFFFCC33) else Color(0xFFFF5A4D), "$it") }
+    // The Mac's colours, one for each source.
+    post.rottenTomatoes?.let { ScoreChip("RT", Color(0xFFFA5A3C), "$it%") }
+    if (all) post.metacritic?.let { ScoreChip("MC", Color(0xFF66CC33), "$it") }
     if (all || post.rottenTomatoes == null) post.fanScore?.let { ScoreChip(it.source, Color(0xFF6C8CFF), Fmt.score(it.value)) }
     post.siteScore?.let { score ->
       Chip {
