@@ -132,6 +132,11 @@ fun PillButton(
                   // The light the bright button throws is the colour of the title it is about.
                   white -> Modifier.colouredGlow(light, if (primary) (if (hue == null) (if (focused) 0.45f else 0.2f) else (if (focused) 0.75f else 0.45f)) else if (focused) 0.35f else 0f, if (focused) 28.dp else 17.dp, capsule)
                       .background(Color.White, capsule)
+                  // The Mac's PillChoice and filter menus are not glass: a flat capsule of white
+                  // 0.10. In focus, where the Mac's pointer makes it 0.20, a little more and an
+                  // edge, to be seen from the sofa.
+                  chip -> Modifier.background(Color.White.copy(alpha = if (focused) 0.24f else 0.10f), capsule)
+                      .then(if (focused) Modifier.border(1.5.dp, Color.White.copy(alpha = 0.55f), capsule) else Modifier)
                   else -> Modifier.glass(capsule, lit = focused, fill = if (focused) 0.20f else 0.10f)
                 })
             .padding(horizontal = if (chip) 30.dp else 38.dp),

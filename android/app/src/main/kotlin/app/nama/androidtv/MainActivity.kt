@@ -19,6 +19,19 @@ class MainActivity : ComponentActivity() {
     (application as NamaApp).model.openFromLauncher(id, intent.getBooleanExtra(WatchNext.PLAY, false))
   }
 
+  /**
+   * Escape is Back: a box driven by a keyboard or an air mouse sends it, and so does a computer's
+   * keyboard on the emulator. Android's own fallback from Escape to Back never came (Compose takes
+   * the key first), so every card and sheet, which close on Back, stayed open.
+   */
+  override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+    if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
+      if (event.action == android.view.KeyEvent.ACTION_UP && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
+      return true
+    }
+    return super.dispatchKeyEvent(event)
+  }
+
   override fun onResume() {
     super.onResume()
     (application as NamaApp).model.updater.resumed()

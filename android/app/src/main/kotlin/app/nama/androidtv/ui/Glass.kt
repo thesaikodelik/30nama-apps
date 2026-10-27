@@ -15,10 +15,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * How light falls on glass, the Mac's `GlassLight` (Mac/MacKit.swift, docs/design): a faint body,
- * a glare over the top half with a little caught along the bottom edge, and a rim bright where the
- * light strikes the top edge and faint along the bottom. A flat fill with an even hairline reads as
- * grey plastic; the uneven rim is what reads as glass. `lit` is the open or focused look.
+ * How light falls on glass. `lit`, the open or focused look, is the Mac's `GlassLight`
+ * (Mac/MacKit.swift): a glare over the top half and a rim bright where the light strikes the top
+ * edge, as its tab pill has. At rest it is what the Mac's plain `.glass` looks like in its screens
+ * (the system's glass, docs/design/mac): a dark pane with an even, faint rim and almost no glare.
+ * GlassLight everywhere at rest was too much glass (the owner, measured against the Mac's settings).
  */
 object GlassLight {
   /** The Mac's 1.2pt, at the TV's ×1.3. */
@@ -29,18 +30,18 @@ object GlassLight {
   fun shadow(lit: Boolean) = if (lit) 0.30f else 0.22f
 
   fun glare(lit: Boolean) = Brush.verticalGradient(
-      0f to Color.White.copy(alpha = if (lit) 0.30f else 0.12f),
-      0.5f to Color.White.copy(alpha = if (lit) 0.06f else 0.02f),
+      0f to Color.White.copy(alpha = if (lit) 0.30f else 0.03f),
+      0.5f to Color.White.copy(alpha = if (lit) 0.06f else 0f),
       0.7f to Color.Transparent,
-      1f to Color.White.copy(alpha = if (lit) 0.10f else 0.04f),
+      1f to Color.White.copy(alpha = if (lit) 0.10f else 0.01f),
   )
 
   fun rim(lit: Boolean) = Brush.verticalGradient(
       listOf(
-          Color.White.copy(alpha = if (lit) 0.95f else 0.55f),
+          Color.White.copy(alpha = if (lit) 0.95f else 0.20f),
           Color.White.copy(alpha = if (lit) 0.25f else 0.12f),
-          Color.White.copy(alpha = 0.05f),
-          Color.White.copy(alpha = if (lit) 0.45f else 0.22f),
+          Color.White.copy(alpha = if (lit) 0.05f else 0.09f),
+          Color.White.copy(alpha = if (lit) 0.45f else 0.12f),
       ))
 }
 

@@ -233,7 +233,7 @@ private fun Group(name: String, content: @Composable androidx.compose.foundation
 
 /**
  * A setting that changes in place when pressed, as the Mac's row with a menu: the name at the start,
- * the value in a glass capsule with an up-down mark at the end. In focus the row lights, as the
+ * the value in a flat capsule (the Mac's menu control, not glass) with an up-down mark at the end. In focus the row lights, as the
  * Mac's under the pointer, and the capsule turns white.
  */
 @Composable
@@ -242,7 +242,7 @@ private fun Choice(label: String, value: String?, help: Help, show: (Help) -> Un
     value?.let {
       val shape = RoundedCornerShape(50)
       Row(
-          Modifier.width(390.dp).height(55.dp).then(if (focused) Modifier.background(Color.White, shape) else Modifier.glass(shape, fill = 0.08f, veil = 0.3f)).padding(horizontal = 22.dp),
+          Modifier.width(390.dp).height(55.dp).then(if (focused) Modifier.background(Color.White, shape) else Modifier.background(Color.White.copy(alpha = 0.07f), shape).border(1.dp, Color.White.copy(alpha = 0.10f), shape)).padding(horizontal = 22.dp),
           verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
       ) {
         Text(it, Modifier.weight(1f), style = app(20, FontWeight.Medium), color = if (focused) Theme.focusInk else Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -1,6 +1,8 @@
 package app.nama.androidtv.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -146,18 +149,21 @@ fun HomeScreen() {
     settled = browsing
   }
   LaunchedEffect(browsing == null) { chrome.pageAtTop = browsing == null }
-  // Advances the hero every nine seconds while it is on screen and the remote is idle.
+  // Advances the hero after nine seconds on screen with the remote idle. A press pauses the turn
+  // where it is, and it runs on once the remote has rested a moment: started over at each press,
+  // the pager's fill leapt back to its start as the viewer moved between Play and Details.
   LaunchedEffect(heroes.size, browsing == null, calm) {
     if (calm || browsing != null || heroes.size < 2) return@LaunchedEffect
-    lastInput = System.currentTimeMillis()
+    var run = (heroProgress * 9_000).toLong()
     while (true) {
       delay(250)
-      val idle = (System.currentTimeMillis() - lastInput) / 9_000f
-      if (idle >= 1f) {
-        lastInput = System.currentTimeMillis()
+      if (System.currentTimeMillis() - lastInput < 1_500) continue
+      run += 250
+      if (run >= 9_000) {
+        run = 0
         heroProgress = 0f
         heroIndex = (heroIndex + 1) % heroes.size
-      } else heroProgress = idle
+      } else heroProgress = run / 9_000f
     }
   }
 
@@ -169,7 +175,7 @@ fun HomeScreen() {
     when {
       feed != null -> {
         Rows(
-            rows = rows, heroes = heroes, hero = hero, heroIndex = heroIndex, heroProgress = heroProgress, continuing = continuing,
+            rows = rows, heroes = heroes, hero = hero, heroIndex = heroIndex, heroProgress = { heroProgress }, continuing = continuing,
             browsing = browsing, opened = opened, play = play,
             onFocus = { sel ->
               lastInput = System.currentTimeMillis()
@@ -259,7 +265,7 @@ private fun Rows(
     heroes: List<Post>,
     hero: Post?,
     heroIndex: Int,
-    heroProgress: Float,
+    heroProgress: () -> Float,
     continuing: List<Post>,
     browsing: Selection?,
     opened: Set<String>,
@@ -319,7 +325,7 @@ private fun Rows(
               // The Mac's pager: the open one longer, filling in the title's colour as its turn runs.
               val w by animateDpAsState(if (i == heroIndex) 57.dp else 16.dp, Theme.glide(), label = "seg")
               Box(Modifier.width(w).height(5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.28f))) {
-                if (i == heroIndex) Box(Modifier.fillMaxWidth(if (LocalCalm.current) 1f else heroProgress.coerceIn(0.08f, 1f)).height(5.dp).background(LocalHue.current ?: Color.White, RoundedCornerShape(50)))
+                if (i == heroIndex) PagerFill(heroIndex, heroProgress, LocalHue.current ?: Color.White, LocalCalm.current)
               }
             }
           }
@@ -425,4 +431,24 @@ private fun HomeSkeleton() {
       repeat(9) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
     }
   }
+}
+
+/**
+ * The open pager segment filling as its turn runs. The turn is measured four times a second; the
+ * fill runs on between those at an even pace, so it moves smoothly, and it is read only when drawn,
+ * so the home screen around it is not rebuilt each time.
+ */
+@Composable
+private fun PagerFill(index: Int, progress: () -> Float, color: Color, calm: Boolean) {
+  val fill = remember(index) { Animatable(0f) }
+  LaunchedEffect(index) {
+    androidx.compose.runtime.snapshotFlow { progress() }.collect { p ->
+      // Back to the start (the remote was used): at once, not drawn backwards.
+      if (p < fill.value) fill.snapTo(p) else fill.animateTo(p, tween(250, easing = LinearEasing))
+    }
+  }
+  Box(Modifier.fillMaxSize().drawBehind {
+    val w = size.width * if (calm) 1f else fill.value.coerceIn(0.08f, 1f)
+    drawRoundRect(color, size = androidx.compose.ui.geometry.Size(w, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+  })
 }

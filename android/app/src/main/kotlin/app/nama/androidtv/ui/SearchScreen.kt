@@ -323,7 +323,7 @@ private fun Keyboard(
   Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
     CompositionLocalProvider(LocalLayoutDirection provides if (persian && !digits) LayoutDirection.Rtl else LayoutDirection.Ltr) {
       Row(
-          Modifier.fillMaxWidth().height(76.dp).glass(RoundedCornerShape(50), fill = 0.04f).padding(horizontal = 14.dp).focusRestorer(first),
+          Modifier.fillMaxWidth().height(76.dp).background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(50)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(50)).padding(horizontal = 14.dp).focusRestorer(first),
           verticalAlignment = Alignment.CenterVertically,
       ) {
         keys.forEachIndexed { i, ch ->
@@ -362,7 +362,7 @@ private fun LineKey(text: String?, modifier: Modifier, icon: androidx.compose.ui
   }
 }
 
-/** A round glass button with an icon, white in focus. */
+/** A round button with an icon, a flat disc as the Mac's controls (not glass), white in focus. */
 @Composable
 private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
   val interaction = remember { MutableInteractionSource() }
@@ -375,7 +375,7 @@ private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text2, focusedContentColor = Theme.focusInk),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
   ) {
-    Box(Modifier.fillMaxSize().then(if (focused) Modifier else Modifier.glass(CircleShape, fill = 0.10f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().then(if (focused) Modifier else Modifier.background(Color.White.copy(alpha = 0.10f), CircleShape)), contentAlignment = Alignment.Center) {
       Icon(icon, null, Modifier.size(size * 0.48f))
     }
   }
