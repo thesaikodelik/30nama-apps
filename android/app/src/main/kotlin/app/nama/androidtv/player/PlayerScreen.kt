@@ -1,5 +1,9 @@
 package app.nama.androidtv.player
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import app.nama.androidtv.ui.tint
+import app.nama.androidtv.ui.LocalHue
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -275,6 +279,7 @@ fun PlayerScreen(request: PlaybackRequest) {
         enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut(),
     ) { engine.offer?.let { OfferPill(it) } }
 
+    AnimatedVisibility(controls && panel != Panel.Episodes, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) { PlayerTop(engine) }
     AnimatedVisibility((controls || seekTarget != null) && panel != Panel.Episodes, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
       Controls(engine, seekTarget, full = controls, playButton = playButton, opener = opener, open = { panel = it }, blocked = panel != null)
     }
@@ -359,58 +364,106 @@ private fun Controls(engine: PlayerEngine, seekTarget: Double?, full: Boolean, p
   val loc = LocalLoc.current
   val post = engine.post
   val item = engine.current
-  Box(Modifier.fillMaxWidth().blockFocus(blocked).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.9f))))) {
-    Column(Modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = 120.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-      if (full) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          Text(post.title(loc.lang), style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-          if (post.isSeries || engine.items.size > 1) {
-            val line = loc.episodeTag(item.season, Episode.label(item.episodeRaw, engine.index + 1)) + (item.title(loc.lang)?.let { " — $it" } ?: "")
-            Text(line, style = app(26, FontWeight.Medium), color = Theme.text2, maxLines = 1)
-          }
-        }
-      }
+  // The Mac's player: a shade at the bottom, the timeline thin in the title's colour, and under it
+  // plain glyphs that light as white discs (in focus here, under the pointer there). The film's
+  // name is at the top, over a shade of its own (PlayerTop).
+  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: post.tint())) {
+  Box(Modifier.fillMaxWidth().blockFocus(blocked).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.85f))))) {
+    Column(Modifier.fillMaxWidth().padding(start = Theme.edge - 16.dp, end = Theme.edge - 16.dp, top = 120.dp, bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       // A film's time runs left to right in every language, as on tape: the bar and the transport
-      // buttons are not mirrored (Material's guidance; YouTube and the Apple TV do the same).
+      // buttons are not mirrored (Material's guidance; YouTube, the Apple TV and the Mac do the same).
       CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
       Scrubber(engine, seekTarget)
       if (full) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (engine.items.size > 1) RoundButton(Icons.skipPrevious, loc(S.rowPrevious), { engine.previous() })
-            RoundButton(Icons.replay, loc(S.back10), { engine.seekTo(engine.position - 10) })
-            RoundButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton))
-            RoundButton(Icons.forward, loc(S.forward10), { engine.seekTo(engine.position + 10) })
-            if (engine.index + 1 < engine.items.size) RoundButton(Icons.skipNext, loc(S.nextEpisode), { engine.next() })
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          PlayerButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton), size = 60, glyph = 28)
+          if (engine.items.size > 1) PlayerButton(Icons.skipPrevious, loc(S.rowPrevious), { engine.previous() })
+          PlayerButton(Icons.replay, loc(S.back10), { engine.seekTo(engine.position - 10) })
+          PlayerButton(Icons.forward, loc(S.forward10), { engine.seekTo(engine.position + 10) })
+          if (engine.index + 1 < engine.items.size) PlayerButton(Icons.skipNext, loc(S.nextEpisode), { engine.next() })
+          val d = engine.duration
+          val shown = seekTarget ?: engine.position
+          Text(
+              loc.num("${Fmt.clock(shown)} / ${Fmt.clock(d)}"), Modifier.padding(start = 14.dp),
+              style = app(19, FontWeight.Medium).copy(fontFeatureSettings = "tnum"), color = Color.White.copy(alpha = 0.85f),
+          )
+          if (d > 0) {
+            // When it will end at this speed, as Netflix shows it.
+            val end = LocalTime.now().plusSeconds(((d - shown) / engine.speed).toLong())
+            CompositionLocalProvider(LocalLayoutDirection provides if (loc.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+              Text("${tv(TV.endsAt)} ${loc.num(end.format(DateTimeFormatter.ofPattern("HH:mm")))}", Modifier.padding(start = 14.dp), style = app(17, FontWeight.Medium), color = Color.White.copy(alpha = 0.55f))
+            }
           }
           Spacer(Modifier.weight(1f))
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (item.subtitles.isNotEmpty() || engine.found.isNotEmpty()) RoundButton(Icons.subtitles, loc(S.subtitles), { open(Panel.Subtitles) }, Modifier.focusRequester(opener.getValue(Panel.Subtitles)), on = engine.subtitleLanguage != "off")
-            if ((engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty()) RoundButton(Icons.volume, loc(S.audio), { open(Panel.Audio) }, Modifier.focusRequester(opener.getValue(Panel.Audio)))
-            if (item.qualities.size > 1) RoundButton(Icons.quality, loc(S.quality), { open(Panel.Quality) }, Modifier.focusRequester(opener.getValue(Panel.Quality)))
-            RoundButton(Icons.speed, loc(S.speed), { open(Panel.Speed) }, Modifier.focusRequester(opener.getValue(Panel.Speed)), on = engine.speed != 1f)
-            RoundButton(Icons.moon, loc(S.sleepTimer), { open(Panel.Sleep) }, Modifier.focusRequester(opener.getValue(Panel.Sleep)), on = engine.sleep != Sleep.Off)
-            if (engine.items.size > 1) RoundButton(Icons.list, loc(S.episodes), { open(Panel.Episodes) }, Modifier.focusRequester(opener.getValue(Panel.Episodes)))
-          }
+          PlayerButton(Icons.speed, loc(S.speed), { open(Panel.Speed) }, Modifier.focusRequester(opener.getValue(Panel.Speed)), lit = engine.speed != 1f)
+          if (item.subtitles.isNotEmpty() || engine.found.isNotEmpty()) PlayerButton(Icons.subtitles, loc(S.subtitles), { open(Panel.Subtitles) }, Modifier.focusRequester(opener.getValue(Panel.Subtitles)), lit = engine.subtitleLanguage != "off")
+          if ((engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty()) PlayerButton(Icons.volume, loc(S.audio), { open(Panel.Audio) }, Modifier.focusRequester(opener.getValue(Panel.Audio)))
+          if (item.qualities.size > 1) PlayerButton(Icons.quality, loc(S.quality), { open(Panel.Quality) }, Modifier.focusRequester(opener.getValue(Panel.Quality)))
+          PlayerButton(Icons.moon, loc(S.sleepTimer), { open(Panel.Sleep) }, Modifier.focusRequester(opener.getValue(Panel.Sleep)), lit = engine.sleep != Sleep.Off)
+          if (engine.items.size > 1) PlayerButton(Icons.list, loc(S.episodes), { open(Panel.Episodes) }, Modifier.focusRequester(opener.getValue(Panel.Episodes)))
         }
       }
       }
     }
   }
+  }
 }
 
-/** The seek bar: what has played, what is ready, the times, and when it will end. */
+/**
+ * The top of the player, as the Mac's: the film's name and, for a series, the episode, over a shade
+ * from the top edge. Shown with the controls.
+ */
+@Composable
+fun PlayerTop(engine: PlayerEngine) {
+  val loc = LocalLoc.current
+  val post = engine.post
+  val item = engine.current
+  Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))) {
+    Column(Modifier.padding(start = Theme.edge, end = Theme.edge, top = 50.dp, bottom = 90.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+      Text(post.title(loc.lang), style = app(26, FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      if (post.isSeries || engine.items.size > 1) {
+        val line = loc.episodeTag(item.season, Episode.label(item.episodeRaw, engine.index + 1)) + (item.title(loc.lang)?.let { " · $it" } ?: "")
+        Text(line, style = app(18, FontWeight.Medium), color = Color.White.copy(alpha = 0.72f), maxLines = 1)
+      }
+    }
+  }
+}
+
+/** The Mac player's round button: a plain glyph, a white disc in focus, filled white while [lit]. */
+@Composable
+private fun PlayerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, lit: Boolean = false, size: Int = 50, glyph: Int = 22) {
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  androidx.tv.material3.Surface(
+      onClick = onClick,
+      modifier = modifier.semantics { contentDescription = label },
+      interactionSource = interaction,
+      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
+      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+          containerColor = if (lit) Color.White.copy(alpha = 0.9f) else Color.Transparent,
+          focusedContainerColor = Color.White,
+          contentColor = if (lit) Theme.focusInk else Color.White,
+          focusedContentColor = Theme.focusInk,
+      ),
+      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
+  ) {
+    Box(Modifier.size(size.dp), contentAlignment = Alignment.Center) { androidx.tv.material3.Icon(icon, null, Modifier.size(glyph.dp)) }
+  }
+}
+
+/** The seek bar, as the Mac's: a thin line in the title's colour, a little thicker with a thumb while seeking. */
 @Composable
 private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
-  val loc = LocalLoc.current
   val d = engine.duration
   val shown = seekTarget ?: engine.position
   val fraction = if (d > 0) (shown / d).toFloat().coerceIn(0f, 1f) else 0f
   val ready = if (d > 0) (engine.buffered / d).toFloat().coerceIn(0f, 1f) else 0f
+  val active = seekTarget != null
+  val hue = LocalHue.current ?: Theme.accent
   // While seeking, the picture at that point rides above the bar's thumb.
   LaunchedEffect(seekTarget) { seekTarget?.let { engine.preview.want(it) } }
   val frame = engine.preview.frame
-  Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     if (seekTarget != null && frame != null) {
       BoxWithConstraints(Modifier.fillMaxWidth().height(200.dp)) {
         val card = 320.dp
@@ -424,38 +477,16 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
         }
       }
     }
-    BoxWithConstraints(Modifier.fillMaxWidth().height(24.dp)) {
-      val rtl = false
-      Box(
-          Modifier.fillMaxWidth().height(24.dp).drawBehind {
-            val y = size.height / 2
-            val h = 8.dp.toPx()
-            fun bar(from: Float, to: Float, color: Color) {
-              val a = if (rtl) size.width * (1 - to) else size.width * from
-              drawRoundRect(color, Offset(a, y - h / 2), Size(size.width * (to - from), h), CornerRadius(h / 2))
-            }
-            bar(0f, 1f, Color.White.copy(alpha = 0.22f))
-            bar(0f, ready, Color.White.copy(alpha = 0.32f))
-            bar(0f, fraction, Theme.accent)
-            val x = if (rtl) size.width * (1 - fraction) else size.width * fraction
-            drawCircle(Color.White, 12.dp.toPx(), Offset(x, y))
-          })
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Text(loc.num(Fmt.clock(shown)), style = app(24, FontWeight.SemiBold), color = Theme.text1)
-      }
-      Spacer(Modifier.weight(1f))
-      if (d > 0) {
-        // When it will end at this speed, as Netflix shows it.
-        val end = LocalTime.now().plusSeconds(((d - shown) / engine.speed).toLong())
-        Text("${tv(TV.endsAt)} ${loc.num(end.format(DateTimeFormatter.ofPattern("HH:mm")))}", style = app(22, FontWeight.Medium), color = Theme.text2)
-        Spacer(Modifier.width(24.dp))
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-          Text(loc.num("-" + Fmt.clock(d - shown)), style = app(24, FontWeight.SemiBold), color = Theme.text2)
-        }
-      }
-    }
+    Box(
+        Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 16.dp).drawBehind {
+          val y = size.height / 2
+          val h = (if (active) 8 else 5).dp.toPx()
+          fun bar(to: Float, color: Color) = drawRoundRect(color, Offset(0f, y - h / 2), Size(size.width * to, h), CornerRadius(h / 2))
+          bar(1f, Color.White.copy(alpha = 0.24f))
+          bar(ready, Color.White.copy(alpha = 0.14f))
+          bar(fraction, hue)
+          if (active) drawCircle(Color.White, 9.dp.toPx(), Offset(size.width * fraction, y))
+        })
   }
 }
 
