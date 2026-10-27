@@ -48,7 +48,8 @@ object Theme {
   /** Horizontal inset of content from the screen edge (title-safe area). */
   val edge: Dp = 80.dp
   val posterWidth: Dp = 200.dp
-  val cardRadius: Dp = 20.dp
+  /** The Mac's 12 on a 156 poster, kept in proportion on the TV's 200: 7.7% of the width. */
+  val cardRadius: Dp = 15.dp
   val tileRadius: Dp = 24.dp
 
   /** Focus changes: quick, with a little overshoot. */

@@ -227,7 +227,7 @@ private fun Billboard(post: Post?, eyebrow: String, plotLines: Int, browsing: Bo
   val loc = LocalLoc.current
   val calm = LocalCalm.current
   val bottom by animateDpAsState(if (browsing) Layout.BROWSE_TEXT_BOTTOM.dp else Layout.HERO_TEXT_BOTTOM.dp, Theme.glide(), label = "bottom")
-  Box(Modifier.padding(start = Theme.edge).width(900.dp).height(bottom), contentAlignment = Alignment.BottomStart) {
+  Box(Modifier.padding(start = Theme.edge).width(1000.dp).height(bottom), contentAlignment = Alignment.BottomStart) {
     AnimatedContent(
         post,
         transitionSpec = {
@@ -240,12 +240,9 @@ private fun Billboard(post: Post?, eyebrow: String, plotLines: Int, browsing: Bo
       if (p == null) return@AnimatedContent
       Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Eyebrow(eyebrow)
-        Text(
-            p.title(loc.lang), style = app(80, FontWeight.ExtraBold).copy(brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.82f))), shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, 6f), 18f)),
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-        )
-        p.alternateTitle(loc.lang)?.let { Text(it, style = app(28, FontWeight.Medium), color = Theme.text2, maxLines = 1) }
-        Box(Modifier.padding(top = 6.dp)) { MetaLine(p) }
+        // Its logo where TMDB has one, as the Mac's billboard.
+        TitleArt(p, size = 76)
+        Box(Modifier.padding(top = 6.dp)) { MetaLine(p, genres = 3, allScores = true) }
         Text(
             p.plot(loc.lang), Modifier.widthIn(max = 820.dp).padding(top = 2.dp),
             style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2, maxLines = plotLines, overflow = TextOverflow.Ellipsis,
@@ -319,9 +316,10 @@ private fun Rows(
           // Story-style pager: the current segment fills as its turn runs out.
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             heroes.indices.forEach { i ->
-              val w by animateDpAsState(if (i == heroIndex) 64.dp else 22.dp, Theme.glide(), label = "seg")
-              Box(Modifier.width(w).height(5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.22f))) {
-                if (i == heroIndex) Box(Modifier.fillMaxWidth(heroProgress.coerceIn(0.08f, 1f)).height(5.dp).background(Color.White, RoundedCornerShape(50)))
+              // The Mac's pager: the open one longer, filling in the title's colour as its turn runs.
+              val w by animateDpAsState(if (i == heroIndex) 57.dp else 16.dp, Theme.glide(), label = "seg")
+              Box(Modifier.width(w).height(5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.28f))) {
+                if (i == heroIndex) Box(Modifier.fillMaxWidth(if (LocalCalm.current) 1f else heroProgress.coerceIn(0.08f, 1f)).height(5.dp).background(LocalHue.current ?: Color.White, RoundedCornerShape(50)))
               }
             }
           }
@@ -344,33 +342,24 @@ private fun Rows(
                 scaleY = scale
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (rtl) 1f else 0f, 0.5f)
               },
-              style = app(32, FontWeight.Bold), color = if (current) Theme.text1 else Theme.text2, maxLines = 1,
+              style = app(30, FontWeight.Bold), color = Theme.text1, maxLines = 1,
           )
           CompositionLocalProvider(LocalBringIntoViewSpec provides startEdge) {
             LazyRow(
                 Modifier.fillMaxWidth().focusRestorer(),
                 contentPadding = PaddingValues(horizontal = Theme.edge),
-                horizontalArrangement = Arrangement.spacedBy(if (section.key == "top_10") 8.dp else 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (section.key == "top_10") 4.dp else 21.dp),
             ) {
               itemsIndexed(section.posts, key = { _, p -> p.id }) { i, post ->
                 val focus = Modifier.onFocusChanged { if (it.isFocused) onFocus(Selection(section.key, post, i + 1)) }
                 val loads = i < 10 || section.key in opened
                 when (section.key) {
-                  "continue" -> CardSurface(
-                      onClick = { nav.push(Route.Details(post)) }, modifier = focus, glow = post.tint(),
+                  "continue" -> ContinueCard(
+                      post, { nav.push(Route.Details(post)) }, focus,
                       // Held select: off the row, on 30nama too.
                       onLongClick = { app.sheets.show(SheetSpec(post.title(loc.lang), listOf(SheetAction(loc(S.removeFromContinue), Icons.close) { onDismiss(post) }))) },
-                  ) { ContinueCard(post) }
-                  "top_10" -> Row(verticalAlignment = Alignment.Bottom) {
-                    val lit = browsing?.row == "top_10" && browsing.post.id == post.id
-                    // The number tucks under the poster's edge; offset follows the reading direction.
-                    Box(Modifier.offset(x = 34.dp)) {
-                      CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Text(loc.num(i + 1), Modifier.height(300.dp), style = app(250, FontWeight.ExtraBold), color = Theme.text1.copy(alpha = if (lit) 0.9f else 0.22f), maxLines = 1)
-                      }
-                    }
-                    PosterCard(post, { nav.push(Route.Details(post)) }, focus, loads = loads)
-                  }
+                  )
+                  "top_10" -> RankedCard(i + 1, post, { nav.push(Route.Details(post)) }, focus, loads = loads)
                   else -> PosterCard(post, { nav.push(Route.Details(post)) }, focus, loads = loads)
                 }
               }
@@ -392,29 +381,6 @@ private fun Rows(
       if (!app.isLoggedIn) GuestNote()
       Box(Modifier.height(200.dp))
     }
-    }
-  }
-}
-
-/** Landscape card for the "continue watching" row: cover, progress, and where you left off. */
-@Composable
-private fun ContinueCard(post: Post) {
-  val loc = LocalLoc.current
-  Box(Modifier.size(400.dp, 300.dp).clip(RoundedCornerShape(Theme.cardRadius)).background(Theme.surface)) {
-    RemoteImage(post.cover ?: post.poster.big, Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 480)
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))))
-    Column(Modifier.align(Alignment.BottomStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text(post.title(loc.lang), style = app(24, FontWeight.Bold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-      val resume = post.resume
-      val app = LocalApp.current
-      val label = if (post.id in app.newEpisodes) "● ${loc(S.newEpisode)}" else resume?.let { r ->
-        listOfNotNull(
-            if (r.season != null && r.episode != null) loc.episodeTag(r.season!!, Episode.label(r.episode, 1)) else null,
-            r.remainingMinutes?.let { "${loc.num(it)} ${loc(S.minLeft)}" },
-        ).joinToString(" · ").ifEmpty { null }
-      }
-      label?.let { Text(it, style = app(20, FontWeight.Medium), color = Theme.text2, maxLines = 1) }
-      resume?.progress?.takeIf { it > 0 }?.let { ProgressBar(it) }
     }
   }
 }

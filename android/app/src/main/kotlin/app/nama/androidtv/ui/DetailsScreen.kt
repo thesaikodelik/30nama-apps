@@ -314,49 +314,6 @@ private fun Mine(post: Post) {
 }
 
 /**
- * A title's name, as the Mac's `TitleArt`: its logo from TMDB when there is one, else the name in
- * large type with its other name under it. The logo is mostly in English; in Persian or Arabic the
- * name in that language follows it in smaller type. Not shown until TMDB answers (two seconds at
- * most), so the name does not flash up and give way to the logo.
- */
-@Composable
-private fun TitleArt(post: Post, size: Int) {
-  val app = LocalApp.current
-  val loc = LocalLoc.current
-  // Null while TMDB is asked; then the logo, or none.
-  var logo by remember(post.id) { mutableStateOf<Result<java.net.URI?>?>(app.extras.known[post.id]?.let { Result.success(it.logo) }) }
-  LaunchedEffect(post.id) {
-    if (logo != null) return@LaunchedEffect
-    val found = kotlinx.coroutines.withTimeoutOrNull(2_000) { app.extras.info(post, loc.lang) }
-    logo = Result.success(found?.logo ?: app.extras.known[post.id]?.logo)
-  }
-  // A logo that comes later still replaces the name.
-  val late = app.extras.known[post.id]?.logo
-  val url = logo?.getOrNull() ?: late
-  val shown by animateFloatAsState(if (logo != null || late != null) 1f else 0f, tween(450), label = "title")
-  Column(Modifier.graphicsLayer { alpha = shown }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-    if (url != null) {
-      coil3.compose.AsyncImage(
-          model = url.toString(), contentDescription = post.title(loc.lang),
-          modifier = Modifier.heightIn(max = (size * 2.4f).dp).widthIn(max = (size * 8).dp),
-          contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-      )
-      // Only a name in another script: a series with no Persian name would repeat the logo.
-      if (loc.lang != Lang.en && SubSource.simple(post.title(loc.lang)) != SubSource.simple(post.title(Lang.en))) {
-        Text(post.title(loc.lang), style = app((size * 0.38f).toInt(), FontWeight.SemiBold), color = Theme.text1)
-      }
-    } else {
-      Text(
-          post.title(loc.lang),
-          style = app(size, FontWeight.ExtraBold).copy(brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.84f)))),
-          maxLines = 2, overflow = TextOverflow.Ellipsis,
-      )
-      post.alternateTitle(loc.lang)?.let { Text(it, style = app(30, FontWeight.Medium), color = Theme.text2, maxLines = 1) }
-    }
-  }
-}
-
-/**
  * Where the title stands, as 30nama's own apps show it: places on the top lists, an exclusive
  * subtitle, and how many voted for it and keep it.
  */
