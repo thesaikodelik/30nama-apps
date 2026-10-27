@@ -311,8 +311,9 @@ fun Placeholder(text: String) {
  * The Mac's top bar (Mac/MacShell.swift, docs/design "نوار بالا"): a glass capsule at the top centre;
  * the tabs' words a little dim, full under focus with a faint pill; the open tab under a lit glass
  * pill that runs to the next like a drop of liquid, its leading edge first. Search and Settings go
- * by their icons, Profile by its icon and name. With a page open over a tab, the pill goes out and
- * a round glass Back button comes in beside the bar. Moving focus along it opens each tab after a
+ * by their icons, Profile by its icon and name. With a page open over a tab, a round glass Back
+ * button comes in beside the bar and the pill stays on the tab the page belongs to (the owner: where
+ * one is must always show; the Mac takes the pill away). Moving focus along it opens each tab after a
  * beat, as tvOS does, so a held remote crossing it does not build every page on the way.
  */
 @Composable
@@ -380,7 +381,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
     // the other side, so the bar stays centred and its tabs do not shift as Back comes and goes.
     BackDisc(routeOpen, onBack, Modifier.focusRequester(back).onFocusChanged { if (it.hasFocus) focusedTab = null })
     Box(Modifier.glass(RoundedCornerShape(50)).padding(6.dp)) {
-      LiquidPill(if (routeOpen) null else places[nav.tab], calm)
+      LiquidPill(places[nav.tab], calm)
       Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         for (tab in Tab.entries) {
           val (title, icon) = when (tab) {
@@ -394,7 +395,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
             Tab.settings -> loc(S.settings) to Icons.gear
           }
           TabItem(
-              title = title, icon = icon, iconOnly = tab == Tab.search || tab == Tab.settings, selected = nav.tab == tab && !routeOpen,
+              title = title, icon = icon, iconOnly = tab == Tab.search || tab == Tab.settings, selected = nav.tab == tab,
               modifier = (if (tab == nav.tab) Modifier.focusRequester(chrome.bar) else Modifier)
                   .focusRequester(steps.getValue(tab))
                   .onFocusChanged { if (it.hasFocus) focusedTab = tab }

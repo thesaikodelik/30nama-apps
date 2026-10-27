@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,206 +79,155 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class Section { Account, Playback, Subtitles, App, Services, About }
-
-/** The row in focus, as the panel at the end describes it: what it does, and every value it can take. */
+/** The row in focus, as the column under the logo describes it. */
 private data class Help(val text: String, val values: List<String> = emptyList(), val current: String? = null)
 
 /**
- * Settings in three columns, after 30namaTV and the Apple TV: the sections; the rows of the one in
- * focus, each changed in place by select (it steps to the next value, or flips), so the remote
- * never leaves the row and there are no dialogs; and a panel that says what the focused row does,
- * with every value it can take and, for subtitles, a sample drawn at its real size.
+ * Settings as the Mac's and the Apple TV's: the logo column at the start, and one list of groups
+ * that scrolls beside it, so the remote only goes up and down and every setting is in sight without
+ * knowing which section holds it. Each row changes in place by select (it steps to the next value,
+ * or flips), so there are no dialogs. What the focused row does is written under the logo, where
+ * the Mac's column is empty, so nothing moves as focus goes down the list.
  */
 @Composable
 fun SettingsScreen() {
   val app = LocalApp.current
   val loc = LocalLoc.current
-  var section by remember { mutableStateOf(Section.Playback) }
+  val chrome = LocalChrome.current
   var help by remember { mutableStateOf<Help?>(null) }
   var editing by remember { mutableStateOf<String?>(null) }
   val s = app.settings
+  val scroll = rememberScrollState()
 
   fun <T> next(value: T, values: List<T>): T = values[(values.indexOf(value) + 1) % values.size]
-  // Coming back to the sections lands on the open one, not on whichever is level with the row.
-  val pills = remember { Section.entries.associateWith { FocusRequester() } }
-  // And going over to the rows lands on the section's first one.
-  val firstRow = remember { FocusRequester() }
-  LaunchedEffect(section) { help = null }
+  // The bar steps out of the way once the list is scrolled, as on the other pages.
+  LaunchedEffect(scroll.value == 0) { chrome.pageAtTop = scroll.value == 0 }
+  DisposableEffect(Unit) { onDispose { chrome.pageAtTop = true } }
 
   Ambient {
-    Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge, top = 150.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-      // Sections.
-      Column(Modifier.width(320.dp).enterAt(pills.getValue(section)), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // The Mac's logo column: the 30nama mark, and the line that says what this app is.
+    Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge), horizontalArrangement = Arrangement.spacedBy(80.dp, Alignment.CenterHorizontally)) {
+      // The Mac's logo column: the 30nama mark, the line that says what this app is, and under
+      // them what the focused row does.
+      Column(Modifier.width(360.dp).padding(top = 170.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.nama_logo), null, Modifier.width(265.dp))
-        Text(loc(S.unofficial), Modifier.padding(top = 10.dp, bottom = 26.dp), style = app(17), color = Theme.text3, maxLines = 2)
-        for (sec in Section.entries) {
-          val name = when (sec) {
-            Section.Account -> loc(S.account)
-            Section.Playback -> loc(S.playback)
-            Section.Subtitles -> loc(S.subtitles)
-            Section.App -> tv(TV.sectionApp)
-            Section.Services -> loc(S.services)
-            Section.About -> loc(S.about)
-          }
-          SectionPill(name, sec == section, Modifier.focusRequester(pills.getValue(sec))) { section = sec }
-        }
+        Text(loc(S.unofficial), style = app(17), color = Theme.text3, maxLines = 2, textAlign = TextAlign.Center)
+        help?.let { Text(it.text, Modifier.padding(top = 40.dp), style = app(20).copy(lineHeight = app(20).fontSize * 1.5f), color = Theme.text2) }
       }
-      // Rows.
-      // The Mac's group: its name small above, the rows in one pane of glass.
-      Column(Modifier.width(860.dp).verticalScroll(rememberScrollState()).padding(bottom = 60.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text(sectionName(section), Modifier.padding(start = 10.dp), style = app(18, FontWeight.SemiBold), color = Theme.text3)
-      Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(21.dp), fill = 0.03f).padding(vertical = 10.dp).enterAt(firstRow), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        val first = Modifier.focusRequester(firstRow)
-        when (section) {
-          Section.Account -> {
-            val user = app.user
-            Fact(loc(S.account), user?.name ?: loc(S.guestAccount))
-            user?.type?.let { Fact(loc(S.accountType), loc.accountType(it)) }
-            // Under a week left, in red, as a nudge to renew.
-            user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it, if ((user.daysLeft(java.time.Instant.now()) ?: 99) < 7) Theme.accent else Theme.text3) }
-            if (user != null) {
-              Choice(loc(S.signOut), null, Help(loc(S.signOutBody)), { help = it }, first) {
-                app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
-              }
-            } else Choice(loc(S.signInQR), null, Help(loc(S.signInHint)), { help = it }, first) { app.requestSignIn() }
-          }
-          Section.Playback -> {
-            val quality = listOf(false to loc(S.qualityBest), true to loc(S.qualityAuto))
-            Choice(loc(S.quality), quality.first { it.first == s.preferAdaptive }.second, Help(tv(TV.qualityHint), quality.map { it.second }, quality.first { it.first == s.preferAdaptive }.second), { help = it }, first) {
-              app.update { it.copy(preferAdaptive = !it.preferAdaptive) }
+      Column(Modifier.width(980.dp).fillMaxHeight().verticalScroll(scroll).padding(top = 150.dp, bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(30.dp)) {
+        Group(loc(S.account)) {
+          val user = app.user
+          Fact(loc(S.account), user?.name ?: loc(S.guestAccount))
+          user?.type?.let { Fact(loc(S.accountType), loc.accountType(it)) }
+          // Under a week left, in red, as a nudge to renew.
+          user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it, if ((user.daysLeft(java.time.Instant.now()) ?: 99) < 7) Theme.accent else Theme.text3) }
+          if (user != null) {
+            Choice(loc(S.signOut), null, Help(loc(S.signOutBody)), { help = it }) {
+              app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
             }
-            val mixes = listOf(AudioMix.stereo to loc(S.audioStereo), AudioMix.surround to loc(S.audioSurround), AudioMix.original to loc(S.audioOriginal))
-            val mixName = mixes.first { it.first == s.audioMix }.second
-            Choice(loc(S.audio), mixName, Help(tv(TV.audioHint), mixes.map { it.second }, mixName), { help = it }) {
-              app.update { it.copy(audioMix = next(it.audioMix, mixes.map { m -> m.first })) }
-            }
-            Toggle(loc(S.autoplay), s.autoplayNext, tv(TV.autoplayHint), { help = it }) { app.update { it.copy(autoplayNext = !it.autoplayNext) } }
-            Toggle(loc(S.autoSkip), s.autoSkip, tv(TV.autoSkipHint), { help = it }) { app.update { it.copy(autoSkip = !it.autoSkip) } }
-            val ahead = Settings.readAheadChoices.map { if (it == 0) loc(S.off) else loc.num("$it%") }
-            val aheadName = ahead[Settings.readAheadChoices.indexOf(s.readAhead)]
-            Choice(tv(TV.readAhead), aheadName, Help(tv(TV.readAheadHint), ahead, aheadName), { help = it }) {
-              app.update { it.copy(readAhead = next(it.readAhead, Settings.readAheadChoices)) }
-            }
-            Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
-          }
-          Section.Subtitles -> {
-            val langs = listOf("fa" to loc(S.persian), "en" to loc(S.english), "off" to loc(S.off))
-            val langName = langs.firstOrNull { it.first == s.defaultSubtitle }?.second ?: loc(S.off)
-            val hint = tv(TV.subtitlesHint)
-            val subHelp = { values: List<String>, current: String -> Help(hint, values, current) }
-            Choice(loc(S.defaultSubs), langName, subHelp(langs.map { it.second }, langName), { help = it }, first) {
-              app.update { it.copy(defaultSubtitle = next(it.defaultSubtitle, langs.map { l -> l.first })) }
-            }
-            val sizes = listOf(loc(S.small), loc(S.medium), loc(S.large))
-            val sizeName = sizes[Settings.subtitleSizes.indexOf(s.subtitleSize).coerceAtLeast(0)]
-            Choice(loc(S.subSize), sizeName, subHelp(sizes, sizeName), { help = it }) { app.update { it.copy(subtitleSize = next(it.subtitleSize, Settings.subtitleSizes)) } }
-            val colors = SubtitleColor.entries.map { loc(it.label) }
-            Choice(loc(S.subColor), loc(s.subtitleColor.label), subHelp(colors, loc(s.subtitleColor.label)), { help = it }) {
-              app.update { it.copy(subtitleColor = next(it.subtitleColor, SubtitleColor.entries.toList())) }
-            }
-            val backs = SubtitleBackground.entries.map { loc(it.label) }
-            Choice(loc(S.subBackground), loc(s.subtitleBackground.label), subHelp(backs, loc(s.subtitleBackground.label)), { help = it }) {
-              app.update { it.copy(subtitleBackground = next(it.subtitleBackground, SubtitleBackground.entries.toList())) }
-            }
-          }
-          Section.App -> {
-            val langs = Lang.entries.map { it.nativeName }
-            Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }, first) {
-              app.update { it.copy(lang = next(it.lang, Lang.entries.toList())) }
-            }
-            val context = LocalContext.current
-            val systemCalm = remember { systemAnimationsOff(context) }
-            val motionHint = tv(TV.motionHint) + if (systemCalm) "\n\n" + tv(TV.motionOffBySystem) else ""
-            Toggle(loc(S.reduceMotion), s.reduceMotion, motionHint, { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
-            val scope = rememberCoroutineScope()
-            val cleared = tv(TV.cleared)
-            // What the pictures, the episode stills and the read-ahead video take on the TV.
-            var used by remember { mutableStateOf<Long?>(null) }
-            LaunchedEffect(Unit) { used = withContext(Dispatchers.IO) { cacheBytes(context) } }
-            Choice(tv(TV.clearCaches), used?.let { "${loc.num((it / (1L shl 20)).toInt())} ${tv(TV.megabytes)}" }, Help(tv(TV.clearCaches)), { help = it }) {
-              scope.launch {
-                used = withContext(Dispatchers.IO) {
-                  listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() }
-                  // The video cache stays open while the app runs: emptied entry by entry, not deleted.
-                  Disk.cache(context)?.let { c -> c.keys.toList().forEach { k -> runCatching { c.removeResource(k) } } }
-                  cacheBytes(context)
-                }
-                app.showToast(cleared)
-              }
-            }
-          }
-          Section.Services -> {
-            KeyRow("tmdb", loc(S.tmdbKey), loc(S.tmdbKeyHint), { help = it }, first) { editing = "tmdb" }
-            KeyRow("subsource", loc(S.subsourceKey), loc(S.subsourceKeyHint), { help = it }) { editing = "subsource" }
-            KeyRow("gemini", tv(TV.geminiKey), tv(TV.geminiKeyHint), { help = it }) { editing = "gemini" }
-          }
-          Section.About -> {
-            Fact(loc(S.version), BuildConfig.VERSION_NAME)
-            val updater = app.updater
-            val (label, value) = updateRow(updater.state, updater.current)
-            val installing = updater.state is Updater.State.Installing || updater.state is Updater.State.NeedsPermission
-            Choice(label, value.ifEmpty { null }, Help(tv(if (installing) TV.installHint else TV.updateHint)), { help = it }, first) {
-              when (val st = updater.state) {
-                is Updater.State.Available -> updater.install(st.release)
-                is Updater.State.Failed -> updater.showFailure = true
-                Updater.State.Idle, Updater.State.UpToDate -> updater.check()
-                else -> Unit
-              }
-            }
-            Fact(loc(S.apiHost), app.apiHost ?: "—")
-            Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }) {}
+          } else Choice(loc(S.signInQR), null, Help(loc(S.signInHint)), { help = it }) { app.requestSignIn() }
+        }
+        Group(loc(S.language)) {
+          val langs = Lang.entries.map { it.nativeName }
+          Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }) {
+            app.update { it.copy(lang = next(it.lang, Lang.entries.toList())) }
           }
         }
+        Group(loc(S.playback)) {
+          val quality = listOf(false to loc(S.qualityBest), true to loc(S.qualityAuto))
+          Choice(loc(S.quality), quality.first { it.first == s.preferAdaptive }.second, Help(tv(TV.qualityHint), quality.map { it.second }, quality.first { it.first == s.preferAdaptive }.second), { help = it }) {
+            app.update { it.copy(preferAdaptive = !it.preferAdaptive) }
+          }
+          val mixes = listOf(AudioMix.stereo to loc(S.audioStereo), AudioMix.surround to loc(S.audioSurround), AudioMix.original to loc(S.audioOriginal))
+          val mixName = mixes.first { it.first == s.audioMix }.second
+          Choice(loc(S.audio), mixName, Help(tv(TV.audioHint), mixes.map { it.second }, mixName), { help = it }) {
+            app.update { it.copy(audioMix = next(it.audioMix, mixes.map { m -> m.first })) }
+          }
+          Toggle(loc(S.autoplay), s.autoplayNext, tv(TV.autoplayHint), { help = it }) { app.update { it.copy(autoplayNext = !it.autoplayNext) } }
+          Toggle(loc(S.autoSkip), s.autoSkip, tv(TV.autoSkipHint), { help = it }) { app.update { it.copy(autoSkip = !it.autoSkip) } }
+          val ahead = Settings.readAheadChoices.map { if (it == 0) loc(S.off) else loc.num("$it%") }
+          val aheadName = ahead[Settings.readAheadChoices.indexOf(s.readAhead)]
+          Choice(tv(TV.readAhead), aheadName, Help(tv(TV.readAheadHint), ahead, aheadName), { help = it }) {
+            app.update { it.copy(readAhead = next(it.readAhead, Settings.readAheadChoices)) }
+          }
+          Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
+        }
+        Group(loc(S.subtitles)) {
+          val langs = listOf("fa" to loc(S.persian), "en" to loc(S.english), "off" to loc(S.off))
+          val langName = langs.firstOrNull { it.first == s.defaultSubtitle }?.second ?: loc(S.off)
+          val hint = tv(TV.subtitlesHint)
+          val subHelp = { values: List<String>, current: String -> Help(hint, values, current) }
+          Choice(loc(S.defaultSubs), langName, subHelp(langs.map { it.second }, langName), { help = it }) {
+            app.update { it.copy(defaultSubtitle = next(it.defaultSubtitle, langs.map { l -> l.first })) }
+          }
+          val sizes = listOf(loc(S.small), loc(S.medium), loc(S.large))
+          val sizeName = sizes[Settings.subtitleSizes.indexOf(s.subtitleSize).coerceAtLeast(0)]
+          Choice(loc(S.subSize), sizeName, subHelp(sizes, sizeName), { help = it }) { app.update { it.copy(subtitleSize = next(it.subtitleSize, Settings.subtitleSizes)) } }
+          val colors = SubtitleColor.entries.map { loc(it.label) }
+          Choice(loc(S.subColor), loc(s.subtitleColor.label), subHelp(colors, loc(s.subtitleColor.label)), { help = it }) {
+            app.update { it.copy(subtitleColor = next(it.subtitleColor, SubtitleColor.entries.toList())) }
+          }
+          val backs = SubtitleBackground.entries.map { loc(it.label) }
+          Choice(loc(S.subBackground), loc(s.subtitleBackground.label), subHelp(backs, loc(s.subtitleBackground.label)), { help = it }) {
+            app.update { it.copy(subtitleBackground = next(it.subtitleBackground, SubtitleBackground.entries.toList())) }
+          }
+          // As the Mac's: the sample in the group, under the rows it shows.
+          Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp)) { SubtitleSample(s) }
+        }
+        Group(tv(TV.sectionApp)) {
+          val context = LocalContext.current
+          val systemCalm = remember { systemAnimationsOff(context) }
+          val motionHint = tv(TV.motionHint) + if (systemCalm) "\n\n" + tv(TV.motionOffBySystem) else ""
+          Toggle(loc(S.reduceMotion), s.reduceMotion, motionHint, { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
+          val scope = rememberCoroutineScope()
+          val cleared = tv(TV.cleared)
+          // What the pictures, the episode stills and the read-ahead video take on the TV.
+          var used by remember { mutableStateOf<Long?>(null) }
+          LaunchedEffect(Unit) { used = withContext(Dispatchers.IO) { cacheBytes(context) } }
+          Choice(tv(TV.clearCaches), used?.let { "${loc.num((it / (1L shl 20)).toInt())} ${tv(TV.megabytes)}" }, Help(tv(TV.clearCaches)), { help = it }) {
+            scope.launch {
+              used = withContext(Dispatchers.IO) {
+                listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() }
+                // The video cache stays open while the app runs: emptied entry by entry, not deleted.
+                Disk.cache(context)?.let { c -> c.keys.toList().forEach { k -> runCatching { c.removeResource(k) } } }
+                cacheBytes(context)
+              }
+              app.showToast(cleared)
+            }
+          }
+        }
+        Group(loc(S.services)) {
+          KeyRow("tmdb", loc(S.tmdbKey), loc(S.tmdbKeyHint), { help = it }) { editing = "tmdb" }
+          KeyRow("subsource", loc(S.subsourceKey), loc(S.subsourceKeyHint), { help = it }) { editing = "subsource" }
+          KeyRow("gemini", tv(TV.geminiKey), tv(TV.geminiKeyHint), { help = it }) { editing = "gemini" }
+        }
+        Group(loc(S.about)) {
+          Fact(loc(S.version), BuildConfig.VERSION_NAME)
+          val updater = app.updater
+          val (label, value) = updateRow(updater.state, updater.current)
+          val installing = updater.state is Updater.State.Installing || updater.state is Updater.State.NeedsPermission
+          Choice(label, value.ifEmpty { null }, Help(tv(if (installing) TV.installHint else TV.updateHint)), { help = it }) {
+            when (val st = updater.state) {
+              is Updater.State.Available -> updater.install(st.release)
+              is Updater.State.Failed -> updater.showFailure = true
+              Updater.State.Idle, Updater.State.UpToDate -> updater.check()
+              else -> Unit
+            }
+          }
+          Fact(loc(S.apiHost), app.apiHost ?: "—")
+          Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }) {}
+        }
       }
-      }
-      // What the focused row does.
-      HelpPanel(section, help, Modifier.weight(1f))
     }
   }
   editing?.let { service -> KeyCard(service) { editing = null } }
 }
 
+/** The Mac's group: its name small above, the rows in one pane of glass. */
 @Composable
-private fun sectionName(sec: Section): String {
-  val loc = LocalLoc.current
-  return when (sec) {
-    Section.Account -> loc(S.account)
-    Section.Playback -> loc(S.playback)
-    Section.Subtitles -> loc(S.subtitles)
-    Section.App -> tv(TV.sectionApp)
-    Section.Services -> loc(S.services)
-    Section.About -> loc(S.about)
-  }
-}
-
-/** Focus coming into this column from outside always lands on [target], whatever is level with where it came from. */
-private fun Modifier.enterAt(target: FocusRequester): Modifier =
-    focusProperties { onEnter = { if (!target.requestFocus()) cancelFocusChange() } }.focusGroup()
-
-@Composable
-private fun SectionPill(name: String, selected: Boolean, modifier: Modifier, onFocus: () -> Unit) {
-  val interaction = remember { MutableInteractionSource() }
-  val focused by interaction.collectIsFocusedAsState()
-  LaunchedEffect(focused) { if (focused) onFocus() }
-  // As the bar's tabs: the open one under lit glass, the rest dim words that brighten in focus.
-  Surface(
-      onClick = onFocus,
-      modifier = modifier.fillMaxWidth(),
-      interactionSource = interaction,
-      shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
-      colors = ClickableSurfaceDefaults.colors(
-          containerColor = Color.Transparent,
-          focusedContainerColor = Color.Transparent,
-          contentColor = if (selected) Theme.text1 else Theme.text1.copy(alpha = 0.7f),
-          focusedContentColor = Theme.text1,
-      ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
-  ) {
-    Box(Modifier.fillMaxWidth().then(if (selected || focused) Modifier.glass(RoundedCornerShape(50), lit = true, fill = if (focused) 0.08f else 0f, veil = 0f) else Modifier)) {
-      Text(name, Modifier.padding(horizontal = 26.dp, vertical = 14.dp), style = app(25, FontWeight.SemiBold), maxLines = 1)
-    }
+private fun Group(name: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Text(name, Modifier.padding(start = 10.dp), style = app(18, FontWeight.SemiBold), color = Theme.text3)
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(21.dp), fill = 0.03f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
   }
 }
 
@@ -353,26 +303,6 @@ private fun KeyRow(service: String, label: String, hint: String, show: (Help) ->
   // Only its last four characters, never the key.
   val value = app.key(service)?.let { "•••• " + it.takeLast(4) } ?: tv(TV.keyNotSet)
   Choice(label, value, Help(hint), show, modifier, open)
-}
-
-@Composable
-private fun HelpPanel(section: Section, help: Help?, modifier: Modifier) {
-  val app = LocalApp.current
-  val shape = RoundedCornerShape(Theme.tileRadius + 6.dp)
-  Column(modifier.heightIn(min = 560.dp).glass(shape, fill = 0.03f).padding(34.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-    help?.let { h ->
-      Text(h.text, style = app(21).copy(lineHeight = app(21).fontSize * 1.5f), color = Theme.text2)
-      if (h.values.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        h.values.forEach { v ->
-          Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(26.dp)) { if (v == h.current) Icon(Icons.check, null, Modifier.size(26.dp), tint = Theme.accent) }
-            Text(v, style = app(21, if (v == h.current) FontWeight.SemiBold else FontWeight.Normal), color = if (v == h.current) Theme.text1 else Theme.text3)
-          }
-        }
-      }
-    }
-    if (section == Section.Subtitles) SubtitleSample(app.settings)
-  }
 }
 
 /** A sample line at its real size over a bright, busy picture, where the choice of background matters. */

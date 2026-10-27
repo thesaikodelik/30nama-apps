@@ -58,16 +58,15 @@ import kotlinx.coroutines.launch
 /** Backdrop for list screens: the base colour with a faint warm glow from the top corner. */
 @Composable
 fun Ambient(content: @Composable () -> Unit) {
-  // The Mac's AmbientBackground: a warm light from the top end corner, a cool one from the bottom
-  // start, each a gradient that costs nothing. Its 900 and 800 points are ×1.2 on a 1920 screen.
-  val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+  // The Mac's AmbientBackground: a warm light from the top right corner, a cool one from the bottom
+  // left, each a gradient that costs nothing. Its 900 and 800 points are ×1.2 on a 1920 screen.
+  // Not mirrored in Persian and Arabic: the Mac's stays where it is (docs/design/mac/fa, measured).
   Box(
       Modifier.fillMaxSize()
           .background(Theme.bg0)
           .drawBehind {
-            val end = if (rtl) 0f else size.width
-            drawRect(Brush.radialGradient(listOf(Theme.accent.copy(alpha = 0.16f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(end, 0f), radius = 1080.dp.toPx()))
-            drawRect(Brush.radialGradient(listOf(Color(0xFF2B3A67).copy(alpha = 0.25f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width - end, size.height), radius = 960.dp.toPx()))
+            drawRect(Brush.radialGradient(listOf(Theme.accent.copy(alpha = 0.16f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = 1080.dp.toPx()))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF2B3A67).copy(alpha = 0.25f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(0f, size.height), radius = 960.dp.toPx()))
           }) {
     content()
   }

@@ -67,7 +67,9 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
         GridCells.FixedSize(Theme.posterWidth),
         Modifier.fillMaxSize().focusRestorer(),
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 70.dp, bottom = 80.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        // The catalogue's wall: 8 across with the room left over shared by both sides.
+        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+        // Room for each one's name under it.
         verticalArrangement = Arrangement.spacedBy(44.dp),
     ) {
       item(span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(24.dp)) { header() } }
@@ -220,7 +222,9 @@ fun PersonScreen(person: Person) {
         GridCells.FixedSize(Theme.posterWidth),
         Modifier.fillMaxSize().focusRestorer(),
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 70.dp, bottom = 80.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        // The catalogue's wall: 8 across with the room left over shared by both sides.
+        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+        // Room for each one's name under it.
         verticalArrangement = Arrangement.spacedBy(44.dp),
     ) {
       item(span = { GridItemSpan(maxLineSpan) }) {
