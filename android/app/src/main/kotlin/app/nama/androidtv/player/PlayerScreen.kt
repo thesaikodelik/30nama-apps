@@ -305,7 +305,8 @@ fun PlayerScreen(request: PlaybackRequest) {
         val cut = android.graphics.Bitmap.createBitmap(frame, x, y, cw, ch)
         t to android.graphics.Bitmap.createScaledBitmap(cut, 32, (32f * ch / cw).toInt().coerceAtLeast(1), true).asImageBitmap()
       }
-      if (seen.worthCutting) trim = seen
+      // Always the newest word: a bright frame with picture at an edge takes that edge's cut back.
+      trim = if (seen.worthCutting) seen else Trim()
       light = small
     }
     Crossfade(light, Modifier.fillMaxSize(), animationSpec = tween(1200), label = "light") { l ->
