@@ -72,11 +72,12 @@ class ModelTests {
         assertEquals(1950, options.decades.last())
 
         assertTrue(Filter().isEmpty)
-        val filter = Filter(genre = "drama", country = "US", score = "8.5", decade = 2010)
+        val filter = Filter(genres = listOf("drama"), country = "US", score = "8.5", decade = 2010)
         assertFalse(filter.isEmpty)
         assertEquals("""{"country":"US","genre":["drama"],"imdb_rate":8.5,"max_year":2019,"min_year":2010,"stream":"true","type":["movie"]}""",
             filter.parameters(type = "movie"))
         assertEquals("""{"imdb_rate":8,"stream":"true"}""", Filter(score = "8").parameters(type = null))
+        assertEquals("""{"genre":["drama","crime"],"stream":"true"}""", Filter(genres = listOf("drama", "crime")).parameters(type = null))
     }
 
     @Test fun testUpcomingEpisodesAreSortedSoonestFirst() {

@@ -29,8 +29,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 
-/** One choice in a sheet. */
-data class SheetAction(val title: String, val icon: ImageVector? = null, val primary: Boolean = false, val selected: Boolean = false, val run: () -> Unit)
+/**
+ * One choice in a sheet. A [toggle] is turned on or off where it is, and the sheet stays open
+ * (several genres at once); in a sheet of toggles the other choice is the one for none of them
+ * (All), chosen while none is on.
+ */
+data class SheetAction(val title: String, val icon: ImageVector? = null, val primary: Boolean = false, val selected: Boolean = false, val toggle: Boolean = false, val run: () -> Unit)
 
 /** A small set of choices over the page, as a held select brings up a context menu on the Apple TV. */
 data class SheetSpec(val title: String?, val actions: List<SheetAction>, val message: String? = null, val focus: Int = 0)
@@ -64,6 +68,8 @@ fun SheetHost(sheets: Sheets) {
   val first = remember(spec) { FocusRequester() }
   BackHandler { sheets.dismiss() }
   val list = androidx.compose.foundation.lazy.rememberLazyListState()
+  var picked by remember(spec) { mutableStateOf(spec.actions.indices.filter { spec.actions[it].toggle && spec.actions[it].selected }.toSet()) }
+  val toggles = spec.actions.any { it.toggle }
   LaunchedEffect(spec) {
     list.scrollToItem(spec.focus.coerceIn(0, (spec.actions.size - 1).coerceAtLeast(0)))
     androidx.compose.runtime.withFrameNanos {}
@@ -91,13 +97,14 @@ fun SheetHost(sheets: Sheets) {
           PillButton(
               a.title,
               onClick = {
-                sheets.dismiss()
+                if (a.toggle) picked = if (i in picked) picked - i else picked + i else sheets.dismiss()
                 a.run()
               },
               modifier = if (i == spec.focus) Modifier.focusRequester(first) else Modifier,
               kind = if (a.primary) PillKind.Primary else PillKind.Secondary,
-              icon = a.icon,
-              selected = a.selected,
+              // What is chosen carries a check, as in the Mac's menus; a white chip among glass ones
+              // read as a second focus.
+              icon = if (if (a.toggle) i in picked else if (toggles) picked.isEmpty() else a.selected) Icons.check else a.icon,
           )
         }
       }

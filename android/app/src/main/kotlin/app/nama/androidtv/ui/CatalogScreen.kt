@@ -46,6 +46,7 @@ import app.nama.androidtv.attempt
 import app.nama.core.Filter
 import app.nama.core.FilterOptions
 import app.nama.core.Fmt
+import app.nama.core.Lang
 import app.nama.core.Menu
 import app.nama.core.MenuEntry
 import app.nama.core.Post
@@ -202,6 +203,19 @@ fun CatalogScreen(slug: String, title: String) {
     app.sheets.show(SheetSpec(loc(titleKey), actions, focus = choices.indexOfFirst { it.second == current }.coerceAtLeast(0)))
   }
 
+  // Several genres at once (the aliir74 app's): each turns on or off where it is, and the list
+  // behind follows; All clears them and closes.
+  fun chooseGenres(o: FilterOptions) {
+    val actions = listOf(SheetAction(loc(S.allChoices), selected = filter.genres.isEmpty()) { filter = filter.copy(genres = emptyList()) }) +
+        o.genres.map { g ->
+          SheetAction(g.name, selected = g.value in filter.genres, toggle = true) {
+            filter = filter.copy(genres = if (g.value in filter.genres) filter.genres - g.value else filter.genres + g.value)
+          }
+        }
+    val first = o.genres.indexOfFirst { it.value in filter.genres }
+    app.sheets.show(SheetSpec(loc(S.genres), actions, focus = if (first >= 0) first + 1 else 0))
+  }
+
   Ambient {
     if (failed && posts.isEmpty()) {
       ErrorState { loadNext() }
@@ -223,8 +237,9 @@ fun CatalogScreen(slug: String, title: String) {
                 val all = loc(S.allChoices)
                 val menu = Icons.chevronDown
                 item {
-                  val name = o.genres.firstOrNull { it.value == filter.genre }?.name ?: loc(S.genres)
-                  PillButton(name, { choose(S.genres, listOf(all to null) + o.genres.map { it.name to it.value }, filter.genre) { filter = filter.copy(genre = it) } }, kind = PillKind.Chip, selected = filter.genre != null, trailing = menu)
+                  val chosen = o.genres.filter { it.value in filter.genres }
+                  val name = if (chosen.isEmpty()) loc(S.genres) else chosen.joinToString(if (loc.lang == Lang.en) ", " else "، ") { it.name }
+                  PillButton(name, { chooseGenres(o) }, kind = PillKind.Chip, selected = chosen.isNotEmpty(), trailing = menu)
                 }
                 item {
                   val name = o.countries.firstOrNull { it.value == filter.country }?.name ?: loc(S.country)

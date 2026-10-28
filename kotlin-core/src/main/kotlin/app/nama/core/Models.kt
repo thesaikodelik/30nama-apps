@@ -897,13 +897,14 @@ data class FilterOptions(
 
 /** What the user has narrowed a catalogue down to. */
 data class Filter(
-    val genre: String? = null,
+    /** Any number of genres; the server takes the titles that have every one (6 Aban 1405). */
+    val genres: List<String> = emptyList(),
     val country: String? = null,
     val score: String? = null,
     /** First year of the decade: 2010 stands for 2010 to 2019. */
     val decade: Int? = null,
 ) {
-    val isEmpty: Boolean get() = genre == null && country == null && score == null && decade == null
+    val isEmpty: Boolean get() = genres.isEmpty() && country == null && score == null && decade == null
 
     /**
      * The `parameters` value `advanced_search` takes: a JSON object of the chosen fields.
@@ -917,7 +918,7 @@ data class Filter(
         if (type != null) fields["type"] = listOf(type)
         // The genre as a list too: a single one is ignored. The country, though, only as a single
         // value; a list of one finds nothing (both tried on the server, 6 Aban 1405).
-        genre?.let { fields["genre"] = listOf(it) }
+        if (genres.isNotEmpty()) fields["genre"] = genres
         country?.let { fields["country"] = it }
         score?.asciiDouble()?.let { fields["imdb_rate"] = it }
         decade?.let {
