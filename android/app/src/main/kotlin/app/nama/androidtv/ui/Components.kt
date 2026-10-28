@@ -501,6 +501,21 @@ fun PosterCard(
 ) {
   val nav = LocalNav.current
   val calm = LocalCalm.current
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  // Held select, signed in: the watchlist and favourites without opening the title (the Windows
+  // card's buttons under the pointer).
+  val lists = onLongClick ?: if (!app.isLoggedIn) null else {
+    {
+      val watch = app.isListed(post, "watchlist")
+      val fav = app.isListed(post, "favorite")
+      app.sheets.show(SheetSpec(post.title(loc.lang), listOf(
+          SheetAction(loc(S.details), Icons.info) { nav.push(Route.Details(post)) },
+          SheetAction(loc(S.watchlist), if (watch) Icons.bookmark else Icons.bookmarkOutline) { app.background { app.toggleList(post, "watchlist") } },
+          SheetAction(loc(S.favorites), if (fav) Icons.heart else Icons.heartOutline) { app.background { app.toggleList(post, "favorite") } },
+      )))
+    }
+  }
   // Where the card is, so its poster can fly from here to the title's page, as on the Mac.
   var bounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
   Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -510,7 +525,7 @@ fun PosterCard(
           onClick()
         },
         modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
-        glow = rememberPosterTint(post), onLongClick = onLongClick,
+        glow = rememberPosterTint(post), onLongClick = lists,
         front = { PosterCaption(post) },
     ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
@@ -630,9 +645,9 @@ fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: 
   val loc = LocalLoc.current
   val scores: @Composable (Boolean) -> Unit = { all ->
     post.imdbScore?.let { ScoreChip("IMDb", Theme.imdb, Fmt.score(it)) }
-    // The Mac's colours, one for each source.
-    post.rottenTomatoes?.let { ScoreChip("RT", Color(0xFFFA5A3C), "$it%") }
-    if (all) post.metacritic?.let { ScoreChip("MC", Color(0xFF66CC33), "$it") }
+    // The Apple TV's colours: Rotten Tomatoes fresh from 60% as on the site, Metacritic in its three bands.
+    post.rottenTomatoes?.let { ScoreChip("RT", if (it >= 60) Color(0xFFFA4B2A) else Color(0xFF7BB661), "$it%") }
+    if (all) post.metacritic?.let { ScoreChip("MC", if (it >= 61) Color(0xFF66CC33) else if (it >= 40) Color(0xFFFFCC33) else Color(0xFFFF5A4D), "$it") }
     if (all || post.rottenTomatoes == null) post.fanScore?.let { ScoreChip(it.source, Color(0xFF6C8CFF), Fmt.score(it.value)) }
     post.siteScore?.let { score ->
       Chip {
