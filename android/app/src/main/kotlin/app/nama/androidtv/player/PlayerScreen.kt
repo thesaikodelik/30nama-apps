@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
@@ -228,16 +229,26 @@ fun PlayerScreen(request: PlaybackRequest) {
     lastSeekKey = now
   }
 
+  /** Lands a seek still waiting, at once; false when there is none. */
+  fun landSeek(): Boolean {
+    val target = seekTarget ?: return false
+    engine.seekTo(target)
+    seekTarget = null
+    seekHeldSince = 0L
+    return true
+  }
+
   BackHandler {
     when {
       // Back from quality, sound or the timer goes back to the settings they were chosen from.
       panel != null -> panel = if (panel!!.inSettings) Panel.Settings else null
-      controls -> controls = false
-      // A seek still waiting to land is dropped, and the film stays where it was.
+      // A seek still waiting to land is dropped, and the film stays where it was; with the controls
+      // up too (seeking on the timeline), they stay.
       seekTarget != null -> {
         seekTarget = null
         seekHeldSince = 0L
       }
+      controls -> controls = false
       // The countdown to the next episode stops; the episode then ends on the title's page.
       engine.offer?.kind == Offer.Kind.Next && engine.offer?.countdown != null -> engine.cancelNext()
       else -> engine.close()
@@ -273,16 +284,9 @@ fun PlayerScreen(request: PlaybackRequest) {
                   Key.DirectionLeft -> { seekBy(-1, repeat); true }
                   Key.DirectionRight -> { seekBy(1, repeat); true }
                   Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                    val target = seekTarget
-                    when {
-                      // A seek waiting to land lands now.
-                      target != null -> {
-                        engine.seekTo(target)
-                        seekTarget = null
-                        seekHeldSince = 0L
-                      }
-                      engine.offer != null -> engine.acceptOffer()
-                      else -> controls = true
+                    // A seek waiting to land lands now.
+                    if (!landSeek()) {
+                      if (engine.offer != null) engine.acceptOffer() else controls = true
                     }
                     true
                   }
@@ -384,7 +388,7 @@ fun PlayerScreen(request: PlaybackRequest) {
 
     AnimatedVisibility(controls && panel != Panel.Episodes, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) { PlayerTop(engine) }
     AnimatedVisibility((controls || seekTarget != null) && panel != Panel.Episodes, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
-      Controls(engine, seekTarget, full = controls, playButton = playButton, opener = opener, open = { panel = it }, blocked = panel != null)
+      Controls(engine, seekTarget, full = controls, playButton = playButton, opener = opener, open = { panel = it }, blocked = panel != null, seek = { sign, repeat -> seekBy(sign, repeat) }, land = ::landSeek)
     }
     AnimatedVisibility(
         panel != null && panel != Panel.Episodes, Modifier.align(Alignment.CenterEnd),
@@ -463,7 +467,10 @@ private fun OfferPill(offer: Offer) {
 // MARK: Controls
 
 @Composable
-private fun Controls(engine: PlayerEngine, seekTarget: Double?, full: Boolean, playButton: FocusRequester, opener: Map<Panel, FocusRequester>, open: (Panel) -> Unit, blocked: Boolean) {
+private fun Controls(
+    engine: PlayerEngine, seekTarget: Double?, full: Boolean, playButton: FocusRequester, opener: Map<Panel, FocusRequester>, open: (Panel) -> Unit, blocked: Boolean,
+    seek: (sign: Int, repeat: Boolean) -> Unit, land: () -> Boolean,
+) {
   val loc = LocalLoc.current
   val post = engine.post
   val item = engine.current
@@ -476,7 +483,7 @@ private fun Controls(engine: PlayerEngine, seekTarget: Double?, full: Boolean, p
       // A film's time runs left to right in every language, as on tape: the bar and the transport
       // buttons are not mirrored (Material's guidance; YouTube, the Apple TV and the Mac do the same).
       CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-      Scrubber(engine, seekTarget)
+      Scrubber(engine, seekTarget, focusable = full, seek = seek, land = land)
       if (full) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           PlayerButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton), size = 60, glyph = 28)
@@ -559,14 +566,21 @@ private fun PlayerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
   }
 }
 
-/** The seek bar, as the Mac's: a thin line in the title's colour, a little thicker with a thumb while seeking. */
+/**
+ * The seek bar, as the Mac's: a thin line in the title's colour, a little thicker with a thumb while
+ * seeking. With the controls up it takes focus too, above the buttons (the aliir74 app's): left and
+ * right seek as they do with nothing on screen, select lands the seek or, with none waiting, plays
+ * and pauses.
+ */
 @Composable
-private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
+private fun Scrubber(engine: PlayerEngine, seekTarget: Double?, focusable: Boolean, seek: (sign: Int, repeat: Boolean) -> Unit, land: () -> Boolean) {
   val d = engine.duration
   val shown = seekTarget ?: engine.position
   val fraction = if (d > 0) (shown / d).toFloat().coerceIn(0f, 1f) else 0f
   val ready = if (d > 0) (engine.buffered / d).toFloat().coerceIn(0f, 1f) else 0f
-  val active = seekTarget != null
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  val active = seekTarget != null || (focusable && focused)
   val hue = LocalHue.current ?: Theme.accent
   val loc = LocalLoc.current
   // The file's named stretches, drawn on the line as the Mac's and Windows': the recap, the intro
@@ -599,7 +613,25 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
       }
     }
     Box(
-        Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 16.dp).drawBehind {
+        Modifier.fillMaxWidth().height(28.dp)
+            .then(if (!focusable) Modifier else Modifier
+                .onKeyEvent { e ->
+                  if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                  val repeat = e.nativeKeyEvent.repeatCount > 0
+                  when (e.key) {
+                    // The bar runs left to right in every language, so left is always back.
+                    Key.DirectionLeft -> { seek(-1, repeat); true }
+                    Key.DirectionRight -> { seek(1, repeat); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                      if (!repeat && !land()) engine.togglePlay()
+                      true
+                    }
+                    else -> false
+                  }
+                }
+                .focusRing(interaction, RoundedCornerShape(50))
+                .focusable(interactionSource = interaction))
+            .padding(horizontal = 16.dp).drawBehind {
           val y = size.height / 2
           val h = (if (active) 8 else 5).dp.toPx()
           fun bar(to: Float, color: Color) = drawRoundRect(color, Offset(0f, y - h / 2), Size(size.width * to, h), CornerRadius(h / 2))
