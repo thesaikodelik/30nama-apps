@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -129,9 +130,10 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
 }
 
 /**
- * The light the chosen preview threw round its ring, inside a surface in focus: two soft pools of
- * 30nama's red (coral and raspberry) going slowly round each other, faint enough to read text over.
- * Drawn behind the content, read only when drawn; still on a weak TV or with reduced motion.
+ * The light the chosen preview threw round its ring, inside a control in focus: a soft glow from its
+ * edge inward in the ring's own gradient (coral, red, raspberry), turning with it, the middle left
+ * as it is (the owner: a red pool in the middle was not it). Layered strokes, no blur; read only
+ * when drawn; still on a weak TV or with reduced motion.
  */
 @Composable
 fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape): Modifier {
@@ -142,24 +144,45 @@ fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: android
     if (!focused || !turns) return@LaunchedEffect
     while (true) angle.animateTo(angle.value + 360f, tween(WASH_TURN_MS, easing = androidx.compose.animation.core.LinearEasing))
   }
-  return this.drawBehind {
-    if (shown <= 0f) return@drawBehind
-    val a = Math.toRadians(angle.value.toDouble())
-    val r = size.maxDimension * 0.75f
+  return this.drawWithCache {
     val cx = size.width / 2f
     val cy = size.height / 2f
-    val dx = size.width * 0.32f
-    val dy = size.height * 0.30f
-    val one = Offset(cx + dx * kotlin.math.cos(a).toFloat(), cy + dy * kotlin.math.sin(a).toFloat())
-    val two = Offset(cx - dx * kotlin.math.cos(a).toFloat(), cy - dy * kotlin.math.sin(a).toFloat())
-    val outline = shape.createOutline(size, layoutDirection, this)
-    drawOutline(outline, Brush.radialGradient(listOf(Theme.accentLight.copy(alpha = strength * shown), Color.Transparent), one, r))
-    drawOutline(outline, Brush.radialGradient(listOf(Theme.accentDeep.copy(alpha = strength * shown), Color.Transparent), two, r))
+    val shader = android.graphics.SweepGradient(cx, cy, RING_COLOURS, null)
+    val matrix = android.graphics.Matrix()
+    val brush = androidx.compose.ui.graphics.ShaderBrush(shader)
+    // Deepest at the edge, fading inward: each band wider and fainter than the last.
+    val reach = minOf(size.minDimension * 0.42f, 18.dp.toPx())
+    val bands = (1..WASH_BANDS).map { i ->
+      val w = reach * i / WASH_BANDS
+      w to shape.createOutline(androidx.compose.ui.geometry.Size(size.width - w, size.height - w), layoutDirection, this)
+    }
+    onDrawBehind {
+      if (shown <= 0f) return@onDrawBehind
+      matrix.setRotate(angle.value, cx, cy)
+      shader.setLocalMatrix(matrix)
+      val each = strength * shown / WASH_BANDS * 1.6f
+      for ((w, outline) in bands) translate(w / 2f, w / 2f) { drawOutline(outline, brush, alpha = each, style = androidx.compose.ui.graphics.drawscope.Stroke(w)) }
+    }
   }
 }
 
+private const val WASH_BANDS = 10
+
 /** One round of the wash: slower than the ring, so the two do not race. */
 private const val WASH_TURN_MS = 7000
+
+/**
+ * A row of chips or buttons given room beyond its own edges, where the one in focus grows (×1.05)
+ * and its ring and light reach: a lazy row clips at its edge, and cut the first and last in focus
+ * (the owner). The row is laid out [by] wider each side and drawn where it was; pair with the same
+ * horizontal content padding, so its first item stays where it was.
+ */
+fun Modifier.bleed(by: Dp): Modifier = this.layout { measurable, constraints ->
+  val extra = by.roundToPx() * 2
+  val wide = if (constraints.hasBoundedWidth) constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra) else constraints
+  val placeable = measurable.measure(wide)
+  layout((placeable.width - extra).coerceAtLeast(0), placeable.height) { placeable.place(-extra / 2, 0) }
+}
 
 /** One turn of the ring, as slow as the preview the owner chose (3.6 s). */
 private const val RING_TURN_MS = 3600

@@ -293,7 +293,7 @@ private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = n
   val loc = LocalLoc.current
   Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
     Text(title, style = app(30, FontWeight.Bold), color = Theme.text1)
-    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(21.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    LazyRow(Modifier.bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(21.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
       items(posts, key = { it.id }) { post ->
         Box {
           PosterCard(post, { nav.push(Route.Details(post)) })

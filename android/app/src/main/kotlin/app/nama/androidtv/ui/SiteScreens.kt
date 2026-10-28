@@ -161,7 +161,7 @@ fun ScheduleScreen() {
       }
     }
     // Coming back to this row, the chosen chip takes focus.
-    LazyRow(Modifier.fillMaxWidth().focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    LazyRow(Modifier.fillMaxWidth().bleed(14.dp).focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
       items(week) { d ->
         PillButton(
             if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d },
@@ -194,7 +194,7 @@ fun TopListsScreen() {
   PosterPage(entries?.map { it.post }?.distinctBy { it.id }, failed, { reload++ }, up = chosen, header = {
     Text(loc(S.topLists), style = app(56, FontWeight.Bold), color = Theme.text1)
     // Coming back to this row, the chosen chip takes focus.
-    LazyRow(Modifier.fillMaxWidth().focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    LazyRow(Modifier.fillMaxWidth().bleed(14.dp).focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
       items(TopList.entries.toList()) { option ->
         val title = when (option) {
           TopList.imdbMovies -> loc(S.imdbTopMovies)

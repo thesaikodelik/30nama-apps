@@ -216,7 +216,7 @@ fun CatalogScreen(slug: String, title: String) {
               }
               sorts.forEach { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
             }
-            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 10.dp)) {
+            LazyRow(Modifier.bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
               options?.let { o ->
                 val all = loc(S.allChoices)
                 val menu = Icons.chevronDown

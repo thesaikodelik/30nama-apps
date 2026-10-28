@@ -235,7 +235,7 @@ fun SearchScreen() {
           if (query.isBlank() && recents.items.isNotEmpty()) {
             // Centred under the keyboard, as the Mac's chips sit under its field.
             Text(tv(TV.recentSearches), Modifier.align(Alignment.CenterHorizontally), style = app(24, FontWeight.SemiBold), color = Theme.text3)
-            LazyRow(Modifier.align(Alignment.CenterHorizontally).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(Modifier.align(Alignment.CenterHorizontally).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
               items(recents.items) { r -> PillButton(r, { query = r }, kind = PillKind.Chip) }
               item { PillButton(tv(TV.clear), { recents.clear() }, kind = PillKind.Chip, icon = Icons.close) }
             }
