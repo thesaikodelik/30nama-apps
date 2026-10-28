@@ -1,5 +1,12 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -59,15 +68,25 @@ import kotlinx.coroutines.launch
 
 /** A grid of posters on an ambient page, with [header] above it. */
 @Composable
-private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, header: @Composable () -> Unit, badge: (@Composable (Post) -> Unit)? = null, empty: Boolean = false) {
+private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, header: @Composable () -> Unit, badge: (@Composable (Post) -> Unit)? = null, empty: Boolean = false, up: FocusRequester? = null) {
   val nav = LocalNav.current
   val loc = LocalLoc.current
   Ambient {
     val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     ReportTop(grid)
+    var focusedItem by remember { mutableIntStateOf(-1) }
     LazyVerticalGrid(
         GridCells.FixedSize(Theme.posterWidth),
-        Modifier.fillMaxSize().focusRestorer(),
+        // Up from the first row of posters goes to [up], the row of choices over them: the search
+        // went past it to whatever above stood over the poster, as the choices sit at the reading
+        // start and the posters across the page (the owner).
+        Modifier.fillMaxSize().focusRestorer().onPreviewKeyEvent { e ->
+          if (up == null || e.type != KeyEventType.KeyDown || e.key != Key.DirectionUp) return@onPreviewKeyEvent false
+          val first = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index > 0 }?.row
+          val row = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index == focusedItem }?.row
+          if (row == null || row != first) return@onPreviewKeyEvent false
+          runCatching { up.requestFocus() }.isSuccess
+        },
         state = grid,
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 70.dp, bottom = 80.dp),
         // The catalogue's wall: 8 across with the room left over shared by both sides.
@@ -79,8 +98,10 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
       when {
         posts != null -> {
           if (posts.isEmpty() || empty) item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.noMatches), style = app(28, FontWeight.Medium), color = Theme.text2) }
-          items(posts, key = { it.id }) { post ->
-            Box {
+          itemsIndexed(posts, key = { _, p -> p.id }) { i, post ->
+            // Its place in the grid: after the header, and the note when nothing matched.
+            val index = i + 1 + (if (posts.isEmpty() || empty) 1 else 0)
+            Box(Modifier.onFocusChanged { if (it.hasFocus) focusedItem = index }) {
               PosterCard(post, { nav.push(Route.Details(post)) }, titled = true)
               badge?.invoke(post)
             }
@@ -130,7 +151,8 @@ fun ScheduleScreen() {
   val locale = Locale.forLanguageTag(if (loc.lang == Lang.fa) "fa-IR" else if (loc.lang == Lang.ar) "ar" else "en")
   // Sunday first, as the weekday names come; the site's own numbering starts on Saturday.
   val names = remember(locale) { (0..6).map { java.time.DayOfWeek.of(if (it == 0) 7 else it).getDisplayName(TextStyle.FULL, locale) } }
-  PosterPage(weeks[kind]?.on(day), failed, { reload++ }, header = {
+  val chosen = remember { FocusRequester() }
+  PosterPage(weeks[kind]?.on(day), failed, { reload++ }, up = chosen, header = {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(loc(S.weeklySchedule), Modifier.weight(1f), style = app(56, FontWeight.Bold), color = Theme.text1)
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -138,8 +160,14 @@ fun ScheduleScreen() {
         PillButton(loc(S.anime), { kind = Schedule.Kind.anime }, kind = PillKind.Chip, selected = kind == Schedule.Kind.anime)
       }
     }
-    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-      items(week) { d -> PillButton(if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d }, kind = PillKind.Chip, selected = day == d) }
+    // Coming back to this row, the chosen chip takes focus.
+    LazyRow(Modifier.fillMaxWidth().focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+      items(week) { d ->
+        PillButton(
+            if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d },
+            if (day == d) Modifier.focusRequester(chosen) else Modifier, kind = PillKind.Chip, selected = day == d,
+        )
+      }
     }
   })
 }
@@ -162,9 +190,11 @@ fun TopListsScreen() {
   }
   val entries = lists[list]
   val ranks = entries?.associate { it.post.id to it.rank }.orEmpty()
-  PosterPage(entries?.map { it.post }?.distinctBy { it.id }, failed, { reload++ }, header = {
+  val chosen = remember { FocusRequester() }
+  PosterPage(entries?.map { it.post }?.distinctBy { it.id }, failed, { reload++ }, up = chosen, header = {
     Text(loc(S.topLists), style = app(56, FontWeight.Bold), color = Theme.text1)
-    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    // Coming back to this row, the chosen chip takes focus.
+    LazyRow(Modifier.fillMaxWidth().focusRestorer(chosen), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
       items(TopList.entries.toList()) { option ->
         val title = when (option) {
           TopList.imdbMovies -> loc(S.imdbTopMovies)
@@ -172,7 +202,7 @@ fun TopListsScreen() {
           TopList.siteMovies -> loc(S.siteTopMovies)
           TopList.siteSeries -> loc(S.siteTopSeries)
         }
-        PillButton(title, { list = option }, kind = PillKind.Chip, selected = list == option)
+        PillButton(title, { list = option }, if (list == option) Modifier.focusRequester(chosen) else Modifier, kind = PillKind.Chip, selected = list == option)
       }
     }
   }, badge = { post ->

@@ -200,8 +200,10 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
             runCatching { content.requestFocus() }
           }
         }
+        // The restorer has a group of its own: without one its way in reached every page's own
+        // group below it, so entering an open page from the bar was turned back to the hidden one.
         key(app.contentVersion) {
-          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null || failed != null).focusRequester(content).focusRestorer()) {
+          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null || failed != null).focusRequester(content).focusRestorer().focusGroup()) {
           when (app.phase) {
             AppModel.Phase.Booting -> if (splashGone) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
             AppModel.Phase.Failed -> ErrorState("${app.loc(S.noConnection)}. ${app.loc(S.tryAgain)}") { app.boot() }
@@ -366,9 +368,16 @@ fun MainScreen(onExit: () -> Unit) {
           // first item. Left to the geometric search, it found nothing below: a page that is one
           // grid (a catalogue, search) starts under the bar, not below it.
           down = {
-            // The tab may have changed this very press (a pending one): the page open now, not the drawn one.
-            if (nav.top != null) false
-            else {
+            // The tab may have changed this very press (a pending one): the page open now, not the
+            // drawn one. An open page is entered at its first control, as when it opened; from Back,
+            // at the bar's far end, the search found nothing of it below (the owner).
+            if (nav.top != null) {
+              scope.launch {
+                withFrameNanos {}
+                runCatching { routeFocus.requestFocus() }
+              }
+              true
+            } else {
               scope.launch {
                 withFrameNanos {}
                 runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
