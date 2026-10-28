@@ -74,7 +74,8 @@ fun Ambient(content: @Composable () -> Unit) {
 }
 
 /** Sort orders of a catalogue (the Apple TV's CatalogView). "Newest" needs the website's own API. */
-private enum class Sort(val order: String, val label: S) { Updated("update", S.updated), Newest("id", S.newest), Popular("favorite", S.popular) }
+// "Newest" by year: the server ignores `id` (and `date`) and gives its own order (tried, 6 Aban 1405).
+private enum class Sort(val order: String, val label: S) { Updated("update", S.updated), Newest("year", S.newest), Popular("favorite", S.popular) }
 
 /** Posters across a wall: (1920 − 2 × 80 + 20) / (200 + 20). */
 const val WALL = 8
