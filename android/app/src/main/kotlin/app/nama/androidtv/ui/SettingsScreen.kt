@@ -205,6 +205,12 @@ fun SettingsScreen() {
         }
         Group(loc(S.about)) {
           Fact(loc(S.version), BuildConfig.VERSION_NAME)
+          // The Mac's report: a new issue on GitHub with what a report needs filled in, as a code.
+          val reportHint = tv(TV.reportHint)
+          Choice(loc(S.reportProblem), null, Help(reportHint), { help = it }) {
+            val body = "**What happened / چه اتفاقی افتاد:**\n\n\n---\n30nama for Android TV ${BuildConfig.VERSION_NAME} · Android ${android.os.Build.VERSION.RELEASE} · ${loc.lang.name}"
+            app.sheets.link = LinkSpec(loc(S.reportProblem), reportHint, "https://github.com/thesaikodelik/30nama-apps/issues/new?body=" + java.net.URLEncoder.encode(body, "UTF-8").replace("+", "%20"))
+          }
           val updater = app.updater
           val (label, value) = updateRow(updater.state, updater.current)
           val installing = updater.state is Updater.State.Installing || updater.state is Updater.State.NeedsPermission

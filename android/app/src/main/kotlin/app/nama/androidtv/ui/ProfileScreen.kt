@@ -204,7 +204,10 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
       Figures(watchlist, favorites, sizes)
       Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         if (user == null) PillButton(loc(S.signIn), { app.requestSignIn() }, kind = PillKind.Primary, icon = Icons.person)
-        else PillButton(loc(S.signOut), {
+        // The Mac's renew button; on a TV, the page's code for the phone.
+        val renewHint = tv(TV.renewHint)
+        if (user != null) PillButton(loc(S.renewSubscription), { app.sheets.link = LinkSpec(loc(S.renewSubscription), renewHint, "https://30nama.com/pricing") })
+        if (user != null) PillButton(loc(S.signOut), {
           app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
         }, icon = Icons.signOut)
       }

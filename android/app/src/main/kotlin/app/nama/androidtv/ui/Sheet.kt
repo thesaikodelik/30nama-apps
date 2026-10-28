@@ -40,6 +40,9 @@ class Sheets {
   var shown by mutableStateOf<SheetSpec?>(null)
     private set
 
+  /** A web page to open on the phone (a TV has no browser to speak of): its QR code, in a card. */
+  var link by mutableStateOf<LinkSpec?>(null)
+
   fun show(spec: SheetSpec) {
     shown = spec
   }
@@ -98,3 +101,6 @@ fun SheetHost(sheets: Sheets) {
     }
   }
 }
+
+/** A page to open on a phone: what it is, a line on why, and its address. */
+data class LinkSpec(val title: String, val body: String, val url: String)

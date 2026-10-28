@@ -83,3 +83,35 @@ fun UpdateFailedCard(page: String, retry: () -> Unit, close: () -> Unit) {
     }
   }
 }
+
+/**
+ * Where the Mac and Windows open a page in the browser (renewing, a report, IMDb), the TV shows
+ * its QR code to open on the phone, with the address under it.
+ */
+@Composable
+fun LinkCard(spec: LinkSpec, close: () -> Unit) {
+  val loc = LocalLoc.current
+  val qr = remember(spec.url) { qrImage(spec.url) }
+  val shape = RoundedCornerShape(36.dp)
+  val first = remember { FocusRequester() }
+  BackHandler(onBack = close)
+  LaunchedEffect(spec) { runCatching { first.requestFocus() } }
+  Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+    Row(Modifier.width(1300.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        Text(spec.title, style = app(40, FontWeight.Bold), color = Theme.text1)
+        Text(spec.body, style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
+        Row(Modifier.padding(top = 12.dp)) { PillButton(loc(S.close), close, Modifier.focusRequester(first), kind = PillKind.Primary) }
+      }
+      Column(Modifier.width(380.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Box(Modifier.size(340.dp).background(Color.White, RoundedCornerShape(24.dp)).padding(24.dp)) {
+          Image(qr, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Fit, filterQuality = androidx.compose.ui.graphics.FilterQuality.None)
+        }
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+          Text(spec.url.substringBefore('?'), style = app(18), color = Theme.text3, maxLines = 2)
+        }
+      }
+    }
+  }
+}
+

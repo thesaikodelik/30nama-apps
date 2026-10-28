@@ -93,6 +93,17 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
   ),
   geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  renewHint(
+      "Scan the code with your phone to renew on 30nama's website.",
+      "کد را با گوشی اسکن کنید تا اشتراک را در سایت ۳۰نما تمدید کنید.",
+      "امسح الرمز بهاتفك للتجديد على موقع 30nama.",
+  ),
+  reportHint(
+      "Scan the code with your phone to write to us on the project's GitHub page. This app's version, the TV's Android and the language are filled in; nothing about your account goes with it.",
+      "کد را با گوشی اسکن کنید تا در صفحهٔ گیت‌هاب پروژه برایمان بنویسید. نسخهٔ برنامه، اندروید تلویزیون و زبان خودشان نوشته می‌شوند؛ چیزی از حساب شما فرستاده نمی‌شود.",
+      "امسح الرمز بهاتفك لتكتب لنا في صفحة المشروع على GitHub. يُملأ إصدار التطبيق وأندرويد التلفاز واللغة؛ ولا يُرسل شيء عن حسابك.",
+  ),
+  imdbHint("Scan the code with your phone to open this page on IMDb.", "کد را با گوشی اسکن کنید تا این صفحه در IMDb باز شود.", "امسح الرمز بهاتفك لفتح هذه الصفحة على IMDb."),
   yourNameHint(
       "Shown on your profile, and said by the line from a film, when your 30nama profile is private. In English letters. Stays on this TV.",
       "وقتی پروفایل شما در ۳۰نما خصوصی است، این نام در پروفایل می‌آید و جملهٔ فیلم هم شما را با آن صدا می‌زند. با حروف انگلیسی. فقط روی همین تلویزیون می‌ماند.",

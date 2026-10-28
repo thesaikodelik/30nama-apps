@@ -280,7 +280,10 @@ fun PersonScreen(person: Person) {
       item(span = { GridItemSpan(maxLineSpan) }) {
         Row(horizontalArrangement = Arrangement.spacedBy(56.dp)) {
           // Something has to take the focus as soon as the page opens: the titles come later.
-          CardSurface({}, radius = Theme.tileRadius, scale = 1.03f) { Card(person, details) }
+          // The Mac's IMDb profile button: the card opens its code for the phone.
+          val imdbPage = details?.imdb?.toString()
+          val imdbHint = tv(TV.imdbHint)
+          CardSurface({ imdbPage?.let { app.sheets.link = LinkSpec(loc(S.imdbProfile), imdbHint, it) } }, radius = Theme.tileRadius, scale = 1.03f) { Card(person, details) }
           Column(Modifier.widthIn(max = 1100.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(details?.name ?: person.name, style = app(56, FontWeight.Bold), color = Theme.text1)
             details?.persianName?.takeIf { it != details?.name }?.let { Text(it, style = app(32, FontWeight.Medium), color = Theme.text2) }
