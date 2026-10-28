@@ -56,6 +56,8 @@ data class AdvancedQuery(
     val score: String? = null,
     val age: String? = null,
     val director: String? = null,
+    /** An actor's IMDb id ("nm…"): the titles they play in. A single value; a list finds the wrong ones. */
+    val actor: String? = null,
     val fromYear: Int? = null,
     val toYear: Int? = null,
     val x265: Boolean = false,
@@ -79,7 +81,10 @@ data class AdvancedQuery(
         network?.let { fields["channel"] = it }
         score?.asciiDouble()?.let { fields["imdb_rate"] = it }
         age?.let { fields["age"] = it }
+        // A name, or better an IMDb id: a name matches any of its words, an id only that person
+        // (tried on the server, 6 Aban 1405).
         director?.trimWhitespace()?.takeIf { it.isNotEmpty() }?.let { fields["director"] = it }
+        actor?.takeIf { it.isNotEmpty() }?.let { fields["actor"] = it }
         // The years either way round: someone writing 2010 to 2000 means the same decade.
         var from = fromYear ?: 0
         var to = toYear ?: 0

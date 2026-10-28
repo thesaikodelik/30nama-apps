@@ -128,6 +128,8 @@ data class Post(
     val updates: List<TitleUpdate> = emptyList(),
     val cast: List<Person> = emptyList(),
     val directors: List<String> = emptyList(),
+    /** Each director's IMDb id ("nm…"), by name, where the server gives one. */
+    val directorIMDb: Map<String, String> = emptyMap(),
     val writers: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val networks: List<String> = emptyList(),
@@ -274,6 +276,7 @@ data class Post(
                     Person(name, c["as"].text, if (p.isEmpty) null else p, c["imdb"].text, c["id"].int)
                 },
                 directors = names(j["crew"]["director"]),
+                directorIMDb = j["crew"]["director"].array.mapNotNull { d -> val n = d["name"].text; val id = d["imdb"].text; if (n != null && id != null && id.startsWith("nm")) n to id else null }.toMap(),
                 writers = names(j["crew"]["writer"]),
                 creators = names(j["crew"]["creator"]),
                 networks = j["network"].array.mapNotNull { it.text },

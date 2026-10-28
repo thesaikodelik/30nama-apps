@@ -39,6 +39,7 @@ class AdvancedSearchTests {
 
     @Test fun testOneYearIsEnough() {
         assertEquals("""{"min_year":"1990","stream":"true"}""", AdvancedQuery(fromYear = 1990).parameters())
+        assertEquals("""{"actor":"nm0000206","stream":"true"}""", AdvancedQuery(actor = "nm0000206").parameters())
         assertEquals("""{"max_year":"1995","stream":"true"}""", AdvancedQuery(toYear = 1995).parameters())
     }
 }

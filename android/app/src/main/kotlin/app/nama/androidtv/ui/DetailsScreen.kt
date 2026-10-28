@@ -747,8 +747,9 @@ private fun Cast(post: Post) {
     SectionTitle(loc(S.cast), Modifier.padding(start = Theme.edge))
     LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(30.dp)) {
       items(post.cast, key = { it.id }) { person ->
-        // Who they are and their titles come from the site API, by 30nama's id or the IMDb one.
-        val opens = app.api.hasSite && (person.siteID != null || person.imdb != null)
+        // Who they are and their titles come from the site API, by 30nama's id or the IMDb one;
+        // without the site, their titles from the app API by their IMDb id.
+        val opens = person.imdb != null || (app.api.hasSite && person.siteID != null)
         Face(person.name, person.role, person.poster?.url(160.0), person.poster?.blurhash) { if (opens) nav.push(Route.PersonPage(person)) }
       }
     }
@@ -918,7 +919,7 @@ private fun Facts(post: Post) {
           if (label == director) {
             Row(Modifier.focusRestorer().onFocusChanged { if (it.hasFocus) scope.launch { whole.bringIntoView() } }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               post.directors.forEach { name ->
-                PillButton(name, { nav.push(Route.AdvancedSearch(app.nama.core.AdvancedQuery(director = name, sort = "year"))) }, kind = PillKind.Chip)
+                PillButton(name, { nav.push(Route.AdvancedSearch(app.nama.core.AdvancedQuery(director = post.directorIMDb[name] ?: name, sort = "year"))) }, kind = PillKind.Chip)
               }
             }
           } else {

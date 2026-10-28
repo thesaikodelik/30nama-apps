@@ -1,5 +1,7 @@
 package app.nama.androidtv.ui
 
+import app.nama.core.AdvancedQuery
+import app.nama.core.advancedSearch
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.type
@@ -244,8 +246,10 @@ fun PersonScreen(person: Person) {
         val id = person.siteID
         val imdb = person.imdb
         when {
-          id != null -> PersonDetails.fromSite(app.api.site(SiteQuery.person(id, page + 1)))?.also { if (details == null) details = it }?.titles
-          imdb != null -> SiteQuery.filmography(imdb, page + 1).let { q -> PostPage.fromSite(app.api.site(q.path, q.form)) }
+          app.api.hasSite && id != null -> PersonDetails.fromSite(app.api.site(SiteQuery.person(id, page + 1)))?.also { if (details == null) details = it }?.titles
+          app.api.hasSite && imdb != null -> SiteQuery.filmography(imdb, page + 1).let { q -> PostPage.fromSite(app.api.site(q.path, q.form)) }
+          // Without the site: the titles they play in, from the app API by their IMDb id.
+          imdb != null -> app.api.advancedSearch(AdvancedQuery(actor = imdb, sort = "year"), page + 1)
           else -> null
         }
       }
