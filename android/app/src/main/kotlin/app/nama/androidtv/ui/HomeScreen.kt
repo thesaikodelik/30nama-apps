@@ -98,6 +98,9 @@ fun HomeScreen() {
   var popularFilms by remember { mutableStateOf<List<Post>>(emptyList()) }
   var topMovies by remember { mutableStateOf<List<Post>>(emptyList()) }
   var topSeries by remember { mutableStateOf<List<Post>>(emptyList()) }
+  /** 30nama's own top ten and new releases, from `home`. */
+  var siteTop by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var newReleases by remember { mutableStateOf<List<Post>>(emptyList()) }
   var failed by remember { mutableStateOf(false) }
   var heroIndex by rememberSaveable { mutableIntStateOf(0) }
   /** The card in focus, when focus is in the rows. */
@@ -115,12 +118,18 @@ fun HomeScreen() {
   val rows: List<HomeSection> = feed?.let { f ->
     // The Mac's order: the week's trending after where the viewer left off, and the two top tens
     // under the first shelf when 30nama's own home has none.
-    val tops = if (f.sections.none { it.key == "top_10" }) listOf(HomeSection(TOP_MOVIES, topMovies), HomeSection(TOP_SERIES, topSeries)).filter { it.posts.isNotEmpty() } else emptyList()
+    // 30nama's own top ten when `home` gave one; else the two made from the most liked.
+    val tops = when {
+      f.sections.any { it.key == "top_10" } -> emptyList()
+      siteTop.size >= 5 -> listOf(HomeSection("top_10", siteTop))
+      else -> listOf(HomeSection(TOP_MOVIES, topMovies), HomeSection(TOP_SERIES, topSeries)).filter { it.posts.isNotEmpty() }
+    }
+    val fresh = newReleases.takeIf { it.isNotEmpty() && f.sections.none { s -> s.key == "new_releases" } }?.let { listOf(HomeSection("new_releases", it)) }.orEmpty()
     listOfNotNull(
         continuing.takeIf { it.isNotEmpty() }?.let { HomeSection("continue", it) },
         forYou.takeIf { it.isNotEmpty() }?.let { HomeSection("for_you", it) },
         trending.takeIf { it.isNotEmpty() }?.let { HomeSection(TRENDING, it) },
-    ) + f.sections.take(1) + tops + listOfNotNull(
+    ) + f.sections.take(1) + fresh + tops + listOfNotNull(
         // With the user's TMDB key: new and returning series, and the films now popular (the Tizen app's).
         freshSeries.takeIf { it.isNotEmpty() }?.let { HomeSection(FRESH, it) },
         popularFilms.takeIf { it.isNotEmpty() }?.let { HomeSection(POPULAR, it) },
@@ -147,8 +156,13 @@ fun HomeScreen() {
     // In the app's own scope, so a slow answer keeps nothing of this page waiting.
     if (!app.homeOffline) app.background {
       if (loaded.sections.none { it.key == "top_10" }) {
-        topMovies = app.topTen("movies")
-        topSeries = app.topTen("series")
+        val (top, fresh) = app.homeExtras()
+        siteTop = top
+        newReleases = fresh
+        if (top.size < 5) {
+          topMovies = app.topTen("movies")
+          topSeries = app.topTen("series")
+        }
       }
       if (trending.isEmpty()) trending = app.trendingThisWeek()
       if (freshSeries.isEmpty()) freshSeries = app.tmdbRow(TrendingRow.fresh)

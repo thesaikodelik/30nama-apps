@@ -158,6 +158,20 @@ class AppModel(
 
   private val topTens = HashMap<String, List<Post>>()
 
+  /**
+   * 30nama's own top ten and new releases: `home` has them, `home_stream` (the page) does not
+   * (tried on the server, 6 Aban 1405). Only titles that stream, as `home` lists downloads too.
+   * Asked for once while the app runs, in the background.
+   */
+  suspend fun homeExtras(): Pair<List<Post>, List<Post>> {
+    homeExtras?.let { return it }
+    val result = withContext(Dispatchers.IO) { attempt { api.get("home", background = true) } } ?: return emptyList<Post>() to emptyList()
+    fun streaming(key: String) = Post.list(result[key]).filter { it.hasStream }
+    return (streaming("top_10").take(10) to streaming("new_releases")).also { homeExtras = it }
+  }
+
+  private var homeExtras: Pair<List<Post>, List<Post>>? = null
+
   /** A small set of choices over the page (a held select), shown by the shell. */
   val sheets = app.nama.androidtv.ui.Sheets()
 
