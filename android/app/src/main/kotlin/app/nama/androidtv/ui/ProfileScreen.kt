@@ -72,6 +72,7 @@ fun ProfileScreen() {
   var starters by remember { mutableStateOf<List<Post>>(emptyList()) }
   var watchlist by remember { mutableStateOf<List<Post>>(emptyList()) }
   var favorites by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var upcoming by remember { mutableStateOf<List<Post>>(emptyList()) }
   var sizes by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
   var notes by remember { mutableStateOf<NotificationPage?>(null) }
   val ratings = app.ratings
@@ -91,6 +92,20 @@ fun ProfileScreen() {
     favorites = attempt { PostPage.from(app.api.get("user_list", list("favorite"))).posts }.orEmpty()
     sizes = attempt { (app.api.get("user_mylist").obj ?: emptyMap()).mapValues { (_, v) -> v["post"].array.size } }.orEmpty()
     notes = attempt { NotificationPage.from(app.api.get("notification", mapOf("page" to "1"), background = true)) }
+    // The Mac's "Coming up": series on the watchlist or notify list with an episode still to come,
+    // soonest first. A handful of pages is every list a person keeps.
+    val kept = mutableListOf<Post>()
+    for (group in listOf("watchlist", "notify")) {
+      var page = 1
+      var pages = 1
+      while (page <= pages && page <= 4) {
+        val next = attempt { PostPage.from(app.api.get("user_list", list(group) + ("page" to "$page"), background = true)) } ?: break
+        kept += next.posts
+        pages = next.pages
+        page++
+      }
+    }
+    upcoming = Post.upcoming(kept)
   }
 
   Box(Modifier.fillMaxSize()) {
@@ -106,6 +121,7 @@ fun ProfileScreen() {
     ) {
       item { Header(watchlist, favorites, sizes) }
       if (!ratings.isEmpty) item { Insights() }
+      if (upcoming.isNotEmpty()) item { Shelf(loc(S.upcoming), upcoming, note = { it.nextEpisodeLabel(loc.lang) }) }
       if (picks.isNotEmpty()) item { Shelf(loc(S.forYou), picks) }
       if (watchlist.isNotEmpty()) item { Shelf(loc(S.watchlist), watchlist) }
       if (favorites.isNotEmpty()) item { Shelf(loc(S.favorites), favorites) }
@@ -307,7 +323,7 @@ private fun Panel(title: String, modifier: Modifier, content: @Composable () -> 
 }
 
 @Composable
-private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = null) {
+private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = null, note: ((Post) -> String?)? = null) {
   val nav = LocalNav.current
   val loc = LocalLoc.current
   Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -316,6 +332,13 @@ private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = n
       items(posts, key = { it.id }) { post ->
         Box {
           PosterCard(post, { nav.push(Route.Details(post)) })
+          // When its next episode comes, over the poster's top (the Mac's note).
+          note?.invoke(post)?.let { day ->
+            Text(
+                day, Modifier.align(Alignment.TopStart).padding(10.dp).background(Theme.accent, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 3.dp),
+                style = app(16, FontWeight.Bold), color = Color.White, maxLines = 1,
+            )
+          }
           stars?.get(post.id)?.let { s ->
             Row(
                 Modifier.align(Alignment.BottomStart).padding(10.dp).background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 4.dp),

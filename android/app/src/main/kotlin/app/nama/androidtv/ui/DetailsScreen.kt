@@ -374,7 +374,24 @@ private fun Header(
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
     }
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-      Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2)
+      // The kind line, and beside it as the Apple TV's: Persian subtitles, and a series' next episode.
+      Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2)
+        if (post.persianSubtitle) Chip {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.subtitles, null, Modifier.size(20.dp), tint = Theme.text1)
+            Text(loc(S.persianSub), style = app(20, FontWeight.SemiBold), color = Theme.text1)
+          }
+        }
+        val next = if (loc.lang == Lang.fa) post.nextEpisodeDate.jalali else post.nextEpisodeDate.gregorian
+        if (post.isSeries && next != null) {
+          Text(
+              "${post.nextEpisodeCaption ?: loc(S.nextEpisode)} · $next",
+              Modifier.background(Theme.accent, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 5.dp),
+              style = app(20, FontWeight.SemiBold), color = Color.White, maxLines = 1,
+          )
+        }
+      }
       TitleArt(post, size = 84)
       Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true) }
       Standing(post)
@@ -605,9 +622,19 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
           line.forEach { (index, item) ->
             val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
+            val done = item.fileID in app.watched
             EpisodeRow(
-                item, resume?.progress, watched = item.fileID in app.watched,
+                item, resume?.progress, watched = done,
                 modifier = Modifier.weight(1f).then(if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier),
+                // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
+                onLongClick = {
+                  val name = item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
+                  app.sheets.show(SheetSpec(name, listOf(
+                      SheetAction(loc(S.play), Icons.play) { play(index) },
+                      if (done) SheetAction(loc(S.markUnwatched), Icons.close) { app.setWatched(item.fileID, false) }
+                      else SheetAction(loc(S.markWatched), Icons.check) { app.setWatched(item.fileID, true) },
+                  )))
+                },
             ) { play(index) }
           }
           repeat(4 - line.size) { Spacer(Modifier.weight(1f)) }
@@ -619,7 +646,7 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
 
 /** One episode, as the Mac's tile: its number, name and length, a tick once watched, and how far in. */
 @Composable
-private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, modifier: Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
   val loc = LocalLoc.current
   val hue = LocalHue.current ?: Theme.accent
   val interaction = remember { MutableInteractionSource() }
@@ -627,6 +654,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
   val shape = RoundedCornerShape(22.dp)
   Surface(
       onClick = onClick,
+      onLongClick = onLongClick,
       modifier = modifier.focusRing(interaction, shape),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
@@ -808,6 +836,7 @@ private fun facts(post: Post, loc: app.nama.core.Loc): List<Pair<String, String>
       row(S.originalLanguage, listOfNotNull(post.language)),
       row(S.otherLanguages, post.otherLanguages),
       row(S.budget, listOfNotNull(post.budget)),
+      row(S.status, listOfNotNull(post.airStatus)),
   )
 }
 
