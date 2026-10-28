@@ -2,12 +2,14 @@
 // release with the APK. The app installs only what this key has signed.
 //
 // The Android key is its own, apart from the Mac's, Windows' and the Quest's: it stays on the
-// computer that builds the Android releases. It is kept in %USERPROFILE%\.30nama, encrypted with
-// Windows' DPAPI for this Windows account only, and never in the repository. Without it the app
-// cannot update itself and people will have to download a release by hand; keep the text `export`
-// prints somewhere safe, such as a password manager, and bring it back with `import`.
+// computers that build the Android releases, never in the repository. On Windows it is kept in
+// %USERPROFILE%\.30nama, encrypted with DPAPI for this Windows account only; on a Mac in the login
+// keychain (service "30nama-android-update-signing"), as the Mac app's own key is. Without it the
+// app cannot update itself and people will have to download a release by hand; keep the text
+// `export` prints somewhere safe, such as a password manager, and bring it back with `import`.
 //
-// Needs only a JDK (Ed25519 is part of Java since 15) and Windows PowerShell for DPAPI.
+// Needs only a JDK (Ed25519 is part of Java since 15), and Windows PowerShell for DPAPI or the
+// Mac's `security` tool.
 // Usage, from android/:  java tools/SignUpdate.java <command>
 //   keygen           make the key, once
 //   sign <file>      write <file>.sig
@@ -25,6 +27,8 @@ import java.util.regex.Pattern;
 public class SignUpdate {
   static final Path FOLDER = Path.of(System.getProperty("user.home"), ".30nama");
   static final Path KEY_FILE = FOLDER.resolve("android-update-signing.key");
+  static final boolean MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
+  static final String SERVICE = "30nama-android-update-signing";
   static final Path APP_KEY = Path.of("app/src/main/kotlin/app/nama/androidtv/data/Update.kt");
   // A PKCS#8 Ed25519 private key is this prefix and the 32-byte seed.
   static final byte[] PKCS8_PREFIX = hex("302e020100300506032b657004220420");
@@ -33,11 +37,11 @@ public class SignUpdate {
     String command = args.length > 0 ? args[0] : "";
     switch (command) {
       case "keygen" -> {
-        if (Files.exists(KEY_FILE)) fail("a key is already in " + KEY_FILE + "; it is not replaced");
+        if (hasKey()) fail("a key is already in " + place() + "; it is not replaced");
         byte[] seed = new byte[32];
         SecureRandom.getInstanceStrong().nextBytes(seed);
         store(seed);
-        System.out.println("key made and kept in " + KEY_FILE);
+        System.out.println("key made and kept in " + place());
         System.out.println("public key: " + publicOf(seed));
         System.out.println("back it up with `export`");
       }
@@ -63,7 +67,7 @@ public class SignUpdate {
       case "public" -> System.out.println(publicOf(load()));
       case "export" -> System.out.println(Base64.getEncoder().encodeToString(load()));
       case "import" -> {
-        if (Files.exists(KEY_FILE)) fail("a key is already in " + KEY_FILE + "; it is not replaced");
+        if (hasKey()) fail("a key is already in " + place() + "; it is not replaced");
         System.out.print("private key: ");
         String line = new BufferedReader(new InputStreamReader(System.in)).readLine();
         byte[] seed = Base64.getDecoder().decode(line == null ? "" : line.trim());
@@ -117,14 +121,49 @@ public class SignUpdate {
     return m.find() ? m.group(1) : "";
   }
 
+  static String place() {
+    return MAC ? "the login keychain (" + SERVICE + ")" : KEY_FILE.toString();
+  }
+
+  static boolean hasKey() throws Exception {
+    return MAC ? security("find-generic-password", "-s", SERVICE, "-a", "ed25519").exit == 0 : Files.exists(KEY_FILE);
+  }
+
   static byte[] load() throws Exception {
-    if (!Files.exists(KEY_FILE)) fail("no signing key; make one with `keygen` or bring one back with `import`");
+    if (!hasKey()) fail("no signing key; make one with `keygen` or bring one back with `import`");
+    if (MAC) {
+      Run r = security("find-generic-password", "-s", SERVICE, "-a", "ed25519", "-w");
+      if (r.exit != 0) fail("the keychain would not give the key");
+      return Base64.getDecoder().decode(r.out);
+    }
     return Base64.getDecoder().decode(dpapi("Unprotect", Files.readString(KEY_FILE).trim()));
   }
 
   static void store(byte[] seed) throws Exception {
+    String base64 = Base64.getEncoder().encodeToString(seed);
+    if (MAC) {
+      // Through `security -i` on its input, so the key is never on a command line others can read.
+      Process p = new ProcessBuilder("security", "-i").redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+      try (Writer w = new OutputStreamWriter(p.getOutputStream(), StandardCharsets.US_ASCII)) {
+        w.write("add-generic-password -s " + SERVICE + " -a ed25519 -l \"30nama Android update signing\" -w \"" + base64 + "\"\n");
+      }
+      if (p.waitFor() != 0 || !hasKey()) fail("the keychain did not take the key");
+      return;
+    }
     Files.createDirectories(FOLDER);
-    Files.writeString(KEY_FILE, dpapi("Protect", Base64.getEncoder().encodeToString(seed)) + "\n");
+    Files.writeString(KEY_FILE, dpapi("Protect", base64) + "\n");
+  }
+
+  record Run(int exit, String out) {}
+
+  /** The Mac's `security` tool; what it prints is kept, never shown. */
+  static Run security(String... args) throws Exception {
+    String[] command = new String[args.length + 1];
+    command[0] = "security";
+    System.arraycopy(args, 0, command, 1, args.length);
+    Process p = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+    String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.US_ASCII).trim();
+    return new Run(p.waitFor(), out);
   }
 
   /** Windows' DPAPI, through Windows PowerShell: the key opens only for this Windows account. */
