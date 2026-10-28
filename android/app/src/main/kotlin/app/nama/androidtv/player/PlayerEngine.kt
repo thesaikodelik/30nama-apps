@@ -107,6 +107,15 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   var buffering by mutableStateOf(true)
     private set
 
+  /** The download files, asked for once when "Max" is chosen; null until they have come. */
+  private var downloads: app.nama.core.DownloadOptions? = null
+  private var downloadsAsked = false
+  /** Files that would not play, or played without sound: never tried again in this player. */
+  private val directFailed = HashSet<String>()
+  /** The download file playing, when "Max" plays one. */
+  var direct by mutableStateOf<app.nama.core.DownloadFile?>(null)
+    private set
+
   /** Whether the film's first picture has been shown; until then the player shows its curtain. */
   var pictured by mutableStateOf(false)
     private set
@@ -307,7 +316,10 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
         audioTracks = if (langs.size > 1) langs else emptyList()
         audioTrack = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }?.mediaTrackGroup?.getFormat(0)?.language
         // A file whose sound this TV cannot play would go on silent: the stream instead.
-        if (direct != null && !tracks.isEmpty && tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO } && tracks.groups.none { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }) leaveDirect("has no sound this TV plays")
+        if (direct != null && !tracks.isEmpty && tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO } && tracks.groups.none { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }) {
+          val sounds = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.joinToString { it.mediaTrackGroup.getFormat(0).sampleMimeType ?: "?" }
+          leaveDirect("has no sound this TV plays ($sounds)")
+        }
       }
     })
   }
@@ -330,15 +342,6 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   }
 
   // MARK: Items
-
-  /** The download files, asked for once when "Max" is chosen; null until they have come. */
-  private var downloads: app.nama.core.DownloadOptions? = null
-  private var downloadsAsked = false
-  /** Files that would not play, or played without sound: never tried again in this player. */
-  private val directFailed = HashSet<String>()
-  /** The download file playing, when "Max" plays one. */
-  var direct by mutableStateOf<app.nama.core.DownloadFile?>(null)
-    private set
 
   /** The "Max" file for the item playing, if any fits and has not failed. */
   fun directFor(): app.nama.core.DownloadFile? =
