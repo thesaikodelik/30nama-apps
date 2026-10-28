@@ -912,7 +912,9 @@ data class Filter(
         // As a list: the server ignores a type given as a single value, and the catalogue of films
         // filled up with series.
         if (type != null) fields["type"] = listOf(type)
-        genre?.let { fields["genre"] = it }
+        // The genre as a list too: a single one is ignored. The country, though, only as a single
+        // value; a list of one finds nothing (both tried on the server, 6 Aban 1405).
+        genre?.let { fields["genre"] = listOf(it) }
         country?.let { fields["country"] = it }
         score?.asciiDouble()?.let { fields["imdb_rate"] = it }
         decade?.let {
