@@ -153,6 +153,10 @@ fun SettingsScreen() {
           Choice(tv(TV.readAhead), aheadName, Help(tv(TV.readAheadHint), ahead, aheadName), { help = it }) {
             app.update { it.copy(readAhead = next(it.readAhead, Settings.readAheadChoices)) }
           }
+          // The Mac's choice for the room around the picture.
+          val around = listOf(loc(S.sceneGlow), loc(S.blackBars))
+          val aroundName = around[if (s.sceneGlow) 0 else 1]
+          Choice(loc(S.aroundPicture), aroundName, Help(tv(TV.aroundHint), around, aroundName), { help = it }) { app.update { it.copy(sceneGlow = !it.sceneGlow) } }
           Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
         }
         Group(loc(S.subtitles)) {

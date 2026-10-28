@@ -591,7 +591,8 @@ fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier,
           ).joinToString(" · ").ifEmpty { null }
         }
         line?.let { Text(it, style = app(16, FontWeight.Medium), color = Color.White.copy(alpha = 0.72f), maxLines = 1) }
-        Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(5.dp).background(Color.White.copy(alpha = 0.22f), capsule)) {
+        // Filled from the left in every language, as time runs (the owner).
+        Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(5.dp).background(Color.White.copy(alpha = 0.22f), capsule), contentAlignment = androidx.compose.ui.AbsoluteAlignment.TopLeft) {
           Box(Modifier.fillMaxWidth((resume?.progress ?: 0.0).toFloat().coerceIn(0.02f, 1f)).fillMaxHeight().background(Theme.accent, capsule))
         }
       }
@@ -764,7 +765,8 @@ fun Spinner(modifier: Modifier = Modifier, color: Color = Color.White) {
 /** A thin bar of how far a title has been watched. */
 @Composable
 fun ProgressBar(progress: Double, modifier: Modifier = Modifier) {
-  Box(modifier.fillMaxWidth().height(6.dp).background(Color.White.copy(alpha = 0.22f), capsule)) {
+  // Filled from the left in every language, as time runs (the owner).
+  Box(modifier.fillMaxWidth().height(6.dp).background(Color.White.copy(alpha = 0.22f), capsule), contentAlignment = androidx.compose.ui.AbsoluteAlignment.TopLeft) {
     Box(Modifier.fillMaxWidth(progress.toFloat().coerceIn(0.02f, 1f)).height(6.dp).background(Theme.accent, capsule))
   }
 }

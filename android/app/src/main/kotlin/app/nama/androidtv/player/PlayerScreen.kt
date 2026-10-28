@@ -1,5 +1,8 @@
 package app.nama.androidtv.player
 
+import app.nama.androidtv.ui.LocalLively
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import app.nama.androidtv.ui.LocalCalm
 import androidx.compose.ui.graphics.graphicsLayer
@@ -268,10 +271,69 @@ fun PlayerScreen(request: PlaybackRequest) {
               }
             }
           }) {
-    // The picture, in its own shape.
-    Box(Modifier.fillMaxSize().focusRequester(surface).focusable(), contentAlignment = Alignment.Center) {
+    // The Mac's light around the picture: a small frame every few seconds, from the seek previews'
+    // reader, spread soft behind the film; and black bars burned into the file cut away. Only with
+    // the motion effects on, as it is a second, if small, decoder at work.
+    val glowing = app.settings.sceneGlow && LocalLively.current && engine.pictured
+    val watch = remember(engine.index) { BarWatch() }
+    var trim by remember(engine.index) { mutableStateOf(Trim()) }
+    var light by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(glowing, engine.index) {
+      if (!glowing) {
+        light = null
+        return@LaunchedEffect
+      }
+      while (true) {
+        engine.preview.glance(engine.position)
+        kotlinx.coroutines.delay(GLANCE_MS)
+      }
+    }
+    val glimpse = engine.preview.glimpse
+    LaunchedEffect(glimpse, glowing) {
+      val frame = glimpse ?: return@LaunchedEffect
+      if (!glowing) return@LaunchedEffect
+      val (seen, small) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        val px = IntArray(frame.width * frame.height)
+        frame.getPixels(px, 0, frame.width, 0, 0, frame.width, frame.height)
+        watch.see(px, frame.width, frame.height)
+        val t = watch.trim()
+        // The picture without its bars, shrunk to a few dozen points: drawn large, that is the blur.
+        val x = (t.left * frame.width).toInt()
+        val y = (t.top * frame.height).toInt()
+        val cw = (frame.width - x - (t.right * frame.width).toInt()).coerceAtLeast(1)
+        val ch = (frame.height - y - (t.bottom * frame.height).toInt()).coerceAtLeast(1)
+        val cut = android.graphics.Bitmap.createBitmap(frame, x, y, cw, ch)
+        t to android.graphics.Bitmap.createScaledBitmap(cut, 32, (32f * ch / cw).toInt().coerceAtLeast(1), true).asImageBitmap()
+      }
+      if (seen.worthCutting) trim = seen
+      light = small
+    }
+    Crossfade(light, Modifier.fillMaxSize(), animationSpec = tween(1200), label = "light") { l ->
+      if (l != null) androidx.compose.foundation.Image(
+          l, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
+          contentScale = androidx.compose.ui.layout.ContentScale.Crop, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
+      )
+    }
+    // The picture, in its own shape; with bars burned into it, enlarged until they fall off the screen.
+    BoxWithConstraints(Modifier.fillMaxSize().focusRequester(surface).focusable(), contentAlignment = Alignment.Center) {
       val aspect = engine.aspect
-      PlayerSurface(engine.player, if (aspect != null) Modifier.aspectRatio(aspect) else Modifier.fillMaxSize(), SURFACE_TYPE_SURFACE_VIEW)
+      val t = trim.takeIf { glowing && it.worthCutting && aspect != null }
+      if (t == null || aspect == null) {
+        PlayerSurface(engine.player, if (aspect != null) Modifier.aspectRatio(aspect) else Modifier.fillMaxSize(), SURFACE_TYPE_SURFACE_VIEW)
+      } else {
+        val keepW = 1f - t.left - t.right
+        val keepH = 1f - t.top - t.bottom
+        val content = aspect * keepW / keepH
+        val screen = maxWidth / maxHeight
+        val cw = if (content > screen) maxWidth else maxHeight * content
+        val ch = if (content > screen) maxWidth / content else maxHeight
+        val sw = cw / keepW
+        val sh = ch / keepH
+        // The kept part's middle on the screen's middle.
+        val dx = sw * ((1f - t.left - t.right) / 2f + t.left - 0.5f)
+        val dy = sh * ((1f - t.top - t.bottom) / 2f + t.top - 0.5f)
+        PlayerSurface(engine.player, Modifier.requiredSize(sw, sh).offset(-dx, -dy), SURFACE_TYPE_SURFACE_VIEW)
+      }
     }
     // Before the first picture, the Mac's curtain: the title's artwork drawing slowly nearer, its
     // name and the episode, over the black of a stream still on its way.
@@ -716,3 +778,6 @@ private fun Curtain(engine: PlayerEngine, modifier: Modifier) {
     }
   }
 }
+
+/** How often the light around the picture takes a new frame. */
+private const val GLANCE_MS = 4000L

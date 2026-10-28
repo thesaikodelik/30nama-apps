@@ -676,7 +676,8 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
         if (watched) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.good)
       }
       if (progress != null && progress > 0) {
-        Box(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp, bottom = 9.dp).fillMaxWidth().height(5.dp)) {
+        // Filled from the left in every language, as time runs (the owner).
+        Box(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp, bottom = 9.dp).fillMaxWidth().height(5.dp), contentAlignment = androidx.compose.ui.AbsoluteAlignment.TopLeft) {
           Box(Modifier.fillMaxWidth(progress.toFloat().coerceIn(0.03f, 1f)).fillMaxHeight().background(hue, RoundedCornerShape(50)))
         }
       }

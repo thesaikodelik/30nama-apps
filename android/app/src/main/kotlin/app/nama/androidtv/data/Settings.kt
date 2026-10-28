@@ -27,6 +27,8 @@ data class Settings(
     val reduceMotion: Boolean = false,
     /** How much motion that never ends the TV shows (the Mac's Effects); Automatic decides by its memory. */
     val effects: Effects = Effects.auto,
+    /** What fills the room the picture leaves: the scene's own light, or black as in a cinema (the Mac's). */
+    val sceneGlow: Boolean = true,
     /** How much of what is left of a title to fetch ahead onto the disk, in percent. */
     val readAhead: Int = 25,
     /** Switch the TV's refresh rate to the film's frame rate, even where that blanks the screen. */
@@ -52,6 +54,7 @@ data class Settings(
           preferAdaptive = p.getBoolean("adaptive", d.preferAdaptive),
           reduceMotion = p.getBoolean("calm", d.reduceMotion),
           effects = enumOf(Effects.entries.toTypedArray(), "effects", d.effects),
+          sceneGlow = p.getBoolean("sceneGlow", d.sceneGlow),
           readAhead = p.getInt("readAhead", d.readAhead).takeIf { it in readAheadChoices } ?: d.readAhead,
           matchFrameRate = p.getBoolean("matchFrameRate", d.matchFrameRate),
       )
@@ -72,6 +75,7 @@ data class Settings(
         .putBoolean("adaptive", preferAdaptive)
         .putBoolean("calm", reduceMotion)
         .putString("effects", effects.name)
+        .putBoolean("sceneGlow", sceneGlow)
         .putInt("readAhead", readAhead)
         .putBoolean("matchFrameRate", matchFrameRate)
         .apply()

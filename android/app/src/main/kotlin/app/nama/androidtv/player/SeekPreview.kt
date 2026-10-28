@@ -43,6 +43,11 @@ class SeekPreview(private val context: Context, private val network: DataSource.
     private set
 
   private val frames = LruCache<Long, Bitmap>(40)
+
+  /** The newest frame taken for the light around the picture, not a seek point. */
+  var glimpse by mutableStateOf<Bitmap?>(null)
+    private set
+  private var glimpseWanted: Long? = null
   private var extractor: FrameExtractor? = null
   private var url: String? = null
   private var busy = false
@@ -61,6 +66,8 @@ class SeekPreview(private val context: Context, private val network: DataSource.
     url = lowest
     frames.evictAll()
     frame = null
+    glimpse = null
+    glimpseWanted = null
     misses = 0
     off = lowest == null
   }
@@ -86,10 +93,21 @@ class SeekPreview(private val context: Context, private val network: DataSource.
     pump()
   }
 
+  /**
+   * A frame at [seconds] for the light around the picture; [glimpse] follows. Seek previews go
+   * first: this waits while one is wanted.
+   */
+  fun glance(seconds: Double) {
+    if (off) return
+    glimpseWanted = (seconds * 1000).toLong()
+    pump()
+  }
+
   private fun pump() {
     if (busy || off || disposed) return
-    val point = wanted ?: return
-    wanted = null
+    val forGlimpse = wanted == null
+    val point = wanted ?: glimpseWanted ?: return
+    if (forGlimpse) glimpseWanted = null else wanted = null
     val reader = extractor ?: open() ?: return
     busy = true
     val asked = generation
@@ -98,8 +116,11 @@ class SeekPreview(private val context: Context, private val network: DataSource.
         busy = false
         if (disposed || asked != generation) return
         misses = 0
-        frames.put(point, result.bitmap)
-        frame = point to result.bitmap
+        if (forGlimpse) glimpse = result.bitmap
+        else {
+          frames.put(point, result.bitmap)
+          frame = point to result.bitmap
+        }
         pump()
       }
 

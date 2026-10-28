@@ -93,6 +93,11 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
   ),
   geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  aroundHint(
+      "Scene glow: where the film leaves room on the screen, the scene's own colours light it softly, and black bars burned into the file itself are cut away. Taken from a small copy of the film every few seconds, only with motion effects on. Black bars: the room stays black, as in a cinema.",
+      "نور صحنه: جایی که فیلم روی صفحه خالی می‌گذارد، رنگ‌های خود صحنه آرام روشنش می‌کنند، و نوار سیاهی که داخل خود فایل است بریده می‌شود. هر چند ثانیه از یک نسخهٔ کوچک فیلم برداشته می‌شود، فقط وقتی جلوه‌های حرکتی روشن‌اند. نوار سیاه: جای خالی سیاه می‌ماند، مثل سینما.",
+      "ضوء المشهد: حيث يترك الفيلم مساحة على الشاشة، تضيئها ألوان المشهد نفسه بهدوء، وتُقص الأشرطة السوداء المحروقة في الملف نفسه. يؤخذ من نسخة صغيرة من الفيلم كل بضع ثوانٍ، فقط مع تشغيل تأثيرات الحركة. الأشرطة السوداء: تبقى المساحة سوداء كما في السينما.",
+  ),
   effectsAuto("Automatic, for this TV", "خودکار، برای این تلویزیون", "تلقائي، لهذا التلفاز"),
   effectsLight("Light, easier on the TV", "سبک، راحت‌تر برای تلویزیون", "خفيف، أسهل على التلفاز"),
   effectsHint(
