@@ -91,10 +91,31 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   private suspend fun look(post: Post, lang: Lang): TMDB.Info? {
     if (filtered()) return indexedLook(post, lang)
     val key = key() ?: return publicLook(post, lang)
+    // TMDB's answer kept on disk, as the Tizen app does: a week when found, a day when not, so
+    // each opening of the app does not ask again for every title on the screen.
+    when (val kept = stored(post)) {
+      is Kept.Found -> {
+        val info = TMDB.info(kept.details, lang)
+        known[post.id] = info
+        settled += post.id
+        return info
+      }
+      Kept.Missed -> {
+        settled += post.id
+        return null
+      }
+      Kept.None -> Unit
+    }
     var id: Int? = null
     post.imdbID?.let { imdb -> json(TMDB.findRequest(imdb, key))?.let { id = TMDB.idInFind(it, post.isSeries) } }
-    if (id == null) json(TMDB.searchRequest(post.titleEnglish ?: post.title(Lang.en), post.year, post.isSeries, key))?.let { id = TMDB.idInSearch(it) }
+    // By name: the result that is this title, with its year, then without it (a year off by one at the site).
+    val name = post.titleEnglish ?: post.title(Lang.en)
+    if (id == null) json(TMDB.searchRequest(name, post.year, post.isSeries, key))?.let { id = TMDB.bestInSearch(it, name, post.year) }
+    if (id == null && post.year != null) json(TMDB.searchRequest(name, null, post.isSeries, key))?.let { id = TMDB.bestInSearch(it, name, post.year) }
+    // Asked and not found (TMDB answered): kept as a miss for a day.
+    if (id == null && System.currentTimeMillis() >= tmdbQuietUntil) store(post, null)
     val details = id?.let { json(TMDB.detailsRequest(it, post.isSeries, key)) } ?: return null
+    store(post, details)
     val info = TMDB.info(details, lang)
     known[post.id] = info
     settled += post.id
@@ -108,6 +129,31 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     known[post.id] = info
     settled += post.id
     return info
+  }
+
+  private fun storeFile(post: Post) = File(File(context.cacheDir, "tmdb").apply { mkdirs() }, "${post.id}.json")
+
+  private sealed interface Kept {
+    data class Found(val details: Json) : Kept
+    data object Missed : Kept
+    data object None : Kept
+  }
+
+  /** The answer kept on disk, while fresh: a week for one found, a day for a miss. */
+  private suspend fun stored(post: Post): Kept = withContext(Dispatchers.IO) {
+    val file = storeFile(post)
+    if (!file.exists()) return@withContext Kept.None
+    val age = System.currentTimeMillis() - file.lastModified()
+    val text = runCatching { file.readText() }.getOrNull() ?: return@withContext Kept.None
+    when {
+      text.isEmpty() -> if (age < MISS_FOR) Kept.Missed else Kept.None
+      age >= FOUND_FOR -> Kept.None
+      else -> runCatching { Json.parse(text.toByteArray()) }.getOrNull()?.let { Kept.Found(it) } ?: Kept.None
+    }
+  }
+
+  private suspend fun store(post: Post, details: Json?) = withContext(Dispatchers.IO) {
+    runCatching { storeFile(post).writeText(details?.serialize() ?: "") }
   }
 
   /** The list of logos, kept on disk and fetched again once a day; an old copy serves when GitHub does not answer. */
@@ -209,3 +255,6 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     private const val AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
   }
 }
+
+private const val FOUND_FOR = 7 * 24 * 3600_000L
+private const val MISS_FOR = 24 * 3600_000L

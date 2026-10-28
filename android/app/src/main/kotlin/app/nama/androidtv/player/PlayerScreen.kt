@@ -249,6 +249,8 @@ fun PlayerScreen(request: PlaybackRequest) {
                 engine.togglePlay()
                 true
               }
+              // Stop ends the film, as Back does from the picture (the Tizen app's).
+              Key.MediaStop -> { engine.close(); true }
               Key.MediaFastForward -> { engine.seekTo(engine.position + 10); true }
               Key.MediaRewind -> { engine.seekTo(engine.position - 10); true }
               // Next and previous are episodes; with none that way the key goes to the TV.

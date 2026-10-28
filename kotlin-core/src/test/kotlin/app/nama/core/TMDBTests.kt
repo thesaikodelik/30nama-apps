@@ -17,6 +17,17 @@ class TMDBTests {
         assertTrue(plain.url.contains("api_key=abc123"))
     }
 
+    @Test fun testSearchTakesTheTitleNotTheFirstResult() {
+        val answer = obj("results" to listOf(
+            mapOf("id" to 1, "title" to "Dune Drifter", "release_date" to "2020-01-01"),
+            mapOf("id" to 2, "title" to "Dune", "release_date" to "1984-12-14"),
+            mapOf("id" to 3, "title" to "Dune", "release_date" to "2021-09-15"),
+        ))
+        assertEquals(3, TMDB.bestInSearch(answer, "Dune 2021", 2021))
+        assertEquals(2, TMDB.bestInSearch(answer, "Dune", 1984))
+        assertNull(TMDB.bestInSearch(answer, "Arrival", 2016))
+    }
+
     @Test fun testFindsTheTitle() {
         val found = obj("movie_results" to listOf(mapOf("id" to 7)), "tv_results" to listOf(mapOf("id" to 9)))
         assertEquals(7, TMDB.idInFind(found, isSeries = false))

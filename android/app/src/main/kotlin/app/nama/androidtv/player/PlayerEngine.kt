@@ -262,7 +262,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   init {
     // A series keeps its subtitle timing and its speed from one episode, and one evening, to the next.
     if (post.isSeries) {
-      subtitleOffset = prefs.getFloat("series.${post.id}.offset", 0f).toDouble()
+      subtitleOffset = prefs.getFloat(offsetKey(), 0f).toDouble()
       speed = prefs.getFloat("series.${post.id}.speed", 1f)
     }
     player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
@@ -471,10 +471,13 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     }
   }
 
+  /** Where the subtitle timing is kept: a series' for all its episodes, a film's for itself (films too, the Tizen app's). */
+  private fun offsetKey() = if (post.isSeries) "series.${post.id}.offset" else "film.${post.id}.offset"
+
   /** Moves the subtitles by [seconds], in quarter seconds; zero puts them back. */
   fun nudgeSubtitles(seconds: Double) {
     subtitleOffset = if (seconds == 0.0) 0.0 else (Math.round((subtitleOffset + seconds) * 4) / 4.0).coerceIn(-10.0, 10.0)
-    if (post.isSeries) prefs.edit().putFloat("series.${post.id}.offset", subtitleOffset.toFloat()).apply()
+    prefs.edit().putFloat(offsetKey(), subtitleOffset.toFloat()).apply()
     cue = track.text(position - subtitleOffset)
   }
 

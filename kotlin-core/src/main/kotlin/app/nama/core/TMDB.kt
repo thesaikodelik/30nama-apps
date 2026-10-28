@@ -38,6 +38,25 @@ object TMDB {
 
     fun idInSearch(answer: Json): Int? = answer["results"].array.firstOrNull()?.get("id")?.int
 
+    /**
+     * The result that is this title, not merely the first: its name (or original name) at least
+     * 0.8 alike, then the nearest year. Nothing when none is alike enough, so a wrong title's logo
+     * and plot are not shown (the Tizen app's `bestCand`).
+     */
+    fun bestInSearch(answer: Json, title: String, year: Int?): Int? {
+        val wanted = TitleMatch.stripYear(title)
+        return answer["results"].array.mapNotNull { r ->
+            val id = r["id"].int ?: return@mapNotNull null
+            val names = listOfNotNull(r["title"].text, r["name"].text, r["original_title"].text, r["original_name"].text)
+            val alike = names.maxOfOrNull { TitleMatch.similarity(wanted, it) } ?: 0.0
+            if (alike < 0.8) return@mapNotNull null
+            val theirs = (r["release_date"].text ?: r["first_air_date"].text)?.take(4)?.toIntOrNull()
+            val off = if (year == null || theirs == null) 0 else kotlin.math.abs(year - theirs)
+            val score = alike + when (off) { 0 -> 0.2; 1 -> 0.1; else -> -0.05 * off }
+            id to score
+        }.maxByOrNull { it.second }?.first
+    }
+
     /** Everything a title page shows, in one request. */
     fun detailsRequest(id: Int, isSeries: Boolean, key: String): HttpRequest {
         val credits = if (isSeries) "aggregate_credits" else "credits"
