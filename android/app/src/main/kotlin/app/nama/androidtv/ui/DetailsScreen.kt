@@ -251,6 +251,8 @@ fun DetailsScreen(route: Route.Details) {
           if (extra.crew.isNotEmpty()) Arriving { Crew(extra.crew) }
           if (extra.reviews.isNotEmpty()) Arriving { Reviews(extra.reviews) }
         }
+        // A plot longer than the header shows: whole here, as the Apple TV's storyline.
+        if (post.plot(LocalLoc.current.lang).length > 260) Arriving { Storyline(post) }
         Arriving { Facts(post) }
         Spacer(Modifier.height(40.dp))
       } }
@@ -784,6 +786,7 @@ private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: St
 @Composable
 private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
   val loc = LocalLoc.current
+  val app = LocalApp.current
   Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
     SectionTitle(loc(S.reviews), Modifier.padding(start = Theme.edge))
     LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -792,7 +795,8 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
         val focused by interaction.collectIsFocusedAsState()
         val shape = RoundedCornerShape(26.dp)
         Surface(
-            onClick = {},
+            // The whole review, to read on the TV (the Mac opens it on TMDB).
+            onClick = { app.sheets.reading = ReadSpec(review.author, review.text, ltr = true) },
             modifier = Modifier.focusRing(interaction, shape),
             interactionSource = interaction,
             shape = ClickableSurfaceDefaults.shape(shape),
@@ -818,6 +822,31 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
           }
         }
       }
+    }
+  }
+}
+
+/** The whole plot, under its own title: the header cuts it at six lines. Select opens it to read. */
+@Composable
+private fun Storyline(post: Post) {
+  val loc = LocalLoc.current
+  val app = LocalApp.current
+  val interaction = remember { MutableInteractionSource() }
+  val shape = RoundedCornerShape(22.dp)
+  Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    SectionTitle(loc(S.storyline), Modifier.padding(start = Theme.edge))
+    Surface(
+        onClick = { app.sheets.reading = ReadSpec(post.title(loc.lang), post.plot(loc.lang)) },
+        modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, shape),
+        interactionSource = interaction,
+        shape = ClickableSurfaceDefaults.shape(shape),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+      Text(
+          post.plot(loc.lang), Modifier.widthIn(max = 1500.dp).padding(24.dp),
+          style = app(27).copy(lineHeight = app(27).fontSize * 1.6f), color = Theme.text1, maxLines = 12, overflow = TextOverflow.Ellipsis,
+      )
     }
   }
 }

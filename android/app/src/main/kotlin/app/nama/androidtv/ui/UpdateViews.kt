@@ -1,5 +1,13 @@
 package app.nama.androidtv.ui
 
+import kotlinx.coroutines.launch
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.focusable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -110,6 +118,46 @@ fun LinkCard(spec: LinkSpec, close: () -> Unit) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
           Text(spec.url.substringBefore('?'), style = app(18), color = Theme.text3, maxLines = 2)
         }
+      }
+    }
+  }
+}
+
+/** A long text to read whole: its heading, its text, and whether it reads left to right. */
+data class ReadSpec(val title: String, val text: String, val ltr: Boolean = false)
+
+/**
+ * A text too long for its card, whole (the Mac opens a review on TMDB): up and down scroll it a
+ * screenful at a time, Back closes it.
+ */
+@Composable
+fun ReadCard(spec: ReadSpec, close: () -> Unit) {
+  val scroll = androidx.compose.foundation.rememberScrollState()
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
+  val focus = remember { FocusRequester() }
+  val shape = RoundedCornerShape(36.dp)
+  BackHandler(onBack = close)
+  LaunchedEffect(spec) { runCatching { focus.requestFocus() } }
+  Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.75f)), contentAlignment = Alignment.Center) {
+    CompositionLocalProvider(LocalLayoutDirection provides if (spec.ltr) LayoutDirection.Ltr else LocalLayoutDirection.current) {
+      Column(
+          Modifier.width(1300.dp).heightIn(max = 900.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape)
+              .focusRequester(focus).focusable()
+              .onPreviewKeyEvent { e ->
+                if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val step = when (e.key) {
+                  androidx.compose.ui.input.key.Key.DirectionDown -> 420f
+                  androidx.compose.ui.input.key.Key.DirectionUp -> -420f
+                  else -> return@onPreviewKeyEvent e.key == androidx.compose.ui.input.key.Key.DirectionLeft || e.key == androidx.compose.ui.input.key.Key.DirectionRight
+                }
+                scope.launch { scroll.animateScrollBy(step) }
+                true
+              }
+              .verticalScroll(scroll).padding(56.dp),
+          verticalArrangement = Arrangement.spacedBy(24.dp),
+      ) {
+        Text(spec.title, style = app(38, FontWeight.Bold), color = Theme.text1)
+        Text(spec.text, style = app(27).copy(lineHeight = app(27).fontSize * 1.6f), color = Theme.text2)
       }
     }
   }

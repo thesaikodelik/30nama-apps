@@ -278,7 +278,7 @@ fun MainScreen(onExit: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
       val route = nav.top
       chrome.rootShown = route == null
-      val sheet = app.sheets.shown != null || app.sheets.link != null
+      val sheet = app.sheets.shown != null || app.sheets.link != null || app.sheets.reading != null
       val root = remember { FocusRequester() }
       // Back at a tab's root: focus returns to where it was before the page was opened.
       LaunchedEffect(route) {
@@ -389,6 +389,7 @@ fun MainScreen(onExit: () -> Unit) {
       nav.flight?.let { f -> if ((route as? Route.Details)?.id == f.post.id) FlyingPoster(f) { nav.flight = null } else LaunchedEffect(f) { nav.flight = null } }
       SheetHost(app.sheets)
       app.sheets.link?.let { LinkCard(it) { app.sheets.link = null } }
+      app.sheets.reading?.let { ReadCard(it) { app.sheets.reading = null } }
     }
   }
 }

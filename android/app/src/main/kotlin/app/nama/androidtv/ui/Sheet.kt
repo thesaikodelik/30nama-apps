@@ -43,6 +43,9 @@ class Sheets {
   /** A web page to open on the phone (a TV has no browser to speak of): its QR code, in a card. */
   var link by mutableStateOf<LinkSpec?>(null)
 
+  /** A long text to read whole (a review): in a card that the remote scrolls. */
+  var reading by mutableStateOf<ReadSpec?>(null)
+
   fun show(spec: SheetSpec) {
     shown = spec
   }

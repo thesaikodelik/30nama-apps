@@ -105,6 +105,10 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     private set
   var buffering by mutableStateOf(true)
     private set
+
+  /** Whether the film's first picture has been shown; until then the player shows its curtain. */
+  var pictured by mutableStateOf(false)
+    private set
   var quality by mutableStateOf<Quality?>(null)
     private set
   /** Which of the server's mixes is open. Stereo is what a TV's own speakers can play. */
@@ -267,6 +271,10 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       }
     })
     player.addListener(object : Player.Listener {
+      override fun onRenderedFirstFrame() {
+        pictured = true
+      }
+
       override fun onPlaybackStateChanged(state: Int) {
         buffering = state == Player.STATE_BUFFERING
         if (state == Player.STATE_ENDED) finished()

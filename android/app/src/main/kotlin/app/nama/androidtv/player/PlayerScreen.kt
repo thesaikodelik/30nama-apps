@@ -1,5 +1,10 @@
 package app.nama.androidtv.player
 
+import androidx.compose.animation.core.Animatable
+import app.nama.androidtv.ui.LocalCalm
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import app.nama.androidtv.ui.focusRing
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -268,7 +273,11 @@ fun PlayerScreen(request: PlaybackRequest) {
       val aspect = engine.aspect
       PlayerSurface(engine.player, if (aspect != null) Modifier.aspectRatio(aspect) else Modifier.fillMaxSize(), SURFACE_TYPE_SURFACE_VIEW)
     }
-    if (engine.buffering) Spinner(Modifier.align(Alignment.TopStart).padding(Theme.edge).size(40.dp), Theme.accent)
+    // Before the first picture, the Mac's curtain: the title's artwork drawing slowly nearer, its
+    // name and the episode, over the black of a stream still on its way.
+    val curtain by animateFloatAsState(if (engine.pictured) 0f else 1f, tween(450), label = "curtain")
+    if (curtain > 0f) Curtain(engine, Modifier.graphicsLayer { alpha = curtain })
+    if (engine.buffering && engine.pictured) Spinner(Modifier.align(Alignment.TopStart).padding(Theme.edge).size(40.dp), Theme.accent)
 
     // Subtitles sit higher while the controls or the episodes are showing: just above the timeline,
     // as the Mac's (docs/design/mac player), and higher still while seeking, over the picture at the
@@ -475,9 +484,21 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
   val ready = if (d > 0) (engine.buffered / d).toFloat().coerceIn(0f, 1f) else 0f
   val active = seekTarget != null
   val hue = LocalHue.current ?: Theme.accent
+  val loc = LocalLoc.current
+  // The file's named stretches, drawn on the line as the Mac's and Windows': the recap, the intro
+  // and the credits; while seeking into one, its name under the picture.
+  val item = engine.current
+  val marks = remember(item, d) {
+    if (d <= 0) emptyList() else listOfNotNull(
+        item.recapEnd?.takeIf { it > 0 }?.let { Triple(item.recapStart ?: 0.0, it, S.recap) },
+        item.introEnd?.takeIf { it > 0 }?.let { Triple(item.introStart ?: 0.0, it, S.intro) },
+        item.creditsStart?.takeIf { it > 0 && it < d }?.let { Triple(it, d, S.credits) },
+    )
+  }
   // While seeking, the picture at that point rides above the bar's thumb.
   LaunchedEffect(seekTarget) { seekTarget?.let { engine.preview.want(it) } }
   val frame = engine.preview.frame
+  val inMark = seekTarget?.let { at -> marks.firstOrNull { at >= it.first && at <= it.second } }
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     if (seekTarget != null && frame != null) {
       BoxWithConstraints(Modifier.fillMaxWidth().height(200.dp)) {
@@ -489,6 +510,7 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
               Modifier.width(card).height(180.dp).clip(RoundedCornerShape(14.dp)).border(2.dp, Color.White, RoundedCornerShape(14.dp)),
               contentScale = androidx.compose.ui.layout.ContentScale.Crop,
           )
+          inMark?.let { Text(loc(it.third), style = app(20, FontWeight.Bold), color = Color.White) }
         }
       }
     }
@@ -500,6 +522,11 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?) {
           bar(1f, Color.White.copy(alpha = 0.24f))
           bar(ready, Color.White.copy(alpha = 0.14f))
           bar(fraction, hue)
+          if (d > 0) for ((from, to, _) in marks) {
+            val x = size.width * (from / d).toFloat()
+            val w = maxOf(4.dp.toPx(), size.width * ((to - from) / d).toFloat())
+            drawRoundRect(Color.White.copy(alpha = 0.55f), Offset(x, y - h / 2), Size(w, h), CornerRadius(h / 2))
+          }
           if (active) drawCircle(Color.White, 9.dp.toPx(), Offset(size.width * fraction, y))
         })
   }
@@ -654,6 +681,37 @@ private fun EpisodesPanel(engine: PlayerEngine, close: () -> Unit) {
             modifier = if (i == engine.index) Modifier.focusRequester(playingTile) else Modifier,
             radius = Theme.tileRadius, scale = 1.06f,
         ) { EpisodeTile(item, i + 1, nowPlaying = i == engine.index) }
+      }
+    }
+  }
+}
+
+/** What shows before the film moves: its artwork pushing slowly in, with its name and a spinner. */
+@Composable
+private fun Curtain(engine: PlayerEngine, modifier: Modifier) {
+  val loc = LocalLoc.current
+  val calm = LocalCalm.current
+  val post = engine.post
+  val item = engine.current
+  val near = remember { Animatable(1f) }
+  LaunchedEffect(Unit) { if (!calm) near.animateTo(1.07f, tween(8000, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) }
+  Box(modifier.fillMaxSize().background(Color.Black)) {
+    app.nama.androidtv.ui.RemoteImage(
+        post.cover ?: post.poster.big ?: post.poster.large,
+        Modifier.fillMaxSize().graphicsLayer {
+          scaleX = near.value
+          scaleY = near.value
+        },
+        blurhash = post.poster.blurhash, pixelWidth = 1280,
+    )
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.25f), Color.Black.copy(alpha = 0.8f)))))
+    Column(Modifier.align(Alignment.BottomStart).padding(start = Theme.edge, end = Theme.edge, bottom = 230.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Text(post.title(loc.lang), style = app(58, FontWeight.ExtraBold), color = Theme.text1, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spinner(Modifier.size(28.dp), Color.White)
+        if (post.isSeries || engine.items.size > 1) {
+          Text(loc.episodeTag(item.season, Episode.label(item.episodeRaw, engine.index + 1)), style = app(24, FontWeight.SemiBold), color = Theme.text2, maxLines = 1)
+        }
       }
     }
   }
