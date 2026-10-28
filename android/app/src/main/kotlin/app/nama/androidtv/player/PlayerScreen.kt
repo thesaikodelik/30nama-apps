@@ -642,7 +642,10 @@ private fun SidePanel(engine: PlayerEngine, panel: Panel, go: (Panel) -> Unit, c
       engine.audioTracks.forEach { l -> list += Choice(java.util.Locale.forLanguageTag(l).getDisplayLanguage(java.util.Locale.forLanguageTag(loc.lang.name)).ifEmpty { l }, l == engine.audioTrack) { engine.chooseAudioTrack(l) } }
       loc(S.audio) to list
     }
-    Panel.Quality -> loc(S.quality) to item.qualities.map { q -> Choice(if (q.isAuto) loc(S.qualityAuto) else q.label, q == engine.quality) { engine.chooseQuality(q) } }
+    Panel.Quality -> loc(S.quality) to (
+        // "Max", the download file, first when one fits (the Tizen app's).
+        listOfNotNull(engine.directFor()?.let { f -> Choice("Max · " + Direct.label(f), engine.direct?.id == f.id) { engine.playDirect(f, engine.position) } }) +
+            item.qualities.map { q -> Choice(if (q.isAuto) loc(S.qualityAuto) else q.label, engine.direct == null && q == engine.quality) { engine.chooseQuality(q) } })
     Panel.Speed -> loc(S.speed) to listOf(0.5f, 0.75f, 0.9f, 1f, 1.05f, 1.1f, 1.25f, 1.5f, 1.75f, 2f).map { s -> Choice(loc.num(s.toString().removeSuffix(".0")) + "×", s == engine.speed) { engine.chooseSpeed(s) } }
     Panel.Sleep -> loc(S.sleepTimer) to (listOf(Sleep.Off, Sleep.EndOfEpisode) + listOf(15, 30, 45, 60).map { Sleep.Minutes(it) }).map { s ->
       val name = when (s) {

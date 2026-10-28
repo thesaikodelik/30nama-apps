@@ -93,6 +93,12 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
   ),
   geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  qualityMax("Max, the original file", "Max، فایل اصلی", "Max، الملف الأصلي"),
+  qualityMaxHint(
+      "Max plays the download file itself, often 4K and HDR, where the TV can play it: files with DTS or TrueHD sound are passed over. It needs a fast line. If a file will not play, or plays without sound, the stream takes over at the same moment.",
+      "«Max» خود فایل دانلود را پخش می‌کند، که اغلب 4K و HDR است، اگر تلویزیون بتواند پخشش کند: فایل‌های با صدای DTS یا TrueHD کنار گذاشته می‌شوند. اینترنت پرسرعت می‌خواهد. اگر فایلی پخش نشد یا بی‌صدا بود، همان لحظه استریم معمولی جایش را می‌گیرد.",
+      "يشغّل «Max» ملف التنزيل نفسه، وغالباً بدقة 4K وHDR، إن استطاع التلفاز تشغيله: تُستبعد الملفات ذات صوت DTS أو TrueHD. يحتاج إلى اتصال سريع. إن لم يعمل ملف أو عمل بلا صوت، يحل البث العادي محله في اللحظة نفسها.",
+  ),
   freshSeries("New and returning series", "سریال‌های تازه و برگشته", "مسلسلات جديدة وعائدة"),
   popularFilms("Popular films now", "فیلم‌های پرطرفدار این روزها", "أفلام رائجة الآن"),
   moreLikeThis("More like this", "شبیه این", "أعمال مشابهة"),

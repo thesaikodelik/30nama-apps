@@ -24,6 +24,8 @@ data class Settings(
     val audioMix: AudioMix = AudioMix.stereo,
     /** Use the adaptive stream instead of the highest fixed rendition. */
     val preferAdaptive: Boolean = false,
+    /** "Max": the download file itself where one plays, else the stream as [preferAdaptive] says. */
+    val maxQuality: Boolean = false,
     val reduceMotion: Boolean = false,
     /** How much motion that never ends the TV shows (the Mac's Effects); Automatic decides by its memory. */
     val effects: Effects = Effects.auto,
@@ -52,6 +54,7 @@ data class Settings(
           autoSkip = p.getBoolean("autoSkip", d.autoSkip),
           audioMix = enumOf(AudioMix.entries.toTypedArray(), "audioMix", d.audioMix),
           preferAdaptive = p.getBoolean("adaptive", d.preferAdaptive),
+          maxQuality = p.getBoolean("maxQuality", d.maxQuality),
           reduceMotion = p.getBoolean("calm", d.reduceMotion),
           effects = enumOf(Effects.entries.toTypedArray(), "effects", d.effects),
           sceneGlow = p.getBoolean("sceneGlow", d.sceneGlow),
@@ -73,6 +76,7 @@ data class Settings(
         .putBoolean("autoSkip", autoSkip)
         .putString("audioMix", audioMix.name)
         .putBoolean("adaptive", preferAdaptive)
+        .putBoolean("maxQuality", maxQuality)
         .putBoolean("calm", reduceMotion)
         .putString("effects", effects.name)
         .putBoolean("sceneGlow", sceneGlow)

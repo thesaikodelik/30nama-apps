@@ -1,5 +1,6 @@
 package app.nama.androidtv.player
 
+import app.nama.core.downloads
 import android.content.Context
 import android.util.Log
 import androidx.annotation.OptIn
@@ -288,6 +289,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       override fun onPlayerError(error: PlaybackException) {
         Log.w(AppModel.TAG, "playback: ${error.errorCodeName} ${error.cause}")
         if (closed) return
+        if (direct != null) return leaveDirect("would not play (${error.errorCodeName})")
         app.showToast(loc(S.playError))
         close()
       }
@@ -304,6 +306,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
         val langs = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.mapNotNull { g -> g.mediaTrackGroup.getFormat(0).language }.distinct()
         audioTracks = if (langs.size > 1) langs else emptyList()
         audioTrack = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }?.mediaTrackGroup?.getFormat(0)?.language
+        // A file whose sound this TV cannot play would go on silent: the stream instead.
+        if (direct != null && !tracks.isEmpty && tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO } && tracks.groups.none { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }) leaveDirect("has no sound this TV plays")
       }
     })
   }
@@ -327,6 +331,19 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
 
   // MARK: Items
 
+  /** The download files, asked for once when "Max" is chosen; null until they have come. */
+  private var downloads: app.nama.core.DownloadOptions? = null
+  private var downloadsAsked = false
+  /** Files that would not play, or played without sound: never tried again in this player. */
+  private val directFailed = HashSet<String>()
+  /** The download file playing, when "Max" plays one. */
+  var direct by mutableStateOf<app.nama.core.DownloadFile?>(null)
+    private set
+
+  /** The "Max" file for the item playing, if any fits and has not failed. */
+  fun directFor(): app.nama.core.DownloadFile? =
+      downloads?.let { Direct.pick(it, post.isSeries, current.season, current.episodeRaw) }?.takeIf { it.id !in directFailed }
+
   /** Starts item [i], from [at] if given. */
   fun start(i: Int, at: Double? = null) {
     if (i !in items.indices) return close()
@@ -343,7 +360,19 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     }
     resumedAt = at?.takeIf { it > 60 }
     startedAt = System.currentTimeMillis()
-    load(q, at)
+    quality = q
+    if (app.settings.maxQuality && !downloadsAsked) {
+      // Asked once; the stream starts at once, and the file takes over as soon as it is known.
+      downloadsAsked = true
+      load(q, at)
+      scope.launch {
+        downloads = runCatching { app.api.downloads(post.id, app.isLoggedIn) }.getOrNull()
+        directFor()?.let { f -> if (!closed) playDirect(f, position.takeIf { it > 0 } ?: at) }
+      }
+    } else {
+      val f = if (app.settings.maxQuality) directFor() else null
+      if (f != null) playDirect(f, at) else load(q, at)
+    }
     // Previews come from the smallest rendition: a tiny picture, at the least cost to the line.
     val lowest = current.qualities.filter { !it.isAuto }.minByOrNull { it.height } ?: current.qualities.firstOrNull()
     preview.use(lowest?.url(AudioMix.stereo)?.toString())
@@ -354,7 +383,35 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     lookForSubtitles()
   }
 
+  /** Plays a download file in place of the stream, from [at]. */
+  fun playDirect(f: app.nama.core.DownloadFile, at: Double?) {
+    direct = f
+    val url = f.url.toString()
+    val name = f.fileName.lowercase()
+    val item = MediaItem.Builder()
+        .setUri(url)
+        .setMimeType(if (name.endsWith(".mp4") || name.endsWith(".m4v")) MimeTypes.VIDEO_MP4 else MimeTypes.VIDEO_MATROSKA)
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(post.title(loc.lang)).setDisplayTitle(post.title(loc.lang)).build())
+        .build()
+    Log.i(AppModel.TAG, "max: playing ${f.fileName}")
+    player.setMediaItem(item, ((at ?: 0.0) * 1000).toLong())
+    player.setPlaybackSpeed(speed)
+    player.prepare()
+    player.play()
+    offer = null
+  }
+
+  /** The file failed: the stream takes over where the film was, and the file is not tried again. */
+  private fun leaveDirect(why: String) {
+    val f = direct ?: return
+    Log.w(AppModel.TAG, "max: ${f.fileName} $why; back to the stream")
+    directFailed += f.id
+    direct = null
+    quality?.let { load(it, position) }
+  }
+
   private fun load(q: Quality, at: Double?) {
+    direct = null
     quality = q
     val url = q.url(mix).toString()
     val title = post.title(loc.lang)
@@ -437,7 +494,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   // MARK: Menus
 
   fun chooseQuality(q: Quality) {
-    if (q == quality) return
+    if (q == quality && direct == null) return
     load(q, position)
   }
 
@@ -472,7 +529,9 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   }
 
   /** Where the subtitle timing is kept: a series' for all its episodes, a film's for itself (films too, the Tizen app's). */
-  private fun offsetKey() = if (post.isSeries) "series.${post.id}.offset" else "film.${post.id}.offset"
+  private fun offsetKey() = (if (post.isSeries) "series.${post.id}.offset" else "film.${post.id}.offset") +
+      // Each file its own: one release is timed apart from another (the Tizen app's).
+      (direct?.let { ".${it.fileName}" } ?: "")
 
   /** Moves the subtitles by [seconds], in quarter seconds; zero puts them back. */
   fun nudgeSubtitles(seconds: Double) {

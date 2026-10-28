@@ -137,9 +137,17 @@ fun SettingsScreen() {
           }
         }
         Group(loc(S.playback)) {
-          val quality = listOf(false to loc(S.qualityBest), true to loc(S.qualityAuto))
-          Choice(loc(S.quality), quality.first { it.first == s.preferAdaptive }.second, Help(tv(TV.qualityHint), quality.map { it.second }, quality.first { it.first == s.preferAdaptive }.second), { help = it }) {
-            app.update { it.copy(preferAdaptive = !it.preferAdaptive) }
+          // Best (the default), Automatic, and Max: the download file itself (the Tizen app's).
+          val qualities = listOf(loc(S.qualityBest), loc(S.qualityAuto), tv(TV.qualityMax))
+          val qualityAt = if (s.maxQuality) 2 else if (s.preferAdaptive) 1 else 0
+          Choice(loc(S.quality), qualities[qualityAt], Help(tv(TV.qualityHint) + "\n\n" + tv(TV.qualityMaxHint), qualities, qualities[qualityAt]), { help = it }) {
+            app.update {
+              when (qualityAt) {
+                0 -> it.copy(preferAdaptive = true, maxQuality = false)
+                1 -> it.copy(preferAdaptive = false, maxQuality = true)
+                else -> it.copy(preferAdaptive = false, maxQuality = false)
+              }
+            }
           }
           val mixes = listOf(AudioMix.stereo to loc(S.audioStereo), AudioMix.surround to loc(S.audioSurround), AudioMix.original to loc(S.audioOriginal))
           val mixName = mixes.first { it.first == s.audioMix }.second
