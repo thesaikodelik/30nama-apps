@@ -326,6 +326,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     keep()
     index = i
     reportedTime = 0
+    // Not the last file's length for this one, as the switch reports it.
+    duration = 0.0
     val q = current.quality(app.settings.preferAdaptive)
     if (q == null) {
       app.showToast(loc(S.noStream))
@@ -405,8 +407,10 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   }
 
   fun seekTo(seconds: Double) {
-    player.seekTo((seconds.coerceAtLeast(0.0) * 1000).toLong())
-    position = seconds.coerceAtLeast(0.0)
+    // Never past the end, once it is known: there the film counts as finished and the next one starts.
+    val to = seconds.coerceAtLeast(0.0).let { if (duration > 1) it.coerceAtMost(duration - 1) else it }
+    player.seekTo((to * 1000).toLong())
+    position = to
   }
 
   fun close() {
@@ -416,7 +420,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     keep()
     prefs.edit().putLong("bitrate", bandwidth.bitrateEstimate).apply()
     scope.cancel()
-    preview.close()
+    preview.release()
     session?.release()
     player.release()
     onClose()
@@ -454,8 +458,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     sleepJob = scope.launch {
       delay(s.n * 60_000L)
       sleep = Sleep.Off
-      // Only if the film is actually playing; a paused one is left as it is.
-      if (player.isPlaying) player.pause()
+      // A paused film is left as it is; one playing, or waiting on the line to play, stops.
+      if (player.playWhenReady) player.pause()
     }
   }
 
@@ -657,7 +661,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     if (!app.isLoggedIn) return
     val seconds = player.currentPosition / 1000.0
     val time = (seconds.toInt() / 30) * 30
-    if (time <= 0 || time == reportedTime) return
+    // Not before the file's length is known: a switch would send the last file's.
+    if (time <= 0 || time == reportedTime || duration <= 0) return
     reportedTime = time
     val progress = WatchProgress(post, current, app.user?.id, seconds, duration)
     val api = app.api

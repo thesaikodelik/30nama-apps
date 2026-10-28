@@ -134,10 +134,17 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
 
       // Backspace is Back too, on a box run with a keyboard, as in most TV apps: only when nothing
       // took it, so a text field being typed in still deletes. (Escape is turned to Back in MainActivity.)
+      // A text field takes only the key going down; its coming up is let through, so Back follows
+      // only a Backspace whose going down reached here too.
       val back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+      var backspaceDown by remember { mutableStateOf(false) }
       Box(Modifier.fillMaxSize().background(Theme.bg0).onKeyEvent { e ->
         if (e.key != Key.Backspace) return@onKeyEvent false
-        if (e.type == KeyEventType.KeyUp) back?.onBackPressed()
+        if (e.type == KeyEventType.KeyDown) backspaceDown = true
+        else if (e.type == KeyEventType.KeyUp && backspaceDown) {
+          backspaceDown = false
+          back?.onBackPressed()
+        }
         true
       }) {
         // A new language or account means a different catalogue: every tab starts over.
@@ -200,6 +207,7 @@ fun MainScreen(onExit: () -> Unit) {
   val holder = rememberSaveableStateHolder()
   var barFocused by remember { mutableStateOf(false) }
   var lastBack by remember { mutableLongStateOf(0L) }
+  var paging by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val loc = app.loc
 
@@ -233,38 +241,39 @@ fun MainScreen(onExit: () -> Unit) {
       val root = remember { FocusRequester() }
       // Back at a tab's root: focus returns to where it was before the page was opened.
       LaunchedEffect(route) {
-        if (route != null) {
-          barFocused = false
-          chrome.barFocused = false
-          return@LaunchedEffect
-        }
+        if (route != null) return@LaunchedEffect
         withFrameNanos {}
         runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
       }
       // A page opened over the tab takes focus, if it has not taken it itself: what was pressed
       // to open it is still focused under it, hidden, and the remote would go on working there.
       val routeFocus = remember { FocusRequester() }
+      val focus = androidx.compose.ui.platform.LocalFocusManager.current
       var routeHasFocus by remember { mutableStateOf(false) }
       LaunchedEffect(route) {
         if (route == null) return@LaunchedEffect
-        repeat(40) {
+        var tries = 0
+        // Until the page has something to hold focus, however long its first answer takes.
+        while (true) {
           withFrameNanos {}
           if (routeHasFocus || barFocused) return@LaunchedEffect
           runCatching { routeFocus.requestFocus() }
-          delay(50)
+          // Still nothing on the page to take it: off the hidden page at least, so the remote does nothing there.
+          if (++tries == 2 && !routeHasFocus && !barFocused) focus.clearFocus(force = true)
+          delay(if (tries < 40) 50 else 200)
         }
       }
       // Channel up and down (Page Up and Down on a keyboard) go a few steps at once, about a
       // screenful, where a page is long: an article, a wall of posters. Only what a page leaves
       // unused comes here; the player keeps them for the next and last episode.
-      val focus = androidx.compose.ui.platform.LocalFocusManager.current
       Box(Modifier.fillMaxSize().blockFocus(sheet).onKeyEvent { e ->
         val down = when (e.key) {
           Key.ChannelDown, Key.PageDown -> true
           Key.ChannelUp, Key.PageUp -> false
           else -> return@onKeyEvent false
         }
-        if (e.type == KeyEventType.KeyDown) scope.launch {
+        // One run at a time: a held button repeats faster than the steps are taken.
+        if (e.type == KeyEventType.KeyDown && !barFocused && paging?.isActive != true) paging = scope.launch {
           repeat(PAGE_STEPS) {
             if (!focus.moveFocus(if (down) FocusDirection.Down else FocusDirection.Up)) return@launch
             withFrameNanos {}
@@ -291,7 +300,7 @@ fun MainScreen(onExit: () -> Unit) {
             scaleX = scale
             scaleY = scale
           }.focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
-            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
+            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") { RouteScreen(route) }
           }
         }
       }
@@ -314,7 +323,8 @@ fun MainScreen(onExit: () -> Unit) {
           // first item. Left to the geometric search, it found nothing below: a page that is one
           // grid (a catalogue, search) starts under the bar, not below it.
           down = {
-            if (route != null) false
+            // The tab may have changed this very press (a pending one): the page open now, not the drawn one.
+            if (nav.top != null) false
             else {
               scope.launch {
                 withFrameNanos {}
@@ -426,6 +436,9 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
     delay(300)
     nav.tab = next
   }
+  // The tab changed from elsewhere (Back to home, a title opened from the TV's home screen): a
+  // move along the bar still waiting must not switch away from it.
+  LaunchedEffect(nav.tab) { if (pending != nav.tab) pending = null }
   val back = remember { FocusRequester() }
   // Coming up from a page lands on the open tab, or on Back while a page is open, not on whichever
   // is nearest, which would open that one instead: from outside, only that one takes focus.

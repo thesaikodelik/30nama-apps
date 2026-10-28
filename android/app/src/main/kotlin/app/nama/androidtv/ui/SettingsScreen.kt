@@ -340,6 +340,7 @@ private fun KeyCard(service: String, close: () -> Unit) {
   val fieldButton = remember { FocusRequester() }
   var typing by remember { mutableStateOf(false) }
   val checker = remember { KeyCheck(app.http) }
+  var checking by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
   fun save(key: String) {
     app.setKey(service, key)
@@ -349,7 +350,9 @@ private fun KeyCard(service: String, close: () -> Unit) {
       return
     }
     state = KeyState.Checking
-    scope.launch { state = checker.check(service, key) }
+    // Only the newest key's answer: a slow one for the key before must not overwrite it.
+    checking?.cancel()
+    checking = scope.launch { state = checker.check(service, key) }
   }
 
   // The page the phone opens: in the app's language, right to left for Persian, nothing fetched from anywhere.

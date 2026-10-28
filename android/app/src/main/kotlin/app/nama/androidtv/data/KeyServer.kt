@@ -26,10 +26,26 @@ import kotlin.concurrent.thread
 class KeyServer private constructor(private val server: ServerSocket, val token: String, private val page: (sent: Boolean, error: Boolean) -> String, private val onKey: (String) -> Unit) {
   val address: String get() = "http://${server.inetAddress.hostAddress}:${server.localPort}/$token"
 
+  private val clients = java.util.concurrent.Semaphore(4)
+
   private val accepting = thread(isDaemon = true, name = "nama-keys") {
     while (!server.isClosed) {
       val client = runCatching { server.accept() }.getOrNull() ?: break
-      thread(isDaemon = true) { serve(client) }
+      // A few at once, each with a deadline of its own: a device on the network trickling bytes
+      // must not hold threads open without end. A phone sends one request at a time.
+      if (!clients.tryAcquire()) {
+        runCatching { client.close() }
+        continue
+      }
+      thread(isDaemon = true) {
+        val deadline = java.util.Timer(true).apply { schedule(object : java.util.TimerTask() { override fun run() { runCatching { client.close() } } }, 20_000) }
+        try {
+          serve(client)
+        } finally {
+          deadline.cancel()
+          clients.release()
+        }
+      }
     }
   }
 

@@ -95,13 +95,16 @@ fun PagedGrid(
     /** Every page is in: the last row may then be part of one. */
     complete: Boolean,
     more: () -> Unit,
+    /** The last page did not come: a retry at the end, not another try at every move. */
+    failed: Boolean = false,
     header: LazyGridScope.() -> Unit = {},
     onOpen: (Post) -> Unit,
 ) {
   val state = rememberLazyGridState()
+  val stopped by androidx.compose.runtime.rememberUpdatedState(failed)
   LaunchedEffect(state, posts.size) {
     snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.distinctUntilChanged().collect { last ->
-      if (last >= state.layoutInfo.totalItemsCount - 15) more()
+      if (!stopped && last >= state.layoutInfo.totalItemsCount - 15) more()
     }
   }
   LazyVerticalGrid(
@@ -114,7 +117,10 @@ fun PagedGrid(
   ) {
     header()
     // A wall of posters, as the Mac's: each one's name comes up on it in focus.
-    itemsIndexed(wholeRows(posts, complete), key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }) }
+    itemsIndexed(wholeRows(posts, complete || failed), key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }) }
+    if (failed && posts.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+      Box(Modifier.padding(top = 20.dp)) { PillButton(LocalLoc.current(S.retry), more, icon = Icons.replay) }
+    }
     // Whole rows of stand-ins, under rows that are whole too.
     if (loading) {
       items(if (posts.isEmpty()) WALL * 2 else WALL) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).padding(bottom = 8.dp), Theme.cardRadius) }
@@ -169,7 +175,8 @@ fun CatalogScreen(slug: String, title: String) {
         return@launch
       }
       val known = posts.map { it.id }.toSet()
-      posts = posts + next.posts.filter { it.id !in known }
+      // Repeats within a page too: the site's lists have them, and a repeated key crashes a lazy grid.
+      posts = (posts + next.posts.filter { it.id !in known }).distinctBy { it.id }
       page = next.page
       pages = next.pages
       total = next.total.takeIf { it > 0 && !(sort == Sort.Newest && filter.isEmpty) }
@@ -196,7 +203,7 @@ fun CatalogScreen(slug: String, title: String) {
     if (failed && posts.isEmpty()) {
       ErrorState { loadNext() }
     } else {
-      PagedGrid(posts, loading, page >= pages, ::loadNext, header = {
+      PagedGrid(posts, loading, page >= pages, ::loadNext, failed = failed, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
           // The Mac's header: the name and its count at the start, the orders at the end, and the
           // filters as menus under the name.

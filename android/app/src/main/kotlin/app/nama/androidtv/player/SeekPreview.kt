@@ -49,10 +49,15 @@ class SeekPreview(private val context: Context, private val network: DataSource.
   private var wanted: Long? = null
   private var misses = 0
   private var off = false
+  /** The player has closed: nothing is opened again, whatever answer is still on its way. */
+  private var disposed = false
+  /** Which file the answers belong to: one still on its way for the file before is dropped. */
+  private var generation = 0
 
   /** The file playing changed: previews start afresh on its lowest quality. */
   fun use(lowest: String?) {
     close()
+    generation++
     url = lowest
     frames.evictAll()
     frame = null
@@ -82,14 +87,16 @@ class SeekPreview(private val context: Context, private val network: DataSource.
   }
 
   private fun pump() {
-    if (busy || off) return
+    if (busy || off || disposed) return
     val point = wanted ?: return
     wanted = null
     val reader = extractor ?: open() ?: return
     busy = true
+    val asked = generation
     Futures.addCallback(reader.getFrame(point), object : FutureCallback<FrameExtractor.Frame> {
       override fun onSuccess(result: FrameExtractor.Frame) {
         busy = false
+        if (disposed || asked != generation) return
         misses = 0
         frames.put(point, result.bitmap)
         frame = point to result.bitmap
@@ -98,6 +105,7 @@ class SeekPreview(private val context: Context, private val network: DataSource.
 
       override fun onFailure(t: Throwable) {
         busy = false
+        if (disposed || asked != generation) return
         misses++
         Log.w(AppModel.TAG, "seek preview at $point: $t")
         if (misses >= 3 || t.cause !is HttpDataSource.HttpDataSourceException) {
@@ -125,6 +133,12 @@ class SeekPreview(private val context: Context, private val network: DataSource.
       Log.w(AppModel.TAG, "seek previews: $it")
       off = true
     }.getOrNull()?.also { extractor = it }
+  }
+
+  /** For good, as the player closes. */
+  fun release() {
+    disposed = true
+    close()
   }
 
   fun close() {

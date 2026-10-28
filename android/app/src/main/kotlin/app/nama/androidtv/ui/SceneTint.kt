@@ -44,26 +44,32 @@ object SceneTint {
 
   suspend fun colour(context: Context, post: Post): Color {
     known[post.id]?.let { return it.color ?: post.tint() }
-    val found = post.cover?.let { lively(context, it) } ?: (post.poster.big ?: post.poster.large)?.let { lively(context, it) }
-    known[post.id] = Optional(found)
+    val scene = post.cover?.let { lively(context, it) }
+    val poster = if (scene?.getOrNull() != null) null else (post.poster.big ?: post.poster.large)?.let { lively(context, it) }
+    val found = scene?.getOrNull() ?: poster?.getOrNull()
+    // A picture that did not come is asked for again next time; only a real answer is kept.
+    if (found != null || (scene?.isFailure != true && poster?.isFailure != true)) known[post.id] = Optional(found)
     return found ?: post.tint()
   }
 
   suspend fun posterColour(context: Context, post: Post): Color {
     posters[post.id]?.let { return it.color ?: post.tint() }
-    val found = post.poster.url(Theme.posterWidth.value * 1.1)?.let { lively(context, it) }
-    posters[post.id] = Optional(found)
+    val result = post.poster.url(Theme.posterWidth.value * 1.1)?.let { lively(context, it) }
+    val found = result?.getOrNull()
+    if (result?.isFailure != true) posters[post.id] = Optional(found)
     return found ?: post.tint()
   }
 
-  private suspend fun lively(context: Context, url: URI): Color? {
+  /** The picture's lively colour, null when it has none; a failure when the picture did not come. */
+  private suspend fun lively(context: Context, url: URI): Result<Color?> {
     val request = ImageRequest.Builder(context).data(url.toString()).size(64, 36).allowHardware(false).build()
-    val image = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image ?: return null
-    return withContext(Dispatchers.Default) {
+    val image = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image
+        ?: return Result.failure(IllegalStateException("picture did not come"))
+    return Result.success(withContext(Dispatchers.Default) {
       val small = Bitmap.createScaledBitmap(image.toBitmap(), 32, 18, true)
       val pixels = IntArray(32 * 18).also { small.getPixels(it, 0, 32, 0, 0, 32, 18) }
       Lively.of(pixels)?.let { Color.hsv(it.hue * 360f, it.saturation, it.brightness) }
-    }
+    })
   }
 }
 

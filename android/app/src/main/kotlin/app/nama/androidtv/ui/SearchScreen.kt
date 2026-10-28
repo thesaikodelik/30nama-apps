@@ -88,6 +88,8 @@ fun SearchScreen() {
   var heading by remember { mutableStateOf("") }
   var note by remember { mutableStateOf<String?>(null) }
   var searching by remember { mutableStateOf(false) }
+  /** The wall shows what the query found, not popular titles in its place. */
+  var found by remember { mutableStateOf(false) }
   var persian by rememberSaveable { mutableStateOf(false) }
   var digits by rememberSaveable { mutableStateOf(false) }
   val recents = remember { Recents(app) }
@@ -104,9 +106,12 @@ fun SearchScreen() {
   val canSpeak = remember { Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(context.packageManager) != null }
 
   LaunchedEffect(query, streamOnly) {
+    // A search cut short by the next keystroke never got to say it was done.
+    searching = false
     // The server finds nothing for two spaces running, which a remote types easily.
     val text = query.trim().replace(Regex("\\s+"), " ")
     if (text.length < 2) {
+      found = false
       // With nothing to search for yet, what is popular instead of an empty screen.
       val feed = attempt { app.home() }
       note = null
@@ -129,14 +134,23 @@ fun SearchScreen() {
     }
     searching = false
     when {
-      page == null -> note = "${loc(S.error)}. ${loc(S.tryAgain)}"
+      page == null -> {
+        // Not the last query's results under this one's error.
+        found = false
+        note = "${loc(S.error)}. ${loc(S.tryAgain)}"
+        val feed = attempt { app.home() }
+        heading = loc(S.popularNow)
+        results = feed?.posts("suggested").orEmpty().take(WALL * 3)
+      }
       page.posts.isEmpty() -> {
+        found = false
         note = "${loc(S.nothingFor)} «$text»"
         val feed = attempt { app.home() }
         heading = loc(S.popularNow)
         results = feed?.posts("suggested").orEmpty().take(WALL * 3)
       }
       else -> {
+        found = true
         note = null
         heading = "${loc(S.topResults)} · ${loc.num(page.total.takeIf { it > 0 } ?: page.posts.size)}"
         // Only the first page is asked for: of it, whole rows, unless it is all there is.
@@ -234,7 +248,8 @@ fun SearchScreen() {
       items(results, key = { it.id }) { post ->
         PosterCard(post, {
           val text = query.trim().replace(Regex("\\s+"), " ")
-          if (text.length >= 2) recents.add(text)
+          // Only a search that found something is worth keeping, not one that fell back to popular titles.
+          if (found && text.length >= 2) recents.add(text)
           nav.push(Route.Details(post))
         })
       }

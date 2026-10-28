@@ -73,7 +73,8 @@ fun AdvancedSearchScreen(start: AdvancedQuery) {
         return@launch
       }
       val known = posts.map { it.id }.toSet()
-      posts = posts + next.posts.filter { it.id !in known }
+      // Repeats within a page too: the site's lists have them, and a repeated key crashes a lazy grid.
+      posts = (posts + next.posts.filter { it.id !in known }).distinctBy { it.id }
       page = next.page
       pages = next.pages
       total = next.total
@@ -114,7 +115,7 @@ fun AdvancedSearchScreen(start: AdvancedQuery) {
     if (failed && posts.isEmpty()) {
       ErrorState { loadNext() }
     } else {
-      PagedGrid(posts, loading, page >= pages, ::loadNext, header = {
+      PagedGrid(posts, loading, page >= pages, ::loadNext, failed = failed, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
           Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {

@@ -146,7 +146,7 @@ fun TopListsScreen() {
   }
   val entries = lists[list]
   val ranks = entries?.associate { it.post.id to it.rank }.orEmpty()
-  PosterPage(entries?.map { it.post }, failed, { reload++ }, header = {
+  PosterPage(entries?.map { it.post }?.distinctBy { it.id }, failed, { reload++ }, header = {
     Text(loc(S.topLists), style = app(56, FontWeight.Bold), color = Theme.text1)
     LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
       items(TopList.entries.toList()) { option ->
@@ -209,7 +209,8 @@ fun PersonScreen(person: Person) {
         return@launch
       }
       val known = posts.map { it.id }.toSet()
-      posts = posts + next.posts.filter { it.id !in known }
+      // Repeats within a page too: the site's lists have them, and a repeated key crashes a lazy grid.
+      posts = (posts + next.posts.filter { it.id !in known }).distinctBy { it.id }
       page = next.page
       pages = next.pages
       done = true
@@ -244,7 +245,10 @@ fun PersonScreen(person: Person) {
       if (loading) items(WALL) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
       if (!loading && done && posts.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.noMatches), style = app(28, FontWeight.Medium), color = Theme.text2) }
       // More as the remote nears the end.
-      if (posts.isNotEmpty() && page < pages) item(span = { GridItemSpan(maxLineSpan) }) { LaunchedEffect(posts.size) { loadNext() } }
+      // Keyed on the page as well: one that brought nothing new must not stop the paging. A failure
+      // stops it, with a retry, rather than asking again and again.
+      if (failed && posts.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(1500.dp, 300.dp)) { ErrorState { loadNext() } } }
+      else if (page < pages) item(span = { GridItemSpan(maxLineSpan) }) { LaunchedEffect(posts.size, page) { loadNext() } }
     }
   }
 }

@@ -176,7 +176,13 @@ class ReadAhead(private val cache: Cache, private val upstream: DataSource.Facto
           continue
         }
         val spec = DataSpec.Builder().setUri(base.resolve(next.url)).setPosition(next.byteRangeOffset).setLength(next.byteRangeLength).build()
-        val ok = withContext(Dispatchers.IO) { runCatching { CacheWriter(source, spec, null, null).cache() }.isSuccess }
+        val result = withContext(Dispatchers.IO) { runCatching { CacheWriter(source, spec, null, null).cache() } }
+        // The player loading itself takes the line first: that is waiting, not failing.
+        if (result.exceptionOrNull() is androidx.media3.common.PriorityTaskManager.PriorityTooLowException) {
+          delay(2_000)
+          continue
+        }
+        val ok = result.isSuccess
         // The CDN refusing again and again (a 403 behind another VPN exit): stop trying for this file.
         failures = if (ok) 0 else failures + 1
         if (failures >= 3) return@launch
@@ -216,7 +222,15 @@ class ReadAhead(private val cache: Cache, private val upstream: DataSource.Facto
         for (s in list.segments) {
           if (!isActive || s.relativeStartTimeUs >= seconds * 1_000_000L) break
           val spec = DataSpec.Builder().setUri(base.resolve(s.url)).setPosition(s.byteRangeOffset).setLength(s.byteRangeLength).build()
-          CacheWriter(source, spec, null, null).cache()
+          // Below the playing film: while it loads, wait for it rather than give up.
+          while (true) {
+            try {
+              CacheWriter(source, spec, null, null).cache()
+              break
+            } catch (e: androidx.media3.common.PriorityTaskManager.PriorityTooLowException) {
+              priority.proceed(C.PRIORITY_DOWNLOAD)
+            }
+          }
         }
       }.onFailure { Log.i(AppModel.TAG, "warm next: $it") }
     }

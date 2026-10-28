@@ -15,6 +15,7 @@ import java.io.File
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -43,15 +44,29 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   private var index: LogoIndex? = null
 
   /** What TMDB has for [post], fetched the first time it is asked for. */
-  suspend fun info(post: Post, lang: Lang): TMDB.Info? = coroutineScope {
-    known[post.id]?.let { return@coroutineScope it }
-    val task = running.getOrPut(post.id) { async { look(post, lang) } }
-    val info = task.await()
-    running.remove(post.id)
-    // Failed: there will be no trailer this time, and no one should wait for one.
-    if (info == null) settled += post.id
-    info
+  suspend fun info(post: Post, lang: Lang): TMDB.Info? {
+    known[post.id]?.let { return it }
+    // In a scope of its own: the first asker giving up (a timeout, a page closed) must not cancel
+    // the lookup for everyone after, nor leave a cancelled one cached for the session.
+    val task = running[post.id]?.takeIf { !it.isCancelled } ?: lookups.async {
+      try {
+        look(post, lang).also { info ->
+          // Failed: there will be no trailer this time, and no one should wait for one.
+          if (info == null) settled += post.id
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        settled += post.id
+        null
+      } finally {
+        running.remove(post.id)
+      }
+    }.also { running[post.id] = it }
+    return task.await()
   }
+
+  private val lookups = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
 
   /**
    * The trailer to offer for [post], waiting up to [patienceMs] and no longer: where TMDB is

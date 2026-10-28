@@ -56,6 +56,8 @@ fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
 
   LaunchedEffect(key, active && allowed) {
     if (key == null || !active || !allowed || played) {
+      // Stopped at once: the player or trailer opening over the page wants the decoder now.
+      running?.pause()
       showing = false
       delay(1_400)
       running?.release()

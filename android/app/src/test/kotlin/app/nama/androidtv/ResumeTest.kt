@@ -34,9 +34,17 @@ class ResumeTest {
   }
 
   @Test
-  fun theCreditsStartOver() {
+  fun theCreditsGoOnToTheNext() {
+    // Left in episode 1's credits: episode 2 from its start, not episode 1 again.
     val p = Resume.start(items, 0, null, Resume.Kept("f1", 2390.0), pickedByUser = false)
-    assertEquals(0, p.index)
+    assertEquals(1, p.index)
+    assertNull(p.seconds)
+  }
+
+  @Test
+  fun theLastOnesCreditsStartOver() {
+    val p = Resume.start(items, 0, null, Resume.Kept("f4", 2390.0), pickedByUser = false)
+    assertEquals(3, p.index)
     assertNull(p.seconds)
   }
 

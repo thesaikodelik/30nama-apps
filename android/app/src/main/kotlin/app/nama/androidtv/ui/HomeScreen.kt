@@ -138,7 +138,7 @@ fun HomeScreen() {
     forYou = app.ratings.recommend(loaded.sections.flatMap { it.posts }, limit = 14)
     // Neither is waited for: the page is already there, and the rows join it as they come.
     // In the app's own scope, so a slow answer keeps nothing of this page waiting.
-    app.background {
+    if (!app.homeOffline) app.background {
       if (loaded.sections.none { it.key == "top_10" }) {
         topMovies = app.topTen("movies")
         topSeries = app.topTen("series")
@@ -173,6 +173,8 @@ fun HomeScreen() {
   // title's picture, as when the saved home gave way to the fresh one.
   var staged by remember { mutableStateOf<Post?>(null) }
   val context = androidx.compose.ui.platform.LocalContext.current
+  // The same title from the fresh home: its newer facts at once, nothing to wait for.
+  if (featured != null && staged?.id == featured.id && staged !== featured) staged = featured
   LaunchedEffect(featured?.id) {
     val next = featured ?: return@LaunchedEffect
     if (staged != null) {
@@ -184,6 +186,13 @@ fun HomeScreen() {
     staged = next
   }
   LaunchedEffect(browsing == null) { chrome.pageAtTop = browsing == null }
+  // A fresh home with fewer heroes than the saved one: start over rather than point past the end.
+  LaunchedEffect(heroes.size) {
+    if (heroes.isNotEmpty() && heroIndex >= heroes.size) {
+      heroIndex = 0
+      heroProgress = 0f
+    }
+  }
   // Advances the hero after nine seconds on screen with the remote idle. A press pauses the turn
   // where it is, and it runs on once the remote has rested a moment: started over at each press,
   // the pager's fill leapt back to its start as the viewer moved between Play and Details.
@@ -219,7 +228,14 @@ fun HomeScreen() {
             },
             onDismiss = { post ->
               app.dismissContinue(post)
-              continuing = continuing.filter { it.id != post.id }
+              val left = continuing.filter { it.id != post.id }
+              continuing = left
+              // The card in focus went: focus to Play when the row went with it; else its row's card
+              // in the same place, which the row's requester now points at.
+              if (browsing?.post?.id == post.id && left.isEmpty()) {
+                browsing = null
+                runCatching { play.requestFocus() }
+              }
             },
         )
         Billboard(staged, eyebrow(staged, browsing, listOf(settled, browsing).firstOrNull { it != null && it.post.id == staged?.id }), plotLines = if (browsing == null) 3 else 2, browsing = browsing != null)
@@ -339,6 +355,15 @@ private fun Rows(
   /** The row a card in focus is on, as focus itself says (browsing may run ahead of it). */
   var focusOn by remember { mutableStateOf<String?>(null) }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
+  var move by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+  val currentEntries = androidx.compose.runtime.rememberUpdatedState(entries)
+  // A card taken off "continue watching" while in focus: the card now in its place takes it.
+  val continueSize = rows.firstOrNull { it.key == "continue" }?.posts?.size ?: 0
+  LaunchedEffect(continueSize) {
+    if (focusOn != "continue" || continueSize == 0) return@LaunchedEffect
+    androidx.compose.runtime.withFrameNanos {}
+    runCatching { entries["continue"]?.requestFocus() }
+  }
   val focusedRow = browsing?.let { keys.indexOf(it.row) } ?: -1
   // The rows sit still while the hero shows; browsing, the focused row's header goes to the focus line.
   val target = if (focusedRow < 0) Layout.RESTING_ROW_TOP else Layout.FOCUS_LINE - focusedRow * (Layout.ROW_HEIGHT + Layout.ROW_SPACING)
@@ -431,11 +456,13 @@ private fun Rows(
                       val target = rows.first { it.key == to }
                       val at = (lastIndex[to] ?: 0).coerceIn(0, (target.posts.size - 1).coerceAtLeast(0))
                       target.posts.getOrNull(at)?.let { onFocus(Selection(to, it, at + 1)) }
-                      scope.launch {
+                      // One move at a time, through the current requesters: a row arriving meanwhile replaces them.
+                      move?.cancel()
+                      move = scope.launch {
                         repeat(30) {
                           androidx.compose.runtime.withFrameNanos {}
                           if (focusOn == to) return@launch
-                          runCatching { entries.getValue(to).requestFocus() }
+                          runCatching { currentEntries.value[to]?.requestFocus() }
                         }
                       }
                       true
@@ -450,7 +477,7 @@ private fun Rows(
                     lastIndex[section.key] = i
                     onFocus(Selection(section.key, post, i + 1))
                   }
-                }.then(if (i == (lastIndex[section.key] ?: 0)) Modifier.focusRequester(entries.getValue(section.key)) else Modifier)
+                }.then(if (i == (lastIndex[section.key] ?: 0).coerceAtMost(section.posts.lastIndex)) Modifier.focusRequester(entries.getValue(section.key)) else Modifier)
                 val loads = i < 10 || section.key in opened
                 when (section.key) {
                   "continue" -> ContinueCard(

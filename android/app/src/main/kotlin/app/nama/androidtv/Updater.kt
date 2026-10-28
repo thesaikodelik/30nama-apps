@@ -72,7 +72,16 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   private val feed: String = BuildConfig.TEST_FEED.ifEmpty { AndroidRelease.FEED }
 
   /** At launch: whether the last update arrived, and a quiet look for a new one once a day. */
+  /**
+   * Once per process: the activity can be made again while the app lives on (Back out, open from
+   * the launcher), and a second start would delete a download under way, or call an install still
+   * waiting at the installer a failure.
+   */
+  private var started = false
+
   fun start() {
+    if (started) return
+    started = true
     PendingUpdate.parse(pendingFile.takeIf { it.exists() }?.readText())?.let { pending ->
       pendingFile.delete()
       if (pending.arrived(current)) {
@@ -104,6 +113,8 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
       found.onSuccess { prefs.edit().putLong("checked", System.currentTimeMillis()).apply() }
       found.exceptionOrNull()?.let { Log.w(AppModel.TAG, "update check: $it") }
       val release = found.getOrNull()
+      // An update under way since this look began (the viewer pressed Install) is not overwritten.
+      if (state is State.Downloading || state is State.Installing || state is State.NeedsPermission) return@launch
       state = when {
         release != null -> State.Available(release)
         // A failed look in the background says nothing; one the viewer asked for says it is current
@@ -187,11 +198,14 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
       download().getOrThrow()
     }.onFailure { return "download apk: $it" }
     log("downloaded ${apk.length()} bytes; checking the signature")
-    if (!apk.inputStream().buffered().use { UpdateSignature.isValid(sig, it) }) return "signature: not the project's"
+    val signed = runCatching { apk.inputStream().buffered().use { UpdateSignature.isValid(sig, it) } }.getOrElse { return "signature: could not read the apk ($it)" }
+    if (!signed) return "signature: not the project's"
     val archive = archiveInfo(apk) ?: return "apk: Android cannot read it"
     if (archive.packageName != context.packageName) return "apk: another app (${archive.packageName})"
     val mine = runCatching { packageInfo() }.getOrNull() ?: return "apk: this app's own key unknown"
-    if (signers(archive) != signers(mine)) return "apk: signed with another APK key than this app"
+    val theirs = signers(archive)
+    // Two empty sets are equal: no key read is no check, and fails.
+    if (theirs.isEmpty() || theirs != signers(mine)) return "apk: signed with another APK key than this app"
     log("signature and APK key check out")
     return null
   }
@@ -253,7 +267,9 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   }
 
   private fun archiveInfo(apk: File): PackageInfo? =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) context.packageManager.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNING_CERTIFICATES)
+      // Android 9 reads a downloaded APK's key only when asked for both (AGENTS.md).
+      @Suppress("DEPRECATION")
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) context.packageManager.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES)
       else @Suppress("DEPRECATION") context.packageManager.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)
 
   private fun packageInfo(): PackageInfo =
@@ -264,7 +280,7 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   @SuppressLint("PackageManagerGetSignatures")
   private fun signers(info: PackageInfo): Set<String> {
     @Suppress("DEPRECATION")
-    val sigs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo?.let { if (it.hasMultipleSigners()) it.apkContentsSigners else it.signingCertificateHistory } else info.signatures
+    val sigs = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo?.let { if (it.hasMultipleSigners()) it.apkContentsSigners else it.signingCertificateHistory } else null) ?: info.signatures
     return sigs.orEmpty().map { MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }.toSet()
   }
 

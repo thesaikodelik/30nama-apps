@@ -38,6 +38,8 @@ object Resume {
     val k = keptIndex?.let { it to kept!!.seconds }
     val best = listOfNotNull(s, k).maxWithOrNull(compareBy<Pair<Int, Double>> { it.first }.thenBy { it.second }) ?: return Point(chosen, null)
     val duration = if (best === s) server!!.duration else items[best.first].durationSeconds
+    // Left in its credits, and another follows: that one is next, not this one again from the start.
+    if (duration > 0 && best.second >= duration * 0.97 && best.first < items.lastIndex) return Point(best.first + 1, null)
     return Point(best.first, position(items[best.first].fileID, best.second, duration))
   }
 

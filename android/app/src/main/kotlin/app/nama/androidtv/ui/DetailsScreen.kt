@@ -153,7 +153,8 @@ fun DetailsScreen(route: Route.Details) {
     refusal = if (e?.success == false) e.message else null
     if (result != null) {
       stream = result
-      if (!quietly) result.items.getOrNull(result.startIndex)?.let { first -> shelf = Shelf.of(result.items, first) }
+      // Back from the player too: autoplay may have carried on into another season.
+      result.items.getOrNull(result.startIndex)?.let { first -> shelf = Shelf.of(result.items, first) }
     } else if (!quietly) stream = null
     streamPending = false
     if (playWhenReady) {
@@ -219,7 +220,8 @@ fun DetailsScreen(route: Route.Details) {
     val nav = LocalNav.current
     val looking = app.playback == null && app.trailer == null && app.sheets.shown == null && nav.top == route
     Stage(post, dim = 0.3f, settleMs = 0, tint = hue) {
-      Teaser(post?.id?.takeIf { small != null || app.inIran }, {
+      // Keyed on the film being known as well, so the clip is chosen with what is known by then.
+      Teaser(post?.id?.takeIf { small != null || app.inIran }?.let { it to (small != null) }, {
         // In Iran Aparat's trailer first; Aparat checks where its video is played from.
         val p = loaded ?: route.preview
         val aparat = if (app.inIran && p != null) {
@@ -253,12 +255,20 @@ fun DetailsScreen(route: Route.Details) {
       } }
       failed -> ErrorState {
         failed = false
-        scope.launch { attempt { app.api.single(route.id) }?.let { loaded = it } ?: run { failed = true } }
+        // The stream too: it was not asked for while there was no title to ask for.
+        scope.launch {
+          attempt { app.api.single(route.id) }?.let {
+            loaded = it
+            loadStream(quietly = false)
+          } ?: run { failed = true }
+        }
       }
     }
   }
   }
 }
+
+private var trailerLook: kotlinx.coroutines.Job? = null
 
 /** A trailer: YouTube's in the YouTube app (or the browser), Aparat's in the app's own player. */
 private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.AppModel, scope: kotlinx.coroutines.CoroutineScope, context: android.content.Context) {
@@ -272,9 +282,17 @@ private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.App
             .onFailure { app.showToast(app.loc(S.trailerUnreachable)) }
       }
     }
-    is TrailerVideo.Aparat -> scope.launch {
-      val file = app.extras.aparatFile(t.uid)
-      if (file == null) app.showToast(app.loc(S.trailerNotLoaded)) else app.playTrailer(post.title(app.settings.lang), file)
+    is TrailerVideo.Aparat -> {
+      // One look at a time, and none that lands over a film started meanwhile.
+      trailerLook?.cancel()
+      trailerLook = scope.launch {
+        val file = app.extras.aparatFile(t.uid)
+        when {
+          app.playback != null -> Unit
+          file == null -> app.showToast(app.loc(S.trailerNotLoaded))
+          else -> app.playTrailer(post.title(app.settings.lang), file)
+        }
+      }
     }
   }
 }

@@ -218,6 +218,7 @@ class AppModel(
     val e = attempt { api.call("user") } ?: return
     if (!e.success) return
     val fresh = User.from(e.result, fallbackToken = token) ?: return
+    if (user?.token != token) return
     user = fresh
     saveUser(fresh)
   }
@@ -233,8 +234,9 @@ class AppModel(
     homeCache = null
     contentVersion++
     showToast(listOfNotNull(loc(S.welcome), signedIn.name).joinToString(" "))
+    // In the app's own scope: the sign-in screen's effect that called this ends as the phase changes.
+    scope.launch { refreshLists() }
     phase = Phase.Main
-    refreshLists()
   }
 
   fun continueAsGuest() {
@@ -396,8 +398,10 @@ class AppModel(
 
   /** Reads which titles are on the user's lists, so a title page can show where it stands. */
   suspend fun refreshLists() {
-    if (!isLoggedIn) return
+    val token = user?.token ?: return
     val result = attempt { api.get("user_mylist") } ?: return
+    // Signed out (or into another account) while it was asked for: not this account's lists.
+    if (user?.token != token) return
     lists = (result.obj ?: emptyMap()).mapValues { (_, v) -> v["post"].array.mapNotNull { it.int }.toSet() }
   }
 
@@ -442,7 +446,7 @@ class AppModel(
    * [continuing] null means 30nama did not answer: the row is left as it is.
    */
   fun mirrorHome(continuing: List<Post>?) {
-    if (!isLoggedIn) return
+    val token = user?.token ?: return
     scope.launch {
       // The series the viewer follows: on their watchlist or their "let me know" list.
       val followed = mutableListOf<Post>()
@@ -450,6 +454,8 @@ class AppModel(
         attempt { api.get("user_list", mapOf("action" to "list", "group" to group, "page" to "1", "orderby" to "add_list", "order" to "DESC"), background = true) }
             ?.let { followed += app.nama.core.PostPage.from(it).posts.filter { p -> p.isSeries } }
       }
+      // Signed out meanwhile: the TV's home row was cleared, and this account's titles stay off it.
+      if (user?.token != token) return@launch
       val resume = continuing.orEmpty().associate { it.id to (it.resume?.time ?: 0.0) }
       app.nama.androidtv.WatchNext.removed(context).forEach { news.dismiss(it) }
       val out = news.look(java.time.Instant.now(), followed.distinctBy { it.id }.associate { it.id to it.nextEpisodeDay }, resume)

@@ -93,7 +93,8 @@ fun NewsScreen() {
         return@launch
       }
       val known = articles.map { it.id }.toSet()
-      articles = articles + next.articles.filter { it.id !in known }
+      // Repeats within a page too: a repeated key crashes a lazy grid.
+      articles = (articles + next.articles.filter { it.id !in known }).distinctBy { it.id }
       page = next.page
       pages = next.pages
     }
@@ -109,7 +110,8 @@ fun NewsScreen() {
   val grid = rememberLazyGridState()
   LaunchedEffect(grid, articles.size) {
     snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.distinctUntilChanged().collect { last ->
-      if (last >= grid.layoutInfo.totalItemsCount - 6) loadNext()
+      // Not again after a failure: a retry at the end asks for it.
+      if (!failed && last >= grid.layoutInfo.totalItemsCount - 6) loadNext()
     }
   }
 
@@ -134,6 +136,9 @@ fun NewsScreen() {
         }
       }
       items(articles, key = { it.id }) { a -> ArticleCard(a) { nav.push(Route.ArticlePage(a)) } }
+      if (failed && articles.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+        Box(Modifier.padding(top = 20.dp)) { PillButton(LocalLoc.current(S.retry), { loadNext() }, icon = Icons.replay) }
+      }
       if (loading) items(if (articles.isEmpty()) 8 else 4) { Skeleton(Modifier.fillMaxWidth().aspectRatio(1.05f), 16.dp) }
     }
   }

@@ -208,6 +208,8 @@ fun PlayerScreen(request: PlaybackRequest) {
     if (!repeat || seekHeldSince == 0L) seekHeldSince = now
     // Five seconds a press, doubling every second and a half the key is held, up to eighty.
     val step = 5.0 * (1 shl minOf(4, ((now - seekHeldSince) / 1_500).toInt()))
+    // Before the length is known (the playlist still loading), no seeking: it would go to 0 and lose the resume point.
+    if (engine.duration <= 0) return
     val from = seekTarget ?: engine.position
     seekTarget = (from + sign * step).coerceIn(0.0, (engine.duration - 1).coerceAtLeast(0.0))
     lastSeekKey = now
@@ -612,7 +614,8 @@ private fun EpisodesPanel(engine: PlayerEngine, close: () -> Unit) {
       }
     }
     LazyRow(state = state, contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 22.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-      items(entries, key = { it.value.id }) { (i, item) ->
+      // By place: two versions of one episode without a file id share an id.
+      items(entries, key = { it.index }) { (i, item) ->
         CardSurface(
             onClick = {
               close()
