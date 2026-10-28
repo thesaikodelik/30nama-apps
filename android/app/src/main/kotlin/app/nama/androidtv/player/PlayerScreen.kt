@@ -215,11 +215,12 @@ fun PlayerScreen(request: PlaybackRequest) {
     seekHeldSince = 0L
   }
 
-  fun seekBy(sign: Int, repeat: Boolean) {
+  fun seekBy(sign: Int, repeat: Boolean, base: Double = 5.0, doublings: Int = 4) {
     val now = System.currentTimeMillis()
     if (!repeat || seekHeldSince == 0L) seekHeldSince = now
-    // Five seconds a press, doubling every second and a half the key is held, up to eighty.
-    val step = 5.0 * (1 shl minOf(4, ((now - seekHeldSince) / 1_500).toInt()))
+    // Five seconds a press, doubling every second and a half the key is held, up to eighty; the
+    // remote's own fast-forward and rewind thirty, up to two minutes.
+    val step = base * (1 shl minOf(doublings, ((now - seekHeldSince) / 1_500).toInt()))
     // Before the length is known (the playlist still loading), no seeking: it would go to 0 and lose the resume point.
     if (engine.duration <= 0) return
     val from = seekTarget ?: engine.position
@@ -232,6 +233,13 @@ fun PlayerScreen(request: PlaybackRequest) {
       // Back from quality, sound or the timer goes back to the settings they were chosen from.
       panel != null -> panel = if (panel!!.inSettings) Panel.Settings else null
       controls -> controls = false
+      // A seek still waiting to land is dropped, and the film stays where it was.
+      seekTarget != null -> {
+        seekTarget = null
+        seekHeldSince = 0L
+      }
+      // The countdown to the next episode stops; the episode then ends on the title's page.
+      engine.offer?.kind == Offer.Kind.Next && engine.offer?.countdown != null -> engine.cancelNext()
       else -> engine.close()
     }
   }
@@ -251,8 +259,9 @@ fun PlayerScreen(request: PlaybackRequest) {
               }
               // Stop ends the film, as Back does from the picture (the Tizen app's).
               Key.MediaStop -> { engine.close(); true }
-              Key.MediaFastForward -> { engine.seekTo(engine.position + 10); true }
-              Key.MediaRewind -> { engine.seekTo(engine.position - 10); true }
+              // Thirty seconds a press, adding up and quickening while held, landing as the arrows' do.
+              Key.MediaFastForward -> { seekBy(1, repeat, base = 30.0, doublings = 2); true }
+              Key.MediaRewind -> { seekBy(-1, repeat, base = 30.0, doublings = 2); true }
               // Next and previous are episodes; with none that way the key goes to the TV.
               Key.MediaNext, Key.ChannelUp -> if (engine.index + 1 < engine.items.size) { if (!repeat) engine.next(); true } else false
               Key.MediaPrevious, Key.ChannelDown -> if (engine.index > 0 || engine.position > 10) { if (!repeat) engine.previous(); true } else false
@@ -264,7 +273,17 @@ fun PlayerScreen(request: PlaybackRequest) {
                   Key.DirectionLeft -> { seekBy(-1, repeat); true }
                   Key.DirectionRight -> { seekBy(1, repeat); true }
                   Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                    if (engine.offer != null) engine.acceptOffer() else controls = true
+                    val target = seekTarget
+                    when {
+                      // A seek waiting to land lands now.
+                      target != null -> {
+                        engine.seekTo(target)
+                        seekTarget = null
+                        seekHeldSince = 0L
+                      }
+                      engine.offer != null -> engine.acceptOffer()
+                      else -> controls = true
+                    }
                     true
                   }
                   Key.DirectionUp, Key.DirectionDown -> { controls = true; true }

@@ -154,6 +154,15 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     private set
   var offer by mutableStateOf<Offer?>(null)
     private set
+
+  /** Back during the countdown to the next episode: no countdown, and the end goes back to the page. */
+  private var nextCancelled = false
+
+  /** Stops the countdown to the next episode (Back, as the aliir74 app has it). */
+  fun cancelNext() {
+    nextCancelled = true
+    if (offer?.kind == Offer.Kind.Next) offer = null
+  }
   /** Width over height of the picture, as it should be shown. */
   var aspect by mutableStateOf<Float?>(null)
     private set
@@ -363,6 +372,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     }
     resumedAt = at?.takeIf { it > 60 }
     startedAt = System.currentTimeMillis()
+    nextCancelled = false
     quality = q
     if (app.settings.maxQuality && !downloadsAsked) {
       // Asked once; the stream starts at once, and the file takes over as soon as it is known.
@@ -449,7 +459,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       sleep = Sleep.Off
       return close()
     }
-    if (index + 1 < items.size && app.settings.autoplayNext) {
+    if (index + 1 < items.size && app.settings.autoplayNext && !nextCancelled) {
       // After three episodes in a row with no key pressed, nobody may be watching: stop there,
       // without a dialog asking.
       if (unattended >= 3) {
@@ -687,7 +697,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
           null
         } else Offer(if (skip.isIntro) Offer.Kind.Intro else Offer.Kind.Recap)
       }
-      hasNext && creditsAt != null && t >= creditsAt -> {
+      hasNext && creditsAt != null && t >= creditsAt && !nextCancelled -> {
         warmNext()
         val counting = app.settings.autoplayNext && sleep != Sleep.EndOfEpisode && unattended < 3 && duration > creditsAt
         Offer(Offer.Kind.Next, if (counting) (((t - creditsAt) / (duration - creditsAt)).toFloat().coerceIn(0f, 1f) * 50).toInt() / 50f else null)
