@@ -10,8 +10,12 @@ data class AndroidRelease(val version: String, val page: String, val apk: String
     const val TAG_PREFIX = "android-v"
     /** Where the releases are listed. GitHub answers without a key, sixty times an hour per address. */
     const val FEED = "https://api.github.com/repos/thesaikodelik/30nama-apps/releases?per_page=10"
-    /** Where a person downloads by hand when updating from inside the app went wrong. */
-    const val DOWNLOADS = "https://github.com/thesaikodelik/30nama-apps/releases/latest"
+    /**
+     * Where a person downloads by hand when updating from inside the app went wrong: the page with
+     * every device's file. Not `releases/latest`: Android releases are made with `--latest=false`
+     * (AGENTS.md), so that page is the Mac's or Windows'.
+     */
+    const val DOWNLOADS = "https://github.com/thesaikodelik/30nama-apps/releases/tag/downloads"
 
     /**
      * The newest finished release in a `releases` answer that is newer than [current]. A release
