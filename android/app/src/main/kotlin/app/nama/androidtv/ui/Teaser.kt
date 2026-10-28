@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -12,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.MediaItem
@@ -25,28 +27,35 @@ import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import java.net.URI
 import kotlinx.coroutines.delay
 
+/** What plays behind a title page: a trailer from its start, or the film itself from a third in. */
+data class TeaserClip(val url: URI, val trailer: Boolean, val referer: String? = null)
+
 /**
- * The Mac's teaser: a stretch of the film itself, without sound, behind its title page, in its
- * smallest picture, from a third of the way in. After three seconds on the page with nothing else
- * going on, for thirty-five seconds, once per visit. Only where the TV can afford a second
- * decoder and motion is welcome (`lively`); elsewhere the still stays. It tells 30nama nothing, so
- * it counts neither as a request nor as watching. The Mac plays the trailer first where TMDB has
- * one; a YouTube trailer needs a web view, too heavy behind a page on a TV, so here it is the film.
+ * The Mac's teaser: something without sound behind a title page, after three seconds on it with
+ * nothing else going on, once per visit, in a small picture (it sits under shading). In Iran the
+ * trailer from Aparat, for a minute and a half; else, or without one, thirty-five seconds of the
+ * film itself from a third of the way in. The Mac plays TMDB's trailer from YouTube outside Iran;
+ * YouTube gives no file a player can open, only its own web player, too heavy behind a page on a
+ * TV. Only where the TV can afford a second decoder and motion is welcome (`lively`); elsewhere
+ * the still stays. It tells 30nama nothing, so it counts neither as a request nor as watching.
  *
+ * @param pick finds the clip once the page has rested, or null for none.
  * @param active the page is what the viewer is looking at: no player, trailer or page over it.
  */
 @OptIn(UnstableApi::class)
 @Composable
-fun Teaser(url: URI?, active: Boolean) {
+fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
   val app = LocalApp.current
   val context = LocalContext.current
   val allowed = LocalLively.current && !LocalCalm.current
-  var played by remember(url) { mutableStateOf(false) }
+  var played by remember(key) { mutableStateOf(false) }
   var running by remember { mutableStateOf<ExoPlayer?>(null) }
   var showing by remember { mutableStateOf(false) }
+  /** Width over height of the picture, once known. */
+  var aspect by remember { mutableStateOf(16f / 9f) }
 
-  LaunchedEffect(url, active && allowed) {
-    if (url == null || !active || !allowed || played) {
+  LaunchedEffect(key, active && allowed) {
+    if (key == null || !active || !allowed || played) {
       showing = false
       delay(1_400)
       running?.release()
@@ -54,33 +63,44 @@ fun Teaser(url: URI?, active: Boolean) {
       return@LaunchedEffect
     }
     delay(3_000)
+    val clip = pick() ?: return@LaunchedEffect
     played = true
-    val source = OkHttpDataSource.Factory(app.http)
+    val source = OkHttpDataSource.Factory(app.http).apply { clip.referer?.let { setDefaultRequestProperties(mapOf("Referer" to it)) } }
     val player = ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(source)).build()
     player.volume = 0f
     player.repeatMode = Player.REPEAT_MODE_OFF
     var sought = false
     player.addListener(object : Player.Listener {
       override fun onPlaybackStateChanged(state: Int) {
+        // A trailer shorter than its turn: back to the still, not held on its last frame.
+        if (state == Player.STATE_ENDED) showing = false
         if (state != Player.STATE_READY || sought) return
         sought = true
         val length = player.duration
-        if (length > 120_000) player.seekTo(length / 3)
+        if (!clip.trailer && length > 120_000) player.seekTo(length / 3)
         player.play()
       }
 
-      override fun onRenderedFirstFrame() {
-        if (sought) showing = true
+      // Shown once it plays: by then a film has moved to its third, and the picture is the one meant.
+      override fun onIsPlayingChanged(isPlaying: Boolean) {
+        if (isPlaying) showing = true
+      }
+
+      override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+        if (size.width > 0 && size.height > 0) aspect = size.width * size.pixelWidthHeightRatio / size.height
       }
 
       override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
         showing = false
       }
     })
-    player.setMediaItem(MediaItem.fromUri(url.toString()))
+    // Small is enough under shading, and spares the line: at most 360 lines.
+    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setMaxVideoSize(640, 360).build()
+    player.setMediaItem(MediaItem.fromUri(clip.url.toString()))
     player.prepare()
     running = player
-    delay(35_000)
+    // A trailer is the length it is; it is let run for a minute and a half.
+    delay(if (clip.trailer) 90_000 else 35_000)
     showing = false
     delay(1_400)
     player.release()
@@ -90,5 +110,14 @@ fun Teaser(url: URI?, active: Boolean) {
 
   val alpha by animateFloatAsState(if (showing) 1f else 0f, tween(1_200), label = "teaser")
   // A texture, not a surface: it sits under the page's shading and fades like any other layer.
-  running?.let { PlayerSurface(it, Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha }, SURFACE_TYPE_TEXTURE_VIEW) }
+  // It fills the screen as the still does, cut at its sides or top and bottom rather than framed in black.
+  running?.let { player ->
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().clipToBounds(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+      val screen = maxWidth / maxHeight
+      val w = if (aspect > screen) maxHeight * aspect else maxWidth
+      val h = if (aspect > screen) maxHeight else maxWidth / aspect
+      PlayerSurface(player, Modifier.requiredSize(w, h).graphicsLayer { this.alpha = alpha }, SURFACE_TYPE_TEXTURE_VIEW)
+    }
+  }
 }
+

@@ -492,8 +492,13 @@ private fun PagerFill(index: Int, progress: () -> Float, color: Color, calm: Boo
       if (p < fill.value) fill.snapTo(p) else fill.animateTo(p, tween(250, easing = LinearEasing))
     }
   }
+  // From the reading start: the right in Persian and Arabic, as the segments themselves run.
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
   Box(Modifier.fillMaxSize().drawBehind {
     val w = size.width * if (calm) 1f else fill.value.coerceIn(0.08f, 1f)
-    drawRoundRect(color, size = androidx.compose.ui.geometry.Size(w, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
+    drawRoundRect(
+        color, topLeft = androidx.compose.ui.geometry.Offset(if (rtl) size.width - w else 0f, 0f),
+        size = androidx.compose.ui.geometry.Size(w, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2),
+    )
   })
 }

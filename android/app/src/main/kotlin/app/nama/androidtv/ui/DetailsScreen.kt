@@ -192,7 +192,17 @@ fun DetailsScreen(route: Route.Details) {
     val small = items.firstOrNull()?.qualities?.let { q -> q.filter { !it.isAuto && it.height > 0 }.minByOrNull { it.height } ?: q.firstOrNull() }
     val nav = LocalNav.current
     val looking = app.playback == null && app.trailer == null && app.sheets.shown == null && nav.top == route
-    Stage(post, dim = 0.3f, settleMs = 0, tint = hue) { Teaser(small?.url, looking) }
+    Stage(post, dim = 0.3f, settleMs = 0, tint = hue) {
+      Teaser(post?.id?.takeIf { small != null || app.inIran }, {
+        // In Iran Aparat's trailer first; Aparat checks where its video is played from.
+        val p = loaded ?: route.preview
+        val aparat = if (app.inIran && p != null) {
+          app.extras.lookAparat(p)
+          app.extras.aparat[p.id]?.let { app.extras.aparatSmallFile(it.uid) }
+        } else null
+        aparat?.let { TeaserClip(it, trailer = true, referer = "https://www.aparat.com/") } ?: small?.url?.let { TeaserClip(it, trailer = false) }
+      }, looking)
+    }
     when {
       post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(64.dp)) {
         Header(

@@ -146,6 +146,17 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   /** The file to play. Asked for when it is played: Aparat's addresses are signed and do not last. */
   suspend fun aparatFile(uid: String): URI? = json(Aparat.videoRequest(uid))?.let(Aparat::fileInVideo)
 
+  /**
+   * The smallest of the trailer's files worth seeing, for the silent picture behind a title page: it
+   * sits under shading, and a weak line or box should not pay for 720p there.
+   */
+  suspend fun aparatSmallFile(uid: String): URI? = json(Aparat.videoRequest(uid))?.let { answer ->
+    val files = answer["video"]["file_link_all"].array
+    listOf("360p", "480p", "240p", "720p", "144p", "1080p").firstNotNullOfOrNull { profile ->
+      files.firstOrNull { it["profile"].text == profile }?.let { file -> file["urls"].array.firstOrNull()?.url }
+    } ?: Aparat.fileInVideo(answer)
+  }
+
   private suspend fun json(r: HttpRequest): Json? = withContext(Dispatchers.IO) {
     guarded(r.url) {
       val b = Request.Builder().url(r.url)

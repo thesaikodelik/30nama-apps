@@ -1,5 +1,9 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
@@ -242,7 +246,24 @@ fun MainScreen(onExit: () -> Unit) {
           delay(50)
         }
       }
-      Box(Modifier.fillMaxSize().blockFocus(sheet)) {
+      // Channel up and down (Page Up and Down on a keyboard) go a few steps at once, about a
+      // screenful, where a page is long: an article, a wall of posters. Only what a page leaves
+      // unused comes here; the player keeps them for the next and last episode.
+      val focus = androidx.compose.ui.platform.LocalFocusManager.current
+      Box(Modifier.fillMaxSize().blockFocus(sheet).onKeyEvent { e ->
+        val down = when (e.key) {
+          Key.ChannelDown, Key.PageDown -> true
+          Key.ChannelUp, Key.PageUp -> false
+          else -> return@onKeyEvent false
+        }
+        if (e.type == KeyEventType.KeyDown) scope.launch {
+          repeat(PAGE_STEPS) {
+            if (!focus.moveFocus(if (down) FocusDirection.Down else FocusDirection.Up)) return@launch
+            withFrameNanos {}
+          }
+        }
+        true
+      }) {
         // The tab's root page stays alive, hidden, under what is opened on top of it, so its
         // scroll, focus and loaded rows are all still there on the way back.
         Box(
@@ -290,6 +311,9 @@ fun MainScreen(onExit: () -> Unit) {
     }
   }
 }
+
+/** Steps a channel button takes: about a screenful of posters or of an article's paragraphs. */
+private const val PAGE_STEPS = 4
 
 @Composable
 private fun TabRoot(tab: Tab) {
