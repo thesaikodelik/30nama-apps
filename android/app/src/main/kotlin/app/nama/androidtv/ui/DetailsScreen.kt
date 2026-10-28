@@ -1,5 +1,9 @@
 package app.nama.androidtv.ui
 
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -101,6 +105,9 @@ fun DetailsScreen(route: Route.Details) {
   var refusal by remember { mutableStateOf<String?>(null) }
   var inHeader by remember { mutableStateOf(true) }
   var trailer by remember { mutableStateOf<TrailerVideo?>(null) }
+  var trailerTried by remember { mutableStateOf(false) }
+  /** How many of the header's buttons have come in (Header, `comingIn`). */
+  var revealed by remember { mutableIntStateOf(0) }
   val play = remember { FocusRequester() }
   val episodesFocus = remember { FocusRequester() }
 
@@ -175,7 +182,26 @@ fun DetailsScreen(route: Route.Details) {
   LaunchedEffect(post?.id) {
     val p = post ?: return@LaunchedEffect
     // Only once a trailer has been found, so there is never a button that leads nowhere.
-    trailer = app.extras.trailer(p, loc.lang, app.inIran)
+    trailer = app.extras.trailer(p, loc.lang, app.inIran, patienceMs = 1_500)
+    trailerTried = true
+  }
+  // As the Mac's: the buttons come in once what changes their size is known, Play's label (it
+  // says "Resume" once the stream is in) and whether there is a trailer, two seconds at most.
+  // Coming as each was ready, they pushed each other along. Then one after another, Play first.
+  val calm = LocalCalm.current
+  LaunchedEffect(route.id) {
+    revealed = 0
+    val start = System.currentTimeMillis()
+    while ((streamPending || !trailerTried) && System.currentTimeMillis() - start < 2_000) delay(100)
+    for (step in 1..7) {
+      revealed = step
+      if (!calm) delay(70)
+    }
+  }
+  // Back up into the header, the page goes back to its top, as the Apple TV's does: the title and
+  // its story are seen again, and the next press up reaches the bar.
+  LaunchedEffect(inHeader) {
+    if (inHeader && scroll.value > 0) scroll.animateScrollTo(0)
   }
   // The bar stays over the page while it is at its top, and steps out of the way below.
   val chrome = LocalChrome.current
@@ -206,22 +232,23 @@ fun DetailsScreen(route: Route.Details) {
     when {
       post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(64.dp)) {
         Header(
-            post, stream, items, playWhenReady && streamPending, trailer,
+            post, stream, items, playWhenReady && streamPending, trailer, revealed,
             play = play,
             onPlay = { startPlayback() },
             onTrailer = { t -> openTrailer(t, post, app, scope, context) },
             modifier = Modifier.onFocusChanged { inHeader = it.hasFocus },
         )
+        // Each part below the header comes in softly as it arrives, rather than appearing at once.
         if (post.isSeries && items.size > 1) {
-          Episodes(items, stream, shelf ?: Shelf.of(items, items.first()), { shelf = it }, episodesFocus) { startPlayback(it) }
+          Arriving { Episodes(items, stream, shelf ?: Shelf.of(items, items.first()), { shelf = it }, episodesFocus) { startPlayback(it) } }
         }
-        if (post.cast.isNotEmpty()) Cast(post)
+        if (post.cast.isNotEmpty()) Arriving { Cast(post) }
         // From TMDB, with the user's own key: the people behind the camera, and reviews.
         app.extras.known[post.id]?.let { extra ->
-          if (extra.crew.isNotEmpty()) Crew(extra.crew)
-          if (extra.reviews.isNotEmpty()) Reviews(extra.reviews)
+          if (extra.crew.isNotEmpty()) Arriving { Crew(extra.crew) }
+          if (extra.reviews.isNotEmpty()) Arriving { Reviews(extra.reviews) }
         }
-        Facts(post)
+        Arriving { Facts(post) }
         Spacer(Modifier.height(40.dp))
       } }
       failed -> ErrorState {
@@ -254,6 +281,43 @@ private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.App
 
 // MARK: Header
 
+/** A part of the page that fades in and rises the last 16 points the first time it is drawn. */
+@Composable
+private fun Arriving(content: @Composable () -> Unit) {
+  val calm = LocalCalm.current
+  val shown = remember { androidx.compose.animation.core.Animatable(if (calm) 1f else 0f) }
+  LaunchedEffect(Unit) { shown.animateTo(1f, androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+  Box(Modifier.graphicsLayer {
+    alpha = shown.value
+    translationY = (1f - shown.value) * 16.dp.toPx()
+  }) { content() }
+}
+
+/** Where the title's page lays its poster out, shared with the poster that flies there (Shell). */
+const val DETAILS_TOP = 140
+const val DETAILS_POSTER_W = 360
+const val DETAILS_POSTER_H = 540
+
+/**
+ * The Mac's `comingIn`: in its place from the start, so nothing moves when it shows; seen once
+ * [revealed] reaches [order], rising the last 10 points as it comes. It can take focus all along,
+ * so Play holds focus from the first frame and is simply not drawn yet.
+ */
+@Composable
+private fun Modifier.comingIn(order: Int, revealed: Int): Modifier {
+  val calm = LocalCalm.current
+  // The Mac's spring: a response of 0.42 s, damping 0.82.
+  val shown by animateFloatAsState(
+      if (revealed >= order) 1f else 0f,
+      if (calm) snap() else spring(dampingRatio = 0.82f, stiffness = 224f),
+      label = "coming in",
+  )
+  return graphicsLayer {
+    alpha = shown
+    translationY = (1f - shown) * 10.dp.toPx()
+  }
+}
+
 /**
  * The Mac's header: the poster, lit in its own colour, beside what the title is (its logo or its
  * name, scores, standing, story) and one row of everything to do with it.
@@ -265,6 +329,7 @@ private fun Header(
     items: List<StreamItem>,
     busy: Boolean,
     trailer: TrailerVideo?,
+    revealed: Int,
     play: FocusRequester,
     onPlay: () -> Unit,
     onTrailer: (TrailerVideo) -> Unit,
@@ -275,10 +340,13 @@ private fun Header(
   val scope = rememberCoroutineScope()
   val hue = LocalHue.current ?: Color.White
   val shape = RoundedCornerShape(24.dp)
-  Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = 140.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
+  val flying = LocalNav.current.flight?.post?.id == post.id
+  Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = DETAILS_TOP.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
     // Over its blur code at once, the large picture following.
     Box(
-        Modifier.size(360.dp, 540.dp)
+        Modifier.size(DETAILS_POSTER_W.dp, DETAILS_POSTER_H.dp)
+            // Held back, frame and all, while the pressed card's poster is still flying to this spot.
+            .graphicsLayer { alpha = if (flying) 0f else 1f }
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
             .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
@@ -297,17 +365,21 @@ private fun Header(
       )
       // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
       Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play), kind = PillKind.Primary, icon = Icons.play, busy = busy)
-        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, icon = Icons.film) }
-        Mine(post)
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.comingIn(2, revealed), icon = Icons.film) }
+        Box(Modifier.comingIn(3, revealed)) { Mine(post) }
         if (app.isLoggedIn) {
-          RoundButton(Icons.bookmarkOutline, loc(S.watchlist), { scope.launch { app.toggleList(post, "watchlist") } }, on = app.isListed(post, "watchlist"), onIcon = Icons.bookmark)
-          RoundButton(Icons.heartOutline, loc(S.favorites), { scope.launch { app.toggleList(post, "favorite") } }, on = app.isListed(post, "favorite"), onIcon = Icons.heart)
+          Box(Modifier.comingIn(4, revealed)) {
+            RoundButton(Icons.bookmarkOutline, loc(S.watchlist), { scope.launch { app.toggleList(post, "watchlist") } }, on = app.isListed(post, "watchlist"), onIcon = Icons.bookmark)
+          }
+          Box(Modifier.comingIn(5, revealed)) {
+            RoundButton(Icons.heartOutline, loc(S.favorites), { scope.launch { app.toggleList(post, "favorite") } }, on = app.isListed(post, "favorite"), onIcon = Icons.heart)
+          }
         }
       }
       val progress = stream?.resume?.progress ?: 0.0
-      if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp)) { ProgressBar(progress) }
-      if (post.updates.isNotEmpty()) UpdatesTicker(post.updates)
+      if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(6, revealed)) { ProgressBar(progress) }
+      if (post.updates.isNotEmpty()) Box(Modifier.comingIn(7, revealed)) { UpdatesTicker(post.updates) }
     }
   }
 }

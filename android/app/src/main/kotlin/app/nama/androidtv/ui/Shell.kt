@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -280,7 +281,16 @@ fun MainScreen(onExit: () -> Unit) {
         }
         if (route != null) {
           // Each page keeps its own saved state while another is shown over it.
-          Box(Modifier.fillMaxSize().focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
+          // The Mac's page entrance: it fades in from a touch larger, 0.28 s.
+          val calm = LocalCalm.current
+          val appear = remember(route) { androidx.compose.animation.core.Animatable(if (calm) 1f else 0f) }
+          LaunchedEffect(route) { appear.animateTo(1f, androidx.compose.animation.core.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+          Box(Modifier.fillMaxSize().graphicsLayer {
+            alpha = appear.value
+            val scale = 1.02f - 0.02f * appear.value
+            scaleX = scale
+            scaleY = scale
+          }.focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
             holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
           }
         }
@@ -314,8 +324,47 @@ fun MainScreen(onExit: () -> Unit) {
             }
           },
       )
+      nav.flight?.let { f -> if ((route as? Route.Details)?.id == f.post.id) FlyingPoster(f) { nav.flight = null } else LaunchedEffect(f) { nav.flight = null } }
       SheetHost(app.sheets)
     }
+  }
+}
+
+/**
+ * The Mac's poster in flight: the pressed card's picture travels from where the card was to where
+ * the title's page keeps its poster, growing on the way, while the page fades in under it. The
+ * page holds its own poster back until this one has landed.
+ */
+@Composable
+private fun FlyingPoster(flight: Flight, landed: () -> Unit) {
+  val density = androidx.compose.ui.platform.LocalDensity.current
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+  val t = remember(flight) { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(flight) {
+    // The Mac's spring: a response of 0.48 s, damping 0.86.
+    t.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 171f))
+    landed()
+  }
+  androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+    val to = with(density) {
+      val w = DETAILS_POSTER_W.dp.toPx()
+      val h = DETAILS_POSTER_H.dp.toPx()
+      val x = if (rtl) maxWidth.toPx() - Theme.edge.toPx() - w else Theme.edge.toPx()
+      androidx.compose.ui.geometry.Rect(x, DETAILS_TOP.dp.toPx(), x + w, DETAILS_TOP.dp.toPx() + h)
+    }
+    val p = t.value
+    val from = flight.from
+    fun mix(a: Float, b: Float) = a + (b - a) * p
+    val left = mix(from.left, to.left)
+    val top = mix(from.top, to.top)
+    val w = with(density) { mix(from.width, to.width).toDp() }
+    val h = with(density) { mix(from.height, to.height).toDp() }
+    val radius = mix(Theme.cardRadius.value, 24f).dp
+    RemoteImage(
+        flight.post.poster.url(Theme.posterWidth.value * 1.1), blurhash = flight.post.poster.blurhash, pixelWidth = 300, fade = false,
+        modifier = Modifier.absoluteOffset { androidx.compose.ui.unit.IntOffset(left.toInt(), top.toInt()) }.size(w, h)
+            .clip(RoundedCornerShape(radius)),
+    )
   }
 }
 

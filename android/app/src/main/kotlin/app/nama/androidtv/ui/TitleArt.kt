@@ -2,6 +2,7 @@ package app.nama.androidtv.ui
 
 import coil3.toBitmap
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,10 +46,16 @@ fun TitleArt(post: Post, size: Int) {
   var logo by remember(post.id) { mutableStateOf<Result<androidx.compose.ui.graphics.ImageBitmap?>?>(null) }
   LaunchedEffect(post.id) {
     // The logo is shown once its picture is in hand: a logo that has not come yet is a gap where
-    // the name should be. Two seconds at most, as on the Mac; a logo found later still replaces the name.
-    val picture = kotlinx.coroutines.withTimeoutOrNull(2_000) { logoPicture(context, app, post, loc.lang) }
-    logo = Result.success(picture)
-    if (picture == null) logoPicture(context, app, post, loc.lang)?.let { logo = Result.success(it) }
+    // the name should be. Two seconds at most, as on the Mac; a logo found later still replaces the
+    // name. The two seconds are kept apart from the asking: a request where TMDB or GitHub is
+    // filtered neither answers nor fails, and blocks until its connection gives up, so a timeout
+    // around it would wait as long as it does.
+    launch {
+      val picture = runCatching { logoPicture(context, app, post, loc.lang) }.getOrNull()
+      if (picture != null || logo == null) logo = Result.success(picture)
+    }
+    delay(2_000)
+    if (logo == null) logo = Result.success(null)
   }
   val shown by animateFloatAsState(if (logo != null) 1f else 0f, tween(450), label = "title")
   val picture = logo?.getOrNull()

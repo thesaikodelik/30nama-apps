@@ -32,6 +32,9 @@ sealed interface Route {
   data class AdvancedSearch(val query: app.nama.core.AdvancedQuery = app.nama.core.AdvancedQuery()) : Route
 }
 
+/** A title's poster on its way from the card that was pressed to its place on the title's page. */
+data class Flight(val post: Post, val from: androidx.compose.ui.geometry.Rect)
+
 /** The Mac's order: Search first, then the catalogue, the user's own page, and Settings last. */
 @Suppress("EnumEntryName")
 enum class Tab { search, home, movies, series, anime, browse, profile, settings }
@@ -39,6 +42,8 @@ enum class Tab { search, home, movies, series, anime, browse, profile, settings 
 /** Which tab is open, and what has been opened on top of each: one stack per tab, as on the Apple TV. */
 class Nav {
   var tab by mutableStateOf(Tab.home)
+  /** The poster flying to a title's page as it opens (Shell's FlyingPoster); its page holds its own back meanwhile. */
+  var flight by mutableStateOf<Flight?>(null)
   private val stacks = mutableStateMapOf<Tab, List<Route>>()
 
   fun stack(tab: Tab): List<Route> = stacks[tab].orEmpty()

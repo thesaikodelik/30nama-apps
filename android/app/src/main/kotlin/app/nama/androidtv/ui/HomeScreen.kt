@@ -177,7 +177,9 @@ fun HomeScreen() {
     val next = featured ?: return@LaunchedEffect
     if (staged != null) {
       delay(300)
-      kotlinx.coroutines.withTimeoutOrNull(1_500) { warmBillboard(context, app, next, loc.lang) }
+      // Waited on apart from the fetch itself: a filtered host blocks until its connection gives up.
+      val warming = launch { runCatching { warmBillboard(context, app, next, loc.lang) } }
+      kotlinx.coroutines.withTimeoutOrNull(1_500) { warming.join() }
     }
     staged = next
   }

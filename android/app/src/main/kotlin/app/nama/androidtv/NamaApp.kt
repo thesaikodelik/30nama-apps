@@ -11,7 +11,11 @@ import okhttp3.OkHttpClient
 
 class NamaApp : Application() {
   /** One connection pool for pictures and the player's helpers; the API has its own transport in core. */
-  val http: OkHttpClient by lazy { OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build() }
+  val http: OkHttpClient by lazy {
+    OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
+        .apply { if (Filtered.on) addInterceptor(Filtered) }
+        .build()
+  }
 
   val model: AppModel by lazy { AppModel(this, MainScope(), ReadOnly.transport(), http = http) }
 
@@ -28,5 +32,24 @@ class NamaApp : Application() {
   override fun onCreate() {
     super.onCreate()
     SingletonImageLoader.setSafe { Images.loader(this, http) }
+  }
+}
+
+/**
+ * Debug builds, `adb shell setprop debug.nama.filtered 1`: the app as it is on an Iranian network
+ * that drops what it filters, as Irancell does (the Mac's `NAMA_FILTERED`). A request to a filtered
+ * host (core's FilteredHosts) gets no answer and fails once its time is up.
+ */
+object Filtered : okhttp3.Interceptor {
+  val on: Boolean by lazy {
+    BuildConfig.DEBUG && runCatching {
+      Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, "debug.nama.filtered") == "1"
+    }.getOrDefault(false)
+  }
+
+  override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+    if (!app.nama.core.FilteredHosts.contains(chain.request().url.host)) return chain.proceed(chain.request())
+    Thread.sleep(chain.readTimeoutMillis().toLong())
+    throw java.io.IOException("filtered: ${chain.request().url.host}")
   }
 }

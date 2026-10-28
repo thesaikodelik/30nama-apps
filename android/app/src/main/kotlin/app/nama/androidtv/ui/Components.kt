@@ -1,5 +1,8 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+
 import app.nama.core.Episode
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.unit.sp
@@ -284,8 +287,19 @@ fun PosterCard(
     loads: Boolean = true,
     onLongClick: (() -> Unit)? = null,
 ) {
+  val nav = LocalNav.current
+  val calm = LocalCalm.current
+  // Where the card is, so its poster can fly from here to the title's page, as on the Mac.
+  var bounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
   Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-    CardSurface(onClick = onClick, modifier = modifier, glow = rememberPosterTint(post), onLongClick = onLongClick) { PosterArt(post, width, loads) }
+    CardSurface(
+        onClick = {
+          if (!calm) bounds?.let { nav.flight = Flight(post, it) }
+          onClick()
+        },
+        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
+        glow = rememberPosterTint(post), onLongClick = onLongClick,
+    ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
     if (titled) {
       Text(post.title(LocalLoc.current.lang), Modifier.width(width), style = app(22, FontWeight.Medium), color = Theme.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)

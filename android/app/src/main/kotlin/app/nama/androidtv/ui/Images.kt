@@ -1,6 +1,14 @@
 package app.nama.androidtv.ui
 
 import android.content.Context
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.foundation.Image
@@ -20,7 +28,6 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.ImageRequest
-import coil3.request.crossfade
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import okhttp3.Dispatcher
@@ -78,13 +85,26 @@ fun RemoteImage(
 ) {
   val context = LocalContext.current
   val placeholder = remember(blurhash) { Images.blurhash(blurhash) }
+  // As the Mac's RemoteImage: a picture already in memory is there at once; one that had to come
+  // fades in over its blur, and the blur goes once it is in, so it never shows at a rounded edge.
+  var arrived by remember(url) { mutableStateOf(false) }
+  var instant by remember(url) { mutableStateOf(!fade) }
+  val shown by animateFloatAsState(if (arrived) 1f else 0f, if (instant) snap() else tween(350, easing = LinearOutSlowInEasing), label = "picture")
   Box(modifier) {
-    if (placeholder != null) Image(placeholder, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    if (placeholder != null && shown < 1f) Image(placeholder, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
     if (url != null) {
       val request = remember(url, pixelWidth) {
-        ImageRequest.Builder(context).data(url.toString()).size(coil3.size.Size(coil3.size.Dimension(pixelWidth), coil3.size.Dimension.Undefined)).crossfade(fade).build()
+        ImageRequest.Builder(context).data(url.toString()).size(coil3.size.Size(coil3.size.Dimension(pixelWidth), coil3.size.Dimension.Undefined)).build()
       }
-      AsyncImage(model = request, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = contentScale)
+      AsyncImage(
+          model = request, contentDescription = null,
+          modifier = Modifier.fillMaxSize().graphicsLayer { alpha = shown },
+          contentScale = contentScale,
+          onSuccess = { state ->
+            if (state.result.dataSource == coil3.decode.DataSource.MEMORY_CACHE) instant = true
+            arrived = true
+          },
+      )
     }
   }
 }
