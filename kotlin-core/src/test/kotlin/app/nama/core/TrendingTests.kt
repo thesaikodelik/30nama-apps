@@ -173,24 +173,24 @@ class TrendingTests {
 
     // MARK: Rows
 
-    @Test fun testReadsThePublicPanelWithoutAKey() = runBlocking {
-        val html = """<a data-media-type="tv" href="/tv/1-show-one?language=en-US"><h2 class="x"><span>Film N1x</span></h2></a></div><span class="release_date w-full">May 1, 2024</span>""" +
-            """<a data-media-type="movie" href="/movie/2-two?language=en-US"><h2 class="x"><span>Film N2x &amp; Co</span></h2></a></div><span class="release_date w-full">May 3, 2024</span>"""
-        val items = TMDBItem.list(TMDBItem.publicList(html))
-        assertEquals(listOf("Film N1x", "Film N2x & Co"), items.map { it.title })
-        assertEquals(listOf(TMDBItem.Kind.tv, TMDBItem.Kind.movie), items.map { it.kind })
-        assertEquals(listOf(2024, 2024), items.map { it.year })
-        assertTrue(items.all { it.hasPoster })
-
+    // Not the Swift test of the same place: without a key Android reads the list written each day
+    // from TMDB's API (trending.json on the data branch), not TMDB's public page.
+    @Test fun testReadsTheSharedListWithoutAKey() = runBlocking {
+        val shared = """{"updated":"2026-10-28T03:17:00Z","lists":{"/trending/all/week?language=en-US":[""" +
+            """{"id":1,"media_type":"tv","name":"Film N1x","first_air_date":"2024-05-01","poster_path":"/a.jpg"},""" +
+            """{"id":2,"media_type":"movie","title":"Film N2x & Co","release_date":"2024-05-03","poster_path":"/b.jpg"}]}}"""
         val net = FakeCatalogue()
+        val asked = mutableListOf<String>()
         val trending = Trending("  \n", transport = { request ->
-            assertEquals(TMDBItem.PUBLIC_TRENDING, request.url)
-            HttpResponse(200, body = html.toByteArray())
+            asked.add(request.url)
+            HttpResponse(200, body = shared.toByteArray())
         }, search = net.search)
         trending.row(TrendingRow.trend)
+        assertEquals(TMDBItem.SHARED_TRENDING, asked.first())
         // Titles are looked up side by side, so in no fixed order.
-        assertTrue("the public list is looked for on 30nama", net.searches.contains("Film N1x"))
-        assertTrue("rows that need the API stay empty without a key", trending.row(TrendingRow.fresh).isEmpty())
+        assertTrue("the shared list is looked for on 30nama", net.searches.contains("Film N1x"))
+        assertTrue(net.searches.contains("Film N2x & Co"))
+        assertTrue("a row with no list in the file stays empty", trending.row(TrendingRow.fresh).isEmpty())
     }
 
     @Test fun testRowFindsTrendingTitlesOn30nama() = runBlocking {

@@ -63,9 +63,12 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
   val nav = LocalNav.current
   val loc = LocalLoc.current
   Ambient {
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    ReportTop(grid)
     LazyVerticalGrid(
         GridCells.FixedSize(Theme.posterWidth),
         Modifier.fillMaxSize().focusRestorer(),
+        state = grid,
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 70.dp, bottom = 80.dp),
         // The catalogue's wall: 8 across with the room left over shared by both sides.
         horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
@@ -99,8 +102,21 @@ fun ScheduleScreen() {
   val app = LocalApp.current
   val loc = LocalLoc.current
   var kind by remember { mutableStateOf(Schedule.Kind.series) }
-  val today = remember { Schedule.day(Instant.now()) }
+  // Looked at again each minute, so a page left open past midnight moves on to the new day.
+  val today by androidx.compose.runtime.produceState(Schedule.day(Instant.now())) {
+    while (true) {
+      kotlinx.coroutines.delay(60_000)
+      value = Schedule.day(Instant.now())
+    }
+  }
   var day by remember { mutableIntStateOf(today) }
+  // One who was on today stays on today as the day turns; another chosen day stays chosen.
+  val week = remember(today) { Schedule.week(Instant.now()) }
+  var shownToday by remember { mutableIntStateOf(today) }
+  LaunchedEffect(today) {
+    if (day == shownToday) day = today
+    shownToday = today
+  }
   val weeks = remember { mutableStateMapOf<Schedule.Kind, Schedule>() }
   var failed by remember { mutableStateOf(false) }
   var reload by remember { mutableIntStateOf(0) }
@@ -123,7 +139,7 @@ fun ScheduleScreen() {
       }
     }
     LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-      items(Schedule.week(Instant.now())) { d -> PillButton(if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d }, kind = PillKind.Chip, selected = day == d) }
+      items(week) { d -> PillButton(if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d }, kind = PillKind.Chip, selected = day == d) }
     }
   })
 }
@@ -219,9 +235,12 @@ fun PersonScreen(person: Person) {
   LaunchedEffect(person) { loadNext() }
 
   Ambient {
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    ReportTop(grid)
     LazyVerticalGrid(
         GridCells.FixedSize(Theme.posterWidth),
         Modifier.fillMaxSize().focusRestorer(),
+        state = grid,
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 70.dp, bottom = 80.dp),
         // The catalogue's wall: 8 across with the room left over shared by both sides.
         horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),

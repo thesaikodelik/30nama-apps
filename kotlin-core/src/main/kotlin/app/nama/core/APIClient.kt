@@ -34,8 +34,11 @@ data class APIConfig(
 )
 
 sealed class APIError(message: String) : Exception(message) {
-    /** Network failure, timeout, rate limiting or a non-JSON body. Worth retrying. */
-    data class Transient(val reason: String, val retryAfter: Double) : APIError(reason)
+    /**
+     * Network failure, timeout, rate limiting or a non-JSON body. Worth retrying. [rateLimited]:
+     * Cloudflare's rate limit (429, or its "error code: 1015" page), which pauses the whole gate.
+     */
+    data class Transient(val reason: String, val retryAfter: Double, val rateLimited: Boolean = false) : APIError(reason)
 
     /** The API answered `success: false`. */
     data class Server(val reason: String) : APIError(reason)
@@ -51,12 +54,15 @@ data class Envelope(val success: Boolean, val message: String?, val result: Json
  *
  * 30nama sits behind Cloudflare rate limiting, so every call goes through one gate: at most two
  * in flight, a short gap between starts, screen calls ahead of background ones, and a shared
- * pause after a rate-limit response.
+ * pause after a rate-limit response. Background calls hold at most [backgroundLimit] of the slots
+ * between them, so a page never waits behind progress reports and look-ups (learnt from 30namaTV,
+ * android/docs/research.md, "شبکه"); the total stays as it was, so Cloudflare sees no more at once.
  */
-class RequestGate(private val limit: Int = 2, spacing: Double = 0.1) {
+class RequestGate(private val limit: Int = 2, spacing: Double = 0.1, private val backgroundLimit: Int = maxOf(1, limit - 1)) {
     private val spacingNanos = (spacing * 1e9).toLong()
     private val lock = Any()
     private var inFlight = 0
+    private var backgroundInFlight = 0
     private val core = ArrayDeque<CompletableDeferred<Unit>>()
     private val background = ArrayDeque<CompletableDeferred<Unit>>()
     private var nextStart = Long.MIN_VALUE
@@ -65,8 +71,9 @@ class RequestGate(private val limit: Int = 2, spacing: Double = 0.1) {
     suspend fun acquire(background: Boolean) {
         var waiter: CompletableDeferred<Unit>? = null
         synchronized(lock) {
-            if (inFlight < limit) {
+            if (inFlight < limit && (!background || backgroundInFlight < backgroundLimit)) {
                 inFlight++
+                if (background) backgroundInFlight++
             } else {
                 waiter = CompletableDeferred<Unit>().also { (if (background) this.background else core).addLast(it) }
             }
@@ -77,7 +84,7 @@ class RequestGate(private val limit: Int = 2, spacing: Double = 0.1) {
             } catch (e: CancellationException) {
                 // Given up while queued: leave the queue, or pass on the slot if it had just been handed over.
                 val handedOver = synchronized(lock) { !core.remove(w) && !this.background.remove(w) }
-                if (handedOver) release()
+                if (handedOver) release(background)
                 throw e
             }
         }
@@ -92,17 +99,23 @@ class RequestGate(private val limit: Int = 2, spacing: Double = 0.1) {
             try {
                 delay((wait + 999_999) / 1_000_000)
             } catch (e: CancellationException) {
-                release()
+                release(background)
                 throw e
             }
         }
     }
 
-    /** Hands the slot to the next waiter, screen calls first. */
-    fun release() {
+    /** Gives back a slot taken with the same [background], and hands it on: screen calls first. */
+    fun release(background: Boolean = false) {
         synchronized(lock) {
-            val next = core.removeFirstOrNull() ?: background.removeFirstOrNull()
-            if (next != null) next.complete(Unit) else inFlight--
+            inFlight--
+            if (background) backgroundInFlight--
+            val next = core.removeFirstOrNull()
+                ?: if (backgroundInFlight < backgroundLimit) this.background.removeFirstOrNull()?.also { backgroundInFlight++ } else null
+            if (next != null) {
+                inFlight++
+                next.complete(Unit)
+            }
         }
     }
 
@@ -297,10 +310,14 @@ class APIClient(val config: APIConfig = APIConfig(), transport: Transport? = nul
             try {
                 return request()
             } catch (e: APIError.Transient) {
+                // A rate limit pauses every call behind it, retried or not (a write is never
+                // replayed), so the next one does not walk into the same wall: 1 s, then 3, or
+                // what Cloudflare asks, up to 10.
+                if (e.rateLimited) gate.pause(maxOf(config.backoff[minOf(attempt, config.backoff.size - 1)], e.retryAfter))
                 if (attempt >= retries) throw e
                 failure = e
             } finally {
-                gate.release()
+                gate.release(background)
             }
             val wait = maxOf(config.backoff[attempt], failure.retryAfter)
             gate.pause(wait)
@@ -365,9 +382,11 @@ class APIClient(val config: APIConfig = APIConfig(), transport: Transport? = nul
             null
         }
         if (json?.obj == null) {
-            // Cloudflare answers rate limiting and outages with HTML or plain text.
+            // Cloudflare answers rate limiting and outages with HTML or plain text. A rate limit is
+            // never a reason to change servers; it is waited out.
             val retryAfter = minOf(response.header("Retry-After")?.asciiDouble() ?: 0.0, 10.0)
-            throw APIError.Transient("$action: HTTP ${response.status}, not JSON", retryAfter)
+            val limited = response.status == 429 || String(response.body, Charsets.UTF_8).contains("error code: 1015")
+            throw APIError.Transient("$action: HTTP ${response.status}, not JSON", retryAfter, rateLimited = limited)
         }
         return Envelope(json["success"].bool, json["msg"].text, json["result"])
     }

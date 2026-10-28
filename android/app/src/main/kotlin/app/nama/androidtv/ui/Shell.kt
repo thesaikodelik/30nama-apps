@@ -101,6 +101,35 @@ val LocalApp = compositionLocalOf<AppModel> { error("no app") }
 val LocalNav = compositionLocalOf<Nav> { error("no nav") }
 val LocalChrome = compositionLocalOf { Chrome() }
 
+/** True inside a page opened over a tab (a title, the schedule), false on a tab's own page. */
+val LocalOnRoute = compositionLocalOf { false }
+
+/**
+ * Tells the shell whether this page is at its top, so the tab bar steps out of the way once it
+ * scrolls, on every page alike: left showing, it stood over the first row of a wall (the owner).
+ */
+@Composable
+fun ReportTop(atTop: Boolean) {
+  val chrome = LocalChrome.current
+  val onRoute = LocalOnRoute.current
+  LaunchedEffect(atTop, onRoute) { if (onRoute) chrome.routeAtTop = atTop else chrome.pageAtTop = atTop }
+  androidx.compose.runtime.DisposableEffect(onRoute) { onDispose { if (onRoute) chrome.routeAtTop = true else chrome.pageAtTop = true } }
+}
+
+/** [ReportTop] for a lazy grid: at its top while its first item is less than 60 points in. */
+@Composable
+fun ReportTop(state: androidx.compose.foundation.lazy.grid.LazyGridState) {
+  val atTop by remember(state) { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset < 60 } }
+  ReportTop(atTop)
+}
+
+/** [ReportTop] for a lazy list. */
+@Composable
+fun ReportTop(state: androidx.compose.foundation.lazy.LazyListState) {
+  val atTop by remember(state) { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset < 60 } }
+  ReportTop(atTop)
+}
+
 /** The whole app: the opening title over the phase it is in, toasts, and the player over everything. */
 @Composable
 fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro: Boolean = true) {
@@ -108,6 +137,15 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
   val context = androidx.compose.ui.platform.LocalContext.current
   val systemCalm = remember { systemAnimationsOff(context) }
   ScreenUnits {
+    // Every page, list, panel and menu scrolls as the title page does (Minimal): what has focus is
+    // always whole on the screen, 120 points clear of each edge (so of the tab bar too), and the
+    // page moves only as far as that takes. Compose's default on a TV holds focus a third of the way
+    // down and keeps no margin, so cards stood half under the bar or cut at the foot (the owner).
+    // A list with a way of its own (home's rows, its row of cards) still sets it where it is.
+    val margin = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.toPx() }
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    val minimal = remember(margin) { Minimal(margin) }
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
     CompositionLocalProvider(
         LocalApp provides app,
         LocalNav provides nav,
@@ -115,6 +153,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         LocalCalm provides (app.settings.reduceMotion || systemCalm),
         LocalLively provides (lively && !app.settings.reduceMotion && !systemCalm),
         LocalLayoutDirection provides if (app.settings.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr,
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal,
     ) {
       // The opening title runs its course once; after that it only waits, a little, on the network.
       var introPlayed by remember { mutableStateOf(!intro) }
@@ -283,10 +322,14 @@ fun MainScreen(onExit: () -> Unit) {
       }) {
         // The tab's root page stays alive, hidden, under what is opened on top of it, so its
         // scroll, focus and loaded rows are all still there on the way back.
+        // Its block on focus is a group of its own around it: on the same group as focusRestorer, the
+        // restorer's way in replaced the block, and the hidden page took focus from the one showing.
+        Box(Modifier.fillMaxSize().blockFocus(route != null).focusGroup()) {
         Box(
-            Modifier.fillMaxSize().blockFocus(route != null).graphicsLayer { alpha = if (route == null) 1f else 0f }
+            Modifier.fillMaxSize().graphicsLayer { alpha = if (route == null) 1f else 0f }
                 .focusRequester(root).focusRestorer()) {
           holder.SaveableStateProvider(nav.tab.name) { TabRoot(nav.tab) }
+        }
         }
         if (route != null) {
           // Each page keeps its own saved state while another is shown over it.
@@ -300,7 +343,7 @@ fun MainScreen(onExit: () -> Unit) {
             scaleX = scale
             scaleY = scale
           }.focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
-            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") { RouteScreen(route) }
+            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") { CompositionLocalProvider(LocalOnRoute provides true) { RouteScreen(route) } }
           }
         }
       }
@@ -581,7 +624,7 @@ private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) 
         alpha = shown
         scaleX = 0.8f + 0.2f * shown
         scaleY = 0.8f + 0.2f * shown
-      },
+      }.focusRing(interaction, CircleShape),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1.copy(alpha = 0.85f), focusedContentColor = Theme.text1),
@@ -613,9 +656,10 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
           contentColor = ink,
           focusedContentColor = ink,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
   ) {
-    Row(Modifier.height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // The menu's glass stays as it is; the ring is drawn over it.
+    Row(Modifier.focusRing(focused, RoundedCornerShape(50)).height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       if (icon != null) Icon(icon, title, Modifier.size(26.dp))
       if (!iconOnly) Text(title, style = app(25, FontWeight.SemiBold), maxLines = 1)
     }

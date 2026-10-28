@@ -283,6 +283,8 @@ private object Layout {
   const val HEADER_GAP = 26
   const val ROW_HEIGHT = HEADER_HEIGHT + HEADER_GAP + 300
   const val ROW_SPACING = 36
+  /** How far the rows go up for the guest's sign-in under the last one: it whole, clear of the foot. */
+  const val NOTE_LIFT = 160
 }
 
 @Composable
@@ -365,8 +367,14 @@ private fun Rows(
     runCatching { entries["continue"]?.requestFocus() }
   }
   val focusedRow = browsing?.let { keys.indexOf(it.row) } ?: -1
+  // The guest's sign-in under the last row, in focus: no row of its own, so the rows go up by it.
+  var onNote by remember { mutableStateOf(false) }
   // The rows sit still while the hero shows; browsing, the focused row's header goes to the focus line.
-  val target = if (focusedRow < 0) Layout.RESTING_ROW_TOP else Layout.FOCUS_LINE - focusedRow * (Layout.ROW_HEIGHT + Layout.ROW_SPACING)
+  val target = when {
+    onNote -> Layout.FOCUS_LINE - (rows.size - 1) * (Layout.ROW_HEIGHT + Layout.ROW_SPACING) - Layout.NOTE_LIFT
+    focusedRow < 0 -> Layout.RESTING_ROW_TOP
+    else -> Layout.FOCUS_LINE - focusedRow * (Layout.ROW_HEIGHT + Layout.ROW_SPACING)
+  }
   val top by animateDpAsState(target.dp, Theme.glide(), label = "rows")
   val edgePx = with(LocalDensity.current) { Theme.edge.toPx() }
   // Netflix-style rows: the focused card keeps to the start edge, so the eye stays in one place.
@@ -506,7 +514,23 @@ private fun Rows(
         }
         }
       }
-      if (!app.isLoggedIn) GuestNote()
+      if (!app.isLoggedIn) GuestNote(Modifier.onFocusChanged { onNote = it.hasFocus }.onPreviewKeyEvent { e ->
+        // Up goes back to the card last in focus on the last row, as between rows; the geometric
+        // search found the first row instead.
+        if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown || e.key != androidx.compose.ui.input.key.Key.DirectionUp) return@onPreviewKeyEvent false
+        val last = rows.lastOrNull() ?: return@onPreviewKeyEvent false
+        val at = (lastIndex[last.key] ?: 0).coerceIn(0, (last.posts.size - 1).coerceAtLeast(0))
+        last.posts.getOrNull(at)?.let { onFocus(Selection(last.key, it, at + 1)) }
+        move?.cancel()
+        move = scope.launch {
+          repeat(30) {
+            androidx.compose.runtime.withFrameNanos {}
+            if (focusOn == last.key && !onNote) return@launch
+            runCatching { currentEntries.value[last.key]?.requestFocus() }
+          }
+        }
+        true
+      })
       Box(Modifier.height(200.dp))
     }
     }
@@ -531,10 +555,10 @@ private fun SeeAllCard(title: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GuestNote() {
+private fun GuestNote(modifier: Modifier = Modifier) {
   val app = LocalApp.current
   val loc = LocalLoc.current
-  Row(Modifier.padding(start = Theme.edge, top = 8.dp, bottom = 90.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+  Row(modifier.padding(start = Theme.edge, top = 8.dp, bottom = 90.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
     Text(loc(S.loginToStream), style = app(26), color = Theme.text2)
     PillButton(loc(S.signIn), { app.requestSignIn() })
   }

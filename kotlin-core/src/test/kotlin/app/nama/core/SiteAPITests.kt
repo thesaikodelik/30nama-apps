@@ -159,6 +159,22 @@ class SiteAPITests {
         assertEquals(2014, entries.first().post.year)
     }
 
+    // Not in the Swift tests: the site sometimes lists a title twice, and a list keyed by id must not.
+    @Test fun testTheSitesListsKeepEachTitleOnce() {
+        fun twice(name: String): Json {
+            val result = fixture(name)["result"]
+            val posts = result["posts"].array
+            return obj("posts" to posts + posts, "page" to 1, "pages" to 1)
+        }
+        val page = PostPage.fromSite(twice("site_advanced_search"))
+        assertEquals(page.posts.map { it.id }.distinct(), page.posts.map { it.id })
+        assertEquals(PostPage.fromSite(fixture("site_advanced_search")["result"]).posts.size, page.posts.size)
+        val top = TopList.entries(twice("site_toplist"))
+        assertEquals("each keeps its first place", listOf(1, 2, 3), top.map { it.rank })
+        assertEquals(listOf(7583, 8863, 7143), top.map { it.post.id })
+        assertEquals(2, ArticlePage.fromSite(twice("site_articles")).articles.size)
+    }
+
     @Test fun testTheScheduleSortsTitlesByTheSitesDays() {
         assertEquals("schedule/type/anime", SiteQuery.schedule(Schedule.Kind.anime))
         val week = Schedule.fromSite(fixture("site_schedule")["result"])

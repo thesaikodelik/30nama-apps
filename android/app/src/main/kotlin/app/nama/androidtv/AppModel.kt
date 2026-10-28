@@ -180,7 +180,7 @@ class AppModel(
 
   private var homeCache: Triple<HomeFeed, Long, Lang>? = null
   private var toastJob: Job? = null
-  private val dismissals = ContinueDismissals(readDismissals())
+  private var dismissals = ContinueDismissals(readDismissals())
 
   // MARK: Boot and session
 
@@ -256,7 +256,21 @@ class AppModel(
       kotlinx.coroutines.withTimeoutOrNull(5_000) { attempt { api.call("logout") } }
       api.setToken(null)
     }
+    forgetAccount()
     clearSession()
+  }
+
+  /**
+   * What one account did on this TV, gone when it signs out, so the next one to sign in does not
+   * find it: continue cards taken off, new episodes seen, episodes marked watched, where titles were
+   * left, recent searches. Not on an expired session, after which the same viewer signs back in.
+   */
+  private fun forgetAccount() {
+    dismissals = ContinueDismissals()
+    news = app.nama.androidtv.data.NewEpisodes()
+    watched = emptySet()
+    kept.clear()
+    store.edit().remove("continueDismissals").remove("newEpisodes").remove("watched").remove("recentSearches").apply()
   }
 
   private fun sessionExpired() {
@@ -432,7 +446,7 @@ class AppModel(
   /** Followed series with an episode out since they were last watched. */
   var newEpisodes by mutableStateOf<Set<Int>>(emptySet())
     private set
-  private val news = app.nama.androidtv.data.NewEpisodes(store.getString("newEpisodes", null))
+  private var news = app.nama.androidtv.data.NewEpisodes(store.getString("newEpisodes", null))
 
   /** A row of the TV's home screen was chosen: the title to open, and whether to play it on. */
   var pendingOpen by mutableStateOf<Pair<Int, Boolean>?>(null)

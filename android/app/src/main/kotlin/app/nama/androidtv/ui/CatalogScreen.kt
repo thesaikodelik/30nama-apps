@@ -101,6 +101,7 @@ fun PagedGrid(
     onOpen: (Post) -> Unit,
 ) {
   val state = rememberLazyGridState()
+  ReportTop(state)
   val stopped by androidx.compose.runtime.rememberUpdatedState(failed)
   LaunchedEffect(state, posts.size) {
     snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.distinctUntilChanged().collect { last ->
@@ -266,10 +267,13 @@ fun BrowseScreen() {
   }
   Ambient {
     val m = menu
+    val browseGrid = rememberLazyGridState()
+    ReportTop(browseGrid)
     when {
       m != null -> LazyVerticalGrid(
           GridCells.Adaptive(273.dp),
           Modifier.fillMaxSize().focusRestorer(),
+          state = browseGrid,
           contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
           horizontalArrangement = Arrangement.spacedBy(20.dp),
           verticalArrangement = Arrangement.spacedBy(20.dp),

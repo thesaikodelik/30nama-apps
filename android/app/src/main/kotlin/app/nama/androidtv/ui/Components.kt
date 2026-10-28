@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 
@@ -28,6 +29,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,6 +63,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.CompositionLocalProvider
@@ -78,6 +84,54 @@ import app.nama.core.S
 // MARK: - Buttons
 
 enum class PillKind { Primary, Secondary, Chip }
+
+/**
+ * Where the remote is, the same on every control (the owner chose it among four): a thin ring of
+ * 30nama's own red gradient (coral, red, raspberry, as on the profile's picture) on the control's
+ * own edge, inside it, turning slowly. It sits over whatever the control already is in focus (the
+ * menu's lit glass, Play's white, a card's glow), so none of that is lost. Only the control in focus
+ * turns, and its angle is read only when drawn, so nothing is rebuilt for it; on a weak TV, or with
+ * reduced motion, the ring stands still.
+ */
+@Composable
+fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp): Modifier {
+  val focused by interaction.collectIsFocusedAsState()
+  return focusRing(focused, shape, width)
+}
+
+@Composable
+fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp): Modifier {
+  val turns = LocalLively.current && !LocalCalm.current
+  val angle = remember { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(focused, turns) {
+    if (!focused || !turns) return@LaunchedEffect
+    while (true) angle.animateTo(angle.value + 360f, tween(RING_TURN_MS, easing = androidx.compose.animation.core.LinearEasing))
+  }
+  return this.drawWithCache {
+    val stroke = width.toPx()
+    val inner = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+    val outline = shape.createOutline(inner, layoutDirection, this)
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val shader = android.graphics.SweepGradient(cx, cy, RING_COLOURS, null)
+    val matrix = android.graphics.Matrix()
+    val brush = androidx.compose.ui.graphics.ShaderBrush(shader)
+    onDrawWithContent {
+      drawContent()
+      if (focused) {
+        matrix.setRotate(angle.value, cx, cy)
+        shader.setLocalMatrix(matrix)
+        translate(stroke / 2f, stroke / 2f) { drawOutline(outline, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)) }
+      }
+    }
+  }
+}
+
+/** One turn of the ring, as slow as the preview the owner chose (3.6 s). */
+private const val RING_TURN_MS = 3600
+private val RING_COLOURS = intArrayOf(
+    Theme.accentLight.toArgb(), Theme.accent.toArgb(), Theme.accentDeep.toArgb(), Theme.accentLight.toArgb(),
+)
 
 private val capsule = RoundedCornerShape(percent = 50)
 
@@ -125,7 +179,8 @@ fun PillButton(
           focusedContentColor = if (white) Theme.focusInk else Theme.text1,
           pressedContentColor = if (white) Theme.focusInk else Theme.text1,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = if (primary) 1.04f else if (chip) 1.05f else 1.03f, pressedScale = 0.96f),
+      // Every kind lifts alike in focus; the ring says where focus is.
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f, pressedScale = 0.96f),
   ) {
     Box(
         Modifier
@@ -139,9 +194,9 @@ fun PillButton(
                   // 0.10. In focus, where the Mac's pointer makes it 0.20, a little more and an
                   // edge, to be seen from the sofa.
                   chip -> Modifier.background(Color.White.copy(alpha = if (focused) 0.24f else 0.10f), capsule)
-                      .then(if (focused) Modifier.border(1.5.dp, Color.White.copy(alpha = 0.55f), capsule) else Modifier)
                   else -> Modifier.glass(capsule, lit = focused, fill = if (focused) 0.20f else 0.10f)
                 })
+            .focusRing(focused, capsule)
             .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -187,10 +242,17 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
 /** Inside a [CardSurface]: whether it has focus, for what shows only then (a poster's name). */
 val LocalCardFocused = compositionLocalOf { false }
 
+/** Inside a [CardSurface]: whether the card draws a still front over itself, so what it holds leaves its words to it. */
+val LocalCardFront = compositionLocalOf { false }
+
 /**
  * A card, as the Mac's poster under the pointer (docs/design "پوستر"): at rest a hairline of white
- * 0.08; in focus ×1.07, a white rim of 0.9, a glow in [glow] (the poster's own colour), and a still
- * spot of light at its top, where the Mac's glint follows the pointer.
+ * 0.08; in focus ×1.07, the focus ring, and a glow in [glow] (the poster's own colour). The Mac's
+ * card leans to the pointer and a glint of light follows it (`Tilt`, MacKit.swift); a TV has no
+ * pointer, so in focus an imagined one wanders slowly over the card and the card does the same:
+ * leans up to 7 degrees toward it (the Mac's 4 was too little from the sofa), the glint under it. Read only where drawn, so nothing
+ * is rebuilt as it moves. On a weak TV, or with reduced motion, the card stays flat with the glint
+ * still at its top, as before.
  */
 @Composable
 fun CardSurface(
@@ -200,31 +262,80 @@ fun CardSurface(
     scale: Float = 1.07f,
     glow: Color = Color.White,
     onLongClick: (() -> Unit)? = null,
+    front: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
   val shape = RoundedCornerShape(radius)
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
+  val moves = LocalLively.current && !LocalCalm.current
+  // The imagined pointer's time along its path; 0 is the card's middle.
+  val wander = remember { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(focused, moves) {
+    if (!focused || !moves) {
+      wander.snapTo(0f)
+      return@LaunchedEffect
+    }
+    while (true) wander.animateTo(wander.value + 1f, tween(WANDER_MS, easing = androidx.compose.animation.core.LinearEasing))
+  }
+  // Where the imagined pointer is on the card, 0..1 each way: a slow figure of eight about the middle.
+  fun across() = 0.5f + 0.42f * kotlin.math.sin(2f * Math.PI.toFloat() * wander.value)
+  fun down() = 0.5f + 0.32f * kotlin.math.sin(4f * Math.PI.toFloat() * wander.value)
+  // The card's own growth in focus, for the still front to grow with it (as ClickableSurfaceDefaults does).
+  val grown by animateFloatAsState(if (focused) scale else 1f, tween(150), label = "front")
+  Box {
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier.colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
+      modifier = modifier
+          .graphicsLayer {
+            if (focused && moves) {
+              // The Mac's lean, stronger: up to 7 degrees each way, with a little more perspective.
+              rotationX = -(down() - 0.5f) * 2f * TILT_DEGREES
+              rotationY = (across() - 0.5f) * 2f * TILT_DEGREES
+              cameraDistance = 9f * density
+            }
+          }
+          .colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),
       scale = ClickableSurfaceDefaults.scale(focusedScale = scale, pressedScale = scale - 0.04f),
       border = ClickableSurfaceDefaults.border(
           border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), shape = shape),
-          focusedBorder = Border(BorderStroke(2.6.dp, Color.White.copy(alpha = 0.9f)), shape = shape),
+          focusedBorder = Border(BorderStroke(1.dp, Color.Transparent), shape = shape),
       ),
   ) {
     Box(
         Modifier.drawWithContent {
           drawContent()
-          if (focused) drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), Offset(size.width * 0.5f, size.height * 0.12f), radius = size.width * 0.95f))
-        }) { CompositionLocalProvider(LocalCardFocused provides focused) { content() } }
+          // The Mac's glint: under the imagined pointer, or still at the top where nothing moves.
+          if (focused) {
+            val at = if (moves) Offset(size.width * across(), size.height * down()) else Offset(size.width * 0.5f, size.height * 0.12f)
+            drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
+          }
+        }.focusRing(focused, shape)) {
+      CompositionLocalProvider(LocalCardFocused provides focused, LocalCardFront provides (front != null)) { content() }
+    }
+  }
+  // Words over the card stay where they are while it leans under them (the owner: only the card
+  // moves). Outside the card's turning layer, growing with it only; above it, as the card in focus
+  // lifts itself over its neighbours.
+  if (front != null) {
+    Box(
+        Modifier.matchParentSize().zIndex(2f).graphicsLayer {
+          scaleX = grown
+          scaleY = grown
+        },
+    ) { CompositionLocalProvider(LocalCardFocused provides focused) { front() } }
+  }
   }
 }
+
+/** More than the Mac's `tilting(degrees: 4)`: seen from the sofa, 4 was too little (the owner). */
+private const val TILT_DEGREES = 7f
+/** One round of the imagined pointer over a card in focus: slow, as a hand that rests. */
+private const val WANDER_MS = 5500
 
 // MARK: - Artwork
 
@@ -252,11 +363,51 @@ fun PosterArt(post: Post, width: Dp = Theme.posterWidth, loads: Boolean = true) 
               .padding(start = 13.dp, end = 13.dp, top = 34.dp, bottom = 13.dp),
           verticalArrangement = Arrangement.spacedBy(3.dp),
       ) {
-        Text(post.title(loc.lang), style = app(19, FontWeight.Bold), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        post.year?.let { Text(loc.num(it), style = app(15, FontWeight.Medium), color = Color.White.copy(alpha = 0.7f)) }
+        // With a still front the words are drawn there; here they only hold the band's height.
+        val words = if (LocalCardFront.current) Modifier.graphicsLayer { alpha = 0f } else Modifier
+        Column(words, verticalArrangement = Arrangement.spacedBy(3.dp)) { CaptionWords(post) }
       }
     }
   }
+}
+
+/** A poster's name and year in focus, on the card's still front: they stay put while the card leans. */
+@Composable
+fun BoxScope.PosterCaption(post: Post) {
+  val focused = LocalCardFocused.current
+  val shown by animateFloatAsState(if (focused) 1f else 0f, tween(180), label = "caption")
+  if (shown > 0f) {
+    // A name in Latin letters reads from the left even in Persian (the owner): the words take its side.
+    val side = if (post.title(LocalLoc.current.lang).readsLeftToRight()) LayoutDirection.Ltr else LocalLayoutDirection.current
+    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
+      CompositionLocalProvider(LocalLayoutDirection provides side) {
+        Column(
+            Modifier.fillMaxWidth().graphicsLayer { alpha = shown }
+                .padding(start = 13.dp, end = 13.dp, top = 34.dp, bottom = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) { CaptionWords(post) }
+      }
+    }
+  }
+}
+
+/** Whether text starts in a left-to-right script (its first letter that has a side), as Latin names. */
+fun String.readsLeftToRight(): Boolean {
+  for (c in this) {
+    when (Character.getDirectionality(c)) {
+      Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return true
+      Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return false
+    }
+  }
+  return false
+}
+
+@Composable
+private fun CaptionWords(post: Post) {
+  val loc = LocalLoc.current
+  val lifted = app(19, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 2f), 8f))
+  Text(post.title(loc.lang), style = lifted, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+  post.year?.let { Text(loc.num(it), style = app(15, FontWeight.Medium).copy(shadow = lifted.shadow), color = Color.White.copy(alpha = 0.7f)) }
 }
 
 @Composable
@@ -299,10 +450,15 @@ fun PosterCard(
         },
         modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
         glow = rememberPosterTint(post), onLongClick = onLongClick,
+        front = { PosterCaption(post) },
     ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
     if (titled) {
-      Text(post.title(LocalLoc.current.lang), Modifier.width(width), style = app(22, FontWeight.Medium), color = Theme.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      Text(
+          post.title(LocalLoc.current.lang), Modifier.width(width),
+          style = app(22, FontWeight.Medium).copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content),
+          color = Theme.text2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+      )
     }
   }
 }

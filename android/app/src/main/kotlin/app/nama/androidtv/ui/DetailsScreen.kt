@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -533,6 +534,7 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
                   else -> n.toDouble()
                 })
           },
+          modifier = Modifier.focusRing(interaction, CircleShape),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),
@@ -625,7 +627,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
   val shape = RoundedCornerShape(22.dp)
   Surface(
       onClick = onClick,
-      modifier = modifier,
+      modifier = modifier.focusRing(interaction, shape),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.07f), focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
@@ -733,11 +735,11 @@ private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: St
     Column(Modifier.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Surface(
           onClick = onClick,
+          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
           scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-          border = ClickableSurfaceDefaults.border(focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(4.dp, hue), shape = CircleShape)),
       ) {
         Box(Modifier.size(160.dp), contentAlignment = Alignment.Center) {
           Icon(Icons.person, null, Modifier.size(56.dp), tint = Theme.text3)
@@ -821,14 +823,18 @@ private fun Facts(post: Post) {
   val rows = facts(post, loc)
   if (rows.isEmpty()) return
   val director = loc(S.director)
+  // A director's chip is the block's only stop: in focus it brings the whole block on screen, as
+  // the rows under it (writers, country, language) have nothing of their own to bring them.
+  val whole = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+  val scope = rememberCoroutineScope()
   @Composable
   fun lines() {
-    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.bringIntoViewRequester(whole).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
       rows.forEach { (label, value) ->
         Row(horizontalArrangement = Arrangement.spacedBy(26.dp), verticalAlignment = Alignment.CenterVertically) {
           Text(label, Modifier.width(200.dp), style = app(23, FontWeight.Medium), color = Theme.text3)
           if (label == director) {
-            Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.focusRestorer().onFocusChanged { if (it.hasFocus) scope.launch { whole.bringIntoView() } }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               post.directors.forEach { name ->
                 PillButton(name, { nav.push(Route.AdvancedSearch(app.nama.core.AdvancedQuery(director = name, sort = "year"))) }, kind = PillKind.Chip)
               }

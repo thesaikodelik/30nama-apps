@@ -58,4 +58,7 @@ class KeptProgress(private val prefs: SharedPreferences) {
     if (fileID.isEmpty() || !seconds.isFinite()) return
     prefs.edit().putString("left.$postID", "$fileID ${seconds.toLong()}").apply()
   }
+
+  /** Every title's place forgotten: the account they belong to signed out. */
+  fun clear() = prefs.edit().clear().apply()
 }

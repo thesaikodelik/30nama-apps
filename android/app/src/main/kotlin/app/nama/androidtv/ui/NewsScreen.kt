@@ -108,6 +108,7 @@ fun NewsScreen() {
     loadNext()
   }
   val grid = rememberLazyGridState()
+  ReportTop(grid)
   LaunchedEffect(grid, articles.size) {
     snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.distinctUntilChanged().collect { last ->
       // Not again after a failure: a retry at the end asks for it.
@@ -194,8 +195,11 @@ fun ArticleScreen(article: Article) {
   Ambient {
     // Articles are written in Persian whatever the interface's language.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+      val list = androidx.compose.foundation.lazy.rememberLazyListState()
+      ReportTop(list)
       LazyColumn(
           Modifier.fillMaxSize().focusRestorer(),
+          state = list,
           contentPadding = PaddingValues(top = 130.dp, bottom = 120.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(22.dp),

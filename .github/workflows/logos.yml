@@ -1,5 +1,6 @@
 # Keeps logos.json on the `data` branch: the TMDB logos of 30nama's titles, for the apps to show
-# where TMDB is filtered. See Tools/logos/build_logos.py.
+# where TMDB is filtered. See Tools/logos/build_logos.py. Beside it trending.json, TMDB's list of
+# the week, for apps whose viewer has no TMDB key (Tools/trending/build_trending.py).
 name: logos
 
 on:
@@ -32,7 +33,14 @@ jobs:
           if git fetch --depth 1 origin data; then
             git show FETCH_HEAD:logos.json > out/logos.json
             git show FETCH_HEAD:state.json > out/state.json
+            git show FETCH_HEAD:trending.json > out/trending.json 2>/dev/null || rm -f out/trending.json
           fi
+      - name: Trending this week
+        # Its own step: a day TMDB does not answer keeps yesterday's list and the logos still run.
+        continue-on-error: true
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+        run: python3 -I Tools/trending/build_trending.py out
       - name: Look up new titles
         env:
           SITE_KEY: ${{ secrets.SITE_KEY }}
@@ -47,6 +55,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add logos.json state.json
+          if [ -f trending.json ]; then git add trending.json; fi
           # One commit only, replaced each day: the history of this file is of no use to anyone.
           git commit -q -m "logos.json, $(date -u +%F)"
           git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

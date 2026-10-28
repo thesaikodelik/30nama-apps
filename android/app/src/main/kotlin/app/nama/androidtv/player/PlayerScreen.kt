@@ -1,5 +1,6 @@
 package app.nama.androidtv.player
 
+import app.nama.androidtv.ui.focusRing
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import app.nama.androidtv.ui.tint
@@ -116,7 +117,10 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 /** Which side panel is open over the picture. */
-private enum class Panel { Subtitles, Audio, Quality, Speed, Sleep, Episodes }
+private enum class Panel { Subtitles, Audio, Quality, Speed, Sleep, Episodes, Settings }
+
+/** What the Mac keeps behind its gear: quality, sound and the sleep timer, each a panel of its own. */
+private val Panel.inSettings get() = this == Panel.Quality || this == Panel.Audio || this == Panel.Sleep
 
 /**
  * Full-screen playback. The picture alone until a key is pressed; then the title, the seek bar and
@@ -192,7 +196,7 @@ fun PlayerScreen(request: PlaybackRequest) {
     val was = lastPanel ?: return@LaunchedEffect
     lastPanel = null
     withFrameNanos {}
-    runCatching { if (controls) opener.getValue(was).requestFocus() else surface.requestFocus() }
+    runCatching { if (controls) opener.getValue(if (was.inSettings) Panel.Settings else was).requestFocus() else surface.requestFocus() }
   }
   // A seek lands a second after the last press.
   LaunchedEffect(lastSeekKey) {
@@ -217,7 +221,8 @@ fun PlayerScreen(request: PlaybackRequest) {
 
   BackHandler {
     when {
-      panel != null -> panel = null
+      // Back from quality, sound or the timer goes back to the settings they were chosen from.
+      panel != null -> panel = if (panel!!.inSettings) Panel.Settings else null
       controls -> controls = false
       else -> engine.close()
     }
@@ -265,11 +270,14 @@ fun PlayerScreen(request: PlaybackRequest) {
     }
     if (engine.buffering) Spinner(Modifier.align(Alignment.TopStart).padding(Theme.edge).size(40.dp), Theme.accent)
 
-    // Subtitles sit higher while the controls or the episodes are showing.
+    // Subtitles sit higher while the controls or the episodes are showing: just above the timeline,
+    // as the Mac's (docs/design/mac player), and higher still while seeking, over the picture at the
+    // seek point that rides above the bar.
     val lift by animateDpAsState(
         when {
           panel == Panel.Episodes -> 520.dp
-          controls -> 300.dp
+          controls && seekTarget != null -> 300.dp
+          controls -> 180.dp
           else -> 70.dp
         }, label = "lift")
     SubtitleLine(engine.cue, Modifier.align(Alignment.BottomCenter).padding(bottom = lift))
@@ -288,7 +296,7 @@ fun PlayerScreen(request: PlaybackRequest) {
     AnimatedVisibility(
         panel != null && panel != Panel.Episodes, Modifier.align(Alignment.CenterEnd),
         enter = slideInHorizontally { if (rtl) -it else it } + fadeIn(), exit = slideOutHorizontally { if (rtl) -it else it } + fadeOut(),
-    ) { panel?.let { SidePanel(engine, it) { panel = null } } }
+    ) { panel?.let { SidePanel(engine, it, go = { next -> panel = next }) { panel = null } } }
     AnimatedVisibility(
         panel == Panel.Episodes, Modifier.align(Alignment.BottomCenter),
         enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut(),
@@ -385,23 +393,25 @@ private fun Controls(engine: PlayerEngine, seekTarget: Double?, full: Boolean, p
           if (engine.index + 1 < engine.items.size) PlayerButton(Icons.skipNext, loc(S.nextEpisode), { engine.next() })
           val d = engine.duration
           val shown = seekTarget ?: engine.position
+          // As the Mac's: Latin digits in every language, as the timeline runs left to right in
+          // every language, semibold in the text's own white (docs/design/mac/fa/player).
           Text(
-              loc.num("${Fmt.clock(shown)} / ${Fmt.clock(d)}"), Modifier.padding(start = 14.dp),
-              style = app(19, FontWeight.Medium).copy(fontFeatureSettings = "tnum"), color = Color.White.copy(alpha = 0.85f),
+              "${Fmt.clock(shown)} / ${Fmt.clock(d)}", Modifier.padding(start = 14.dp),
+              style = app(19, FontWeight.SemiBold).copy(fontFeatureSettings = "tnum"), color = Theme.text1,
           )
           if (d > 0) {
-            // When it will end at this speed, as Netflix shows it.
+            // When it will end at this speed, as Netflix shows it; its digits as the clock's beside it.
             val end = LocalTime.now().plusSeconds(((d - shown) / engine.speed).toLong())
             CompositionLocalProvider(LocalLayoutDirection provides if (loc.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-              Text("${tv(TV.endsAt)} ${loc.num(end.format(DateTimeFormatter.ofPattern("HH:mm")))}", Modifier.padding(start = 14.dp), style = app(17, FontWeight.Medium), color = Color.White.copy(alpha = 0.55f))
+              Text("${tv(TV.endsAt)} ${end.format(DateTimeFormatter.ofPattern("HH:mm"))}", Modifier.padding(start = 14.dp), style = app(17, FontWeight.Medium), color = Color.White.copy(alpha = 0.55f))
             }
           }
           Spacer(Modifier.weight(1f))
           PlayerButton(Icons.speed, loc(S.speed), { open(Panel.Speed) }, Modifier.focusRequester(opener.getValue(Panel.Speed)), lit = engine.speed != 1f)
           if (item.subtitles.isNotEmpty() || engine.found.isNotEmpty()) PlayerButton(Icons.subtitles, loc(S.subtitles), { open(Panel.Subtitles) }, Modifier.focusRequester(opener.getValue(Panel.Subtitles)), lit = engine.subtitleLanguage != "off")
-          if ((engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty()) PlayerButton(Icons.volume, loc(S.audio), { open(Panel.Audio) }, Modifier.focusRequester(opener.getValue(Panel.Audio)))
-          if (item.qualities.size > 1) PlayerButton(Icons.quality, loc(S.quality), { open(Panel.Quality) }, Modifier.focusRequester(opener.getValue(Panel.Quality)))
-          PlayerButton(Icons.moon, loc(S.sleepTimer), { open(Panel.Sleep) }, Modifier.focusRequester(opener.getValue(Panel.Sleep)), lit = engine.sleep != Sleep.Off)
+          // The rest behind one button, as the Mac's gear: quality, sound and the sleep timer. It is
+          // the moon while a timer runs, so a timer is not forgotten behind it.
+          PlayerButton(if (engine.sleep != Sleep.Off) Icons.moon else Icons.gear, loc(S.settings), { open(Panel.Settings) }, Modifier.focusRequester(opener.getValue(Panel.Settings)), lit = engine.sleep != Sleep.Off)
           if (engine.items.size > 1) PlayerButton(Icons.list, loc(S.episodes), { open(Panel.Episodes) }, Modifier.focusRequester(opener.getValue(Panel.Episodes)))
         }
       }
@@ -431,20 +441,23 @@ fun PlayerTop(engine: PlayerEngine) {
   }
 }
 
-/** The Mac player's round button: a plain glyph, a white disc in focus, filled white while [lit]. */
+/**
+ * The Mac player's round button: a plain glyph, a white disc in focus. While [lit] (subtitles on, a
+ * speed other than 1×) a faint disc: filled white, it looked like a second focus beside the real one.
+ */
 @Composable
 private fun PlayerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, lit: Boolean = false, size: Int = 50, glyph: Int = 22) {
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label },
+      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
-          containerColor = if (lit) Color.White.copy(alpha = 0.9f) else Color.Transparent,
+          containerColor = if (lit) Color.White.copy(alpha = 0.18f) else Color.Transparent,
           focusedContainerColor = Color.White,
-          contentColor = if (lit) Theme.focusInk else Color.White,
+          contentColor = Color.White,
           focusedContentColor = Theme.focusInk,
       ),
       scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
@@ -498,7 +511,7 @@ private data class Choice(val title: String, val selected: Boolean, val run: () 
 
 /** A side panel of choices from the end edge: select applies at once, and the film plays on behind it. */
 @Composable
-private fun SidePanel(engine: PlayerEngine, panel: Panel, close: () -> Unit) {
+private fun SidePanel(engine: PlayerEngine, panel: Panel, go: (Panel) -> Unit, close: () -> Unit) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val item = engine.current
@@ -548,6 +561,23 @@ private fun SidePanel(engine: PlayerEngine, panel: Panel, close: () -> Unit) {
       Choice(name, s == engine.sleep) { engine.chooseSleep(s) }
     }
     Panel.Episodes -> "" to emptyList()
+    Panel.Settings -> {
+      // Each row says what is chosen now and opens its own list.
+      val list = mutableListOf<Choice>()
+      if (item.qualities.size > 1) list += Choice("${loc(S.quality)} · ${engine.quality?.let { if (it.isAuto) loc(S.qualityAuto) else it.label } ?: loc(S.qualityAuto)}", false) { go(Panel.Quality) }
+      if ((engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty()) {
+        val sound = engine.audioTrack?.let { l -> java.util.Locale.forLanguageTag(l).getDisplayLanguage(java.util.Locale.forLanguageTag(loc.lang.name)).ifEmpty { l } }
+            ?: loc(if (engine.mix == AudioMix.stereo) S.audioStereo else if (engine.mix == AudioMix.surround) S.audioSurround else S.audioOriginal)
+        list += Choice("${loc(S.audio)} · $sound", false) { go(Panel.Audio) }
+      }
+      val sleep = when (val s = engine.sleep) {
+        Sleep.Off -> loc(S.off)
+        Sleep.EndOfEpisode -> loc(if (engine.post.isSeries) S.endOfEpisode else S.endOfFilm)
+        is Sleep.Minutes -> "${loc.num(s.n)} ${loc(S.min)}"
+      }
+      list += Choice("${loc(S.sleepTimer)} · $sleep", false) { go(Panel.Sleep) }
+      loc(S.settings) to list
+    }
   }
   val first = remember(panel) { FocusRequester() }
   LaunchedEffect(panel) {
@@ -574,7 +604,7 @@ private fun ChoiceRow(c: Choice, modifier: Modifier) {
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = c.run,
-      modifier = modifier.fillMaxWidth(),
+      modifier = modifier.fillMaxWidth().focusRing(interaction, RoundedCornerShape(18.dp)),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(RoundedCornerShape(18.dp)),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),

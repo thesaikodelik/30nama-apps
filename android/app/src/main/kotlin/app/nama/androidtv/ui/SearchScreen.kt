@@ -374,10 +374,12 @@ private fun Keyboard(
 @Composable
 private fun LineKey(text: String?, modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
   val shape = RoundedCornerShape(14.dp)
+  val interaction = remember { MutableInteractionSource() }
   Surface(
       onClick = onClick,
       onLongClick = onLong,
-      modifier = modifier.height(60.dp),
+      modifier = modifier.height(60.dp).focusRing(interaction, shape),
+      interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.18f),
@@ -396,7 +398,7 @@ private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size
   val focused by interaction.collectIsFocusedAsState()
   Surface(
       onClick = onClick,
-      modifier = Modifier.size(size),
+      modifier = Modifier.size(size).focusRing(interaction, CircleShape),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text2, focusedContentColor = Theme.focusInk),

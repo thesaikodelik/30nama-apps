@@ -29,8 +29,17 @@ class MainActivity : ComponentActivity() {
       if (event.action == android.view.KeyEvent.ACTION_UP && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
       return true
     }
-    return super.dispatchKeyEvent(event)
+    val handled = super.dispatchKeyEvent(event)
+    // An arrow Compose found nowhere to go with (the last item of a page, its first row) stays
+    // here. Left unhandled, Android's own view focus search took it and put focus back into Compose
+    // from the top of its tree, wherever that landed.
+    return handled || event.keyCode in arrows
   }
+
+  private val arrows = setOf(
+      android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+      android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+  )
 
   override fun onResume() {
     super.onResume()

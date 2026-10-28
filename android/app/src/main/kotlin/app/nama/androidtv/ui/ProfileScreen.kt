@@ -94,8 +94,11 @@ fun ProfileScreen() {
   Box(Modifier.fillMaxSize()) {
     Ambient {}
     Stage(favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post, dim = 0.5f, glow = false)
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
+    ReportTop(list)
     LazyColumn(
         Modifier.fillMaxSize().focusRestorer(),
+        state = list,
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {

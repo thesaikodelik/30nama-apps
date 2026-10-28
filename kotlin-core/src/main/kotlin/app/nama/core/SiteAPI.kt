@@ -264,9 +264,9 @@ fun Post.Companion.fromSite(j: Json): Post? {
 
 private val siteYear = unicodeRegex("(?<=\\s)\\d{4}$")
 
-/** A page of the site API's lists: `{page, pages, posts}`, with no total. */
+/** A page of the site API's lists: `{page, pages, posts}`, with no total. A title the site lists twice is kept once. */
 fun PostPage.Companion.fromSite(j: Json): PostPage {
-    val posts = j["posts"].array.mapNotNull { Post.fromSite(it) }
+    val posts = j["posts"].array.mapNotNull { Post.fromSite(it) }.distinctBy { it.id }
     return PostPage(posts, j["page"].int ?: 1, j["pages"].int ?: 1, posts.size)
 }
 
@@ -287,7 +287,7 @@ enum class TopList(val rawValue: String) {
             val post = Post.fromSite(item) ?: return@mapIndexedNotNull null
             // The place comes in Persian digits ("۱۲"); the list is in order anyway.
             Entry(SiteText.latinDigits(item["rank"].text ?: "").asciiInt() ?: (index + 1), post)
-        }
+        }.distinctBy { it.id } // A title listed twice keeps its first, higher place.
     }
 }
 
@@ -392,7 +392,7 @@ data class Article(
 data class ArticlePage(val articles: List<Article>, val page: Int, val pages: Int) {
     companion object {
         fun fromSite(j: Json): ArticlePage =
-            ArticlePage(j["posts"].array.mapNotNull { Article.fromSite(it) }, j["page"].int ?: 1, j["pages"].int ?: 1)
+            ArticlePage(j["posts"].array.mapNotNull { Article.fromSite(it) }.distinctBy { it.id }, j["page"].int ?: 1, j["pages"].int ?: 1)
     }
 }
 

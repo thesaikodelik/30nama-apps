@@ -186,7 +186,7 @@ class APIClientTests {
                 gate.acquire(background = true)
                 order.add("bg$i"); peak.raise(now.add())
                 delay(20)
-                now.sub(); gate.release()
+                now.sub(); gate.release(background = true)
             }
         }
         delay(50)
@@ -206,6 +206,39 @@ class APIClientTests {
         assertTrue(peak.value <= 2)
     }
 
+    // Not in the Swift tests: background work never holds every slot, so a page is not kept waiting.
+    @Test fun testBackgroundCallsLeaveASlotForTheScreen() = runBlocking {
+        val gate = RequestGate(limit = 2, spacing = 0.0)
+        gate.acquire(background = true)
+        val second = launch { gate.acquire(background = true) }
+        delay(20)
+        assertTrue("a second background call waits", second.isActive)
+        kotlinx.coroutines.withTimeout(1000) { gate.acquire(background = false) }
+        gate.release(background = false)
+        gate.release(background = true)
+        kotlinx.coroutines.withTimeout(1000) { second.join() }
+        gate.release(background = true)
+    }
+
+    // Not in the Swift tests: a rate limit pauses the calls after it even when it is not retried.
+    @Test fun testARateLimitPausesTheGateEvenWithoutARetry() = runBlocking {
+        val net = FakeNetwork { action, _ ->
+            when (action) {
+                "discovery" -> answer(0, "")
+                "observer" -> answer(429, "error code: 1015")
+                else -> answer(200, OK)
+            }
+        }
+        val api = APIClient(APIConfig(backoff = listOf(0.3, 0.3), requestSpacing = 0.0), net.transport)
+        api.bootstrap()
+        // A write is never replayed, so it fails at once; the gate still waits before the next call.
+        val failure = runCatching { api.call("observer") }.exceptionOrNull()
+        assertTrue((failure as? APIError.Transient)?.rateLimited == true)
+        val start = System.nanoTime()
+        api.call("profile")
+        assertTrue("the next call waited out the pause", (System.nanoTime() - start) / 1e9 >= 0.25)
+    }
+
     // Not in the Swift tests: a coroutine that gives up while queued must not take a slot with it.
     @Test fun testAWaiterThatIsCancelledGivesBackItsPlace() = runBlocking {
         val gate = RequestGate(limit = 1, spacing = 0.0)
@@ -215,7 +248,7 @@ class APIClientTests {
         quitter.cancel()
         quitter.join()
         gate.release()
-        val next = launch { gate.acquire(background = true); gate.release() }
+        val next = launch { gate.acquire(background = true); gate.release(background = true) }
         kotlinx.coroutines.withTimeout(1000) { next.join() }
     }
 }

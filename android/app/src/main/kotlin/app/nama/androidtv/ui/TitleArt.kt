@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import app.nama.core.Lang
 import app.nama.core.Post
@@ -76,9 +77,18 @@ fun TitleArt(post: Post, size: Int) {
         Text(post.title(loc.lang), style = app((size * 0.38f).toInt(), FontWeight.SemiBold), color = Theme.text1)
       }
     } else {
+      // Lines close together, as a heading's: Vazirmatn's own spacing (near 1.7) left a gap between
+      // the two lines of a long name (the owner).
       Text(
           post.title(loc.lang),
-          style = app(size, FontWeight.ExtraBold).copy(brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.84f)))),
+          style = app(size, FontWeight.ExtraBold).copy(
+              brush = Brush.verticalGradient(listOf(Color.White, Theme.text1.copy(alpha = 0.84f))),
+              lineHeight = (size * 1.15f).sp,
+              lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                  androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                  androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
+              ),
+          ),
           maxLines = 2, overflow = TextOverflow.Ellipsis,
       )
       post.alternateTitle(loc.lang)?.let { Text(it, style = app(30, FontWeight.Medium), color = Theme.text2, maxLines = 1) }

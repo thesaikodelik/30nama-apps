@@ -66,36 +66,13 @@ data class TMDBItem(
 
         fun list(results: Json, defaultKind: Kind? = null): List<TMDBItem> = results.array.mapNotNull { from(it, defaultKind) }
 
-        /** TMDB's public "trending this week" panel, written as the list entries the API would give, so the rest of the way is the same. */
-        const val PUBLIC_TRENDING = "https://www.themoviedb.org/remote/panel?panel=trending_scroller&group=this-week&language=en-US"
-
-        private val panelEntry = Regex(
-            "href=\"/(movie|tv)/(\\d+)[^\"]*\"><h2[^>]*><span>([^<]+)</span></h2></a></div><span class=\"release_date[^\"]*\">([^<]*)</span>",
-        )
-        private val fourDigits = Regex("\\d{4}")
-
-        fun publicList(html: String): Json {
-            val seen = HashSet<String>()
-            val entries = panelEntry.findAll(html).mapNotNull { m ->
-                val kind = m.groupValues[1]
-                val id = m.groupValues[2].asciiInt() ?: return@mapNotNull null
-                if (!seen.add(kind + id)) return@mapNotNull null
-                val entry = linkedMapOf<String, Json>(
-                    "id" to Json.Num(id.toDouble()),
-                    "media_type" to Json.Str(kind),
-                    (if (kind == "tv") "name" else "title") to Json.Str(unescape(m.groupValues[3])),
-                    "poster_path" to Json.Str("/public"),
-                )
-                fourDigits.find(m.groupValues[4])?.let {
-                    entry[if (kind == "tv") "first_air_date" else "release_date"] = Json.Str(it.value + "-01-01")
-                }
-                Json.Obj(entry)
-            }.toList()
-            return Json.Arr(entries)
-        }
-
-        private fun unescape(s: String): String =
-            s.replace("&amp;", "&").replace("&#39;", "'").replace("&quot;", "\"").replace("&#x27;", "'")
+        /**
+         * TMDB's lists for a viewer with no key of their own, written once a day from TMDB's API with
+         * the project's key (Tools/trending/build_trending.py) beside logos.json. TMDB's public page
+         * that was read for them sits behind Cloudflare's bot check, which turns Android away.
+         * `{"lists": {"<path>?<query>": [entries]}}`, each list keyed as [Trending] keys its cache.
+         */
+        const val SHARED_TRENDING = "https://raw.githubusercontent.com/thesaikodelik/30nama-apps/data/trending.json"
     }
 }
 
@@ -302,13 +279,12 @@ class Trending(
         val cacheKey = "l:${source.path}?$query"
         cached(cacheKey)?.let { return TMDBItem.list(it, source.kind) }
         if (key == null) {
-            // Without a key only the week's trending list, from the public page.
-            if (source.path != "/trending/all/week") return emptyList()
-            val html = attempt { fetchPublic() } ?: return emptyList()
-            val list = TMDBItem.publicList(html)
+            // Without a key, the lists written for everyone each day (now the week's trending).
+            val shared = attempt { fetchShared() } ?: return emptyList()
+            val list = shared["lists"]["${source.path}?$query"]
             if (list.array.isEmpty()) return emptyList()
             store(cacheKey, list)
-            return TMDBItem.list(list)
+            return TMDBItem.list(list, source.kind)
         }
         val fresh = attempt { fetch(source, key) } ?: return emptyList()
         val slim = Json.Arr(fresh["results"].array.map { entry ->
@@ -325,15 +301,10 @@ class Trending(
         return Json.parse(response.body)
     }
 
-    private suspend fun fetchPublic(): String {
-        val request = HttpRequest(
-            TMDBItem.PUBLIC_TRENDING,
-            headers = mapOf("User-Agent" to "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
-            timeoutSeconds = 15.0,
-        )
-        val response = transport.send(request)
-        if (response.status != 200) throw IllegalStateException("TMDB answered ${response.status}")
-        return String(response.body, Charsets.UTF_8)
+    private suspend fun fetchShared(): Json {
+        val response = transport.send(HttpRequest(TMDBItem.SHARED_TRENDING, timeoutSeconds = 15.0))
+        if (response.status != 200) throw IllegalStateException("GitHub answered ${response.status}")
+        return Json.parse(response.body)
     }
 
     /** The 30nama title for a TMDB one, or nil when 30nama does not have it. */
