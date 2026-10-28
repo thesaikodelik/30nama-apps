@@ -26,6 +26,8 @@ data class Settings(
     val preferAdaptive: Boolean = false,
     /** "Max": the download file itself where one plays, else the stream as [preferAdaptive] says. */
     val maxQuality: Boolean = false,
+    /** For a slow line: start in the highest fixed quality no taller than this many lines; 0 for no limit. */
+    val startCap: Int = 0,
     val reduceMotion: Boolean = false,
     /** How much motion that never ends the TV shows (the Mac's Effects); Automatic decides by its memory. */
     val effects: Effects = Effects.auto,
@@ -39,6 +41,8 @@ data class Settings(
   companion object {
     val subtitleSizes = listOf(38, 46, 54)
     val readAheadChoices = listOf(0, 10, 25, 50, 100)
+    /** The lines a slow line may start in (the aliir74 app's), besides no limit. */
+    val startCaps = listOf(1080, 720, 480)
 
     fun load(p: SharedPreferences): Settings {
       val d = Settings()
@@ -55,6 +59,7 @@ data class Settings(
           audioMix = enumOf(AudioMix.entries.toTypedArray(), "audioMix", d.audioMix),
           preferAdaptive = p.getBoolean("adaptive", d.preferAdaptive),
           maxQuality = p.getBoolean("maxQuality", d.maxQuality),
+          startCap = p.getInt("startCap", d.startCap).takeIf { it == 0 || it in startCaps } ?: d.startCap,
           reduceMotion = p.getBoolean("calm", d.reduceMotion),
           effects = enumOf(Effects.entries.toTypedArray(), "effects", d.effects),
           sceneGlow = p.getBoolean("sceneGlow", d.sceneGlow),
@@ -77,6 +82,7 @@ data class Settings(
         .putString("audioMix", audioMix.name)
         .putBoolean("adaptive", preferAdaptive)
         .putBoolean("maxQuality", maxQuality)
+        .putInt("startCap", startCap)
         .putBoolean("calm", reduceMotion)
         .putString("effects", effects.name)
         .putBoolean("sceneGlow", sceneGlow)

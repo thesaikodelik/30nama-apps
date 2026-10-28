@@ -365,7 +365,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     reportedTime = 0
     // Not the last file's length for this one, as the switch reports it.
     duration = 0.0
-    val q = current.quality(app.settings.preferAdaptive)
+    val q = StartQuality.pick(current, app.settings.preferAdaptive, app.settings.startCap)
     if (q == null) {
       app.showToast(loc(S.noStream))
       return close()
@@ -715,7 +715,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     if (warmed == index) return
     warmed = index
     val next = items.getOrNull(index + 1) ?: return
-    val url = next.quality(app.settings.preferAdaptive)?.url(mix)?.toString() ?: return
+    val url = StartQuality.pick(next, app.settings.preferAdaptive, app.settings.startCap)?.url(mix)?.toString() ?: return
     if (!url.contains(".m3u8")) return
     readAhead?.warm(scope, url, quality?.height?.takeIf { it > 0 })
   }

@@ -137,15 +137,22 @@ fun SettingsScreen() {
           }
         }
         Group(loc(S.playback)) {
-          // Best (the default), Automatic, and Max: the download file itself (the Tizen app's).
-          val qualities = listOf(loc(S.qualityBest), loc(S.qualityAuto), tv(TV.qualityMax))
-          val qualityAt = if (s.maxQuality) 2 else if (s.preferAdaptive) 1 else 0
-          Choice(loc(S.quality), qualities[qualityAt], Help(tv(TV.qualityHint) + "\n\n" + tv(TV.qualityMaxHint), qualities, qualities[qualityAt]), { help = it }) {
+          // Best (the default), Automatic, Max: the download file itself (the Tizen app's), and for a
+          // slow line a fixed quality no higher than 1080p, 720p or 480p (the aliir74 app's).
+          val qualities = listOf(loc(S.qualityBest), loc(S.qualityAuto), tv(TV.qualityMax)) + Settings.startCaps.map { "${it}p" }
+          val qualityAt = when {
+            s.maxQuality -> 2
+            s.startCap > 0 -> 3 + Settings.startCaps.indexOf(s.startCap)
+            s.preferAdaptive -> 1
+            else -> 0
+          }
+          Choice(loc(S.quality), qualities[qualityAt], Help(tv(TV.qualityHint) + "\n\n" + tv(TV.qualityMaxHint) + "\n\n" + tv(TV.qualityCapHint), qualities, qualities[qualityAt]), { help = it }) {
             app.update {
-              when (qualityAt) {
-                0 -> it.copy(preferAdaptive = true, maxQuality = false)
-                1 -> it.copy(preferAdaptive = false, maxQuality = true)
-                else -> it.copy(preferAdaptive = false, maxQuality = false)
+              when (val to = (qualityAt + 1) % qualities.size) {
+                0 -> it.copy(preferAdaptive = false, maxQuality = false, startCap = 0)
+                1 -> it.copy(preferAdaptive = true, maxQuality = false, startCap = 0)
+                2 -> it.copy(preferAdaptive = false, maxQuality = true, startCap = 0)
+                else -> it.copy(preferAdaptive = false, maxQuality = false, startCap = Settings.startCaps[to - 3])
               }
             }
           }
