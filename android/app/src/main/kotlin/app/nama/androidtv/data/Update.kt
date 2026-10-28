@@ -12,8 +12,8 @@ data class AndroidRelease(val version: String, val page: String, val apk: String
     const val FEED = "https://api.github.com/repos/thesaikodelik/30nama-apps/releases?per_page=10"
     /**
      * Where a person downloads by hand when updating from inside the app went wrong: the page with
-     * every device's file. Not `releases/latest`: Android releases are made with `--latest=false`
-     * (AGENTS.md), so that page is the Mac's or Windows'.
+     * every device's file. `releases/latest` leads there too while `downloads` is the release marked
+     * Latest (AGENTS.md); named here so it stays so if that ever changes.
      */
     const val DOWNLOADS = "https://github.com/thesaikodelik/30nama-apps/releases/tag/downloads"
 
