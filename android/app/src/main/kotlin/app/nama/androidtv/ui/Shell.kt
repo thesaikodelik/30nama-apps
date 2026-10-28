@@ -151,7 +151,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         LocalNav provides nav,
         LocalLoc provides app.loc,
         LocalCalm provides (app.settings.reduceMotion || systemCalm),
-        LocalLively provides (lively && !app.settings.reduceMotion && !systemCalm),
+        LocalLively provides (app.settings.effects.lively(lively) && !app.settings.reduceMotion && !systemCalm),
         LocalLayoutDirection provides if (app.settings.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr,
         androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal,
     ) {

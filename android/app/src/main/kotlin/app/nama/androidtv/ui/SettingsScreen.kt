@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.androidtv.data.Effects
 import app.nama.androidtv.latinName
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -180,6 +181,12 @@ fun SettingsScreen() {
           val context = LocalContext.current
           val systemCalm = remember { systemAnimationsOff(context) }
           val motionHint = tv(TV.motionHint) + if (systemCalm) "\n\n" + tv(TV.motionOffBySystem) else ""
+          // The Mac's Effects, before Reduce motion, which turns every one of them off whatever this says.
+          val effectNames = listOf(tv(TV.effectsAuto), loc(S.effectsFull), tv(TV.effectsLight))
+          val effectName = effectNames[s.effects.ordinal]
+          Choice(loc(S.effects), effectName, Help(tv(TV.effectsHint), effectNames, effectName), { help = it }) {
+            app.update { it.copy(effects = next(it.effects, Effects.entries.toList())) }
+          }
           Toggle(loc(S.reduceMotion), s.reduceMotion, motionHint, { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
           val scope = rememberCoroutineScope()
           val cleared = tv(TV.cleared)

@@ -25,6 +25,8 @@ data class Settings(
     /** Use the adaptive stream instead of the highest fixed rendition. */
     val preferAdaptive: Boolean = false,
     val reduceMotion: Boolean = false,
+    /** How much motion that never ends the TV shows (the Mac's Effects); Automatic decides by its memory. */
+    val effects: Effects = Effects.auto,
     /** How much of what is left of a title to fetch ahead onto the disk, in percent. */
     val readAhead: Int = 25,
     /** Switch the TV's refresh rate to the film's frame rate, even where that blanks the screen. */
@@ -49,6 +51,7 @@ data class Settings(
           audioMix = enumOf(AudioMix.entries.toTypedArray(), "audioMix", d.audioMix),
           preferAdaptive = p.getBoolean("adaptive", d.preferAdaptive),
           reduceMotion = p.getBoolean("calm", d.reduceMotion),
+          effects = enumOf(Effects.entries.toTypedArray(), "effects", d.effects),
           readAhead = p.getInt("readAhead", d.readAhead).takeIf { it in readAheadChoices } ?: d.readAhead,
           matchFrameRate = p.getBoolean("matchFrameRate", d.matchFrameRate),
       )
@@ -68,6 +71,7 @@ data class Settings(
         .putString("audioMix", audioMix.name)
         .putBoolean("adaptive", preferAdaptive)
         .putBoolean("calm", reduceMotion)
+        .putString("effects", effects.name)
         .putInt("readAhead", readAhead)
         .putBoolean("matchFrameRate", matchFrameRate)
         .apply()
@@ -88,6 +92,22 @@ enum class SubtitleColor(val label: S, val color: Color) {
  * weak TV a frame now and then, and a dropped frame shows in a film.
  */
 @Suppress("EnumEntryName")
+/**
+ * The Mac's Effects: the drifting backdrop, the hero that turns by itself, the leaning cards, the
+ * turning ring. Automatic gives them to a TV with the memory for them (2.5 GB) and spares a weaker
+ * one; Full and Light let the viewer say otherwise, either way.
+ */
+enum class Effects {
+  auto, full, light;
+
+  /** Whether the motion is on, given whether this TV has the memory for it. */
+  fun lively(roomy: Boolean): Boolean = when (this) {
+    auto -> roomy
+    full -> true
+    light -> false
+  }
+}
+
 enum class SubtitleBackground(val label: S, val plate: Float) {
   none(S.bgNone, 0f),
   half(S.bgHalf, 0.5f),

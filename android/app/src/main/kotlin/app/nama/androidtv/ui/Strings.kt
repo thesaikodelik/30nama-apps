@@ -93,6 +93,13 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
   ),
   geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  effectsAuto("Automatic, for this TV", "خودکار، برای این تلویزیون", "تلقائي، لهذا التلفاز"),
+  effectsLight("Light, easier on the TV", "سبک، راحت‌تر برای تلویزیون", "خفيف، أسهل على التلفاز"),
+  effectsHint(
+      "The motion that never stops: the backdrop drifting behind a page, the billboard turning by itself, cards leaning, the ring and light turning round what is in focus. Automatic gives it to a TV with the memory for it (2.5 GB or more) and spares a weaker one. Full if a smaller TV handles it well; Light if a TV slows down.",
+      "حرکت‌هایی که تمام نمی‌شوند: پس‌زمینه‌ای که پشت صفحه آرام جابه‌جا می‌شود، بیلبوردی که خودش ورق می‌خورد، کارت‌هایی که کج می‌شوند، و حلقه و نوری که دور چیزِ در فوکوس می‌چرخد. «خودکار» آن‌ها را به تلویزیونی می‌دهد که حافظه‌اش را دارد (۲٫۵ گیگ یا بیشتر) و تلویزیون ضعیف‌تر را معاف می‌کند. اگر تلویزیون کوچک‌تری خوب از پسش برمی‌آید «کامل»، و اگر تلویزیونی کند می‌شود «سبک».",
+      "الحركة التي لا تتوقف: الخلفية التي تنساب خلف الصفحة، واللوحة التي تتقلب وحدها، والبطاقات المائلة، والحلقة والضوء حول ما عليه التركيز. «تلقائي» يمنحها لتلفاز لديه الذاكرة الكافية (2.5 غيغابايت أو أكثر) ويعفي الأضعف. «كامل» إن كان تلفاز أصغر يتحملها جيداً، و«خفيف» إن تباطأ التلفاز.",
+  ),
   renewHint(
       "Scan the code with your phone to renew on 30nama's website.",
       "کد را با گوشی اسکن کنید تا اشتراک را در سایت ۳۰نما تمدید کنید.",
