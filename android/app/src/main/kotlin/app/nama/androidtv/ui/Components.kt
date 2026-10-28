@@ -134,7 +134,7 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
  * Drawn behind the content, read only when drawn; still on a weak TV or with reduced motion.
  */
 @Composable
-fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f): Modifier {
+fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape): Modifier {
   val turns = LocalLively.current && !LocalCalm.current
   val shown by animateFloatAsState(if (focused) 1f else 0f, tween(260), label = "wash")
   val angle = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -152,8 +152,9 @@ fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f): Modifier {
     val dy = size.height * 0.30f
     val one = Offset(cx + dx * kotlin.math.cos(a).toFloat(), cy + dy * kotlin.math.sin(a).toFloat())
     val two = Offset(cx - dx * kotlin.math.cos(a).toFloat(), cy - dy * kotlin.math.sin(a).toFloat())
-    drawRect(Brush.radialGradient(listOf(Theme.accentLight.copy(alpha = strength * shown), Color.Transparent), one, r))
-    drawRect(Brush.radialGradient(listOf(Theme.accentDeep.copy(alpha = strength * shown), Color.Transparent), two, r))
+    val outline = shape.createOutline(size, layoutDirection, this)
+    drawOutline(outline, Brush.radialGradient(listOf(Theme.accentLight.copy(alpha = strength * shown), Color.Transparent), one, r))
+    drawOutline(outline, Brush.radialGradient(listOf(Theme.accentDeep.copy(alpha = strength * shown), Color.Transparent), two, r))
   }
 }
 
@@ -229,6 +230,9 @@ fun PillButton(
                   chip -> Modifier.background(Color.White.copy(alpha = if (focused) 0.24f else 0.10f), capsule)
                   else -> Modifier.glass(capsule, lit = focused, fill = if (focused) 0.20f else 0.10f)
                 })
+            // The ring's red light moving inside, over the button's own face (the owner); on the
+            // white ones fainter, so they stay white.
+            .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
             .focusRing(focused, capsule)
             .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
@@ -266,7 +270,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusWash(focused, 0.30f, CircleShape).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
