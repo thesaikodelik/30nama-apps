@@ -543,7 +543,8 @@ private fun SeeAllCard(title: String, onClick: () -> Unit) {
   val loc = LocalLoc.current
   CardSurface(onClick = onClick) {
     Column(
-        Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).background(Color.White.copy(alpha = 0.08f)),
+        // Solid: the focus glow is a shadow under the card and showed through a see-through one.
+        Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).background(Theme.surface),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {

@@ -316,7 +316,7 @@ private fun Card(person: Person, d: PersonDetails?) {
         it.profession?.let { p -> loc(S.profession) to p },
     )
   }.orEmpty()
-  Column(Modifier.width(360.dp).clip(RoundedCornerShape(Theme.tileRadius)).background(Color.White.copy(alpha = 0.05f))) {
+  Column(Modifier.width(360.dp).clip(RoundedCornerShape(Theme.tileRadius)).background(Theme.surface)) {
     Box(Modifier.size(360.dp, 500.dp).background(Theme.surface2), contentAlignment = Alignment.Center) {
       Icon(Icons.person, null, Modifier.size(120.dp), tint = Theme.text3)
       face?.let { RemoteImage(it.url(360.0), Modifier.fillMaxSize(), blurhash = it.blurhash, pixelWidth = 400) }

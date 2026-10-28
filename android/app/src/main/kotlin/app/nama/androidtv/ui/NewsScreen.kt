@@ -158,9 +158,14 @@ private fun kindName(kind: Article.Kind): String {
 /** The Mac's article card: its picture, title, first lines and date, in Persian whatever the app's language. */
 @Composable
 private fun ArticleCard(article: Article, onClick: () -> Unit) {
-  CardSurface(onClick, radius = 16.dp, scale = 1.03f) {
+  // Solid, not see-through: the focus glow is a shadow under the card, and through a card of white
+  // 0.05 its blurred edge showed and its middle did not, a dark box over the text (the owner). No
+  // glint either, which lit only part of the text; in focus the whole card lightens evenly, with the
+  // ring's red light moving softly in it (the owner).
+  CardSurface(onClick, radius = 16.dp, scale = 1.03f, glint = false) {
+    val focused = LocalCardFocused.current
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-      Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.05f))) {
+      Column(Modifier.fillMaxWidth().background(if (focused) Theme.surface2 else Theme.surface).focusWash(focused)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Theme.surface2), contentAlignment = Alignment.Center) {
           Icon(Icons.newspaper, null, Modifier.size(40.dp), tint = Theme.text3)
           RemoteImage(article.thumbnail ?: article.picture, Modifier.fillMaxSize(), pixelWidth = 480)

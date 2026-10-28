@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawOutline
@@ -126,6 +127,38 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
     }
   }
 }
+
+/**
+ * The light the chosen preview threw round its ring, inside a surface in focus: two soft pools of
+ * 30nama's red (coral and raspberry) going slowly round each other, faint enough to read text over.
+ * Drawn behind the content, read only when drawn; still on a weak TV or with reduced motion.
+ */
+@Composable
+fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f): Modifier {
+  val turns = LocalLively.current && !LocalCalm.current
+  val shown by animateFloatAsState(if (focused) 1f else 0f, tween(260), label = "wash")
+  val angle = remember { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(focused, turns) {
+    if (!focused || !turns) return@LaunchedEffect
+    while (true) angle.animateTo(angle.value + 360f, tween(WASH_TURN_MS, easing = androidx.compose.animation.core.LinearEasing))
+  }
+  return this.drawBehind {
+    if (shown <= 0f) return@drawBehind
+    val a = Math.toRadians(angle.value.toDouble())
+    val r = size.maxDimension * 0.75f
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val dx = size.width * 0.32f
+    val dy = size.height * 0.30f
+    val one = Offset(cx + dx * kotlin.math.cos(a).toFloat(), cy + dy * kotlin.math.sin(a).toFloat())
+    val two = Offset(cx - dx * kotlin.math.cos(a).toFloat(), cy - dy * kotlin.math.sin(a).toFloat())
+    drawRect(Brush.radialGradient(listOf(Theme.accentLight.copy(alpha = strength * shown), Color.Transparent), one, r))
+    drawRect(Brush.radialGradient(listOf(Theme.accentDeep.copy(alpha = strength * shown), Color.Transparent), two, r))
+  }
+}
+
+/** One round of the wash: slower than the ring, so the two do not race. */
+private const val WASH_TURN_MS = 7000
 
 /** One turn of the ring, as slow as the preview the owner chose (3.6 s). */
 private const val RING_TURN_MS = 3600
@@ -263,6 +296,7 @@ fun CardSurface(
     glow: Color = Color.White,
     onLongClick: (() -> Unit)? = null,
     front: (@Composable BoxScope.() -> Unit)? = null,
+    glint: Boolean = true,
     content: @Composable () -> Unit,
 ) {
   val shape = RoundedCornerShape(radius)
@@ -310,7 +344,7 @@ fun CardSurface(
         Modifier.drawWithContent {
           drawContent()
           // The Mac's glint: under the imagined pointer, or still at the top where nothing moves.
-          if (focused) {
+          if (focused && glint) {
             val at = if (moves) Offset(size.width * across(), size.height * down()) else Offset(size.width * 0.5f, size.height * 0.12f)
             drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
           }
