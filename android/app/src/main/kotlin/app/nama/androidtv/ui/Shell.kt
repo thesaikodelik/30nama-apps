@@ -131,7 +131,14 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         splashGone = true
       }
 
-      Box(Modifier.fillMaxSize().background(Theme.bg0)) {
+      // Backspace is Back too, on a box run with a keyboard, as in most TV apps: only when nothing
+      // took it, so a text field being typed in still deletes. (Escape is turned to Back in MainActivity.)
+      val back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+      Box(Modifier.fillMaxSize().background(Theme.bg0).onKeyEvent { e ->
+        if (e.key != Key.Backspace) return@onKeyEvent false
+        if (e.type == KeyEventType.KeyUp) back?.onBackPressed()
+        true
+      }) {
         // A new language or account means a different catalogue: every tab starts over.
         val updater = app.updater
         val failed = (updater.state as? app.nama.androidtv.Updater.State.Failed)?.takeIf { updater.showFailure && app.playback == null }
