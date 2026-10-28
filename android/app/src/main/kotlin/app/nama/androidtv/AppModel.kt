@@ -534,6 +534,12 @@ class AppModel(
     ratings = book
     val bytes = book.encoded()
     scope.launch(Dispatchers.IO) { runCatching { ratingsFile().writeBytes(bytes) } }
+    // To the website too, signed in, as its own stars send it; the TV keeps its own either way. The
+    // site has no way to take a rating back, so a cleared one stays there.
+    if (stars != null && isLoggedIn) background {
+      runCatching { api.site(app.nama.core.SiteQuery.rate(post.id, stars), background = true, signed = true) }
+          .onFailure { android.util.Log.w(TAG, "rating not sent to the website: $it") }
+    }
   }
 
   // MARK: Playback and messages

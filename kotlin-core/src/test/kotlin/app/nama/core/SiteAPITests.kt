@@ -290,4 +290,11 @@ class SiteAPITests {
         assertEquals("the film, of that year, not the series or a namesake", 3, line.match(withYears)?.id)
         assertNull(line.match(listOf(withYears[0])))
     }
+
+    @Test
+    fun testARatingIsSentOnTheSitesTenPointScale() {
+        assertEquals("rate_post/id/12157/rate/7", SiteQuery.rate(12157, 3.5))
+        assertEquals("rate_post/id/5/rate/10", SiteQuery.rate(5, 5.0))
+        assertEquals("rate_post/id/5/rate/1", SiteQuery.rate(5, 0.5))
+    }
 }

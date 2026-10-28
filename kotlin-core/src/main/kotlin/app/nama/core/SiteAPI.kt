@@ -1,5 +1,6 @@
 package app.nama.core
 
+import kotlin.math.roundToInt
 import java.net.URI
 import java.time.DayOfWeek
 import java.time.Instant
@@ -55,6 +56,13 @@ object SiteQuery {
     fun article(id: Int): String = "single/id/$id"
 
     fun schedule(kind: Schedule.Kind): String = "schedule/type/${kind.name}"
+
+    /**
+     * The member's rating of a title on the website, 1 to 10, as its own stars send it
+     * (`rate_post/id/…/rate/…`, read from the website's script). The apps rate in half stars of
+     * five, so a half star is one of the site's ten.
+     */
+    fun rate(postID: Int, stars: Double): String = "rate_post/id/$postID/rate/${(stars * 2).roundToInt().coerceIn(1, 10)}"
 
     fun topList(list: TopList): String = "toplist/list/${list.rawValue}"
 

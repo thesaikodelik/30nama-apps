@@ -265,7 +265,11 @@ class APIClient(val config: APIConfig = APIConfig(), transport: Transport? = nul
      * `SITE_OUT_FOR` the site is not asked: what needs it fails at once with `APIError.Unreachable`
      * instead of every page waiting out the same silence. `siteAgain()` lifts that.
      */
-    suspend fun site(path: String, form: Map<String, String> = emptyMap(), background: Boolean = false): Json {
+    /**
+     * [signed]: as the member, with the session's token in the same `c-token` header the website
+     * sends (a rating); otherwise as the website does for anyone.
+     */
+    suspend fun site(path: String, form: Map<String, String> = emptyMap(), background: Boolean = false, signed: Boolean = false): Json {
         val key = config.site.key ?: throw APIError.Unreachable
         if (!siteInReach) throw APIError.Unreachable
         val request = HttpRequest(
@@ -275,7 +279,7 @@ class APIClient(val config: APIConfig = APIConfig(), transport: Transport? = nul
                 "Content-Type" to "application/x-www-form-urlencoded",
                 "c-api-key" to key,
                 "c-platform" to config.site.platform,
-            ),
+            ) + (if (signed && token.isNotEmpty()) mapOf("c-token" to token) else emptyMap()),
             body = formEncode(form).toByteArray(Charsets.UTF_8),
             timeoutSeconds = 12.0,
         )
