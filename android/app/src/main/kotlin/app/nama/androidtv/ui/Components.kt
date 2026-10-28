@@ -233,7 +233,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -501,7 +501,12 @@ fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier,
       RemoteImage(post.cover ?: post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 480)
       Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))))
       Column(Modifier.align(Alignment.BottomStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(post.title(loc.lang), style = app(20, FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // A Latin name from the left, as on the posters; the Persian lines under it keep their side.
+        Text(
+            post.title(loc.lang), Modifier.fillMaxWidth(),
+            style = app(20, FontWeight.Bold).copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content),
+            color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
         val resume = post.resume
         val line = if (post.id in app.newEpisodes) "● ${loc(S.newEpisode)}" else resume?.let { r ->
           listOfNotNull(

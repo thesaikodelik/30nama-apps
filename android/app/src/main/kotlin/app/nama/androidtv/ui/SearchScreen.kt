@@ -304,9 +304,11 @@ private fun SearchField(query: String, set: (String) -> Unit, focus: FocusReques
         )
         LaunchedEffect(Unit) { runCatching { input.requestFocus() } }
       } else {
+        val fieldInteraction = remember { MutableInteractionSource() }
         Surface(
             onClick = { typing = true },
-            modifier = Modifier.weight(1f).fillMaxSize().focusRequester(focus),
+            modifier = Modifier.weight(1f).fillMaxSize().focusRequester(focus).focusRing(fieldInteraction, RoundedCornerShape(14.dp)),
+            interactionSource = fieldInteraction,
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1, focusedContentColor = Theme.text1),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         ) {

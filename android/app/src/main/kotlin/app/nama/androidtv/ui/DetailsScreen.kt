@@ -765,12 +765,13 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
         val shape = RoundedCornerShape(26.dp)
         Surface(
             onClick = {},
+            modifier = Modifier.focusRing(interaction, shape),
             interactionSource = interaction,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.14f)),
             border = ClickableSurfaceDefaults.border(
                 border = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)), shape = shape),
-                focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.6f)), shape = shape),
+                focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp, Color.Transparent), shape = shape),
             ),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
         ) {
@@ -853,7 +854,7 @@ private fun Facts(post: Post) {
   val interaction = remember { MutableInteractionSource() }
   Surface(
       onClick = {},
-      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp),
+      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, RoundedCornerShape(22.dp)),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(22.dp)),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),

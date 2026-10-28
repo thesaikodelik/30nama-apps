@@ -336,9 +336,11 @@ private fun Paragraph(p: String) {
 /** A full-width row that takes the focus: glass at rest, white in focus. */
 @Composable
 fun TextRow(onClick: () -> Unit, content: @Composable () -> Unit) {
+  val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().focusRing(interaction, RoundedCornerShape(Theme.tileRadius)),
+      interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(RoundedCornerShape(Theme.tileRadius)),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
       scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.02f),

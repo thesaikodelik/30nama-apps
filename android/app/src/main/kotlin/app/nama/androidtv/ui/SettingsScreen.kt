@@ -410,9 +410,11 @@ private fun KeyCard(service: String, close: () -> Unit) {
             )
             LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
           } else {
+            val fieldInteraction = remember { MutableInteractionSource() }
             Surface(
                 onClick = { typing = true },
-                modifier = Modifier.fillMaxWidth().focusRequester(fieldButton),
+                modifier = Modifier.fillMaxWidth().focusRequester(fieldButton).focusRing(fieldInteraction, shapeField),
+                interactionSource = fieldInteraction,
                 shape = ClickableSurfaceDefaults.shape(shapeField),
                 colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
