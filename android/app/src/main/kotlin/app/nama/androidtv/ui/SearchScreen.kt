@@ -91,6 +91,9 @@ fun SearchScreen() {
   var persian by rememberSaveable { mutableStateOf(false) }
   var digits by rememberSaveable { mutableStateOf(false) }
   val recents = remember { Recents(app) }
+  // Only what can be watched here and now, as the Mac's chip under its field; kept between visits.
+  val prefs = remember { context.getSharedPreferences("search", android.content.Context.MODE_PRIVATE) }
+  var streamOnly by remember { mutableStateOf(prefs.getBoolean("streamOnly", false)) }
   val field = remember { FocusRequester() }
   val firstKey = remember { FocusRequester() }
   val grid = rememberLazyGridState()
@@ -100,7 +103,7 @@ fun SearchScreen() {
   }
   val canSpeak = remember { Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(context.packageManager) != null }
 
-  LaunchedEffect(query) {
+  LaunchedEffect(query, streamOnly) {
     // The server finds nothing for two spaces running, which a remote types easily.
     val text = query.trim().replace(Regex("\\s+"), " ")
     if (text.length < 2) {
@@ -108,7 +111,7 @@ fun SearchScreen() {
       val feed = attempt { app.home() }
       note = null
       heading = loc(S.popularNow)
-      results = (feed?.posts("suggested")?.takeIf { it.isNotEmpty() } ?: feed?.posts("movies").orEmpty()).take(20)
+      results = (feed?.posts("suggested")?.takeIf { it.isNotEmpty() } ?: feed?.posts("movies").orEmpty()).take(WALL * 3)
       return@LaunchedEffect
     }
     // Wait for typing to pause; a newer keystroke starts this over.
@@ -116,7 +119,7 @@ fun SearchScreen() {
     searching = true
     // The server refuses a query it finds too short or finds nothing for; that is no results, not an error.
     val page = try {
-      PostPage.from(app.api.get("search", mapOf("query" to text, "streamonly" to "0", "page" to "1")))
+      PostPage.from(app.api.get("search", mapOf("query" to text, "streamonly" to if (streamOnly) "1" else "0", "page" to "1")))
     } catch (e: kotlinx.coroutines.CancellationException) {
       throw e
     } catch (e: app.nama.core.APIError.Server) {
@@ -131,12 +134,13 @@ fun SearchScreen() {
         note = "${loc(S.nothingFor)} «$text»"
         val feed = attempt { app.home() }
         heading = loc(S.popularNow)
-        results = feed?.posts("suggested").orEmpty().take(20)
+        results = feed?.posts("suggested").orEmpty().take(WALL * 3)
       }
       else -> {
         note = null
         heading = "${loc(S.topResults)} · ${loc.num(page.total.takeIf { it > 0 } ?: page.posts.size)}"
-        results = page.posts
+        // Only the first page is asked for: of it, whole rows, unless it is all there is.
+        results = wholeRows(page.posts, page.pages <= 1).ifEmpty { page.posts }
       }
     }
   }
@@ -206,6 +210,14 @@ fun SearchScreen() {
       }
       item(span = { GridItemSpan(maxLineSpan) }, key = "heading") {
         Column(Modifier.fillMaxWidth().padding(top = 30.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+          // The Mac's two chips under its field: streaming only, and the advanced search.
+          Row(Modifier.align(Alignment.CenterHorizontally).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PillButton(loc(S.streamOnly), {
+              streamOnly = !streamOnly
+              prefs.edit().putBoolean("streamOnly", streamOnly).apply()
+            }, kind = PillKind.Chip, selected = streamOnly)
+            PillButton(loc(S.advancedSearch), { nav.push(Route.AdvancedSearch()) }, kind = PillKind.Chip, icon = Icons.tune)
+          }
           if (query.isBlank() && recents.items.isNotEmpty()) {
             // Centred under the keyboard, as the Mac's chips sit under its field.
             Text(tv(TV.recentSearches), Modifier.align(Alignment.CenterHorizontally), style = app(24, FontWeight.SemiBold), color = Theme.text3)

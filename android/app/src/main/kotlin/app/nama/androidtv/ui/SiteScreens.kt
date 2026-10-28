@@ -84,7 +84,7 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
           }
         }
         failed -> item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(1500.dp, 500.dp)) { ErrorState(LocalApp.current.loc(S.siteOutOfReach).takeIf { LocalApp.current.inIran }) { retry() } } }
-        else -> items(7) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
+        else -> items(WALL * 2) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
       }
     }
   }
@@ -240,8 +240,8 @@ fun PersonScreen(person: Person) {
       }
       if (done || posts.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.filmography), style = app(38, FontWeight.Bold), color = Theme.text1) }
       if (failed && posts.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(1500.dp, 400.dp)) { ErrorState { loadNext() } } }
-      items(posts, key = { it.id }) { post -> PosterCard(post, { nav.push(Route.Details(post)) }, titled = true) }
-      if (loading) items(7) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
+      items(wholeRows(posts, page >= pages), key = { it.id }) { post -> PosterCard(post, { nav.push(Route.Details(post)) }, titled = true) }
+      if (loading) items(WALL) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f), Theme.cardRadius) }
       if (!loading && done && posts.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.noMatches), style = app(28, FontWeight.Medium), color = Theme.text2) }
       // More as the remote nears the end.
       if (posts.isNotEmpty() && page < pages) item(span = { GridItemSpan(maxLineSpan) }) { LaunchedEffect(posts.size) { loadNext() } }

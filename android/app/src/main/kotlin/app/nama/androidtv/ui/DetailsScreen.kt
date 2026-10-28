@@ -188,7 +188,11 @@ fun DetailsScreen(route: Route.Details) {
   val hue = rememberSceneTint(post)
   CompositionLocalProvider(LocalHue provides hue) {
   Box(Modifier.fillMaxSize()) {
-    Stage(post, dim = 0.3f, settleMs = 0, tint = hue)
+    // A few seconds on the page with nothing else going on: the film itself plays behind it.
+    val small = items.firstOrNull()?.qualities?.let { q -> q.filter { !it.isAuto && it.height > 0 }.minByOrNull { it.height } ?: q.firstOrNull() }
+    val nav = LocalNav.current
+    val looking = app.playback == null && app.trailer == null && app.sheets.shown == null && nav.top == route
+    Stage(post, dim = 0.3f, settleMs = 0, tint = hue) { Teaser(small?.url, looking) }
     when {
       post != null -> CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides minimal) { Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(64.dp)) {
         Header(
@@ -705,14 +709,41 @@ private fun facts(post: Post, loc: app.nama.core.Loc): List<Pair<String, String>
 }
 
 /**
- * The Mac's facts at the foot of the page: a label and its value on each line. One block that takes
- * focus without showing much, so the remote can come down to it and the page scrolls to the end.
+ * The Mac's facts at the foot of the page: a label and its value on each line. Each director is a
+ * chip that leads to their other titles, as on the Mac (30nama's advanced search takes a director's
+ * name, not an actor's). Without a director, one block that takes focus without showing much, so
+ * the remote can still come down to it and the page scrolls to the end.
  */
 @Composable
 private fun Facts(post: Post) {
   val loc = LocalLoc.current
+  val nav = LocalNav.current
   val rows = facts(post, loc)
   if (rows.isEmpty()) return
+  val director = loc(S.director)
+  @Composable
+  fun lines() {
+    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      rows.forEach { (label, value) ->
+        Row(horizontalArrangement = Arrangement.spacedBy(26.dp), verticalAlignment = Alignment.CenterVertically) {
+          Text(label, Modifier.width(200.dp), style = app(23, FontWeight.Medium), color = Theme.text3)
+          if (label == director) {
+            Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              post.directors.forEach { name ->
+                PillButton(name, { nav.push(Route.AdvancedSearch(app.nama.core.AdvancedQuery(director = name, sort = "year"))) }, kind = PillKind.Chip)
+              }
+            }
+          } else {
+            Text(value, style = app(25), color = Theme.text1, maxLines = 2)
+          }
+        }
+      }
+    }
+  }
+  if (post.directors.isNotEmpty()) {
+    Box(Modifier.padding(horizontal = Theme.edge - 24.dp)) { lines() }
+    return
+  }
   val interaction = remember { MutableInteractionSource() }
   Surface(
       onClick = {},
@@ -721,14 +752,5 @@ private fun Facts(post: Post) {
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(22.dp)),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-  ) {
-    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-      rows.forEach { (label, value) ->
-        Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
-          Text(label, Modifier.width(200.dp), style = app(23, FontWeight.Medium), color = Theme.text3)
-          Text(value, style = app(25), color = Theme.text1, maxLines = 2)
-        }
-      }
-    }
-  }
+  ) { lines() }
 }

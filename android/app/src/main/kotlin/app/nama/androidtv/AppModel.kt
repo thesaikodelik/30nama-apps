@@ -50,7 +50,7 @@ data class PlaybackRequest(
 class AppModel(
     private val context: Context,
     private val scope: CoroutineScope,
-    transport: Transport? = null,
+    private val transport: Transport? = null,
     siteKey: String? = BuildConfig.SITE_KEY.ifEmpty { null },
     val http: okhttp3.OkHttpClient = okhttp3.OkHttpClient(),
 ) {
@@ -91,6 +91,43 @@ class AppModel(
 
   /** Logos and trailers from TMDB and Aparat. */
   val extras = app.nama.androidtv.data.Extras(context, http, { key("tmdb") }, { inIran })
+
+  /**
+   * What is trending on TMDB this week and can be watched on 30nama, in TMDB's order, as the Mac's
+   * home has it. Through the user's TMDB key when there is one, else TMDB's public page. Each title
+   * costs a 30nama search the first time, so the answers are kept on disk (see `Trending`).
+   */
+  suspend fun trendingThisWeek(): List<Post> {
+    // The row is TMDB's.
+    if (inIran) return emptyList()
+    val key = key("tmdb")
+    val known = trending
+    val service = if (known != null && known.first == key) known.second else {
+      val file = File(context.cacheDir, if (key == null) "trending-public.json" else "trending.json")
+      // Through the same network as everything else: a fixture one in tests.
+      app.nama.core.Trending(key, file, transport) { query -> api.get("search", mapOf("query" to query, "streamonly" to "0", "page" to "1"), background = true) }
+          .also { trending = key to it }
+    }
+    return attempt { service.row(app.nama.core.TrendingRow.trend) }.orEmpty()
+  }
+
+  private var trending: Pair<String?, app.nama.core.Trending>? = null
+
+  /**
+   * The ten most liked films or series ([slug]) that can be streamed, for home's two top tens.
+   * Asked for once while the app runs: the order changes slowly.
+   */
+  suspend fun topTen(slug: String): List<Post> {
+    topTens[slug]?.let { return it }
+    // Off the screen's own dispatcher: a background call waits its turn at the gate, and a screen
+    // need not count that wait as work of its own.
+    val result = withContext(Dispatchers.IO) {
+      attempt { api.get("archive", mapOf("slugs" to slug, "streamonly" to "1", "page" to "1", "orderby" to "favorite", "order" to "desc"), background = true) }
+    } ?: return emptyList()
+    return app.nama.core.PostPage.from(result).posts.take(10).also { topTens[slug] = it }
+  }
+
+  private val topTens = HashMap<String, List<Post>>()
 
   /** A small set of choices over the page (a held select), shown by the shell. */
   val sheets = app.nama.androidtv.ui.Sheets()

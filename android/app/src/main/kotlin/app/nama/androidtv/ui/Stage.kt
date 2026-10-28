@@ -46,9 +46,10 @@ private data class Backdrop(val id: Int, val url: URI?, val blurhash: String?, v
  *
  * @param dim extra black over the image, 0...1, for screens where the backdrop is only ambience.
  * @param settleMs how long focus must rest on a title before the backdrop follows it.
+ * @param video moving pictures over the still and under the shading (the title page's [Teaser]).
  */
 @Composable
-fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = true, tint: Color? = null) {
+fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = true, tint: Color? = null, video: (@Composable () -> Unit)? = null) {
   val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
   var shown by remember { mutableStateOf<Backdrop?>(null) }
   LaunchedEffect(post?.id) {
@@ -66,6 +67,7 @@ fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = tr
     Crossfade(shown, animationSpec = tween(700), label = "backdrop") { b ->
       if (b != null) Drifting(b)
     }
+    video?.invoke()
     // Text side: near-opaque at the start edge, clear by two thirds across.
     Box(
         Modifier.fillMaxSize().background(

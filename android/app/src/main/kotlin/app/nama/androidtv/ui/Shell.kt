@@ -229,6 +229,19 @@ fun MainScreen(onExit: () -> Unit) {
         withFrameNanos {}
         runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
       }
+      // A page opened over the tab takes focus, if it has not taken it itself: what was pressed
+      // to open it is still focused under it, hidden, and the remote would go on working there.
+      val routeFocus = remember { FocusRequester() }
+      var routeHasFocus by remember { mutableStateOf(false) }
+      LaunchedEffect(route) {
+        if (route == null) return@LaunchedEffect
+        repeat(40) {
+          withFrameNanos {}
+          if (routeHasFocus || barFocused) return@LaunchedEffect
+          runCatching { routeFocus.requestFocus() }
+          delay(50)
+        }
+      }
       Box(Modifier.fillMaxSize().blockFocus(sheet)) {
         // The tab's root page stays alive, hidden, under what is opened on top of it, so its
         // scroll, focus and loaded rows are all still there on the way back.
@@ -239,7 +252,9 @@ fun MainScreen(onExit: () -> Unit) {
         }
         if (route != null) {
           // Each page keeps its own saved state while another is shown over it.
-          holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
+          Box(Modifier.fillMaxSize().focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
+            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}") { RouteScreen(route) }
+          }
         }
       }
       // Over every page, as on the Mac; it steps out of the way once a page scrolls down.
@@ -299,6 +314,9 @@ private fun RouteScreen(route: Route) {
     is Route.PersonPage -> PersonScreen(route.person)
     Route.Schedule -> ScheduleScreen()
     Route.TopLists -> TopListsScreen()
+    is Route.AdvancedSearch -> AdvancedSearchScreen(route.query)
+    Route.News -> NewsScreen()
+    is Route.ArticlePage -> ArticleScreen(route.article)
   }
 }
 

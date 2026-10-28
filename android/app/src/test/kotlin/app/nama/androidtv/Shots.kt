@@ -81,6 +81,9 @@ class Shots {
     val langs = System.getProperty("nama.lang")?.let { listOf(Lang.valueOf(it)) } ?: listOf(Lang.en, Lang.fa, Lang.ar)
     val who = if (signedIn) "" else "guest-"
     var current by mutableStateOf<Pair<AppModel, Nav>?>(null)
+    // The clock moves only as tick() moves it. Left to move itself, Compose waits for every
+    // animation to end, and home's pager starts a new one each quarter second while the remote rests.
+    compose.mainClock.autoAdvance = false
     compose.setContent { current?.let { (model, nav) -> key(model) { NamaRoot(model, nav, onExit = {}, lively = false, intro = false) } } }
 
     for (lang in langs) {
@@ -114,7 +117,11 @@ class Shots {
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
       // On down to the top tens, as the Mac's home-top10.
       take("home-top10", List(4) { Key.DirectionDown })
-      for ((name, route) in listOf("schedule" to Route.Schedule, "toplists" to Route.TopLists, "person" to Route.PersonPage(app.nama.core.Person("Sample Actor", siteID = 1, imdb = "nm0000001")))) {
+      val article = app.nama.core.ArticlePage.fromSite(app.nama.core.Json.parse(File(fixtures, "site_articles.json").readBytes())["result"]).articles.first()
+      for ((name, route) in listOf(
+          "schedule" to Route.Schedule, "toplists" to Route.TopLists, "person" to Route.PersonPage(app.nama.core.Person("Sample Actor", siteID = 1, imdb = "nm0000001")),
+          "advanced" to Route.AdvancedSearch(), "news" to Route.News, "article" to Route.ArticlePage(article),
+      )) {
         nav.push(route)
         take("route-$name")
         nav.pop()
@@ -173,6 +180,8 @@ class Shots {
       if ((now - lastRequest > 1_200 && now - start > 600) || now - start > 10_000) break
       Thread.sleep(60)
     }
+    // Long enough for the slowest transition to end (the backdrop's crossfade, a billboard's turn).
+    compose.mainClock.advanceTimeBy(2_000)
     compose.waitForIdle()
   }
 
@@ -207,7 +216,10 @@ class Shots {
         val name = when {
           site.startsWith("schedule") -> "site_schedule"
           site.startsWith("toplist") -> "site_toplist"
-          site.startsWith("single/id") -> "site_person"
+          // The sample actor is number 1; any other page is the sample article.
+          site == "single/id/1" || site.startsWith("single/id/1/") -> "site_person"
+          site.startsWith("single/id") -> "site_article"
+          site.startsWith("article/") -> "site_articles"
           else -> "site_advanced_search"
         }
         return HttpResponse(200, emptyMap(), File(fixtures, "$name.json").readBytes())

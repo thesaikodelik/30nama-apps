@@ -88,6 +88,9 @@ fun HomeScreen() {
   var feed by remember { mutableStateOf<HomeFeed?>(null) }
   var continuing by remember { mutableStateOf<List<Post>>(emptyList()) }
   var forYou by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var trending by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var topMovies by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var topSeries by remember { mutableStateOf<List<Post>>(emptyList()) }
   var failed by remember { mutableStateOf(false) }
   var heroIndex by rememberSaveable { mutableIntStateOf(0) }
   /** The card in focus, when focus is in the rows. */
@@ -103,10 +106,14 @@ fun HomeScreen() {
 
   val heroes = feed?.heroes.orEmpty()
   val rows: List<HomeSection> = feed?.let { f ->
+    // The Mac's order: the week's trending after where the viewer left off, and the two top tens
+    // under the first shelf when 30nama's own home has none.
+    val tops = if (f.sections.none { it.key == "top_10" }) listOf(HomeSection(TOP_MOVIES, topMovies), HomeSection(TOP_SERIES, topSeries)).filter { it.posts.isNotEmpty() } else emptyList()
     listOfNotNull(
         continuing.takeIf { it.isNotEmpty() }?.let { HomeSection("continue", it) },
         forYou.takeIf { it.isNotEmpty() }?.let { HomeSection("for_you", it) },
-    ) + f.sections
+        trending.takeIf { it.isNotEmpty() }?.let { HomeSection(TRENDING, it) },
+    ) + f.sections.take(1) + tops + f.sections.drop(1)
   }.orEmpty()
   val hero = heroes.getOrNull(heroIndex) ?: heroes.firstOrNull()
   val featured = if (browsing == null) hero else (settled ?: browsing)?.post
@@ -125,6 +132,15 @@ fun HomeScreen() {
     continuing = reached.orEmpty()
     app.mirrorHome(reached)
     forYou = app.ratings.recommend(loaded.sections.flatMap { it.posts }, limit = 14)
+    // Neither is waited for: the page is already there, and the rows join it as they come.
+    // In the app's own scope, so a slow answer keeps nothing of this page waiting.
+    app.background {
+      if (loaded.sections.none { it.key == "top_10" }) {
+        topMovies = app.topTen("movies")
+        topSeries = app.topTen("series")
+      }
+      if (trending.isEmpty()) trending = app.trendingThisWeek()
+    }
   }
   // Without a connection home stays as it was saved, says so, and tries again every half minute.
   val offlineNote = tv(TV.offline)
@@ -148,6 +164,19 @@ fun HomeScreen() {
     delay(140)
     settled = browsing
   }
+  // The billboard's text and the backdrop change together, once the next title's picture and logo
+  // are in hand (a moment at most): otherwise its text, and a gap for its logo, sat over the last
+  // title's picture, as when the saved home gave way to the fresh one.
+  var staged by remember { mutableStateOf<Post?>(null) }
+  val context = androidx.compose.ui.platform.LocalContext.current
+  LaunchedEffect(featured?.id) {
+    val next = featured ?: return@LaunchedEffect
+    if (staged != null) {
+      delay(300)
+      kotlinx.coroutines.withTimeoutOrNull(1_500) { warmBillboard(context, app, next, loc.lang) }
+    }
+    staged = next
+  }
   LaunchedEffect(browsing == null) { chrome.pageAtTop = browsing == null }
   // Advances the hero after nine seconds on screen with the remote idle. A press pauses the turn
   // where it is, and it runs on once the remote has rested a moment: started over at each press,
@@ -168,10 +197,10 @@ fun HomeScreen() {
   }
 
   // Home is lit in the featured title's colour, from its scene picture, as on the Mac.
-  val light = rememberSceneTint(featured)
+  val light = rememberSceneTint(staged)
   CompositionLocalProvider(LocalHue provides light) {
   Box(Modifier.fillMaxSize()) {
-    Stage(featured, tint = light)
+    Stage(staged, settleMs = 0, tint = light)
     when {
       feed != null -> {
         Rows(
@@ -187,7 +216,7 @@ fun HomeScreen() {
               continuing = continuing.filter { it.id != post.id }
             },
         )
-        Billboard(featured, eyebrow(featured, browsing, settled), plotLines = if (browsing == null) 3 else 2, browsing = browsing != null)
+        Billboard(staged, eyebrow(staged, browsing, listOf(settled, browsing).firstOrNull { it != null && it.post.id == staged?.id }), plotLines = if (browsing == null) 3 else 2, browsing = browsing != null)
       }
       failed -> ErrorState { reload++ }
       else -> HomeSkeleton()
@@ -197,6 +226,23 @@ fun HomeScreen() {
 }
 
 data class Selection(val row: String, val post: Post, val rank: Int)
+
+private const val TRENDING = "tm_trend"
+private const val TOP_MOVIES = "top_movies"
+private const val TOP_SERIES = "top_series"
+private val ranked = setOf("top_10", TOP_MOVIES, TOP_SERIES)
+
+/** A row's name: 30nama's sections by their key, and the rows this app adds. */
+@Composable
+private fun rowTitle(key: String): String {
+  val loc = LocalLoc.current
+  return when (key) {
+    TRENDING -> loc(S.trendingWeek)
+    TOP_MOVIES -> loc(S.topFilms)
+    TOP_SERIES -> loc(S.topSeries)
+    else -> loc.title(key)
+  }
+}
 
 private object Layout {
   /** Bottom edge of the billboard text while the hero is showing. */
@@ -215,13 +261,12 @@ private object Layout {
 }
 
 @Composable
-private fun eyebrow(post: Post?, browsing: Selection?, settled: Selection?): String {
+private fun eyebrow(post: Post?, browsing: Selection?, selection: Selection?): String {
   val loc = LocalLoc.current
   post ?: return ""
-  val selection = settled ?: browsing
   if (browsing == null || selection == null) return "${loc(S.featured)} · ${loc.kindLine(post)}"
   return when (selection.row) {
-    "top_10" -> "${loc(S.top10)} · #${loc.num(selection.rank)}"
+    in ranked -> "${rowTitle(selection.row)} · #${loc.num(selection.rank)}"
     "continue" -> loc(S.continueWatching)
     else -> loc.kindLine(post)
   }
@@ -342,7 +387,7 @@ private fun Rows(
           val scale by animateFloatAsState(if (current) 1.06f else 1f, Theme.focusSpring(), label = "header")
           val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
           Text(
-              loc.title(section.key),
+              rowTitle(section.key),
               Modifier.height(Layout.HEADER_HEIGHT.dp).padding(start = Theme.edge).graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -354,7 +399,7 @@ private fun Rows(
             LazyRow(
                 Modifier.fillMaxWidth().focusRestorer(),
                 contentPadding = PaddingValues(horizontal = Theme.edge),
-                horizontalArrangement = Arrangement.spacedBy(if (section.key == "top_10") 4.dp else 21.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (section.key in ranked) 4.dp else 21.dp),
             ) {
               itemsIndexed(section.posts, key = { _, p -> p.id }) { i, post ->
                 val focus = Modifier.onFocusChanged { if (it.isFocused) onFocus(Selection(section.key, post, i + 1)) }
@@ -365,7 +410,7 @@ private fun Rows(
                       // Held select: off the row, on 30nama too.
                       onLongClick = { app.sheets.show(SheetSpec(post.title(loc.lang), listOf(SheetAction(loc(S.removeFromContinue), Icons.close) { onDismiss(post) }))) },
                   )
-                  "top_10" -> RankedCard(i + 1, post, { nav.push(Route.Details(post)) }, focus, loads = loads)
+                  in ranked -> RankedCard(i + 1, post, { nav.push(Route.Details(post)) }, focus, loads = loads)
                   else -> PosterCard(post, { nav.push(Route.Details(post)) }, focus, loads = loads)
                 }
               }

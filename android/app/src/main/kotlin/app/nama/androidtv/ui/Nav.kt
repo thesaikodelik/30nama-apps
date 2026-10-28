@@ -22,6 +22,14 @@ sealed interface Route {
   data object Schedule : Route
 
   data object TopLists : Route
+
+  /** 30nama's advanced search, opened with [query] (nothing chosen, or a title's director). */
+  data object News : Route
+
+  /** One of 30nama's articles, whole. */
+  data class ArticlePage(val article: app.nama.core.Article) : Route
+
+  data class AdvancedSearch(val query: app.nama.core.AdvancedQuery = app.nama.core.AdvancedQuery()) : Route
 }
 
 /** The Mac's order: Search first, then the catalogue, the user's own page, and Settings last. */

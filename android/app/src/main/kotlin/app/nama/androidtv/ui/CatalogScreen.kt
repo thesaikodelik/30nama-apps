@@ -75,6 +75,15 @@ fun Ambient(content: @Composable () -> Unit) {
 /** Sort orders of a catalogue (the Apple TV's CatalogView). "Newest" needs the website's own API. */
 private enum class Sort(val order: String, val label: S) { Updated("update", S.updated), Newest("id", S.newest), Popular("favorite", S.popular) }
 
+/** Posters across a wall: (1920 − 2 × 80 + 20) / (200 + 20). */
+const val WALL = 8
+
+/**
+ * What of a list fills whole rows of a wall; the rest waits for the next page, so no row stands half
+ * full while more is coming. Once the list is [complete] all of it shows.
+ */
+fun <T> wholeRows(list: List<T>, complete: Boolean): List<T> = if (complete) list else list.take(list.size / WALL * WALL)
+
 /**
  * A page of posters, more as the remote nears the end: [header] above, and what comes when focus
  * is within a couple of rows of the last.
@@ -83,6 +92,8 @@ private enum class Sort(val order: String, val label: S) { Updated("update", S.u
 fun PagedGrid(
     posts: List<Post>,
     loading: Boolean,
+    /** Every page is in: the last row may then be part of one. */
+    complete: Boolean,
     more: () -> Unit,
     header: LazyGridScope.() -> Unit = {},
     onOpen: (Post) -> Unit,
@@ -103,9 +114,10 @@ fun PagedGrid(
   ) {
     header()
     // A wall of posters, as the Mac's: each one's name comes up on it in focus.
-    itemsIndexed(posts, key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }) }
+    itemsIndexed(wholeRows(posts, complete), key = { _, p -> p.id }) { _, post -> PosterCard(post, { onOpen(post) }) }
+    // Whole rows of stand-ins, under rows that are whole too.
     if (loading) {
-      items(if (posts.isEmpty()) 14 else 7) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).padding(bottom = 8.dp), Theme.cardRadius) }
+      items(if (posts.isEmpty()) WALL * 2 else WALL) { Skeleton(Modifier.size(Theme.posterWidth, Theme.posterWidth * 1.5f).padding(bottom = 8.dp), Theme.cardRadius) }
     }
   }
 }
@@ -130,7 +142,8 @@ fun CatalogScreen(slug: String, title: String) {
   var page by remember { mutableIntStateOf(0) }
   var pages by remember { mutableIntStateOf(1) }
   var total by remember { mutableStateOf<Int?>(null) }
-  var loading by remember { mutableStateOf(false) }
+  // Loading from the first frame, so the page opens on stand-ins rather than on "nothing found".
+  var loading by remember { mutableStateOf(true) }
   var failed by remember { mutableStateOf(false) }
   var generation by remember { mutableIntStateOf(0) }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -183,7 +196,7 @@ fun CatalogScreen(slug: String, title: String) {
     if (failed && posts.isEmpty()) {
       ErrorState { loadNext() }
     } else {
-      PagedGrid(posts, loading, ::loadNext, header = {
+      PagedGrid(posts, loading, page >= pages, ::loadNext, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
           // The Mac's header: the name and its count at the start, the orders at the end, and the
           // filters as menus under the name.
@@ -218,7 +231,7 @@ fun CatalogScreen(slug: String, title: String) {
                 if (!filter.isEmpty) item { PillButton(loc(S.reset), { filter = Filter() }, kind = PillKind.Chip, icon = Icons.close) }
               }
             }
-            if (!loading && posts.isEmpty()) Text(loc(S.noMatches), style = app(28), color = Theme.text2)
+            if (!loading && posts.isEmpty() && page >= pages) Text(loc(S.noMatches), style = app(28), color = Theme.text2)
           }
         }
       }) { nav.push(Route.Details(it)) }
@@ -260,6 +273,7 @@ fun BrowseScreen() {
             Row(Modifier.padding(bottom = 22.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
               SiteTile(loc(S.weeklySchedule), Icons.calendar, Modifier.weight(1f)) { nav.push(Route.Schedule) }
               SiteTile(loc(S.topLists), Icons.trophy, Modifier.weight(1f)) { nav.push(Route.TopLists) }
+              SiteTile(loc(S.news), Icons.newspaper, Modifier.weight(1f)) { nav.push(Route.News) }
             }
           }
         }
