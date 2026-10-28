@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.androidtv.latinName
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import app.nama.androidtv.R
@@ -121,6 +122,8 @@ fun SettingsScreen() {
           // Under a week left, in red, as a nudge to renew.
           user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it, if ((user.daysLeft(java.time.Instant.now()) ?: 99) < 7) Theme.accent else Theme.text3) }
           if (user != null) {
+            // For a private profile on the site, which will not give the name: written here (the Mac's).
+            Choice("${loc(S.yourName)} (${loc(S.optional)})", app.ownName ?: tv(TV.keyNotSet), Help(tv(TV.yourNameHint)), { help = it }) { editing = "name" }
             Choice(loc(S.signOut), null, Help(loc(S.signOutBody)), { help = it }) {
               app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
             }
@@ -219,7 +222,7 @@ fun SettingsScreen() {
       }
     }
   }
-  editing?.let { service -> KeyCard(service) { editing = null } }
+  editing?.let { service -> if (service == "name") NameCard { editing = null } else KeyCard(service) { editing = null } }
 }
 
 /** The Mac's group: its name small above, the rows in one pane of glass. */
@@ -449,6 +452,70 @@ private fun KeyCard(service: String, close: () -> Unit) {
         }
         Text(tv(if (server != null) TV.keyFromPhone else TV.keyFromSite), style = app(22), color = Theme.text2, textAlign = TextAlign.Center)
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(address, style = app(18), color = Theme.text3, maxLines = 2) }
+      }
+    }
+  }
+}
+
+/** The member's own name, typed with the remote: English letters only, saved at once. */
+@Composable
+private fun NameCard(close: () -> Unit) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  var text by remember { mutableStateOf(app.ownName.orEmpty()) }
+  val field = remember { FocusRequester() }
+  val fieldButton = remember { FocusRequester() }
+  var typing by remember { mutableStateOf(false) }
+  BackHandler { if (typing) typing = false else close() }
+  LaunchedEffect(Unit) { runCatching { fieldButton.requestFocus() } }
+  fun save(name: String) {
+    app.saveOwnName(name)
+    close()
+  }
+  val shape = RoundedCornerShape(36.dp)
+  Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+    Column(Modifier.width(1000.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+      Text(loc(S.yourName), style = app(40, FontWeight.Bold), color = Theme.text1)
+      Text(tv(TV.yourNameHint), style = app(24).copy(lineHeight = app(24).fontSize * 1.5f), color = Theme.text2)
+      // English letters, left to right whatever the interface reads in.
+      CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        val shapeField = RoundedCornerShape(20.dp)
+        val nameStyle = app(28, FontWeight.SemiBold).copy(color = Theme.text1)
+        if (typing) {
+          BasicTextField(
+              text, { text = latinName(it) },
+              Modifier.fillMaxWidth().focusRequester(field).background(Theme.glass, shapeField).border(2.dp, Theme.accent, shapeField).padding(horizontal = 26.dp, vertical = 20.dp),
+              textStyle = nameStyle,
+              singleLine = true,
+              cursorBrush = SolidColor(Theme.accent),
+              keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                  capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Ascii,
+                  imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+              ),
+              keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { typing = false }),
+          )
+          LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
+        } else {
+          val fieldInteraction = remember { MutableInteractionSource() }
+          Surface(
+              onClick = { typing = true },
+              modifier = Modifier.fillMaxWidth().focusRequester(fieldButton).focusRing(fieldInteraction, shapeField),
+              interactionSource = fieldInteraction,
+              shape = ClickableSurfaceDefaults.shape(shapeField),
+              colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
+              scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+          ) {
+            Text(
+                text.ifEmpty { tv(TV.typeName) }, Modifier.padding(horizontal = 26.dp, vertical = 20.dp),
+                style = if (text.isEmpty()) app(24) else nameStyle.copy(color = Color.Unspecified), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+          }
+        }
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        PillButton(tv(TV.save), { save(text.trim()) }, kind = PillKind.Primary, icon = Icons.check)
+        PillButton(loc(S.removeKey), { save("") }, icon = Icons.close)
       }
     }
   }

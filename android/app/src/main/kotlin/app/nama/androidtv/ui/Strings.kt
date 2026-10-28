@@ -93,6 +93,12 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
   ),
   geminiKey("Gemini key", "کلید Gemini", "مفتاح Gemini"),
+  yourNameHint(
+      "Shown on your profile, and said by the line from a film, when your 30nama profile is private. In English letters. Stays on this TV.",
+      "وقتی پروفایل شما در ۳۰نما خصوصی است، این نام در پروفایل می‌آید و جملهٔ فیلم هم شما را با آن صدا می‌زند. با حروف انگلیسی. فقط روی همین تلویزیون می‌ماند.",
+      "يظهر في ملفك الشخصي، وتناديك به جملة الفيلم، عندما يكون ملفك في 30nama خاصًا. بالأحرف الإنجليزية. يبقى على هذا التلفاز فقط.",
+  ),
+  typeName("Your name, in English letters", "نام شما، با حروف انگلیسی", "اسمك، بالأحرف الإنجليزية"),
   geminiKeyHint(
       "Optional. Made free in Google AI Studio with your Google account. Translates the English subtitle into Persian when a title has no Persian one anywhere. Google's free tier may use what is sent to improve its models.",
       "اختیاری. رایگان در Google AI Studio با حساب گوگل خودتان ساخته می‌شود. وقتی عنوانی هیچ‌جا زیرنویس فارسی ندارد، زیرنویس انگلیسی را به فارسی ترجمه می‌کند. گوگل در نسخهٔ رایگان ممکن است متن فرستاده‌شده را برای بهتر کردن مدل‌هایش به کار ببرد.",

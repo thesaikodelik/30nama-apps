@@ -1,5 +1,7 @@
 package app.nama.androidtv.ui
 
+import app.nama.core.SiteProfile
+import app.nama.core.SiteQuery
 import androidx.compose.foundation.layout.wrapContentSize
 
 import androidx.compose.foundation.layout.offset
@@ -134,6 +136,21 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
   val loc = LocalLoc.current
   val user = app.user
   val shape = RoundedCornerShape(36.dp)
+  // The name the member gave the site, or failing that (a private profile) the one written in
+  // Settings, or failing that the username, as on the Mac.
+  val site by androidx.compose.runtime.produceState<SiteProfile?>(null, user?.name) {
+    value = null
+    val username = user?.name ?: return@produceState
+    value = runCatching { SiteProfile.fromSite(app.api.site(SiteQuery.profile(username), background = true)) }.getOrNull()
+  }
+  val own = app.ownName?.takeIf { user != null }
+  val shown = site?.fullName ?: own ?: user?.name
+  // First and family name for the line from a film: the site's, or the one written here.
+  val names: Pair<String?, String?> = when {
+    site?.fullName != null -> site?.firstName to site?.lastName
+    own != null -> own.split(" ").let { w -> w.first() to w.drop(1).joinToString(" ").ifEmpty { null } }
+    else -> null to null
+  }
   Row(
       Modifier.fillMaxWidth().glass(shape, fill = 0.04f).padding(horizontal = 36.dp, vertical = 31.dp),
       horizontalArrangement = Arrangement.spacedBy(29.dp), verticalAlignment = Alignment.CenterVertically,
@@ -143,7 +160,7 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
             .border(2.6.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.1f))), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-      val words = user?.name?.split(" ")?.filter { it.isNotEmpty() }.orEmpty()
+      val words = shown?.split(" ")?.filter { it.isNotEmpty() }.orEmpty()
       val initials = listOfNotNull(words.firstOrNull()?.firstOrNull(), if (words.size > 1) words.last().firstOrNull() else null).joinToString("").uppercase()
       if (initials.isNotEmpty()) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { Text(initials, style = app(55, FontWeight.ExtraBold), color = Color.White) }
@@ -152,7 +169,7 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
     }
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(user?.name ?: loc(S.guestAccount), style = app(44, FontWeight.ExtraBold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(shown ?: loc(S.guestAccount), style = app(44, FontWeight.ExtraBold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         user?.type?.let {
           Text(
               loc.accountType(it),
@@ -163,7 +180,9 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
       }
       // A guest otherwise has no way in from here but the settings.
       if (user == null) Text(loc(S.signInHint), Modifier.widthIn(max = 600.dp), style = app(19), color = Theme.text2)
-      Box(Modifier.padding(top = 12.dp)) { Quote(user?.name) }
+      // The username, small, under a name given instead of it.
+      else if (shown != user.name) user.name?.let { Text(it, style = app(18, FontWeight.Medium), color = Theme.text3, maxLines = 1) }
+      Box(Modifier.padding(top = 12.dp)) { Quote(names.first, names.second) }
     }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(23.dp)) {
       Figures(watchlist, favorites, sizes)
@@ -209,10 +228,10 @@ private fun Figures(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Str
  * time the app opens. Written left to right inside a Persian page, kept to the name's edge.
  */
 @Composable
-private fun Quote(name: String?) {
+private fun Quote(first: String?, family: String?) {
   val hue = LocalHue.current ?: Theme.accent
-  val first = name?.split(" ")?.firstOrNull()
-  val line = remember(first) { picked?.takeIf { it.first == first }?.second ?: app.nama.core.MovieLines.pick(first).also { picked = first to it } }
+  val key = "$first|$family"
+  val line = remember(key) { picked?.takeIf { it.first == key }?.second ?: app.nama.core.MovieLines.pick(first, family).also { picked = key to it } }
   val serif = androidx.compose.ui.text.font.FontFamily.Serif
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Column(Modifier.widthIn(max = 806.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

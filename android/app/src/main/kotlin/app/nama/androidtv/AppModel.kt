@@ -73,6 +73,20 @@ class AppModel(
     keys.edit().apply { if (value.isNullOrBlank()) remove(name) else putString(name, value.trim()) }.apply()
   }
 
+  /**
+   * The member's own name, written in Settings for when their profile on the site is private, as on
+   * the Mac and Windows: shown on the profile, and said by the line from a film. English letters
+   * only, as the lines are English. On this TV only.
+   */
+  var ownName by mutableStateOf(store.getString("displayName", null)?.ifBlank { null })
+    private set
+
+  fun saveOwnName(value: String?) {
+    val name = value?.let(::latinName)?.trim()?.ifBlank { null }
+    ownName = name
+    store.edit().apply { if (name == null) remove("displayName") else putString("displayName", name) }.apply()
+  }
+
   /** Persian subtitles from SubSource, for what 30nama has none for. */
   val finder = app.nama.androidtv.data.SubtitleFinder(http) { key("subsource") }
 
@@ -271,6 +285,8 @@ class AppModel(
     watched = emptySet()
     kept.clear()
     store.edit().remove("continueDismissals").remove("newEpisodes").remove("watched").remove("recentSearches").apply()
+    // Another member may sign in next: the name was this one's.
+    saveOwnName(null)
   }
 
   private fun sessionExpired() {
@@ -567,3 +583,8 @@ inline fun <T> attempt(block: () -> T): T? =
     } catch (e: Exception) {
       null
     }
+
+/** A name in English letters only: Latin letters, spaces, hyphens, apostrophes and dots, spaces single. */
+fun latinName(text: String): String =
+    text.filter { it in 'a'..'z' || it in 'A'..'Z' || it == ' ' || it == '-' || it == '\'' || it == '.' }
+        .replace(Regex(" {2,}"), " ").trimStart().take(40)
