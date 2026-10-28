@@ -36,6 +36,20 @@ object TMDB {
 
     fun idInFind(answer: Json, isSeries: Boolean): Int? = answer[if (isSeries) "tv_results" else "movie_results"].array.firstOrNull()?.get("id")?.int
 
+    /** One season of a series, its episodes' names in [lang]. */
+    fun seasonRequest(id: Int, season: Int, lang: Lang, key: String): HttpRequest =
+        request("tv/$id/season/$season", listOf("language" to if (lang == Lang.fa) "fa-IR" else if (lang == Lang.ar) "ar" else "en-US"), key)
+
+    private val placeholder = Regex("^\\s*(episode|قسمت|الحلقة|حلقه|بخش)\\s*[0-9۰-۹٠-٩]+\\s*$", RegexOption.IGNORE_CASE)
+
+    /** Episode number to its real name; TMDB's own "Episode 3" stand-ins left out (the Tizen app's). */
+    fun episodeNames(season: Json): Map<Int, String> =
+        season["episodes"].array.mapNotNull { e ->
+            val n = e["episode_number"].int ?: return@mapNotNull null
+            val name = e["name"].text?.trim()?.takeIf { it.isNotEmpty() && !placeholder.matches(it) } ?: return@mapNotNull null
+            n to name
+        }.toMap()
+
     fun idInSearch(answer: Json): Int? = answer["results"].array.firstOrNull()?.get("id")?.int
 
     /**
@@ -61,7 +75,8 @@ object TMDB {
     fun detailsRequest(id: Int, isSeries: Boolean, key: String): HttpRequest {
         val credits = if (isSeries) "aggregate_credits" else "credits"
         return request("${if (isSeries) "tv" else "movie"}/$id", listOf(
-            "append_to_response" to "images,videos,$credits,reviews",
+            // Translations for a Persian tagline; recommendations for "More like this".
+            "append_to_response" to "images,videos,$credits,reviews,translations,recommendations",
             "include_image_language" to "fa,en,null",
         ), key)
     }
@@ -112,6 +127,16 @@ object TMDB {
         val trailer: String? = null,
         val crew: List<Person> = emptyList(),
         val reviews: List<Review> = emptyList(),
+        /** The one line the poster says, in the interface's language when TMDB has it, else English. */
+        val tagline: String? = null,
+        /** TMDB's own score out of ten, when at least five voted. */
+        val score: Double? = null,
+        /** A wide picture of the title, sharper than a small cover. */
+        val backdrop: URI? = null,
+        /** TMDB's titles for "more like this", to be found on 30nama. */
+        val similar: List<TMDBItem> = emptyList(),
+        /** TMDB's own id for the title, for its seasons' episode names. */
+        val id: Int? = null,
     ) {
         val trailerPage: URI? get() = trailer?.let { urlOf("https://www.youtube.com/watch?v=$it") }
     }
@@ -157,6 +182,13 @@ object TMDB {
             val text = r["content"].text?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             Review(author, text, r["author_details"]["rating"].double, r["url"].url)
         }
-        return Info(logo, trailer, crew, reviews)
+        val translations = details["translations"]["translations"].array
+        fun taglineIn(code: String) = translations.firstOrNull { it["iso_639_1"].text == code }?.get("data")?.get("tagline")?.text?.trim()?.takeIf { it.isNotEmpty() }
+        val tagline = (if (lang == Lang.fa) taglineIn("fa") else null) ?: details["tagline"].text?.trim()?.takeIf { it.isNotEmpty() }
+        val score = details["vote_average"].double?.takeIf { (details["vote_count"].int ?: 0) >= 5 && it > 0 }
+        val backdrop = details["backdrop_path"].text?.let { urlOf(IMAGES + "w1280" + it) }
+        val kind = if (details["first_air_date"].isNull && details["name"].isNull) TMDBItem.Kind.movie else TMDBItem.Kind.tv
+        val similar = details["recommendations"]["results"].array.mapNotNull { TMDBItem.from(it, kind) }
+        return Info(logo, trailer, crew, reviews, tagline, score, backdrop, similar, details["id"].int)
     }
 }

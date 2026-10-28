@@ -247,7 +247,17 @@ class Trending(
         loadCache()
         val lists = row.sources(now()).map { list(it) }
         val candidates = row.candidates(lists)
+        val posts = found(candidates, row.cap)
+        return if (posts.size >= TrendingRow.MINIMUM) posts else emptyList()
+    }
 
+    /**
+     * Those of [items] that 30nama has, in their order, at most [cap]: a TMDB row, or a title's
+     * "more like this" (TMDB's recommendations).
+     */
+    suspend fun found(items: List<TMDBItem>, cap: Int): List<Post> {
+        loadCache()
+        val candidates = items
         // Up to four lookups at a time, and no new ones once the row is full.
         val found = mutableListOf<Pair<Int, Post>>()
         coroutineScope {
@@ -255,7 +265,7 @@ class Trending(
             var next = 0
             var active = 0
             while (true) {
-                while (active < 4 && next < candidates.size && found.size < row.cap) {
+                while (active < 4 && next < candidates.size && found.size < cap) {
                     val index = next
                     launch { results.send(index to resolve(candidates[index])) }
                     next++
@@ -270,8 +280,7 @@ class Trending(
         saveCache()
 
         val seen = HashSet<Int>()
-        val posts = found.sortedBy { it.first }.map { it.second }.filter { seen.add(it.id) }.take(row.cap)
-        return if (posts.size >= TrendingRow.MINIMUM) posts else emptyList()
+        return found.sortedBy { it.first }.map { it.second }.filter { seen.add(it.id) }.take(cap)
     }
 
     private suspend fun list(source: TrendingRow.Source): List<TMDBItem> {

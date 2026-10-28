@@ -243,13 +243,16 @@ fun DetailsScreen(route: Route.Details) {
         )
         // Each part below the header comes in softly as it arrives, rather than appearing at once.
         if (post.isSeries && items.size > 1) {
-          Arriving { Episodes(items, stream, shelf ?: Shelf.of(items, items.first()), { shelf = it }, episodesFocus) { startPlayback(it) } }
+          Arriving { Episodes(post, items, stream, shelf ?: Shelf.of(items, items.first()), { shelf = it }, episodesFocus) { startPlayback(it) } }
         }
         if (post.cast.isNotEmpty()) Arriving { Cast(post) }
         // From TMDB, with the user's own key: the people behind the camera, and reviews.
         app.extras.known[post.id]?.let { extra ->
           if (extra.crew.isNotEmpty()) Arriving { Crew(extra.crew) }
           if (extra.reviews.isNotEmpty()) Arriving { Reviews(extra.reviews) }
+          // TMDB's recommendations that 30nama has (the Tizen app's).
+          val similar by androidx.compose.runtime.produceState(emptyList<Post>(), extra.similar) { value = app.moreLikeThis(extra.similar) }
+          if (similar.isNotEmpty()) Arriving { MoreLikeThis(similar) }
         }
         // A plot longer than the header shows: whole here, as the Apple TV's storyline.
         if (post.plot(LocalLoc.current.lang).length > 260) Arriving { Storyline(post) }
@@ -395,7 +398,10 @@ private fun Header(
         }
       }
       TitleArt(post, size = 84)
-      Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true) }
+      // TMDB's own line for the title, in Persian when it has one, and its score.
+      val extra = app.extras.known[post.id]
+      extra?.tagline?.let { Text(it, Modifier.widthIn(max = 1150.dp), style = app(26, FontWeight.Medium).copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = Theme.text2, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+      Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true, tmdbScore = extra?.score) }
       Standing(post)
       Text(
           post.plot(loc.lang), Modifier.widthIn(max = 1150.dp),
@@ -589,11 +595,15 @@ private data class Shelf(val season: Int, val group: Int) {
 /** The Mac's episode list: seasons as choices on lines that wrap, then the episodes in a grid. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shelf, choose: (Shelf) -> Unit, focus: FocusRequester, play: (Int) -> Unit) {
+private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?, shelf: Shelf, choose: (Shelf) -> Unit, focus: FocusRequester, play: (Int) -> Unit) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val seasons = stream?.seasons.orEmpty()
   val inSeason = items.withIndex().filter { it.value.season == shelf.season }
+  // Names for the episodes 30nama leaves unnamed, from TMDB with the user's key (the Tizen app's).
+  val tmdbNames by androidx.compose.runtime.produceState(emptyMap<Int, String>(), post.id, shelf.season, loc.lang, app.extras.known[post.id]?.id) {
+    value = if (inSeason.all { it.value.title(loc.lang) != null }) emptyMap() else app.extras.episodeNames(post, shelf.season, loc.lang)
+  }
   val groups = (inSeason.size + Shelf.SIZE - 1) / Shelf.SIZE
   val shown = inSeason.drop(shelf.group * Shelf.SIZE).take(Shelf.SIZE)
   val resumeIndex = stream?.startIndex ?: 0
@@ -626,11 +636,11 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
             val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
             val done = item.fileID in app.watched
             EpisodeRow(
-                item, resume?.progress, watched = done,
+                item, resume?.progress, watched = done, name = tmdbNames[item.episodeNumber],
                 modifier = Modifier.weight(1f).then(if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier),
                 // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
                 onLongClick = {
-                  val name = item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
+                  val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
                   app.sheets.show(SheetSpec(name, listOf(
                       SheetAction(loc(S.play), Icons.play) { play(index) },
                       if (done) SheetAction(loc(S.markUnwatched), Icons.close) { app.setWatched(item.fileID, false) }
@@ -648,7 +658,7 @@ private fun Episodes(items: List<StreamItem>, stream: StreamResult?, shelf: Shel
 
 /** One episode, as the Mac's tile: its number, name and length, a tick once watched, and how far in. */
 @Composable
-private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, modifier: Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, modifier: Modifier, name: String? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
   val loc = LocalLoc.current
   val hue = LocalHue.current ?: Theme.accent
   val interaction = remember { MutableInteractionSource() }
@@ -670,7 +680,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
           else Text(loc.num(item.episodeRaw ?: "${item.episodeNumber}"), style = app(34, FontWeight.ExtraBold), color = if (progress != null) hue else Theme.text2, maxLines = 1)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text(item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}", style = app(25, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+          Text(item.title(loc.lang) ?: name ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}", style = app(25, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
           item.durationMinutes?.let { Text("${loc.num(it)} ${loc(S.min)}", style = app(20), color = if (focused) Theme.focusInk.copy(alpha = 0.6f) else Theme.text3) }
         }
         if (watched) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.good)
@@ -823,6 +833,18 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
           }
         }
       }
+    }
+  }
+}
+
+/** "More like this": TMDB's recommendations that 30nama has. */
+@Composable
+private fun MoreLikeThis(posts: List<Post>) {
+  val nav = LocalNav.current
+  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    SectionTitle(tv(TV.moreLikeThis), Modifier.padding(start = Theme.edge))
+    LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(30.dp)) {
+      items(posts, key = { it.id }) { p -> PosterCard(p, { nav.push(Route.Details(p)) }, titled = true) }
     }
   }
 }

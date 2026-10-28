@@ -52,13 +52,19 @@ private data class Backdrop(val id: Int, val url: URI?, val blurhash: String?, v
 fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = true, tint: Color? = null, video: (@Composable () -> Unit)? = null) {
   val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
   var shown by remember { mutableStateOf<Backdrop?>(null) }
-  LaunchedEffect(post?.id) {
+  // TMDB's wide picture, with the user's key, where 30nama has no scene picture (the Tizen app's).
+  val tmdbBackdrop = post?.let { LocalApp.current.extras.known[it.id]?.backdrop }
+  LaunchedEffect(post?.id, tmdbBackdrop) {
     post ?: return@LaunchedEffect
     // The first image appears at once; later ones wait for focus to settle.
     if (shown != null) delay(settleMs)
-    if (shown?.id == post.id) return@LaunchedEffect
-    // A title without a wide scene picture falls back to its poster, blurred into a wash of colour.
-    shown = if (post.cover != null) Backdrop(post.id, post.cover, post.poster.blurhash, false) else Backdrop(post.id, post.poster.url(428.0), post.poster.blurhash, true)
+    if (shown?.id == post.id && (post.cover != null || tmdbBackdrop == null || shown?.url == tmdbBackdrop)) return@LaunchedEffect
+    // A title without a wide scene picture takes TMDB's, else its poster, blurred into a wash of colour.
+    shown = when {
+      post.cover != null -> Backdrop(post.id, post.cover, post.poster.blurhash, false)
+      tmdbBackdrop != null -> Backdrop(post.id, tmdbBackdrop, post.poster.blurhash, false)
+      else -> Backdrop(post.id, post.poster.url(428.0), post.poster.blurhash, true)
+    }
   }
   val dimmed by animateFloatAsState(dim, tween(300), label = "dim")
   val glowColor by animateColorAsState(tint ?: post?.tint() ?: Theme.accent, tween(1000), label = "glow")

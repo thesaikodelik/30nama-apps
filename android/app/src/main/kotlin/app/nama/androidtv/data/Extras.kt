@@ -156,6 +156,23 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     runCatching { storeFile(post).writeText(details?.serialize() ?: "") }
   }
 
+  private val seasonNames = HashMap<String, Map<Int, String>>()
+
+  /**
+   * The names TMDB gives a season's episodes, in [lang] (Persian where TMDB has it), for those
+   * 30nama leaves unnamed. Only with the user's key, and once the title has been looked up.
+   */
+  suspend fun episodeNames(post: Post, season: Int, lang: Lang): Map<Int, String> {
+    val key = key() ?: return emptyMap()
+    if (filtered()) return emptyMap()
+    val id = known[post.id]?.id ?: return emptyMap()
+    val k = "$id/$season/${lang.name}"
+    seasonNames[k]?.let { return it }
+    val names = json(TMDB.seasonRequest(id, season, lang, key))?.let { TMDB.episodeNames(it) } ?: return emptyMap()
+    seasonNames[k] = names
+    return names
+  }
+
   /** The list of logos, kept on disk and fetched again once a day; an old copy serves when GitHub does not answer. */
   private suspend fun loadIndex(): LogoIndex? = withContext(Dispatchers.IO) {
     val file = File(context.cacheDir, "30nama-logos.json")

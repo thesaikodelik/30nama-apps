@@ -111,10 +111,17 @@ class AppModel(
    * home has it. Through the user's TMDB key when there is one, else TMDB's public page. Each title
    * costs a 30nama search the first time, so the answers are kept on disk (see `Trending`).
    */
-  suspend fun trendingThisWeek(): List<Post> {
-    // The row is TMDB's.
+  suspend fun trendingThisWeek(): List<Post> = tmdbRow(app.nama.core.TrendingRow.trend)
+
+  /**
+   * One of TMDB's rows, found on 30nama: the week's trending (with or without a key), and with the
+   * user's own key the new and returning series and the films now popular, as the Tizen app has.
+   */
+  suspend fun tmdbRow(row: app.nama.core.TrendingRow): List<Post> {
+    // The rows are TMDB's.
     if (inIran) return emptyList()
     val key = key("tmdb")
+    if (key == null && row != app.nama.core.TrendingRow.trend) return emptyList()
     val known = trending
     val service = if (known != null && known.first == key) known.second else {
       val file = File(context.cacheDir, if (key == null) "trending-public.json" else "trending.json")
@@ -122,10 +129,18 @@ class AppModel(
       app.nama.core.Trending(key, file, transport) { query -> api.get("search", mapOf("query" to query, "streamonly" to "0", "page" to "1"), background = true) }
           .also { trending = key to it }
     }
-    return attempt { service.row(app.nama.core.TrendingRow.trend) }.orEmpty()
+    return attempt { service.row(row) }.orEmpty()
   }
 
   private var trending: Pair<String?, app.nama.core.Trending>? = null
+
+  /** TMDB's recommendations for a title, those 30nama has: none until three are found (the Tizen app's). */
+  suspend fun moreLikeThis(items: List<app.nama.core.TMDBItem>): List<Post> {
+    if (inIran || items.isEmpty() || key("tmdb") == null) return emptyList()
+    tmdbRow(app.nama.core.TrendingRow.trend)
+    val service = trending?.second ?: return emptyList()
+    return attempt { service.found(items, 12) }.orEmpty().takeIf { it.size >= 3 }.orEmpty()
+  }
 
   /**
    * The ten most liked films or series ([slug]) that can be streamed, for home's two top tens.

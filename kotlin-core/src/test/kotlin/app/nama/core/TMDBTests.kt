@@ -17,6 +17,16 @@ class TMDBTests {
         assertTrue(plain.url.contains("api_key=abc123"))
     }
 
+    @Test fun testEpisodeNamesLeaveOutStandIns() {
+        val season = obj("episodes" to listOf(
+            mapOf("episode_number" to 1, "name" to "Pilot"),
+            mapOf("episode_number" to 2, "name" to "Episode 2"),
+            mapOf("episode_number" to 3, "name" to "قسمت ۳"),
+            mapOf("episode_number" to 4, "name" to "فرار"),
+        ))
+        assertEquals(mapOf(1 to "Pilot", 4 to "فرار"), TMDB.episodeNames(season))
+    }
+
     @Test fun testSearchTakesTheTitleNotTheFirstResult() {
         val answer = obj("results" to listOf(
             mapOf("id" to 1, "title" to "Dune Drifter", "release_date" to "2020-01-01"),

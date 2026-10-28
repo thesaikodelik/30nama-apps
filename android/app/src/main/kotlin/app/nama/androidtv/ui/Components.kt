@@ -642,7 +642,7 @@ private fun FactChip(text: String) {
  * MyAnimeList, 30nama), then year, runtime and age rating, then genres.
  */
 @Composable
-fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: Boolean = false) {
+fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: Boolean = false, tmdbScore: Double? = null) {
   val loc = LocalLoc.current
   val scores: @Composable (Boolean) -> Unit = { all ->
     post.imdbScore?.let { ScoreChip("IMDb", Theme.imdb, Fmt.score(it)) }
@@ -650,6 +650,8 @@ fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: 
     post.rottenTomatoes?.let { ScoreChip("RT", if (it >= 60) Color(0xFFFA4B2A) else Color(0xFF7BB661), "$it%") }
     if (all) post.metacritic?.let { ScoreChip("MC", if (it >= 61) Color(0xFF66CC33) else if (it >= 40) Color(0xFFFFCC33) else Color(0xFFFF5A4D), "$it") }
     if (all || post.rottenTomatoes == null) post.fanScore?.let { ScoreChip(it.source, Color(0xFF6C8CFF), Fmt.score(it.value)) }
+    // TMDB's own, with the user's key, on a title page (the Tizen app's).
+    if (all) tmdbScore?.let { ScoreChip("TMDB", Color(0xFF01B4E4), Fmt.score(it)) }
     post.siteScore?.let { score ->
       Chip {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

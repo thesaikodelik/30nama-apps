@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.core.TrendingRow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -93,6 +94,8 @@ fun HomeScreen() {
   var continuing by remember { mutableStateOf<List<Post>>(emptyList()) }
   var forYou by remember { mutableStateOf<List<Post>>(emptyList()) }
   var trending by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var freshSeries by remember { mutableStateOf<List<Post>>(emptyList()) }
+  var popularFilms by remember { mutableStateOf<List<Post>>(emptyList()) }
   var topMovies by remember { mutableStateOf<List<Post>>(emptyList()) }
   var topSeries by remember { mutableStateOf<List<Post>>(emptyList()) }
   var failed by remember { mutableStateOf(false) }
@@ -117,7 +120,11 @@ fun HomeScreen() {
         continuing.takeIf { it.isNotEmpty() }?.let { HomeSection("continue", it) },
         forYou.takeIf { it.isNotEmpty() }?.let { HomeSection("for_you", it) },
         trending.takeIf { it.isNotEmpty() }?.let { HomeSection(TRENDING, it) },
-    ) + f.sections.take(1) + tops + f.sections.drop(1)
+    ) + f.sections.take(1) + tops + listOfNotNull(
+        // With the user's TMDB key: new and returning series, and the films now popular (the Tizen app's).
+        freshSeries.takeIf { it.isNotEmpty() }?.let { HomeSection(FRESH, it) },
+        popularFilms.takeIf { it.isNotEmpty() }?.let { HomeSection(POPULAR, it) },
+    ) + f.sections.drop(1)
   }.orEmpty()
   val hero = heroes.getOrNull(heroIndex) ?: heroes.firstOrNull()
   val featured = if (browsing == null) hero else (settled ?: browsing)?.post
@@ -144,6 +151,8 @@ fun HomeScreen() {
         topSeries = app.topTen("series")
       }
       if (trending.isEmpty()) trending = app.trendingThisWeek()
+      if (freshSeries.isEmpty()) freshSeries = app.tmdbRow(TrendingRow.fresh)
+      if (popularFilms.isEmpty()) popularFilms = app.tmdbRow(TrendingRow.pop)
     }
   }
   // Without a connection home stays as it was saved, says so, and tries again every half minute.
@@ -253,6 +262,8 @@ data class Selection(val row: String, val post: Post, val rank: Int)
 private const val GLOW_ROOM = 44
 
 private const val TRENDING = "tm_trend"
+private const val FRESH = "tm_fresh"
+private const val POPULAR = "tm_pop"
 private const val TOP_MOVIES = "top_movies"
 private const val TOP_SERIES = "top_series"
 private val ranked = setOf("top_10", TOP_MOVIES, TOP_SERIES)
@@ -263,6 +274,8 @@ private fun rowTitle(key: String): String {
   val loc = LocalLoc.current
   return when (key) {
     TRENDING -> loc(S.trendingWeek)
+    FRESH -> tv(TV.freshSeries)
+    POPULAR -> tv(TV.popularFilms)
     TOP_MOVIES -> loc(S.topFilms)
     TOP_SERIES -> loc(S.topSeries)
     else -> loc.title(key)
