@@ -44,6 +44,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -69,6 +72,7 @@ import app.nama.core.HomeSection
 import app.nama.core.Post
 import app.nama.core.S
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Home: a billboard over a living backdrop, with rows of posters below (the Apple TV's HomeView).
@@ -227,6 +231,9 @@ fun HomeScreen() {
 
 data class Selection(val row: String, val post: Post, val rank: Int)
 
+/** Room above and below a row of cards for a focused card's glow and growth. */
+private const val GLOW_ROOM = 44
+
 private const val TRENDING = "tm_trend"
 private const val TOP_MOVIES = "top_movies"
 private const val TOP_SERIES = "top_series"
@@ -322,6 +329,14 @@ private fun Rows(
   val nav = LocalNav.current
   val loc = LocalLoc.current
   val keys = rows.map { it.key }
+  // Down and up go row to row by hand, as on the Apple TV: left to Compose's geometric search, a
+  // row starting below the screen's edge was not found, and focus fell back to the first row.
+  // Each row is entered at the card last focused on it, or its first.
+  val entries = remember(keys) { keys.associateWith { FocusRequester() } }
+  val lastIndex = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+  /** The row a card in focus is on, as focus itself says (browsing may run ahead of it). */
+  var focusOn by remember { mutableStateOf<String?>(null) }
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
   val focusedRow = browsing?.let { keys.indexOf(it.row) } ?: -1
   // The rows sit still while the hero shows; browsing, the focused row's header goes to the focus line.
   val target = if (focusedRow < 0) Layout.RESTING_ROW_TOP else Layout.FOCUS_LINE - focusedRow * (Layout.ROW_HEIGHT + Layout.ROW_SPACING)
@@ -379,6 +394,8 @@ private fun Rows(
 
     Column(Modifier.focusRestorer(), verticalArrangement = Arrangement.spacedBy(Layout.ROW_SPACING.dp)) {
       rows.forEachIndexed { index, section ->
+        // Each row's state follows its key: rows arrive late (the top tens) and move the others down.
+        androidx.compose.runtime.key(section.key) {
         val current = index == focusedRow
         // The row above the focused one stays visible only as a quiet strip under the billboard.
         val above = focusedRow >= 0 && index < focusedRow
@@ -396,13 +413,42 @@ private fun Rows(
               style = app(30, FontWeight.Bold), color = Theme.text1, maxLines = 1,
           )
           CompositionLocalProvider(LocalBringIntoViewSpec provides startEdge) {
+            // Taller than the row by the room a card's glow and its growth in focus take, above and
+            // below, so neither is cut at the row's edge; the row itself keeps its height.
+            Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
             LazyRow(
-                Modifier.fillMaxWidth().focusRestorer(),
-                contentPadding = PaddingValues(horizontal = Theme.edge),
+                Modifier.fillMaxWidth().requiredHeight((300 + GLOW_ROOM * 2).dp)
+                    .onPreviewKeyEvent { e ->
+                      if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                      val to = when (e.key) {
+                        androidx.compose.ui.input.key.Key.DirectionDown -> keys.getOrNull(index + 1)
+                        androidx.compose.ui.input.key.Key.DirectionUp -> keys.getOrNull(index - 1)
+                        else -> return@onPreviewKeyEvent false
+                      } ?: return@onPreviewKeyEvent false
+                      // The rows move first, so the next one is on the screen; then it takes focus.
+                      val target = rows.first { it.key == to }
+                      val at = (lastIndex[to] ?: 0).coerceIn(0, (target.posts.size - 1).coerceAtLeast(0))
+                      target.posts.getOrNull(at)?.let { onFocus(Selection(to, it, at + 1)) }
+                      scope.launch {
+                        repeat(30) {
+                          androidx.compose.runtime.withFrameNanos {}
+                          if (focusOn == to) return@launch
+                          runCatching { entries.getValue(to).requestFocus() }
+                        }
+                      }
+                      true
+                    },
+                contentPadding = PaddingValues(horizontal = Theme.edge, vertical = GLOW_ROOM.dp),
                 horizontalArrangement = Arrangement.spacedBy(if (section.key in ranked) 4.dp else 21.dp),
             ) {
               itemsIndexed(section.posts, key = { _, p -> p.id }) { i, post ->
-                val focus = Modifier.onFocusChanged { if (it.isFocused) onFocus(Selection(section.key, post, i + 1)) }
+                val focus = Modifier.onFocusChanged {
+                  if (it.isFocused) {
+                    focusOn = section.key
+                    lastIndex[section.key] = i
+                    onFocus(Selection(section.key, post, i + 1))
+                  }
+                }.then(if (i == (lastIndex[section.key] ?: 0)) Modifier.focusRequester(entries.getValue(section.key)) else Modifier)
                 val loads = i < 10 || section.key in opened
                 when (section.key) {
                   "continue" -> ContinueCard(
@@ -426,7 +472,9 @@ private fun Rows(
                 }
               }
             }
+            }
           }
+        }
         }
       }
       if (!app.isLoggedIn) GuestNote()
