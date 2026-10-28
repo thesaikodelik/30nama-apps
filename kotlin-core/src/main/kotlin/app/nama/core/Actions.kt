@@ -80,8 +80,14 @@ suspend fun APIClient.downloads(postID: Int, signedIn: Boolean): DownloadOptions
     return if (e.success) DownloadOptions.from(e.result) else null
 }
 
+/**
+ * `streamonly` as the server reads it: only the word "true" filters. "1" was sent for years and
+ * was ignored, so "streaming only" showed everything (tried on the server, 6 Aban 1405).
+ */
+fun streamOnly(on: Boolean): String = if (on) "true" else "false"
+
 suspend fun APIClient.search(query: String, streamOnly: Boolean = false, page: Int = 1, background: Boolean = false): PostPage =
-    PostPage.from(get("search", mapOf("query" to query, "streamonly" to if (streamOnly) "1" else "0", "page" to page.toString()), background))
+    PostPage.from(get("search", mapOf("query" to query, "streamonly" to streamOnly(streamOnly), "page" to page.toString()), background))
 
 /**
  * A category or genre (`MenuEntry.slug`), a page at a time.
@@ -89,7 +95,7 @@ suspend fun APIClient.search(query: String, streamOnly: Boolean = false, page: I
  */
 suspend fun APIClient.archive(slug: String, orderBy: String, page: Int = 1, streamOnly: Boolean = true, background: Boolean = false): PostPage =
     PostPage.from(get("archive", mapOf(
-        "slugs" to slug, "streamonly" to if (streamOnly) "1" else "0", "page" to page.toString(),
+        "slugs" to slug, "streamonly" to streamOnly(streamOnly), "page" to page.toString(),
         "orderby" to orderBy, "order" to "desc",
     ), background))
 

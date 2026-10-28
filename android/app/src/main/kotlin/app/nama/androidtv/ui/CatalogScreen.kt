@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.core.streamOnly
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
@@ -165,7 +166,7 @@ fun CatalogScreen(slug: String, title: String) {
         when {
           !filter.isEmpty && kind != null -> PostPage.from(app.api.get("advanced_search", mapOf("parameters" to filter.parameters(kind), "orderby" to sort.order, "order" to "DESC", "page" to (page + 1).toString())))
           sort == Sort.Newest && kind != null -> PostPage.fromSite(app.api.site(SiteQuery.newest(kind, null, true, page + 1)))
-          else -> PostPage.from(app.api.get("archive", mapOf("slugs" to slug, "streamonly" to "1", "page" to (page + 1).toString(), "orderby" to sort.order, "order" to "desc")))
+          else -> PostPage.from(app.api.get("archive", mapOf("slugs" to slug, "streamonly" to streamOnly(true), "page" to (page + 1).toString(), "orderby" to sort.order, "order" to "desc")))
         }
       }
       // A newer sort or filter restarted the list; this answer belongs to the old one.

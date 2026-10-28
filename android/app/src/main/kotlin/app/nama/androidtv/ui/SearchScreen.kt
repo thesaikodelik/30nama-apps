@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.core.streamOnly
 import android.app.Activity
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -124,7 +125,7 @@ fun SearchScreen() {
     searching = true
     // The server refuses a query it finds too short or finds nothing for; that is no results, not an error.
     val page = try {
-      PostPage.from(app.api.get("search", mapOf("query" to text, "streamonly" to if (streamOnly) "1" else "0", "page" to "1")))
+      PostPage.from(app.api.get("search", mapOf("query" to text, "streamonly" to streamOnly(streamOnly), "page" to "1")))
     } catch (e: kotlinx.coroutines.CancellationException) {
       throw e
     } catch (e: app.nama.core.APIError.Server) {

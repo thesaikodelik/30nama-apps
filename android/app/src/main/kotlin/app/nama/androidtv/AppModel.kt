@@ -151,7 +151,7 @@ class AppModel(
     // Off the screen's own dispatcher: a background call waits its turn at the gate, and a screen
     // need not count that wait as work of its own.
     val result = withContext(Dispatchers.IO) {
-      attempt { api.get("archive", mapOf("slugs" to slug, "streamonly" to "1", "page" to "1", "orderby" to "favorite", "order" to "desc"), background = true) }
+      attempt { api.get("archive", mapOf("slugs" to slug, "streamonly" to app.nama.core.streamOnly(true), "page" to "1", "orderby" to "favorite", "order" to "desc"), background = true) }
     } ?: return emptyList()
     return app.nama.core.PostPage.from(result).posts.take(10).also { topTens[slug] = it }
   }

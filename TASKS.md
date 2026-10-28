@@ -594,7 +594,7 @@
 
 **کارها، به ترتیب (هر کدام کامیت و پوش، بعد تیک):**
 
-- [ ] **۱. `streamonly` با `"true"`** در `search`، `archive` و ۱۰ برتر (`Actions.kt`، `AppModel.topTen`، جست‌وجو، کاتالوگ)
+- [x] **۱. `streamonly` با `"true"`** در `search`، `archive` و ۱۰ برتر (`Actions.kt`، `AppModel.topTen`، جست‌وجو، کاتالوگ)
 - [ ] **۲. ژانر در فیلتر کاتالوگ به‌صورت فهرست** (`Filter.parameters`)؛ کشور تکی می‌ماند
 - [ ] **۳. «جدیدترین» کاتالوگ با `year`** به‌جای `id`
 - [ ] **۴. ۱۰ برتر و تازه‌ها از `home`**، فقط عنوان‌های با `stream`، به‌جای جایگزین `archive orderby=favorite`
