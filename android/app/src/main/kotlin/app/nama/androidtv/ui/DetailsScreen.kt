@@ -61,6 +61,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -373,11 +375,27 @@ private fun Header(
     }
   }
   Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = DETAILS_TOP.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
+    // The back of the poster, where there is one: in focus (with its ring) select turns it over.
+    val app = LocalApp.current
+    LaunchedEffect(post.id) { app.extras.card(post) }
+    val card = app.extras.cards[post.id]
+    val calm = LocalCalm.current
+    var turned by remember(post.id) { mutableStateOf(false) }
+    val turn by animateFloatAsState(if (turned) 180f else 0f, if (calm) snap() else spring(dampingRatio = 0.78f, stiffness = 110f), label = "turn")
+    val touch = remember { MutableInteractionSource() }
+    val touched by touch.collectIsFocusedAsState()
+    // Leaving it turns it back: the next look at the page starts at the front.
+    LaunchedEffect(touched) { if (!touched) turned = false }
+    val lift by animateFloatAsState(if (touched) 1.03f else 1f, tween(150), label = "lift")
     // Over its blur code at once, the large picture following.
     Box(
         Modifier.size(DETAILS_POSTER_W.dp, DETAILS_POSTER_H.dp)
             // Held back, frame and all, while the pressed card's poster is still flying to this spot.
-            .graphicsLayer { alpha = if (flying) 0f else 1f }
+            .graphicsLayer {
+              alpha = if (flying) 0f else 1f
+              scaleX = lift
+              scaleY = lift
+            }
             // The breathing light: a soft pool of the poster's colour behind it, a little below its
             // middle, swelling and fading.
             .drawBehind {
@@ -389,13 +407,24 @@ private fun Header(
                   radius = r, center = c,
               )
             }
+            .then(if (card != null) Modifier.clickable(touch, indication = null) { turned = !turned } else Modifier)
+            .graphicsLayer {
+              rotationY = turn
+              cameraDistance = 14f * density
+            }
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
+            .focusRing(touched, shape),
     ) {
-      // The cards' own request, in memory already: the landed poster is never a blur.
-      RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = (Theme.posterWidth.value * 1.2f).toInt())
-      RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
+      if (turn <= 90f || card == null) {
+        // The cards' own request, in memory already: the landed poster is never a blur.
+        RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = (Theme.posterWidth.value * 1.2f).toInt())
+        RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
+      } else {
+        // Drawn the right way round on the far side of the turn.
+        Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) { PosterBack(card, app.inIran) }
+      }
     }
     // A soft shadow under every line of the header: over a busy picture the words and chips were
     // hard to read from the sofa (the owner).
@@ -452,6 +481,47 @@ private fun Header(
       if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(6, revealed)) { ProgressBar(progress) }
       if (post.updates.isNotEmpty()) Box(Modifier.comingIn(7, revealed)) { UpdatesTicker(post.updates) }
     }
+    }
+  }
+}
+
+/**
+ * The back of a title's poster (the owner's easter egg): another of its posters, faded and dark,
+ * under its name in its own language and script, the collection it belongs to and its place
+ * there, and its maker's logo in white.
+ */
+@Composable
+private fun PosterBack(card: app.nama.core.TitleCard, filtered: Boolean) {
+  val loc = LocalLoc.current
+  Box(Modifier.fillMaxSize().background(Theme.bg0)) {
+    card.poster?.let {
+      RemoteImage(app.nama.core.TitleCard.picture(it, filtered), Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }.blur(3.dp), pixelWidth = 360)
+    }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.7f), Color.Black.copy(alpha = 0.88f)))))
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 34.dp),
+        verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+      Text(
+          card.ownName ?: "", style = app(40, FontWeight.ExtraBold).copy(shadow = TEXT_SHADOW), color = Theme.text1,
+          textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis,
+      )
+      card.collection?.let { c ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          c.name(loc.lang)?.let {
+            Text(it, style = app(23, FontWeight.SemiBold), color = Theme.text2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+          }
+          Text(tv(TV.partOf).replace("{at}", loc.num(c.at)).replace("{of}", loc.num(c.of)), style = app(30, FontWeight.Bold), color = Theme.text1)
+        }
+      } ?: Spacer(Modifier)
+      card.companyLogo?.let { logo ->
+        coil3.compose.AsyncImage(
+            model = app.nama.core.TitleCard.picture(logo, filtered)?.toString(), contentDescription = card.companyName,
+            modifier = Modifier.widthIn(max = 230.dp).height(58.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White.copy(alpha = 0.9f)),
+        )
+      } ?: card.companyName?.let { Text(it, style = app(22, FontWeight.SemiBold), color = Theme.text2, maxLines = 1) } ?: Spacer(Modifier)
     }
   }
 }

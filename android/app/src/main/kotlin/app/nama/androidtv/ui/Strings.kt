@@ -117,6 +117,7 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   freshSeries("New and returning series", "سریال‌های تازه و برگشته", "مسلسلات جديدة وعائدة"),
   popularFilms("Popular films now", "فیلم‌های پرطرفدار این روزها", "أفلام رائجة الآن"),
   moreLikeThis("More like this", "شبیه این", "أعمال مشابهة"),
+  partOf("Part {at} of {of}", "قسمت {at} از {of}", "الجزء {at} من {of}"),
   aroundHint(
       "Scene glow: where the film leaves room on the screen, the scene's own colours light it softly, and black bars burned into the file itself are cut away. Taken from a small copy of the film every few seconds, only with motion effects on. Black bars: the room stays black, as in a cinema.",
       "نور صحنه: جایی که فیلم روی صفحه خالی می‌گذارد، رنگ‌های خود صحنه آرام روشنش می‌کنند، و نوار سیاهی که داخل خود فایل است بریده می‌شود. هر چند ثانیه از یک نسخهٔ کوچک فیلم برداشته می‌شود، فقط وقتی جلوه‌های حرکتی روشن‌اند. نوار سیاه: جای خالی سیاه می‌ماند، مثل سینما.",

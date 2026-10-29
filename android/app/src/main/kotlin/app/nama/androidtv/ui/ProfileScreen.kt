@@ -32,6 +32,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,21 +87,46 @@ fun ProfileScreen() {
   var sizes by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
   var notes by remember { mutableStateOf<NotificationPage?>(null) }
   val ratings = app.ratings
+  // What has come: the page shows its shelves once they are all in, two and a half seconds at
+  // most, so they do not push each other down one by one as each answer comes (the owner). What
+  // comes later slides in.
+  var listsIn by remember { mutableStateOf(false) }
+  var picksIn by remember { mutableStateOf(false) }
+  var upcomingIn by remember { mutableStateOf(false) }
+  var nameIn by remember { mutableStateOf(false) }
+  var ready by remember { mutableStateOf(false) }
+  var revealed by remember { mutableIntStateOf(0) }
+  val calm = LocalCalm.current
+  LaunchedEffect(Unit) {
+    val start = System.currentTimeMillis()
+    while (!(listsIn && picksIn && upcomingIn && nameIn) && System.currentTimeMillis() - start < 2_500) delay(100)
+    ready = true
+    for (step in 1..8) {
+      revealed = step
+      if (!calm) delay(70)
+    }
+  }
 
   LaunchedEffect(ratings) {
-    val feed = attempt { app.home() } ?: return@LaunchedEffect
+    val feed = attempt { app.home() } ?: return@LaunchedEffect run { picksIn = true }
     val pool = feed.sections.flatMap { it.posts }
     if (ratings.isEmpty) {
       // Nothing to go on yet: the best-regarded titles to kick things off.
       starters = pool.filter { !it.comingSoon && it.imdbScore != null }.sortedByDescending { it.imdbScore ?: 0.0 }.distinctBy { it.id }.take(12)
     } else picks = ratings.recommend(pool, 14)
+    picksIn = true
   }
   LaunchedEffect(app.user?.id) {
-    if (!app.isLoggedIn) return@LaunchedEffect
+    if (!app.isLoggedIn) {
+      listsIn = true
+      upcomingIn = true
+      return@LaunchedEffect
+    }
     fun list(group: String) = mapOf("action" to "list", "group" to group, "page" to "1", "orderby" to "add_list", "order" to "DESC")
     watchlist = attempt { PostPage.from(app.api.get("user_list", list("watchlist"))).posts }.orEmpty()
     favorites = attempt { PostPage.from(app.api.get("user_list", list("favorite"))).posts }.orEmpty()
     sizes = attempt { (app.api.get("user_mylist").obj ?: emptyMap()).mapValues { (_, v) -> v["post"].array.size } }.orEmpty()
+    listsIn = true
     notes = attempt { NotificationPage.from(app.api.get("notification", mapOf("page" to "1"), background = true)) }
     // The Mac's "Coming up": series on the watchlist or notify list with an episode still to come,
     // soonest first. A handful of pages is every list a person keeps.
@@ -109,11 +142,13 @@ fun ProfileScreen() {
       }
     }
     upcoming = Post.upcoming(kept)
+    upcomingIn = true
   }
 
   Box(Modifier.fillMaxSize()) {
     Ambient {}
-    Stage(favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post, dim = 0.5f, glow = false)
+    // Chosen once the lists are in, not one picture and then another as each list comes.
+    Stage(if (ready) favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post else null, dim = 0.5f, glow = false)
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
     ReportTop(list)
     LazyColumn(
@@ -123,24 +158,25 @@ fun ProfileScreen() {
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
       // A section: its buttons, at its foot, in focus bring the whole card back, and so the page's top.
-      item { Box(Modifier.wholeSection()) { Header(watchlist, favorites, sizes) } }
-      if (!ratings.isEmpty) item { Insights() }
-      if (upcoming.isNotEmpty()) item { Shelf(loc(S.upcoming), upcoming, note = { it.nextEpisodeLabel(loc.lang) }) }
-      if (picks.isNotEmpty()) item { Shelf(loc(S.forYou), picks) }
-      if (watchlist.isNotEmpty()) item { Shelf(loc(S.watchlist), watchlist) }
-      if (favorites.isNotEmpty()) item { Shelf(loc(S.favorites), favorites) }
+      item(key = "header") { Box(Modifier.wholeSection()) { Header(watchlist, favorites, sizes, ready) { nameIn = true } } }
+      if (!ratings.isEmpty) item(key = "insights") { Box(Modifier.rising(1, revealed)) { Insights() } }
+      if (!ready) return@LazyColumn
+      if (upcoming.isNotEmpty()) item(key = "upcoming") { Box(Modifier.animateItem().rising(2, revealed)) { Shelf(loc(S.upcoming), upcoming, note = { it.nextEpisodeLabel(loc.lang) }) } }
+      if (picks.isNotEmpty()) item(key = "picks") { Box(Modifier.animateItem().rising(3, revealed)) { Shelf(loc(S.forYou), picks) } }
+      if (watchlist.isNotEmpty()) item(key = "watchlist") { Box(Modifier.animateItem().rising(4, revealed)) { Shelf(loc(S.watchlist), watchlist) } }
+      if (favorites.isNotEmpty()) item(key = "favorites") { Box(Modifier.animateItem().rising(5, revealed)) { Shelf(loc(S.favorites), favorites) } }
       if (ratings.isEmpty) {
-        item {
+        item(key = "empty") {
           Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(loc(S.noRatingsYet), style = app(26, FontWeight.Bold), color = Theme.text1)
             Text(loc(S.rateHint), style = app(19), color = Theme.text2)
           }
         }
-        if (starters.isNotEmpty()) item { Shelf(loc(S.startWithThese), starters) }
+        if (starters.isNotEmpty()) item(key = "starters") { Box(Modifier.animateItem().rising(6, revealed)) { Shelf(loc(S.startWithThese), starters) } }
       } else {
-        item { Shelf(loc(S.yourRating), ratings.newestFirst.mapNotNull { it.post }, stars = ratings.newestFirst.associate { it.postID to it.stars }) }
+        item(key = "rated") { Box(Modifier.animateItem().rising(6, revealed)) { Shelf(loc(S.yourRating), ratings.newestFirst.mapNotNull { it.post }, stars = ratings.newestFirst.associate { it.postID to it.stars }) } }
       }
-      notes?.takeIf { it.items.isNotEmpty() }?.let { page -> item { Notifications(page) { notes = it } } }
+      notes?.takeIf { it.items.isNotEmpty() }?.let { page -> item(key = "notes") { Box(Modifier.animateItem().rising(7, revealed)) { Notifications(page) { notes = it } } } }
     }
   }
 }
@@ -151,7 +187,7 @@ fun ProfileScreen() {
  * buttons under them.
  */
 @Composable
-private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>) {
+private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>, ready: Boolean, nameCame: () -> Unit) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val user = app.user
@@ -163,6 +199,14 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
     val username = user?.name ?: return@produceState
     value = runCatching { SiteProfile.fromSite(app.api.site(SiteQuery.profile(username), background = true)) }.getOrNull()
   }
+  // The name, the counts and the line wait for the site's name and the lists: shown at once, one
+  // name gave way to another and the counts came one by one.
+  LaunchedEffect(user?.name) {
+    if (user?.name == null || !app.api.hasSite) return@LaunchedEffect nameCame()
+    androidx.compose.runtime.snapshotFlow { site }.first { it != null }
+    nameCame()
+  }
+  val words by animateFloatAsState(if (ready) 1f else 0f, if (LocalCalm.current) snap() else tween(450), label = "words")
   val own = app.ownName?.takeIf { user != null }
   val shown = site?.fullName ?: own ?: user?.name
   // First and family name for the line from a film: the site's, or the one written here.
@@ -187,7 +231,7 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
       } else Icon(Icons.person, null, Modifier.size(60.dp), tint = Color.White)
       user?.avatar?.let { RemoteImage(it, Modifier.fillMaxSize(), pixelWidth = 200) }
     }
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.weight(1f).graphicsLayer { alpha = words }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(shown ?: loc(S.guestAccount), style = app(44, FontWeight.ExtraBold), color = Theme.text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         user?.type?.let {
@@ -205,7 +249,7 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
       Box(Modifier.padding(top = 12.dp)) { Quote(names.first, names.second) }
     }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(23.dp)) {
-      Figures(watchlist, favorites, sizes)
+      Box(Modifier.graphicsLayer { alpha = words }) { Figures(watchlist, favorites, sizes) }
       Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         if (user == null) PillButton(loc(S.signIn), { app.requestSignIn() }, kind = PillKind.Primary, icon = Icons.person)
         // The Mac's renew button; on a TV, the page's code for the phone.
@@ -394,5 +438,23 @@ private fun Notifications(page: NotificationPage, changed: (NotificationPage) ->
         }
       }
     }
+  }
+}
+
+/**
+ * In its place from the start, seen once [revealed] reaches [order], rising the last 16 points as
+ * it comes: the title page's `comingIn`, so the shelves come in one after another.
+ */
+@Composable
+private fun Modifier.rising(order: Int, revealed: Int): Modifier {
+  val calm = LocalCalm.current
+  val shown by animateFloatAsState(
+      if (revealed >= order) 1f else 0f,
+      if (calm) snap() else spring(dampingRatio = 0.82f, stiffness = 224f),
+      label = "rising",
+  )
+  return graphicsLayer {
+    alpha = shown
+    translationY = (1f - shown) * 16.dp.toPx()
   }
 }

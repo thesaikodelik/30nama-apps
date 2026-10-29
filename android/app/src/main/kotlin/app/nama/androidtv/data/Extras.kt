@@ -208,6 +208,37 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     return known[post.id]
   }
 
+  /** What the back of each title's poster shows, by post id, once looked for; a title with nothing is not kept. */
+  val cards = mutableStateMapOf<Int, app.nama.core.TitleCard>()
+  /** The daily files read this session, by name: each holds a hundredth of the catalogue. */
+  private val cardFiles = HashMap<String, Json>()
+
+  /**
+   * The back of the title's poster: from the daily file on GitHub, which every viewer can read (in
+   * Iran too); for a title not in it yet, from TMDB's own answer where the viewer has a key.
+   */
+  suspend fun card(post: Post): app.nama.core.TitleCard? {
+    cards[post.id]?.let { return it }
+    val imdb = post.imdbID
+    val found = imdb?.let { dailyCard(it) } ?: keyedCard(post)
+    if (found != null) cards[post.id] = found
+    return found
+  }
+
+  private suspend fun dailyCard(imdb: String): app.nama.core.TitleCard? {
+    val name = app.nama.core.TitleCard.shard(imdb)
+    val file = cardFiles[name] ?: app.nama.core.TitleCard.address(imdb)?.let { json(HttpRequest(it.toString())) }?.also { cardFiles[name] = it } ?: return null
+    return app.nama.core.TitleCard.fromShard(file, imdb)
+  }
+
+  private suspend fun keyedCard(post: Post): app.nama.core.TitleCard? {
+    if (filtered()) return null
+    val key = key() ?: return null
+    val details = (stored(post) as? Kept.Found)?.details ?: return null
+    val collection = details["belongs_to_collection"]["id"].int?.let { json(TMDB.request("collection/$it", listOf("append_to_response" to "translations"), key)) }
+    return app.nama.core.TitleCard.fromTMDB(details, collection)
+  }
+
   /** Looks for the title's trailer on Aparat, if it has not been looked for already. */
   suspend fun lookAparat(post: Post) {
     if (!asked.add(post.id)) return
