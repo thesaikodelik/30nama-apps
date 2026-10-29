@@ -59,6 +59,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -358,18 +360,36 @@ private fun Header(
   val hue = LocalHue.current ?: Color.White
   val shape = RoundedCornerShape(24.dp)
   val flying = LocalNav.current.flight?.post?.id == post.id
-  // The lean and glint the cards once had in focus, here alone (the owner).
-  val wander = rememberWander()
+  // The light behind the poster breathes, slowly, in the poster's own colour (the owner's choice
+  // among five). Read only where drawn; still at its middle on a weak TV or with reduced motion.
+  val breathes = LocalLively.current && !LocalCalm.current
+  val breath = remember { androidx.compose.animation.core.Animatable(0.5f) }
+  LaunchedEffect(breathes) {
+    if (!breathes) return@LaunchedEffect breath.snapTo(0.5f)
+    while (true) {
+      breath.animateTo(1f, tween(BREATH_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+      breath.animateTo(0f, tween(BREATH_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+  }
   Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = DETAILS_TOP.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
     // Over its blur code at once, the large picture following.
     Box(
         Modifier.size(DETAILS_POSTER_W.dp, DETAILS_POSTER_H.dp)
             // Held back, frame and all, while the pressed card's poster is still flying to this spot.
             .graphicsLayer { alpha = if (flying) 0f else 1f }
-            .lean(wander)
+            // The breathing light: a soft pool of the poster's colour behind it, a little below its
+            // middle, swelling and fading.
+            .drawBehind {
+              val b = breath.value
+              val r = size.height * (0.6f + 0.25f * b)
+              val c = Offset(size.width / 2f, size.height * 0.56f)
+              drawCircle(
+                  Brush.radialGradient(listOf(hue.copy(alpha = 0.15f + 0.65f * b), hue.copy(alpha = 0.05f + 0.30f * b), Color.Transparent), c, r),
+                  radius = r, center = c,
+              )
+            }
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
-            .glint(wander)
             .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
       // The cards' own request, in memory already: the landed poster is never a blur.
@@ -967,3 +987,6 @@ private fun Facts(post: Post) {
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
   ) { lines() }
 }
+
+/** Half a breath of the light behind the title page's poster: in, then out, about nine seconds. */
+private const val BREATH_MS = 4_500

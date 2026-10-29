@@ -316,8 +316,8 @@ val LocalCardFront = compositionLocalOf { false }
 /**
  * A card, as the Mac's poster under the pointer (docs/design "پوستر"): at rest a hairline of white
  * 0.08; in focus ×1.07, the focus ring, and a glow in [glow] (the poster's own colour). It does not
- * lean or carry a glint in focus: on every card that was too much (the owner); that is the title
- * page's poster's alone ([Wander]).
+ * lean or carry a glint in focus: on every card that was too much (the owner); the title page's
+ * poster has a breathing light behind it instead.
  */
 @Composable
 fun CardSurface(
@@ -365,56 +365,6 @@ fun CardSurface(
   }
   }
 }
-
-/**
- * The Mac's poster under the pointer (`Tilt`, MacKit.swift), on the title page's poster: a TV has
- * no pointer, so an imagined one wanders slowly over it, the poster leaning up to 7 degrees toward
- * it (the Mac's 4 was too little from the sofa) and a glint of light under it. Once on every card
- * in focus; the owner kept it for this poster alone. Read only where drawn, so nothing is rebuilt
- * as it moves. On a weak TV, or with reduced motion, the poster stays flat with the glint still at
- * its top.
- */
-@Stable
-class Wander internal constructor(internal val time: androidx.compose.animation.core.Animatable<Float, *>, internal val moves: Boolean) {
-  // Where the imagined pointer is, 0..1 each way: a slow figure of eight about the middle.
-  internal fun across() = 0.5f + 0.42f * kotlin.math.sin(2f * Math.PI.toFloat() * time.value)
-  internal fun down() = 0.5f + 0.32f * kotlin.math.sin(4f * Math.PI.toFloat() * time.value)
-}
-
-@Composable
-fun rememberWander(): Wander {
-  val moves = LocalLively.current && !LocalCalm.current
-  val time = remember { androidx.compose.animation.core.Animatable(0f) }
-  LaunchedEffect(moves) {
-    if (!moves) {
-      time.snapTo(0f)
-      return@LaunchedEffect
-    }
-    while (true) time.animateTo(time.value + 1f, tween(WANDER_MS, easing = androidx.compose.animation.core.LinearEasing))
-  }
-  return remember(moves) { Wander(time, moves) }
-}
-
-/** The lean toward the imagined pointer; before the shadow, so the shadow leans too. */
-fun Modifier.lean(w: Wander): Modifier = this.graphicsLayer {
-  if (w.moves) {
-    rotationX = -(w.down() - 0.5f) * 2f * TILT_DEGREES
-    rotationY = (w.across() - 0.5f) * 2f * TILT_DEGREES
-    cameraDistance = 9f * density
-  }
-}
-
-/** The glint under the imagined pointer, or still at the top where nothing moves; inside the clip. */
-fun Modifier.glint(w: Wander): Modifier = this.drawWithContent {
-  drawContent()
-  val at = if (w.moves) Offset(size.width * w.across(), size.height * w.down()) else Offset(size.width * 0.5f, size.height * 0.12f)
-  drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
-}
-
-/** More than the Mac's `tilting(degrees: 4)`: seen from the sofa, 4 was too little (the owner). */
-private const val TILT_DEGREES = 7f
-/** One round of the imagined pointer: slow, as a hand that rests. */
-private const val WANDER_MS = 5500
 
 // MARK: - Artwork
 
