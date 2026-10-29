@@ -66,6 +66,23 @@ class CardTests(unittest.TestCase):
         self.assertEqual({"names": {"en": "Duo"}, "at": 1, "of": 3}, shards["01"]["tt0000001"]["c"])
         self.assertEqual({"names": {"en": "Duo"}, "at": 2, "of": 3}, shards["02"]["tt0000002"]["c"], "a card without its place gains it")
 
+    def test_a_member_with_no_card_gains_its_place(self):
+        two = collection_entry({"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}, {"id": 2, "release_date": "2026"}]})
+        shards = {}
+        restamp(shards, {"tt0000001": 1}, two)
+        self.assertEqual({"names": {"en": "Duo"}, "at": 1, "of": 2}, shards["01"]["tt0000001"]["c"])
+        alone = collection_entry({"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}]})
+        restamp(shards, {"tt0000001": 1}, alone)
+        self.assertNotIn("tt0000001", shards["01"], "a card left with nothing goes")
+
+    def test_details_not_there_is_an_empty_card(self):
+        real = build_cards.call
+        build_cards.call = lambda path, query, key: {"movie_results": [{"id": 5}]} if path.startswith("find/") else {}
+        try:
+            self.assertEqual(({}, None, None), look("tt5", "k", {}, datetime.date(2026, 10, 29), set()))
+        finally:
+            build_cards.call = real
+
     def test_a_part_the_kept_collection_lacks_asks_again(self):
         today = datetime.date(2026, 10, 29)
         collections = {"9": {**collection_entry({"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}, {"id": 2, "release_date": "2001"}]}), "day": "2026-10-28"}}

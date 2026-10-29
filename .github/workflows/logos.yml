@@ -58,7 +58,9 @@ jobs:
         run: python3 -I Tools/logos/build_logos.py out
       - name: The backs of posters
         # Its own step: a day it fails keeps yesterday's cards, and the logos are still published.
+        # Its own limit too, past its 120 minutes, so a slow TMDB cannot keep the job past its own.
         continue-on-error: true
+        timeout-minutes: 130
         env:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
           BUDGET: ${{ inputs.cards_budget || '60000' }}

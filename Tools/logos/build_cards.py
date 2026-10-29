@@ -112,13 +112,16 @@ def restamp(shards, members, entry):
     """Every card of a collection's members told its place again from the collection as it now is:
     a part added makes the others "of" one more. No request: the members' TMDB ids are kept."""
     for imdb, tmdb_id in members.items():
-        found = shards.get(shard(imdb), {}).get(imdb)
-        if found is None:
-            continue
         if tmdb_id in entry["parts"] and len(entry["parts"]) > 1:
+            # A member with nothing else to show had no card: its place is now one.
+            found = shards.setdefault(shard(imdb), {}).setdefault(imdb, {})
             found["c"] = {"names": entry["names"], "at": entry["parts"].index(tmdb_id) + 1, "of": len(entry["parts"])}
         else:
-            found.pop("c", None)
+            found = shards.get(shard(imdb), {}).get(imdb)
+            if found is not None:
+                found.pop("c", None)
+                if not found:
+                    shards[shard(imdb)].pop(imdb)
 
 
 def look(imdb, key, collections, today, changed):
@@ -131,7 +134,9 @@ def look(imdb, key, collections, today, changed):
             continue
         details = call(f"{kind}/{results[0]['id']}", {"append_to_response": "images", "include_image_language": "en,null"}, key)
         if not details:
-            return None
+            # Not there (fetch raises on an outage, so this is a 404): nothing to show, asked again
+            # with the rest, not first in every run.
+            return {}, None, None
         collection = None
         part_of = (details.get("belongs_to_collection") or {}).get("id")
         if part_of:
@@ -179,6 +184,12 @@ def main():
             with open(os.path.join(folder, "cards", name), encoding="utf-8") as file:
                 shards[name[:-5]] = json.load(file).get("cards", {})
 
+    # The state came back without the cards (a restore that failed quietly): every title is new
+    # again, rather than a hundred empty files published until the recheck reaches them.
+    if done and not any(shards.values()):
+        print("cards_state.json without cards/: starting over", flush=True)
+        done, members, member_of = {}, {}, set()
+
     def number(imdb):
         return int(re.sub(r"\D", "", imdb) or 0)
 
@@ -191,7 +202,13 @@ def main():
     todo = (unknown + new + [i for i in stale if i not in again])[:budget]
     print(f"{len(titles)} titles, {len(done)} looked up before, {len(new)} new, {len(stale)} to look at again; up to {budget} this run", flush=True)
 
+    deadline = time.monotonic() + 60 * int(os.environ.get("MAX_MINUTES") or 120)
+
     def one(imdb):
+        # Past the deadline a batch already running stops at once: a TMDB outage once made one
+        # batch outlast the job's own limit, and then nothing was published that day.
+        if time.monotonic() > deadline:
+            return imdb, None
         try:
             found = look(imdb, key, collections, today, changed)
         except Exception as error:  # one title's failure is not the run's
@@ -200,7 +217,6 @@ def main():
         time.sleep(0.1)
         return imdb, found
 
-    deadline = time.monotonic() + 60 * int(os.environ.get("MAX_MINUTES") or 120)
     looked = 0
     # Four at a time, each pausing between its own requests: well under TMDB's limit of about forty a second.
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
