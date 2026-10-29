@@ -1,5 +1,8 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.ui.relocation.bringIntoView as askParents
+import androidx.compose.ui.node.requireDensity
+import androidx.compose.ui.node.requireLayoutCoordinates
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -122,6 +125,36 @@ fun ScreenUnits(content: @Composable () -> Unit) {
  * a title page's header up off the top as soon as its Play button has focus.
  */
 @androidx.compose.foundation.ExperimentalFoundationApi
+/**
+ * A part of a page that is brought into view as a whole, with what in it has focus: the Apple TV's
+ * sections. When the remote moves inside it, the page is asked to show from the part's top down to
+ * the item in focus, so its title (a row's heading, the title page's name and story) stays in sight,
+ * and a part that starts the page keeps the page at its very top (the title page opened half way
+ * down: Play alone was brought into view, 120 points clear of the foot, and its title went off the
+ * top). Where the part's top and the item no longer fit on one screen, only the item, as before.
+ */
+fun androidx.compose.ui.Modifier.wholeSection(): androidx.compose.ui.Modifier = this.then(SectionElement)
+
+private object SectionElement : androidx.compose.ui.node.ModifierNodeElement<SectionNode>() {
+  override fun create() = SectionNode()
+  override fun update(node: SectionNode) = Unit
+  override fun hashCode() = 7
+  override fun equals(other: Any?) = other === this
+}
+
+private class SectionNode : androidx.compose.ui.Modifier.Node(), androidx.compose.ui.relocation.BringIntoViewModifierNode {
+  override suspend fun bringIntoView(childCoordinates: androidx.compose.ui.layout.LayoutCoordinates, boundsProvider: () -> androidx.compose.ui.geometry.Rect?) {
+    val self = requireLayoutCoordinates()
+    val screen = with(requireDensity()) { 1080.dp.toPx() }
+    askParents {
+      val child = boundsProvider() ?: return@askParents null
+      val inSelf = self.localBoundingBoxOf(childCoordinates, clipBounds = false).let { box -> child.translate(box.topLeft) }
+      val whole = androidx.compose.ui.geometry.Rect(0f, 0f, self.size.width.toFloat(), inSelf.bottom)
+      if (whole.height <= screen) whole else inSelf
+    }
+  }
+}
+
 class Minimal(private val margin: Float) : androidx.compose.foundation.gestures.BringIntoViewSpec {
   override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
     val end = offset + size

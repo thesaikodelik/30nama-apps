@@ -240,7 +240,9 @@ fun DetailsScreen(route: Route.Details) {
             play = play,
             onPlay = { startPlayback() },
             onTrailer = { t -> openTrailer(t, post, app, scope, context) },
-            modifier = Modifier.onFocusChanged { inHeader = it.hasFocus },
+            // A section: Play, the stars or the trailer in focus keep the whole header, and so the
+            // page's top, in view.
+            modifier = Modifier.wholeSection().onFocusChanged { inHeader = it.hasFocus },
         )
         // Each part below the header comes in softly as it arrives, rather than appearing at once.
         if (post.isSeries && items.size > 1) {
@@ -308,11 +310,13 @@ private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.App
 
 /** A part of the page that fades in and rises the last 16 points the first time it is drawn. */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun Arriving(content: @Composable () -> Unit) {
   val calm = LocalCalm.current
   val shown = remember { androidx.compose.animation.core.Animatable(if (calm) 1f else 0f) }
   LaunchedEffect(Unit) { shown.animateTo(1f, androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
-  Box(Modifier.graphicsLayer {
+  // Each part a section: entering it brings its title into view with what has focus.
+  Box(Modifier.wholeSection().graphicsLayer {
     alpha = shown.value
     translationY = (1f - shown.value) * 16.dp.toPx()
   }) { content() }
