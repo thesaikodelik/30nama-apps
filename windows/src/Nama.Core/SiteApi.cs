@@ -112,7 +112,8 @@ public static partial class SitePosts
     /// <summary>A page of the site API's lists: <c>{page, pages, posts}</c>, with no total.</summary>
     public static PostPage Page(Json j)
     {
-        var posts = j["posts"].Array.Select(Parse).OfType<Post>().ToList();
+        // A title the site lists twice on one page is shown once.
+        var posts = j["posts"].Array.Select(Parse).OfType<Post>().DistinctBy(p => p.Id).ToList();
         return new PostPage(posts, j["page"].Int ?? 1, j["pages"].Int ?? 1, posts.Count);
     }
 }
@@ -296,7 +297,7 @@ public sealed record TopListEntry(int Rank, Post Post)
             SitePosts.Parse(item) is { } post
                 // The place comes in Persian digits ("۱۲"); the list is in order anyway.
                 ? new TopListEntry(int.TryParse(SiteText.LatinDigits(item["rank"].Text ?? ""), out var rank) ? rank : index + 1, post)
-                : null).OfType<TopListEntry>().ToList();
+                : null).OfType<TopListEntry>().DistinctBy(e => e.Post.Id).ToList(); // listed twice: its first, higher place
 }
 
 /// <summary>
