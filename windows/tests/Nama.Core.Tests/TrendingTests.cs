@@ -206,6 +206,8 @@ public class TrendingTests
         var net = new FakeCatalogue();
         Transport page = (request, _) =>
         {
+            // The shared file first; GitHub not answering, the public page.
+            if (request.RequestUri == Trending.SharedTrending) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             Assert.Equal(TMDBItem.PublicTrending, request.RequestUri);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(html, Encoding.UTF8) });
         };
@@ -213,6 +215,26 @@ public class TrendingTests
         await trending.RowAsync(TrendingRow.Trend);
         Assert.Equal(["Film N1x"], net.Searches.Take(1)); // the public list is looked for on 30nama
         Assert.Empty(await trending.RowAsync(TrendingRow.Fresh)); // rows that need the API stay empty without a key
+    }
+
+    // As the Android app: without a key, the lists written each day on the data branch.
+    [Fact]
+    public async Task ReadsTheSharedListsWithoutAKey()
+    {
+        var net = Stocked();
+        var shared = Json.From(new Dictionary<string, object?>
+        {
+            ["lists"] = new Dictionary<string, object?> { ["/trending/all/week?language=en-US"] = net.Lists["/trending/all/week"] },
+        }).Serialize();
+        var asked = new List<Uri>();
+        Transport github = (request, _) =>
+        {
+            lock (asked) asked.Add(request.RequestUri!);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(shared, Encoding.UTF8) });
+        };
+        var row = await new Trending(null, net.Search, transport: github).RowAsync(TrendingRow.Trend);
+        Assert.Equal([101, 102, 103, 104, 105, 106], row.Select(p => p.Id));
+        Assert.Equal([Trending.SharedTrending], asked.Distinct());
     }
 
     [Fact]

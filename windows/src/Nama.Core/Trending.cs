@@ -297,12 +297,20 @@ public sealed class Trending
         if (Cached(key) is { } hit) return TMDBItem.List(hit, source.Kind);
         if (_key is null)
         {
-            // Without a key only the week's trending list, from the public page.
+            // Without a key, the lists written for everyone each day on the repository's data branch
+            // (Tools/trending/build_trending.py), as the Android app reads them; TMDB's public page
+            // only where GitHub does not answer.
+            var shared = (await FetchSharedAsync())?["lists"][$"{source.Path}?{query}"];
+            if (shared is { } list && list.Array.Count > 0)
+            {
+                Store(key, list);
+                return TMDBItem.List(list, source.Kind);
+            }
             if (source.Path != "/trending/all/week" || await FetchPublicAsync() is not { } html) return [];
-            var list = TMDBItem.PublicList(html);
-            if (list.Array.Count == 0) return [];
-            Store(key, list);
-            return TMDBItem.List(list);
+            var scraped = TMDBItem.PublicList(html);
+            if (scraped.Array.Count == 0) return [];
+            Store(key, scraped);
+            return TMDBItem.List(scraped);
         }
         if (await FetchAsync(source) is not { } fresh) return [];
         var slim = new Json(fresh["results"].Array.Select(e => new Json((e.Object ?? new Dictionary<string, Json>())
@@ -325,6 +333,22 @@ public sealed class Trending
     }
 
     private async Task<string?> FetchPublicAsync() => (await _site.GetAsync(TMDBItem.PublicTrending))?.Html;
+
+    /// <summary>The trending lists written each day for viewers without a key.</summary>
+    public static readonly Uri SharedTrending = new("https://raw.githubusercontent.com/thesaikodelik/30nama-apps/data/trending.json");
+
+    private async Task<Json?> FetchSharedAsync()
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, SharedTrending);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var response = await _transport(request, timeout.Token);
+            if ((int)response.StatusCode != 200) return null;
+            return Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
+        }
+        catch (Exception) { return null; }
+    }
 
     /// <summary>The 30nama title for a TMDB one, or null when 30nama does not have it.</summary>
     private async Task<Post?> ResolveAsync(TMDBItem item)
