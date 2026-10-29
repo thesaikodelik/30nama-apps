@@ -70,6 +70,18 @@ public sealed class TmdbStore
         }
 #endif
         if (Key is not { } key) return await PublicLookAsync(post, lang);
+        // TMDB's answer kept on disk, as the Android and Tizen apps do: a week when found, a day when
+        // not, so each opening of the app does not ask again for every title on the screen.
+        switch (Stored(post))
+        {
+            case { } kept when kept.Details is { } stored:
+                var keptInfo = TMDB.InfoIn(stored, lang);
+                _known[post.Id] = keptInfo;
+                _trailerSettled.Add(post.Id);
+                return keptInfo;
+            case { Missed: true }:
+                return null;
+        }
         int? id = null;
         if (post.ImdbId is { } imdb && await JsonAsync(TMDB.FindRequest(imdb, key)) is { } found) id = TMDB.IdInFind(found, post.IsSeries);
         // By name: the result that is this title, and again without the year, which TMDB and 30nama
@@ -79,8 +91,11 @@ public sealed class TmdbStore
             id = TMDB.BestInSearch(searched, name, post.Year);
         if (id is null && post.Year is not null && await JsonAsync(TMDB.SearchRequest(name, null, post.IsSeries, key)) is { } again)
             id = TMDB.BestInSearch(again, name, post.Year);
+        // Asked and not found (TMDB answered): kept as a miss for a day.
+        if (id is null && DateTime.UtcNow >= _quietUntil) Store(post, null);
         // A failed look is tried again next time the title is opened.
         if (id is not { } tmdbId || await JsonAsync(TMDB.DetailsRequest(tmdbId, post.IsSeries, key)) is not { } details) return null;
+        Store(post, details);
         var info = TMDB.InfoIn(details, lang);
         _known[post.Id] = info;
         _trailerSettled.Add(post.Id);
@@ -135,18 +150,60 @@ public sealed class TmdbStore
     }
 
 
+    /// <summary>
+    /// Until when TMDB is not asked: after it failed to answer, a minute (as the Android app and
+    /// 30namaTV do), so a home page of forty titles does not wait out forty timeouts on a filtered line.
+    /// </summary>
+    private static DateTime _quietUntil = DateTime.MinValue;
+
     private static async Task<Json?> JsonAsync(HttpRequestMessage request)
     {
-        try
+        using (request)
         {
-            using (request)
+            if (DateTime.UtcNow < _quietUntil) return null;
+            try
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
                 using var response = await Net(request, timeout.Token);
-                if ((int)response.StatusCode != 200) return null;
+                var status = (int)response.StatusCode;
+                // A refused key, too many requests or a server fault is not an answer either, and is
+                // not kept on disk as a miss.
+                if (status is 401 or 429 || status >= 500) _quietUntil = DateTime.UtcNow.AddMinutes(1);
+                if (status != 200) return null;
                 return Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
             }
+            catch (Exception)
+            {
+                _quietUntil = DateTime.UtcNow.AddMinutes(1);
+                return null;
+            }
+        }
+    }
+
+    private static readonly TimeSpan FoundFor = TimeSpan.FromDays(7);
+    private static readonly TimeSpan MissFor = TimeSpan.FromDays(1);
+
+    private static string StoreFile(Post post) => Path.Combine(Directory.CreateDirectory(Path.Combine(Storage.Folder, "tmdb")).FullName, $"{post.Id}.json");
+
+    /// <summary>The answer kept on disk while fresh: a week for one found, a day for a miss.</summary>
+    private static (Json? Details, bool Missed)? Stored(Post post)
+    {
+        try
+        {
+            var file = new FileInfo(StoreFile(post));
+            if (!file.Exists) return null;
+            var age = DateTime.UtcNow - file.LastWriteTimeUtc;
+            var text = File.ReadAllText(file.FullName);
+            if (text.Length == 0) return age < MissFor ? (null, true) : null;
+            if (age >= FoundFor) return null;
+            return (Json.Parse(text), false);
         }
         catch (Exception) { return null; }
+    }
+
+    private static void Store(Post post, Json? details)
+    {
+        try { File.WriteAllText(StoreFile(post), details?.Serialize() ?? ""); }
+        catch (Exception) { }
     }
 }
