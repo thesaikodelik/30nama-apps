@@ -279,11 +279,10 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   private var onClose: () -> Unit = {}
 
   init {
-    // A series keeps its subtitle timing and its speed from one episode, and one evening, to the next.
-    if (post.isSeries) {
-      subtitleOffset = prefs.getFloat(offsetKey(), 0f).toDouble()
-      speed = prefs.getFloat("series.${post.id}.speed", 1f)
-    }
+    // A series keeps its subtitle timing and its speed from one episode, and one evening, to the
+    // next; a film its timing.
+    restoreOffset()
+    if (post.isSeries) speed = prefs.getFloat("series.${post.id}.speed", 1f)
     player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
       override fun onVideoDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
         preview.filmDecoder(decoderName)
@@ -328,6 +327,12 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
         if (direct != null && !tracks.isEmpty && tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO } && tracks.groups.none { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }) {
           val sounds = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.joinToString { it.mediaTrackGroup.getFormat(0).sampleMimeType ?: "?" }
           leaveDirect("has no sound this TV plays ($sounds)")
+        }
+        // Nor a picture: Media3 leaves a video track it has no decoder for unselected and plays the
+        // sound over black (Dolby Vision profile 5, say), with no error to fall back on.
+        if (direct != null && !tracks.isEmpty && tracks.groups.any { it.type == C.TRACK_TYPE_VIDEO } && tracks.groups.none { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }) {
+          val pictures = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.joinToString { it.mediaTrackGroup.getFormat(0).codecs ?: it.mediaTrackGroup.getFormat(0).sampleMimeType ?: "?" }
+          leaveDirect("has no picture this TV plays ($pictures)")
         }
       }
     })
@@ -399,6 +404,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   /** Plays a download file in place of the stream, from [at]. */
   fun playDirect(f: app.nama.core.DownloadFile, at: Double?) {
     direct = f
+    restoreOffset()
     val url = f.url.toString()
     val name = f.fileName.lowercase()
     val item = MediaItem.Builder()
@@ -425,6 +431,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
 
   private fun load(q: Quality, at: Double?) {
     direct = null
+    restoreOffset()
     quality = q
     val url = q.url(mix).toString()
     val title = post.title(loc.lang)
@@ -545,6 +552,11 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   private fun offsetKey() = (if (post.isSeries) "series.${post.id}.offset" else "film.${post.id}.offset") +
       // Each file its own: one release is timed apart from another (the Tizen app's).
       (direct?.let { ".${it.fileName}" } ?: "")
+
+  /** The timing kept for what is about to play: the series', the film's, or that file's. */
+  private fun restoreOffset() {
+    subtitleOffset = prefs.getFloat(offsetKey(), 0f).toDouble()
+  }
 
   /** Moves the subtitles by [seconds], in quarter seconds; zero puts them back. */
   fun nudgeSubtitles(seconds: Double) {

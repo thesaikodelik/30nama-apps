@@ -239,7 +239,12 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
     guarded(r.url) {
       val b = Request.Builder().url(r.url)
       r.headers.forEach { (k, v) -> b.header(k, v) }
-      http.newCall(b.build()).execute().use { if (it.code == 200) Json.parse(it.body!!.bytes()) else null }
+      http.newCall(b.build()).execute().use {
+        // A refused key, too many requests or a server fault is not an answer: hold TMDB a minute,
+        // which also keeps the titles asked meanwhile from being kept as misses for a day.
+        if (it.code != 200 && (it.code == 401 || it.code == 429 || it.code >= 500) && r.url.contains("themoviedb.org")) tmdbQuietUntil = System.currentTimeMillis() + 60_000
+        if (it.code == 200) Json.parse(it.body!!.bytes()) else null
+      }
     }
   }
 

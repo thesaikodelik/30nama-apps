@@ -91,6 +91,8 @@ class Chrome {
   var rootShown by mutableStateOf(true)
   /** The viewer is on the tab bar: a tab opening as they cross it must leave focus there. */
   var barFocused by mutableStateOf(false)
+  /** A card over the page (a key, the member's name) is open: the bar takes no focus until it closes. */
+  var modal by mutableStateOf(false)
   /** A page may move focus into itself when it opens. */
   val mayTakeFocus get() = rootShown && !barFocused
   /** Moves focus up into the tab bar, as Back does from a page's root. */
@@ -564,7 +566,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
               modifier = (if (tab == nav.tab) Modifier.focusRequester(chrome.bar) else Modifier)
                   .focusRequester(steps.getValue(tab))
                   .onFocusChanged { if (it.hasFocus) focusedTab = tab }
-                  .focusProperties { canFocus = inside || (!routeOpen && tab == nav.tab) }
+                  .focusProperties { canFocus = !chrome.modal && (inside || (!routeOpen && tab == nav.tab)) }
                   .onGloballyPositioned { places[tab] = Rect(it.positionInParent(), it.size.toSize()) },
               // While a page is open over the tab, moving along the bar only moves; pressing goes.
               onFocus = { if (nav.tab != tab && !routeOpen) pending = tab },
@@ -627,11 +629,12 @@ private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) 
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   val shown by animateFloatAsState(if (shownNow) 1f else 0f, tween(220), label = "back")
+  val modal = LocalChrome.current.modal
   Surface(
       onClick = onBack,
       enabled = shownNow,
       // Hidden, it takes no focus: a TV's Surface keeps it even when disabled.
-      modifier = modifier.focusProperties { canFocus = shownNow }.graphicsLayer {
+      modifier = modifier.focusProperties { canFocus = shownNow && !modal }.graphicsLayer {
         alpha = shown
         scaleX = 0.8f + 0.2f * shown
         scaleY = 0.8f + 0.2f * shown

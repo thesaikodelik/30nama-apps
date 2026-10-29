@@ -139,7 +139,8 @@ class AppModel(
     if (inIran || items.isEmpty() || key("tmdb") == null) return emptyList()
     tmdbRow(app.nama.core.TrendingRow.trend)
     val service = trending?.second ?: return emptyList()
-    return attempt { service.found(items, 12) }.orEmpty().takeIf { it.size >= 3 }.orEmpty()
+    // Off the main thread: finding them writes the trending cache to the disk.
+    return withContext(Dispatchers.IO) { attempt { service.found(items, 12) } }.orEmpty().takeIf { it.size >= 3 }.orEmpty()
   }
 
   /**
@@ -190,6 +191,8 @@ class AppModel(
   /** The server this TV reached 30nama through, for Settings > About. */
   var apiHost by mutableStateOf<String?>(null)
     private set
+  /** Set by Settings' language row: the pages are built anew in the new language, and focus goes back to that row. */
+  var refocusLanguage = false
   /** Bumped when the catalogue itself may differ: sign-in, sign-out, language. */
   var contentVersion by mutableIntStateOf(0)
     private set

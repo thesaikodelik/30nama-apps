@@ -303,11 +303,13 @@ fun PlayerScreen(request: PlaybackRequest) {
     val watch = remember(engine.index) { BarWatch() }
     var trim by remember(engine.index) { mutableStateOf(Trim()) }
     var light by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(glowing, engine.index) {
+    LaunchedEffect(glowing, engine.index, engine.playing) {
       if (!glowing) {
         light = null
         return@LaunchedEffect
       }
+      // Paused (or the app left, which pauses), the light stays as it was and nothing is read.
+      if (!engine.playing) return@LaunchedEffect
       while (true) {
         engine.preview.glance(engine.position)
         kotlinx.coroutines.delay(GLANCE_MS)

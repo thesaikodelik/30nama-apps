@@ -98,6 +98,20 @@ fun SettingsScreen() {
   val chrome = LocalChrome.current
   var help by remember { mutableStateOf<Help?>(null) }
   var editing by remember { mutableStateOf<String?>(null) }
+  // A card closing gives focus back to the row that opened it; the rows were blocked meanwhile, so
+  // focus would otherwise land wherever the page's restorer put it.
+  val openers = remember { listOf("name", "tmdb", "subsource", "gemini").associateWith { FocusRequester() } }
+  var lastEditing by remember { mutableStateOf<String?>(null) }
+  LaunchedEffect(editing) {
+    if (editing != null) {
+      lastEditing = editing
+      return@LaunchedEffect
+    }
+    val was = lastEditing ?: return@LaunchedEffect
+    lastEditing = null
+    androidx.compose.runtime.withFrameNanos {}
+    runCatching { openers[was]?.requestFocus() }
+  }
   val s = app.settings
   val scroll = rememberScrollState()
 
@@ -107,7 +121,8 @@ fun SettingsScreen() {
   DisposableEffect(Unit) { onDispose { chrome.pageAtTop = true } }
 
   Ambient {
-    Row(Modifier.fillMaxSize().padding(start = Theme.edge, end = Theme.edge), horizontalArrangement = Arrangement.spacedBy(80.dp, Alignment.CenterHorizontally)) {
+    // While a key or the name is being typed in its card, the rows behind it cannot take focus.
+    Row(Modifier.fillMaxSize().blockFocus(editing != null).focusGroup().padding(start = Theme.edge, end = Theme.edge), horizontalArrangement = Arrangement.spacedBy(80.dp, Alignment.CenterHorizontally)) {
       // The Mac's logo column: the 30nama mark, the line that says what this app is, and under
       // them what the focused row does.
       Column(Modifier.width(360.dp).padding(top = 170.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -124,7 +139,7 @@ fun SettingsScreen() {
           user?.let { loc.subscriptionLine(it) }?.let { Fact(loc(S.expires), it, if ((user.daysLeft(java.time.Instant.now()) ?: 99) < 7) Theme.accent else Theme.text3) }
           if (user != null) {
             // For a private profile on the site, which will not give the name: written here (the Mac's).
-            Choice("${loc(S.yourName)} (${loc(S.optional)})", app.ownName ?: tv(TV.keyNotSet), Help(tv(TV.yourNameHint)), { help = it }) { editing = "name" }
+            Choice("${loc(S.yourName)} (${loc(S.optional)})", app.ownName ?: tv(TV.keyNotSet), Help(tv(TV.yourNameHint)), { help = it }, Modifier.focusRequester(openers.getValue("name"))) { editing = "name" }
             Choice(loc(S.signOut), null, Help(loc(S.signOutBody)), { help = it }) {
               app.sheets.show(SheetSpec(loc(S.signOutTitle), listOf(SheetAction(loc(S.cancel)) {}, SheetAction(loc(S.signOut), Icons.signOut) { app.signOut() }), loc(S.signOutBody)))
             }
@@ -132,7 +147,17 @@ fun SettingsScreen() {
         }
         Group(loc(S.language)) {
           val langs = Lang.entries.map { it.nativeName }
-          Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }) {
+          // A new language builds every page anew; without this, focus came back on the first row
+          // (Sign in, for a guest), and a second press there opened the sign-in.
+          val languageRow = remember { FocusRequester() }
+          LaunchedEffect(Unit) {
+            if (!app.refocusLanguage) return@LaunchedEffect
+            app.refocusLanguage = false
+            androidx.compose.runtime.withFrameNanos {}
+            runCatching { languageRow.requestFocus() }
+          }
+          Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }, Modifier.focusRequester(languageRow)) {
+            app.refocusLanguage = true
             app.update { it.copy(lang = next(it.lang, Lang.entries.toList())) }
           }
         }
@@ -225,9 +250,9 @@ fun SettingsScreen() {
           }
         }
         Group(loc(S.services)) {
-          KeyRow("tmdb", loc(S.tmdbKey), loc(S.tmdbKeyHint), { help = it }) { editing = "tmdb" }
-          KeyRow("subsource", loc(S.subsourceKey), loc(S.subsourceKeyHint), { help = it }) { editing = "subsource" }
-          KeyRow("gemini", tv(TV.geminiKey), tv(TV.geminiKeyHint), { help = it }) { editing = "gemini" }
+          KeyRow("tmdb", loc(S.tmdbKey), loc(S.tmdbKeyHint), { help = it }, Modifier.focusRequester(openers.getValue("tmdb"))) { editing = "tmdb" }
+          KeyRow("subsource", loc(S.subsourceKey), loc(S.subsourceKeyHint), { help = it }, Modifier.focusRequester(openers.getValue("subsource"))) { editing = "subsource" }
+          KeyRow("gemini", tv(TV.geminiKey), tv(TV.geminiKeyHint), { help = it }, Modifier.focusRequester(openers.getValue("gemini"))) { editing = "gemini" }
         }
         Group(loc(S.about)) {
           Fact(loc(S.version), BuildConfig.VERSION_NAME)
@@ -253,6 +278,11 @@ fun SettingsScreen() {
         }
       }
     }
+  }
+  // The bar is outside the page, so the page's own block does not reach it.
+  DisposableEffect(editing) {
+    chrome.modal = editing != null
+    onDispose { chrome.modal = false }
   }
   editing?.let { service -> if (service == "name") NameCard { editing = null } else KeyCard(service) { editing = null } }
 }
