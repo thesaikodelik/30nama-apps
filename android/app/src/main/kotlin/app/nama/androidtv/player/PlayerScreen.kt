@@ -517,7 +517,9 @@ private fun Controls(
       CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
       Scrubber(engine, seekTarget, focusable = full, seek = seek, land = land)
       if (full) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Inside the timeline's own ends (its 16-point inset), and so far in again as the largest
+        // disc grows in focus (Play, 100 at 1.12), so no button reaches past the line (the owner).
+        Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
           PlayerButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton), size = 100, glyph = 54)
           if (engine.items.size > 1) PlayerButton(Icons.skipPrevious, loc(S.rowPrevious), { engine.previous() })
           // The Mac's gobackward.10 and goforward.10: a turning arrow with the seconds inside it.
