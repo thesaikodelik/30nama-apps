@@ -382,7 +382,7 @@ private fun LineKey(text: String?, modifier: Modifier, icon: androidx.compose.ui
   Surface(
       onClick = onClick,
       onLongClick = onLong,
-      modifier = modifier.height(60.dp).focusRing(interaction, shape),
+      modifier = modifier.height(60.dp).focusRing(interaction, shape, grown = 1.18f),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
@@ -402,7 +402,7 @@ private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size
   val focused by interaction.collectIsFocusedAsState()
   Surface(
       onClick = onClick,
-      modifier = Modifier.size(size).focusRing(interaction, CircleShape),
+      modifier = Modifier.size(size).focusRing(interaction, CircleShape, grown = 1.1f),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text2, focusedContentColor = Theme.focusInk),

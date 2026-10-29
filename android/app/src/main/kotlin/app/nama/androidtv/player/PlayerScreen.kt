@@ -576,7 +576,7 @@ private fun PlayerButton(
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape),
+      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape, grown = 1.12f),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(

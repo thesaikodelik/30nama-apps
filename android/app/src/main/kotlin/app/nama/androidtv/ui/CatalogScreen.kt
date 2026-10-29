@@ -330,7 +330,7 @@ private fun SiteTile(title: String, icon: androidx.compose.ui.graphics.vector.Im
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.focusRing(interaction, shape),
+      modifier = modifier.focusRing(interaction, shape, grown = 1.02f),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.12f)),

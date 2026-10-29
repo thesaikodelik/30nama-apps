@@ -551,7 +551,7 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
                   else -> n.toDouble()
                 })
           },
-          modifier = Modifier.focusRing(interaction, CircleShape),
+          modifier = Modifier.focusRing(interaction, CircleShape, grown = 1.2f),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),
@@ -659,7 +659,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier.focusRing(interaction, shape),
+      modifier = modifier,
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       // The Mac's tile under the pointer: the same dark glass a shade lighter and the words as they
@@ -668,7 +668,9 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.07f), focusedContainerColor = Color.White.copy(alpha = 0.16f), contentColor = Theme.text1, focusedContentColor = Theme.text1),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
   ) {
-    Box(Modifier.fillMaxWidth().height(104.dp)) {
+    // The ring inside the tile, so it grows with it: on the tile's own modifier it stayed the
+    // tile's size at rest while the tile grew past it in focus (the owner).
+    Box(Modifier.fillMaxWidth().height(104.dp).focusRing(focused, shape)) {
       Row(Modifier.fillMaxSize().padding(horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(60.dp), contentAlignment = Alignment.Center) {
           if (focused) Icon(Icons.play, null, Modifier.size(30.dp), tint = Color.White)
@@ -772,7 +774,7 @@ private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: St
     Column(Modifier.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Surface(
           onClick = onClick,
-          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp),
+          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp, grown = 1.08f),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
@@ -804,7 +806,7 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
         Surface(
             // The whole review, to read on the TV (the Mac opens it on TMDB).
             onClick = { app.sheets.reading = ReadSpec(review.author, review.text, ltr = true) },
-            modifier = Modifier.focusRing(interaction, shape),
+            modifier = Modifier.focusRing(interaction, shape, grown = 1.03f),
             interactionSource = interaction,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.14f)),

@@ -96,13 +96,18 @@ enum class PillKind { Primary, Secondary, Chip }
  * reduced motion, the ring stands still.
  */
 @Composable
-fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp): Modifier {
+fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
   val focused by interaction.collectIsFocusedAsState()
-  return focusRing(focused, shape, width)
+  return focusRing(focused, shape, width, grown)
 }
 
 @Composable
-fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp): Modifier {
+/**
+ * [grown]: the control's own scale in focus, where the ring is on its outer modifier and the
+ * control grows inside it (a TV Surface scales its content, not its modifiers): the ring is drawn
+ * that much larger, so it sits on the grown edge and not inside it (the owner).
+ */
+fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
   val turns = LocalLively.current && !LocalCalm.current
   val angle = remember { androidx.compose.animation.core.Animatable(0f) }
   LaunchedEffect(focused, turns) {
@@ -111,7 +116,9 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
   }
   return this.drawWithCache {
     val stroke = width.toPx()
-    val inner = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+    val inner = androidx.compose.ui.geometry.Size(size.width * grown - stroke, size.height * grown - stroke)
+    val shift = stroke / 2f - size.width * (grown - 1f) / 2f
+    val shiftY = stroke / 2f - size.height * (grown - 1f) / 2f
     val outline = shape.createOutline(inner, layoutDirection, this)
     val cx = size.width / 2f
     val cy = size.height / 2f
@@ -123,7 +130,7 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
       if (focused) {
         matrix.setRotate(angle.value, cx, cy)
         shader.setLocalMatrix(matrix)
-        translate(stroke / 2f, stroke / 2f) { drawOutline(outline, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)) }
+        translate(shift, shiftY) { drawOutline(outline, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)) }
       }
     }
   }

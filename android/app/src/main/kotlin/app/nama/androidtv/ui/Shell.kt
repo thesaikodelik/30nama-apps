@@ -697,7 +697,7 @@ private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) 
         alpha = shown
         scaleX = 0.8f + 0.2f * shown
         scaleY = 0.8f + 0.2f * shown
-      }.focusRing(interaction, CircleShape),
+      }.focusRing(interaction, CircleShape, grown = 1.06f),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1.copy(alpha = 0.85f), focusedContentColor = Theme.text1),

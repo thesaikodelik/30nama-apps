@@ -381,7 +381,7 @@ fun TextRow(onClick: () -> Unit, content: @Composable () -> Unit) {
   val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = Modifier.fillMaxWidth().focusRing(interaction, RoundedCornerShape(Theme.tileRadius)),
+      modifier = Modifier.fillMaxWidth().focusRing(interaction, RoundedCornerShape(Theme.tileRadius), grown = 1.02f),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(RoundedCornerShape(Theme.tileRadius)),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
