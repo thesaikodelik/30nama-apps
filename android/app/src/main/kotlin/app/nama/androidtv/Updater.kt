@@ -59,6 +59,14 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   /** The failure card is up; it goes when closed, and the row in Settings brings it back. */
   var showFailure: Boolean by mutableStateOf(false)
 
+  /** "Later" on the capsule under the bar: it goes until the app opens again (the Mac's). */
+  var postponed: Boolean by mutableStateOf(false)
+    private set
+
+  fun postpone() {
+    postponed = true
+  }
+
   /** Set once, when the app opens as the update it installed; for a word to the viewer. */
   var arrived: String? by mutableStateOf(null)
     private set

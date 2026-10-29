@@ -1,5 +1,9 @@
 package app.nama.androidtv.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.drawBehind
 import kotlinx.coroutines.launch
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
@@ -162,4 +166,104 @@ fun ReadCard(spec: ReadSpec, close: () -> Unit) {
     }
   }
 }
+
+/**
+ * The Mac's update capsule (`UpdatePill`): a newer version, told in a glass capsule that drops from
+ * under the bar, with Install and Later. While it downloads it fills with 30nama's red from the
+ * side a line starts on, like a glass being poured; then Android's installer asks. Down from the
+ * bar reaches its buttons; Up goes back to the bar and Down on into the page.
+ */
+@Composable
+fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: () -> Boolean, modifier: Modifier = Modifier) {
+  val loc = LocalLoc.current
+  val state = updater.state
+  val release = when (state) {
+    is Updater.State.Available -> state.release.takeIf { !updater.postponed }
+    is Updater.State.Downloading -> state.release
+    is Updater.State.NeedsPermission -> state.release
+    is Updater.State.Installing -> state.release
+    else -> null
+  }
+  val failed = state is Updater.State.Failed && !updater.postponed
+  val fill = when (state) {
+    is Updater.State.Downloading -> state.progress.coerceAtLeast(0f)
+    is Updater.State.NeedsPermission, is Updater.State.Installing -> 1f
+    else -> 0f
+  }
+  val level by androidx.compose.animation.core.animateFloatAsState(fill, androidx.compose.animation.core.tween(400), label = "pour")
+  androidx.compose.animation.AnimatedVisibility(
+      visible = release != null || failed,
+      modifier = modifier,
+      // Out from behind the bar, and back behind it when it goes.
+      enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(500)) +
+          androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 120f)) { -it },
+      exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it },
+  ) {
+    val shape = RoundedCornerShape(50)
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val message = when (state) {
+      is Updater.State.Downloading -> loc(S.updating) + if (state.progress >= 0) " ${loc.num((state.progress * 100).toInt())}${if (loc.lang == app.nama.core.Lang.en) "%" else "٪"}" else ""
+      is Updater.State.NeedsPermission -> tv(TV.allowInstalls)
+      is Updater.State.Installing -> "${tv(TV.installing)} ${loc.num(state.release.version)}"
+      is Updater.State.Failed -> loc(S.updateFailed)
+      else -> "${loc(S.newVersion)} ${release?.version?.let { loc.num(it) } ?: ""}"
+    }
+    val icon = when (state) {
+      is Updater.State.Failed -> Icons.close
+      is Updater.State.Installing, is Updater.State.NeedsPermission -> Icons.check
+      else -> Icons.download
+    }
+    val hasButtons = state is Updater.State.Available || failed
+    // The buttons going while one had focus (Install pressed): focus back to the bar, not lost.
+    var holds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(hasButtons) { if (!hasButtons && holds) up() }
+    Row(
+        Modifier
+            .onFocusChanged { holds = it.hasFocus }
+            .onPreviewKeyEvent { e ->
+              if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+              when (e.key) {
+                androidx.compose.ui.input.key.Key.DirectionUp -> { up(); true }
+                androidx.compose.ui.input.key.Key.DirectionDown -> down()
+                else -> false
+              }
+            }
+            .shadowGlow(level)
+            .drawBehind {
+              // The red rising from the side a line starts on.
+              val w = size.width * level
+              if (w > 0f) drawRect(
+                  androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Theme.accentLight, Theme.accent, Theme.accentDeep)),
+                  topLeft = androidx.compose.ui.geometry.Offset(if (rtl) size.width - w else 0f, 0f),
+                  size = androidx.compose.ui.geometry.Size(w, size.height),
+              )
+            }
+            .glass(shape)
+            .padding(start = 26.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      androidx.tv.material3.Icon(icon, null, Modifier.size(28.dp), tint = if (level > 0f) Color.White else Theme.accent)
+      Text(message, style = app(24, FontWeight.SemiBold), color = Theme.text1, maxLines = 1)
+      when {
+        state is Updater.State.Available -> {
+          PillButton(loc(S.installUpdate), { updater.install(state.release) }, Modifier.focusRequester(focus), kind = PillKind.Primary)
+          PillButton(loc(S.later), { updater.postpone(); up() }, kind = PillKind.Chip, icon = Icons.close)
+        }
+        failed -> {
+          PillButton(loc(S.downloadPage), { updater.showFailure = true }, Modifier.focusRequester(focus), kind = PillKind.Primary)
+          PillButton(loc(S.later), { updater.postpone(); up() }, kind = PillKind.Chip, icon = Icons.close)
+        }
+        else -> Box(Modifier.size(12.dp, 60.dp))
+      }
+    }
+  }
+}
+
+/** The capsule's glow, in the red it fills with. */
+private fun Modifier.shadowGlow(level: Float): Modifier =
+    if (level <= 0f) this else this.colouredGlow(Theme.accent, level * 0.45f, 28.dp, RoundedCornerShape(50), y = 6.dp)
+
+/** Whether the capsule is up with buttons to reach, for Down from the bar. */
+fun Updater.pillHasButtons(): Boolean = (state is Updater.State.Available || state is Updater.State.Failed) && !postponed
 

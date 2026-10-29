@@ -243,13 +243,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         app.trailer?.let { (_, url) -> Box(Modifier.fillMaxSize().zIndex(15f)) { TrailerScreen(url) } }
         // The updater's word: it arrived, a new one is out, or it went wrong.
         val updatedTo = tv(TV.updatedTo)
-        val newOut = tv(TV.newVersionInSettings)
-        val newVersion = app.loc(S.newVersion)
         LaunchedEffect(updater.arrived, splashGone) { if (splashGone) updater.arrived?.let { app.showToast("$updatedTo ${it}") } }
-        // Once the opening title has gone and Settings can be reached, or it would be said to nobody.
-        LaunchedEffect(updater.state, splashGone, app.phase) {
-          if (splashGone && app.phase == AppModel.Phase.Main) (updater.state as? app.nama.androidtv.Updater.State.Available)?.let { app.showToast("$newVersion ${it.release.version} $newOut") }
-        }
         failed?.let { failed ->
           UpdateFailedCard(failed.page, retry = { updater.showFailure = false; updater.check() }, close = { updater.showFailure = false })
         }
@@ -374,6 +368,27 @@ fun MainScreen(onExit: () -> Unit) {
           }
         }
       }
+      val pillFocus = remember { FocusRequester() }
+      val updater = app.updater
+      // Into the page under the bar: back to where the viewer was on the tab's page, or into its
+      // first item. The tab may have changed this very press (a pending one): the page open now,
+      // not the drawn one. An open page is entered at its first control, as when it opened; from
+      // Back, at the bar's far end, the search found nothing of it below (the owner).
+      fun enterPage(): Boolean {
+        return if (nav.top != null) {
+          scope.launch {
+            withFrameNanos {}
+            runCatching { routeFocus.requestFocus() }
+          }
+          true
+        } else {
+          scope.launch {
+            withFrameNanos {}
+            runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
+          }
+          true
+        }
+      }
       // Over every page, as on the Mac; it steps out of the way once a page scrolls down.
       val barShown = barFocused || (if (route == null) chrome.pageAtTop else chrome.routeAtTop)
       val shown by animateFloatAsState(if (barShown) 1f else 0f, tween(260), label = "bar")
@@ -394,22 +409,17 @@ fun MainScreen(onExit: () -> Unit) {
           // first item. Left to the geometric search, it found nothing below: a page that is one
           // grid (a catalogue, search) starts under the bar, not below it.
           down = {
-            // The tab may have changed this very press (a pending one): the page open now, not the
-            // drawn one. An open page is entered at its first control, as when it opened; from Back,
-            // at the bar's far end, the search found nothing of it below (the owner).
-            if (nav.top != null) {
-              scope.launch {
-                withFrameNanos {}
-                runCatching { routeFocus.requestFocus() }
-              }
-              true
-            } else {
-              scope.launch {
-                withFrameNanos {}
-                runCatching { root.restoreFocusedChild() || root.requestFocus().let { true } }
-              }
-              true
-            }
+            // The update capsule under the bar first, while it has something to press.
+            if (updater.pillHasButtons() && runCatching { pillFocus.requestFocus() }.isSuccess) return@TabBar true
+            enterPage()
+          },
+      )
+      // The Mac's update capsule, out from under the bar, and with it when the bar steps away.
+      UpdatePill(
+          updater, pillFocus, up = { runCatching { chrome.bar.requestFocus() } }, down = { enterPage() },
+          modifier = Modifier.align(Alignment.TopCenter).padding(top = 112.dp).graphicsLayer {
+            alpha = shown
+            translationY = -40f * (1f - shown)
           },
       )
       nav.flight?.let { f -> if ((route as? Route.Details)?.id == f.post.id) FlyingPoster(f) { nav.flight = null } else LaunchedEffect(f) { nav.flight = null } }
