@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -371,7 +372,8 @@ private fun Header(
             .glint(wander)
             .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
-      RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 300)
+      // The cards' own request, in memory already: the landed poster is never a blur.
+      RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = (Theme.posterWidth.value * 1.2f).toInt())
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
     }
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -396,7 +398,12 @@ private fun Header(
       TitleArt(post, size = 84)
       // TMDB's own line for the title, in Persian when it has one, and its score.
       val extra = app.extras.known[post.id]
-      extra?.tagline?.let { Text(it, Modifier.widthIn(max = 1150.dp), style = app(26, FontWeight.Medium).copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = Theme.text2, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+      // TMDB's line comes after the page: it opens room for itself rather than pushing all below at once.
+      androidx.compose.animation.AnimatedVisibility(
+          extra?.tagline != null,
+          enter = androidx.compose.animation.fadeIn(tween(400)) + androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 80.6f, visibilityThreshold = androidx.compose.ui.unit.IntSize.VisibilityThreshold)),
+          exit = androidx.compose.animation.fadeOut(),
+      ) { extra?.tagline?.let { Text(it, Modifier.widthIn(max = 1150.dp), style = app(26, FontWeight.Medium).copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = Theme.text2, maxLines = 2, overflow = TextOverflow.Ellipsis) } }
       Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true, tmdbScore = extra?.score) }
       Standing(post)
       Text(

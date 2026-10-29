@@ -356,9 +356,17 @@ fun MainScreen(onExit: () -> Unit) {
         // scroll, focus and loaded rows are all still there on the way back.
         // Its block on focus is a group of its own around it: on the same group as focusRestorer, the
         // restorer's way in replaced the block, and the hidden page took focus from the one showing.
+        // As the Mac's: the tab's page fades out while the opened one fades in over it, the two at
+        // once. Gone at once, the screen went black for a few frames between them.
+        val calmRoot = LocalCalm.current
+        val rootShown by animateFloatAsState(
+            if (route == null) 1f else 0f,
+            if (calmRoot) androidx.compose.animation.core.snap() else tween(280),
+            label = "root",
+        )
         Box(Modifier.fillMaxSize().blockFocus(route != null).focusGroup()) {
         Box(
-            Modifier.fillMaxSize().graphicsLayer { alpha = if (route == null) 1f else 0f }
+            Modifier.fillMaxSize().graphicsLayer { alpha = rootShown }
                 .focusRequester(root).focusRestorer()) {
           holder.SaveableStateProvider(nav.tab.name) { TabRoot(nav.tab) }
         }
@@ -498,8 +506,11 @@ private fun FlyingPoster(flight: Flight, landed: () -> Unit) {
     val h = with(density) { mix(from.height, to.height).toDp() }
     val radius = mix(Theme.cardRadius.value, 24f).dp
     RemoteImage(
-        flight.post.poster.url(Theme.posterWidth.value * 1.1), blurhash = flight.post.poster.blurhash, pixelWidth = 300, fade = false,
-        modifier = Modifier.absoluteOffset { androidx.compose.ui.unit.IntOffset(left.toInt(), top.toInt()) }.size(w, h)
+        // The card's own request, so the picture is the one in memory and the flight never starts blank.
+        flight.post.poster.url(Theme.posterWidth.value * 1.1), blurhash = flight.post.poster.blurhash, pixelWidth = (Theme.posterWidth.value * 1.2f).toInt(), fade = false,
+        // From the screen's own left: in a right-to-left language the box put it at the right, and
+        // the offset carried it off the screen, so the flight was never seen in Persian or Arabic.
+        modifier = Modifier.align(androidx.compose.ui.AbsoluteAlignment.TopLeft).absoluteOffset { androidx.compose.ui.unit.IntOffset(left.toInt(), top.toInt()) }.size(w, h)
             .clip(RoundedCornerShape(radius)),
     )
   }

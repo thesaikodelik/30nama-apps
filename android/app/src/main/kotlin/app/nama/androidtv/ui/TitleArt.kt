@@ -5,8 +5,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.size
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
@@ -45,22 +46,58 @@ fun TitleArt(post: Post, size: Int) {
   val context = androidx.compose.ui.platform.LocalContext.current
   // Null while it is being worked out; then the logo's picture, or none (and the name is shown).
   var logo by remember(post.id) { mutableStateOf<Result<androidx.compose.ui.graphics.ImageBitmap?>?>(null) }
+  // Known already, as on going back to a page: shown at once, with nothing to wait for (the Mac's).
+  var known by remember(post.id) { mutableStateOf(false) }
   LaunchedEffect(post.id) {
     // The logo is shown once its picture is in hand: a logo that has not come yet is a gap where
     // the name should be. Two seconds at most, as on the Mac; a logo found later still replaces the
     // name. The two seconds are kept apart from the asking: a request where TMDB or GitHub is
     // filtered neither answers nor fails, and blocks until its connection gives up, so a timeout
     // around it would wait as long as it does.
+    val start = System.currentTimeMillis()
     launch {
       val picture = runCatching { logoPicture(context, app, post, loc.lang) }.getOrNull()
+      if (picture != null && System.currentTimeMillis() - start < KNOWN_MS) known = true
       if (picture != null || logo == null) logo = Result.success(picture)
     }
     delay(2_000)
     if (logo == null) logo = Result.success(null)
   }
-  val shown by animateFloatAsState(if (logo != null) 1f else 0f, tween(450), label = "title")
   val picture = logo?.getOrNull()
-  Column(Modifier.graphicsLayer { alpha = shown }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+  // The Mac's arrival: up out of a blur from 14 points below, on its spring (a response of 0.7 s,
+  // damping 0.9). What is chosen, the name or the logo, each arrives in turn: a logo that comes
+  // after the name has shown comes in as the name did.
+  val calm = LocalCalm.current
+  val lively = LocalLively.current
+  val arrival = remember(post.id) { androidx.compose.animation.core.Animatable(0f) }
+  val stage = when {
+    logo == null -> 0
+    picture == null -> 1
+    else -> 2
+  }
+  LaunchedEffect(stage) {
+    if (stage == 0) return@LaunchedEffect
+    if (known || calm) return@LaunchedEffect arrival.snapTo(1f)
+    arrival.snapTo(0f)
+    arrival.animateTo(1f, TITLE_SETTLE)
+  }
+  Column(
+      Modifier
+          // In one motion with the page: what is below moves down to make room as a taller logo
+          // comes in, instead of jumping there (the owner, as the Mac's).
+          .then(if (known || calm) Modifier else Modifier.animateContentSize(TITLE_SETTLE_SIZE, alignment = Alignment.TopStart))
+          .graphicsLayer {
+            val a = arrival.value
+            alpha = a
+            translationY = (1f - a) * 14.dp.toPx()
+            // The blur only where it is affordable: on a weak TV the rise alone.
+            if (lively && a < 1f && android.os.Build.VERSION.SDK_INT >= 31) {
+              val r = (1f - a) * 12.dp.toPx()
+              if (r > 0.5f) renderEffect = android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.DECAL).asComposeRenderEffect()
+            }
+          },
+      verticalArrangement = Arrangement.spacedBy(14.dp),
+  ) {
     if (picture != null) {
       // Its own shape, up to eight sizes wide and 2.4 tall, from the reading start.
       val ratio = picture.width.toFloat() / picture.height.coerceAtLeast(1)
@@ -95,6 +132,12 @@ fun TitleArt(post: Post, size: Int) {
     }
   }
 }
+
+/** A logo in hand this soon was already known (in memory or on disk), not fetched. */
+private const val KNOWN_MS = 120L
+/** The Mac's `TitleArt.settle`: a spring with a response of 0.7 s and damping 0.9. */
+private val TITLE_SETTLE = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.9f, stiffness = 80.6f)
+private val TITLE_SETTLE_SIZE = androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 80.6f, visibilityThreshold = androidx.compose.ui.unit.IntSize.VisibilityThreshold)
 
 /**
  * Fetches what a billboard shows for [post], its backdrop and logo, into the image cache, so both
