@@ -169,10 +169,23 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "تأتي الإصدارات الجديدة من صفحة المشروع على GitHub. يُتحقق من كل منها بتوقيع المشروع قبل تثبيته.",
   ),
   installHint(
-      "Android asks to confirm. 30nama then closes for the update; if it does not open again by itself, open it from the TV's home screen.",
-      "اندروید تأیید می‌خواهد. بعد ۳۰نما برای به‌روزرسانی بسته می‌شود؛ اگر خودش دوباره باز نشد، از صفحهٔ اصلی تلویزیون بازش کنید.",
-      "يطلب أندرويد التأكيد. ثم يُغلق ۳۰نما للتحديث؛ إن لم يُفتح من تلقاء نفسه، افتحه من الشاشة الرئيسية للتلفاز.",
+      "Android asks to confirm: choose Update, not Cancel where it starts. 30nama then closes for the update; if it does not open again by itself, open it from the TV's home screen.",
+      "اندروید تأیید می‌خواهد: «Update» را بزنید، نه «Cancel» که اول روی آن است. بعد ۳۰نما برای به‌روزرسانی بسته می‌شود؛ اگر خودش دوباره باز نشد، از صفحهٔ اصلی تلویزیون بازش کنید.",
+      "يطلب أندرويد التأكيد: اختر Update، لا Cancel حيث يبدأ التحديد. ثم يُغلق ۳۰نما للتحديث؛ إن لم يُفتح من تلقاء نفسه، افتحه من الشاشة الرئيسية للتلفاز.",
   ),
+  allowBody(
+      "Android asks once before 30nama can install its own updates. Press Open settings, turn 30nama on, and come back with Back: the update goes on by itself.",
+      "اندروید یک بار اجازه می‌خواهد تا ۳۰نما بتواند نسخه‌های تازهٔ خودش را نصب کند. «باز کردن تنظیمات» را بزنید، ۳۰نما را روشن کنید و با «برگشت» به این‌جا برگردید؛ نصب خودش ادامه پیدا می‌کند.",
+      "يطلب أندرويد إذناً مرة واحدة قبل أن يثبّت ۳۰نما إصداراته الجديدة. اضغط فتح الإعدادات، وفعّل ۳۰نما، ثم عد بزر الرجوع: يتابع التحديث من تلقاء نفسه.",
+  ),
+  allowWhere(
+      "If the screen that opens has no 30nama in it, it is here:",
+      "اگر صفحه‌ای که باز می‌شود ۳۰نما را نداشت، این‌جاست:",
+      "إن لم تجد ۳۰نما في الشاشة التي تُفتح، فهو هنا:",
+  ),
+  allowOr("or, on some TVs:", "یا در بعضی تلویزیون‌ها:", "أو في بعض أجهزة التلفاز:"),
+  pressUpdate("Choose Update in Android's window", "در پنجرهٔ اندروید «Update» را بزنید", "اختر Update في نافذة أندرويد"),
+  openSettings("Open settings", "باز کردن تنظیمات", "فتح الإعدادات"),
   installsNotAllowed(
       "Android did not let 30nama install it. Turn 30nama on under Unknown sources, in the TV's Settings › Apps › Security & restrictions (on Google TV: Settings › Privacy › Security & restrictions), then try again. Or scan this with a phone to download the new version by hand.",
       "اندروید اجازهٔ نصب به ۳۰نما نداد. در تنظیمات تلویزیون › برنامه‌ها › امنیت و محدودیت‌ها › منابع ناشناس (در Google TV: تنظیمات › حریم خصوصی › امنیت و محدودیت‌ها)، ۳۰نما را روشن کنید و دوباره بزنید. یا این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید.",

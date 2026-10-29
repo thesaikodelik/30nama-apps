@@ -48,7 +48,10 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     data class Downloading(val release: AndroidRelease, val progress: Float) : State
     /** Android's installer has it; it asks the viewer, and then the app is replaced. */
     data class Installing(val release: AndroidRelease) : State
-    /** Android first asks to let this app install apps; it comes back here once allowed. */
+    /**
+     * Android has not let this app install apps yet: a card walks the viewer to the switch, and the
+     * update goes on by itself once they come back with it on (the APK is already downloaded).
+     */
     data class NeedsPermission(val release: AndroidRelease) : State
     /**
      * [step] is the step that failed, in the log's words, shown small on the card for a photo;
@@ -94,20 +97,22 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   fun start() {
     if (started) return
     started = true
+    var unfinished = false
     PendingUpdate.parse(pendingFile.takeIf { it.exists() }?.readText())?.let { pending ->
       pendingFile.delete()
       if (pending.arrived(current)) {
         log("opened as ${current}: the update arrived")
         arrived = current
       } else {
-        log("opened as $current, not ${pending.version}: the installer did not finish")
-        state = State.Failed(pending.page, "installer did not finish (${pending.version})", blocked = !allowedToInstall())
-        showFailure = true
+        // Android's confirmation was left (Home, or the TV slept) and said nothing back. Not a failure:
+        // the update is offered again under the bar, not a card sending the viewer to download it.
+        log("opened as $current, not ${pending.version}: the installer was left; offered again")
+        unfinished = true
       }
     }
     dir.deleteRecursively()
     val last = prefs.getLong("checked", 0)
-    if (state == State.Idle && System.currentTimeMillis() - last > 20 * 3600_000L) check(quiet = true)
+    if (state == State.Idle && (unfinished || System.currentTimeMillis() - last > 20 * 3600_000L)) check(quiet = true)
   }
 
   fun check(quiet: Boolean = false) {
@@ -138,6 +143,41 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     }
   }
 
+  /** The release last downloaded, for Try again on the failure card to install again, not only look. */
+  private var last: AndroidRelease? = null
+
+  fun retry() {
+    showFailure = false
+    last?.let(::install) ?: check()
+  }
+
+  /** "Later" on the permission card: the update waits in the capsule. */
+  fun notNow() {
+    (state as? State.NeedsPermission)?.let { state = State.Available(it.release) }
+  }
+
+  /**
+   * Android's switch for this app, or the nearest screen a TV has: some open the per-app screen,
+   * some (Sony, Google TV) only their security list, some nothing but Settings.
+   */
+  fun openPermission() {
+    val tries = buildList {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        add(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")))
+        add(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES))
+      }
+      add(Intent(Settings.ACTION_SECURITY_SETTINGS))
+      add(Intent(Settings.ACTION_SETTINGS))
+    }
+    for (intent in tries) {
+      if (runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) {
+        log("opened ${intent.action}${intent.data?.let { " for this app" } ?: ""}")
+        return
+      }
+    }
+    log("no settings screen opened")
+  }
+
   fun dismiss() {
     state = State.Idle
   }
@@ -145,28 +185,27 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   fun install(release: AndroidRelease) {
     if (state is State.Downloading || state is State.Installing) return
     state = State.Downloading(release, -1f)
+    last = release
     scope.launch {
       val apk = File(dir, "30nama-androidtv.apk")
       val step = withContext(Dispatchers.IO) { prepare(release, apk) }
       if (step != null) return@launch fail(release, step)
+      // Asked through the app's own card rather than Android's screen thrown up unexplained: a Sony
+      // on Android 12 left the viewer there not knowing what to turn on, and the update failed.
       if (!allowedToInstall()) {
-        log("asking to be allowed to install apps")
+        log("not yet allowed to install apps; asking")
         state = State.NeedsPermission(release)
-        val asked = runCatching {
-          context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-        // Some TVs have no such screen: the installer then asks by itself, or says no.
-        if (asked.isSuccess) return@launch
+        return@launch
       }
       commit(release, apk)
     }
   }
 
-  /** Back from the system's "install unknown apps" screen. */
+  /** Back from the system's settings: with the switch on, the update goes on; else the card stays. */
   fun resumed() {
     val s = state as? State.NeedsPermission ?: return
-    // Some TVs (a Sony on Android 12) open the screen but keep the switch elsewhere: the card says where.
-    if (!allowedToInstall()) return fail(s.release, "not allowed to install apps")
+    if (!allowedToInstall()) return
+    log("allowed to install apps")
     scope.launch { commit(s.release, File(dir, "30nama-androidtv.apk")) }
   }
 
@@ -258,7 +297,11 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
       else -> {
         pendingFile.delete()
         val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-        if (status == PackageInstaller.STATUS_FAILURE_ABORTED) {
+        if (release != null && (status == PackageInstaller.STATUS_FAILURE_BLOCKED || !allowedToInstall())) {
+          // Refused for want of the switch: back to the card that shows where it is, not a failure.
+          log("installer status $status ($message): not allowed to install apps")
+          state = State.NeedsPermission(release)
+        } else if (status == PackageInstaller.STATUS_FAILURE_ABORTED) {
           log("the viewer said no")
           state = release?.let { State.Available(it) } ?: State.Idle
         } else {

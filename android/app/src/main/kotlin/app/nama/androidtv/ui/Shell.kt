@@ -221,8 +221,9 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         // What had focus before the failure card came up gets it back when the card goes.
         val content = remember { FocusRequester() }
         var cardWasUp by remember { mutableStateOf(false) }
-        LaunchedEffect(failed != null) {
-          if (failed != null) cardWasUp = true
+        val asking = updater.state is app.nama.androidtv.Updater.State.NeedsPermission && app.playback == null
+        LaunchedEffect(failed != null || asking) {
+          if (failed != null || asking) cardWasUp = true
           else if (cardWasUp) {
             cardWasUp = false
             withFrameNanos {}
@@ -232,7 +233,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         // The restorer has a group of its own: without one its way in reached every page's own
         // group below it, so entering an open page from the bar was turned back to the hidden one.
         key(app.contentVersion) {
-          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null || failed != null).focusRequester(content).focusRestorer().focusGroup()) {
+          Box(Modifier.fillMaxSize().blockFocus(app.playback != null || app.trailer != null || failed != null || asking).focusRequester(content).focusRestorer().focusGroup()) {
           when (app.phase) {
             AppModel.Phase.Booting -> if (splashGone) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
             AppModel.Phase.Failed -> ErrorState("${app.loc(S.noConnection)}. ${app.loc(S.tryAgain)}") { app.boot() }
@@ -248,8 +249,11 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         // The updater's word: it arrived, a new one is out, or it went wrong.
         val updatedTo = tv(TV.updatedTo)
         LaunchedEffect(updater.arrived, splashGone) { if (splashGone) updater.arrived?.let { app.showToast("$updatedTo ${it}") } }
+        if (asking) {
+          AllowInstallsCard(open = { updater.openPermission() }, later = { updater.notNow() })
+        }
         failed?.let { failed ->
-          UpdateFailedCard(failed.page, failed.step, failed.blocked, retry = { updater.showFailure = false; updater.check() }, close = { updater.showFailure = false })
+          UpdateFailedCard(failed.page, failed.step, failed.blocked, retry = { updater.retry() }, close = { updater.showFailure = false })
         }
         AnimatedVisibility(
             visible = app.toast != null,

@@ -104,6 +104,53 @@ fun UpdateFailedCard(page: String, step: String, blocked: Boolean, retry: () -> 
 }
 
 /**
+ * Before the first update, Android's one question: may 30nama install apps. The card says why and
+ * opens the nearest settings screen the TV has; the paths below are for a TV whose screen opens
+ * elsewhere, in English as TVs show them. Back with the switch on, the update goes on by itself.
+ */
+@Composable
+fun AllowInstallsCard(open: () -> Unit, later: () -> Unit) {
+  val loc = LocalLoc.current
+  val shape = RoundedCornerShape(36.dp)
+  val first = remember { FocusRequester() }
+  BackHandler(onBack = later)
+  LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+  Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+    Column(Modifier.width(1300.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+      Text(tv(TV.allowInstalls), style = app(40, FontWeight.Bold), color = Theme.text1)
+      Text(tv(TV.allowBody), style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
+      Row(Modifier.padding(top = 12.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        PillButton(tv(TV.openSettings), open, Modifier.focusRequester(first), kind = PillKind.Primary)
+        PillButton(loc(S.later), later)
+      }
+      Text(tv(TV.allowWhere), style = app(22), color = Theme.text3)
+      SettingsPath(listOf("Settings", "Privacy", "Security & restrictions", "Unknown sources", "30nama"))
+      Text(tv(TV.allowOr), style = app(22), color = Theme.text3)
+      SettingsPath(listOf("Settings", "Apps", "Security & restrictions", "Unknown sources", "30nama"))
+    }
+  }
+}
+
+/** A path through the TV's own settings, as chips, read left to right as the TV's menus are. */
+@Composable
+private fun SettingsPath(steps: List<String>) {
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+      steps.forEachIndexed { i, step ->
+        if (i > 0) Text("›", style = app(24), color = Theme.text3)
+        val last = i == steps.lastIndex
+        Text(
+            step,
+            Modifier.background(if (last) Theme.accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f), RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 8.dp),
+            style = app(22, if (last) FontWeight.SemiBold else FontWeight.Normal),
+            color = Theme.text1,
+        )
+      }
+    }
+  }
+}
+
+/**
  * Where the Mac and Windows open a page in the browser (renewing, a report, IMDb), the TV shows
  * its QR code to open on the phone, with the address under it.
  */
@@ -211,7 +258,8 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
     val message = when (state) {
       is Updater.State.Downloading -> loc(S.updating) + if (state.progress >= 0) " ${loc.num((state.progress * 100).toInt())}${if (loc.lang == app.nama.core.Lang.en) "%" else "٪"}" else ""
       is Updater.State.NeedsPermission -> tv(TV.allowInstalls)
-      is Updater.State.Installing -> "${tv(TV.installing)} ${loc.num(state.release.version)}"
+      // Android's window sits over the page with Cancel in focus; the capsule above it says which to press.
+      is Updater.State.Installing -> tv(TV.pressUpdate)
       is Updater.State.Failed -> loc(S.updateFailed)
       else -> "${loc(S.newVersion)} ${release?.version?.let { loc.num(it) } ?: ""}"
     }

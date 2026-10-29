@@ -121,6 +121,8 @@ class Shots {
         take(name)
         model.updater.showFailure = false
       }
+      model.updater.state = app.nama.androidtv.Updater.State.NeedsPermission(app.nama.androidtv.data.AndroidRelease("1.1.2", "https://example.com/page", "https://example.com/a.apk", "https://example.com/a.apk.sig"))
+      take("update-allow")
       model.updater.state = app.nama.androidtv.Updater.State.Idle
       nav.tab = Tab.home
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
