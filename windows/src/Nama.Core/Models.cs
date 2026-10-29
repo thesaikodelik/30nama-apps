@@ -576,10 +576,17 @@ public sealed record StreamItem
         return TitleEnglish ?? TitleLocal;
     }
 
-    /// <summary>Highest fixed rendition by default; the adaptive master when asked for or when it is all there is.</summary>
-    public Quality? PickQuality(bool preferAdaptive)
+    /// <summary>
+    /// Highest fixed rendition by default; the adaptive master when asked for or when it is all there
+    /// is. A fixed one is no taller than <paramref name="screenLines"/> when it is given (the monitor's
+    /// height): a 4K file on a 1080p screen costs four times the line for nothing seen (the Android
+    /// app's). With none that low, the lowest there is.
+    /// </summary>
+    public Quality? PickQuality(bool preferAdaptive, int screenLines = 0)
     {
-        var fixedOne = Qualities.Where(q => !q.IsAuto).MaxBy(q => q.Height);
+        var fixedAll = Qualities.Where(q => !q.IsAuto).ToList();
+        var fixedOne = (screenLines > 0 ? fixedAll.Where(q => q.Height <= screenLines).MaxBy(q => q.Height) ?? fixedAll.MinBy(q => q.Height) : null)
+            ?? fixedAll.MaxBy(q => q.Height);
         var auto = Qualities.FirstOrDefault(q => q.IsAuto);
         return preferAdaptive ? auto ?? fixedOne : fixedOne ?? auto;
     }

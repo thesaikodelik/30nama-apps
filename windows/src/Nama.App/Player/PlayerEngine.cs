@@ -213,7 +213,7 @@ public sealed class PlayerEngine
         Index = i;
         _reportedTime = 0;
         _markedWatched = false;
-        if (Current.PickQuality(_app.Settings.PreferAdaptive) is not { } quality)
+        if (Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines) is not { } quality)
         {
             _app.ShowToast(Loc[S.noStream]);
             Close();
@@ -303,6 +303,22 @@ public sealed class PlayerEngine
         Playback.Play();
     }
 
+    /// <summary>
+    /// The tallest monitor's height, as lines of a picture: the window may be moved to it. "Best" is no
+    /// taller than this; the quality menu and Max still reach anything.
+    /// </summary>
+    private static int ScreenLines
+    {
+        get
+        {
+            try
+            {
+                return Microsoft.UI.Windowing.DisplayArea.FindAll().Select(d => Math.Min(d.OuterBounds.Width, d.OuterBounds.Height)).DefaultIfEmpty(0).Max() is var lines and >= 720 ? lines : 0;
+            }
+            catch (Exception) { return 0; }
+        }
+    }
+
     /// <summary>When this file was resumed part-way, for the "start over" offer.</summary>
     private DateTime? _resumedAt;
 
@@ -357,7 +373,7 @@ public sealed class PlayerEngine
     {
         if (_closed) return;
         // The download file would not play: the stream takes over at the same moment.
-        if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive) is { } stream)
+        if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines) is { } stream)
         {
             _direct = false;
             // The stream's timing, not the file's.

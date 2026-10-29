@@ -280,6 +280,10 @@ public class ModelTests
         Assert.Equal(["خودکار", "720p", "1080p"], item.Qualities.Select(q => q.Label));
         Assert.Equal("1080.m3u8", item.PickQuality(preferAdaptive: false)!.Url.LastPathComponent());
         Assert.Equal("auto.m3u8", item.PickQuality(preferAdaptive: true)!.Url.LastPathComponent());
+        // No taller than the screen: a 720p screen gets 720p, a 4K one the tallest there is.
+        Assert.Equal("720p", item.PickQuality(preferAdaptive: false, screenLines: 720)!.Label);
+        Assert.Equal("1080p", item.PickQuality(preferAdaptive: false, screenLines: 2160)!.Label);
+        Assert.Equal("720p", item.PickQuality(preferAdaptive: false, screenLines: 480)!.Label); // none that low: the lowest
         var full = item.Qualities.First(q => q.Label == "1080p");
         Assert.Equal("1080-2ch.m3u8", full.Stereo?.LastPathComponent());
         Assert.Equal("1080-6ch.m3u8", full.Surround?.LastPathComponent());
