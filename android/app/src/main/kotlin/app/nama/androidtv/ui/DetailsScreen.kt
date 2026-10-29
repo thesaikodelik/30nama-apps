@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -520,9 +521,10 @@ private fun PosterBack(card: app.nama.core.TitleCard, filtered: Boolean) {
   val loc = LocalLoc.current
   Box(Modifier.fillMaxSize().background(Theme.bg0)) {
     card.poster?.let {
-      RemoteImage(app.nama.core.TitleCard.picture(it, filtered), Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }.blur(3.dp), pixelWidth = 360)
+      RemoteImage(app.nama.core.TitleCard.picture(it, filtered), Modifier.fillMaxSize().graphicsLayer { alpha = 0.85f }, pixelWidth = 360)
     }
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.7f), Color.Black.copy(alpha = 0.88f)))))
+    // Dark enough for the words over it, at the top and the foot; the picture clear between.
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.62f), Color.Black.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.38f), Color.Black.copy(alpha = 0.85f)))))
     Column(
         Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 34.dp),
         verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally,
@@ -539,17 +541,35 @@ private fun PosterBack(card: app.nama.core.TitleCard, filtered: Boolean) {
           Text(tv(TV.partOf).replace("{at}", loc.num(c.at)).replace("{of}", loc.num(c.of)), style = app(30, FontWeight.Bold), color = Theme.text1)
         }
       } ?: Spacer(Modifier)
-      card.companyLogo?.let { logo ->
-        // In its own colours on a light plate: made white, a solid mark was only a blot, and a dark
-        // one on the dark back was nothing at all.
-        Box(Modifier.background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(14.dp)).padding(horizontal = 18.dp, vertical = 10.dp)) {
-          RemoteImage(
-              app.nama.core.TitleCard.picture(logo, filtered), Modifier.widthIn(max = 200.dp).height(44.dp).aspectRatio(3f, matchHeightConstraintsFirst = true),
-              pixelWidth = 400, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-          )
-        }
-      } ?: card.companyName?.let { Text(it, style = app(22, FontWeight.SemiBold), color = Theme.text2, maxLines = 1) } ?: Spacer(Modifier)
+      card.companyLogo?.let { logo -> MakerLogo(app.nama.core.TitleCard.picture(logo, filtered)?.toString(), card.companyName) } ?: card.companyName?.let { Text(it, style = app(22, FontWeight.SemiBold), color = Theme.text2, maxLines = 1) } ?: Spacer(Modifier)
     }
+  }
+}
+
+/**
+ * The maker's logo in its own colours, with a light outline of its own shape around it, as a
+ * sticker has: made white, a solid mark was a blot; on a white plate it stood out too much (the
+ * owner); bare, a dark logo was lost on the dark back. The outline is the logo itself, whitened and
+ * drawn a little to every side under it.
+ */
+@Composable
+private fun MakerLogo(url: String?, name: String?) {
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val request = remember(url) {
+    coil3.request.ImageRequest.Builder(context).data(url).size(coil3.size.Size(coil3.size.Dimension(400), coil3.size.Dimension.Undefined)).build()
+  }
+  val box = Modifier.widthIn(max = 200.dp).height(48.dp).aspectRatio(3f, matchHeightConstraintsFirst = true)
+  val fit = androidx.compose.ui.layout.ContentScale.Fit
+  Box(box, contentAlignment = Alignment.Center) {
+    val r = 2.2f
+    for (k in 0 until 12) {
+      val a = 2.0 * Math.PI * k / 12
+      coil3.compose.AsyncImage(
+          request, null, Modifier.matchParentSize().absoluteOffset((r * kotlin.math.cos(a)).dp, (r * kotlin.math.sin(a)).dp), contentScale = fit,
+          colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
+      )
+    }
+    coil3.compose.AsyncImage(request, name, Modifier.matchParentSize(), contentScale = fit)
   }
 }
 
