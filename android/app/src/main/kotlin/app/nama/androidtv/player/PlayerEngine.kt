@@ -232,7 +232,12 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       .setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS)
       .setSeekBackIncrementMs(10_000)
       .setSeekForwardIncrementMs(10_000)
-      .build()
+      .build().also { p ->
+        // The adaptive stream no taller than this screen shows and its decoder reads (DeviceCeiling).
+        DeviceCeiling.lines(context).takeIf { it > 0 }?.let { lines ->
+          p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setMaxVideoSize(lines * 16 / 9 + 16, lines + 16).build()
+        }
+      }
 
   /**
    * The system's view of playback, for the remote's media keys, HDMI-CEC and the Assistant: next
@@ -370,7 +375,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     reportedTime = 0
     // Not the last file's length for this one, as the switch reports it.
     duration = 0.0
-    val q = StartQuality.pick(current, app.settings.preferAdaptive, app.settings.startCap)
+    val q = StartQuality.pick(current, app.settings.preferAdaptive, app.settings.startCap, DeviceCeiling.lines(context))
     if (q == null) {
       app.showToast(loc(S.noStream))
       return close()
@@ -727,7 +732,7 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     if (warmed == index) return
     warmed = index
     val next = items.getOrNull(index + 1) ?: return
-    val url = StartQuality.pick(next, app.settings.preferAdaptive, app.settings.startCap)?.url(mix)?.toString() ?: return
+    val url = StartQuality.pick(next, app.settings.preferAdaptive, app.settings.startCap, DeviceCeiling.lines(context))?.url(mix)?.toString() ?: return
     if (!url.contains(".m3u8")) return
     readAhead?.warm(scope, url, quality?.height?.takeIf { it > 0 })
   }

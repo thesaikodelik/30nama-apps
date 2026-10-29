@@ -24,6 +24,15 @@ class StartQualityTest {
     assertEquals("480p", StartQuality.pick(i, adaptive = false, cap = 480)?.label)
   }
 
+  @Test fun bestIsNoTallerThanTheDevice() {
+    val i = item("Auto", "480p", "1080p", "720p", "2160p")
+    assertEquals("no 4K on a 1080p screen", "1080p", StartQuality.pick(i, adaptive = false, cap = 0, device = 1080)?.label)
+    assertEquals("4K where the screen and decoder take it", "2160p", StartQuality.pick(i, adaptive = false, cap = 0, device = 2160)?.label)
+    assertEquals("the lower of the two", "720p", StartQuality.pick(i, adaptive = false, cap = 720, device = 1080)?.label)
+    assertEquals("a cap above the device is the device", "1080p", StartQuality.pick(i, adaptive = false, cap = 2160, device = 1080)?.label)
+    assertEquals("the adaptive stream stays it; the player holds it down", "Auto", StartQuality.pick(i, adaptive = true, cap = 0, device = 1080)?.label)
+  }
+
   @Test fun nothingThatLowTakesTheLowest() {
     assertEquals("720p", StartQuality.pick(item("1080p", "720p"), adaptive = false, cap = 480)?.label)
   }
