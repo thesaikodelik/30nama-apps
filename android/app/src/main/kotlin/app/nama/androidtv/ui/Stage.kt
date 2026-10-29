@@ -49,7 +49,7 @@ private data class Backdrop(val id: Int, val url: URI?, val blurhash: String?, v
  * @param video moving pictures over the still and under the shading (the title page's [Teaser]).
  */
 @Composable
-fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = true, tint: Color? = null, video: (@Composable () -> Unit)? = null) {
+fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = true, tint: Color? = null, deep: Boolean = false, video: (@Composable () -> Unit)? = null) {
   val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
   var shown by remember { mutableStateOf<Backdrop?>(null) }
   // TMDB's wide picture, with the user's key, where 30nama has no scene picture (the Tizen app's).
@@ -74,11 +74,15 @@ fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = tr
       if (b != null) Drifting(b)
     }
     video?.invoke()
-    // Text side: near-opaque at the start edge, clear by two thirds across.
+    // Text side: near-opaque at the start edge, clear by two thirds across. [deep], under a title's
+    // page, where the words run across most of the screen: dark further across, so they hold over a
+    // busy picture seen from the sofa (the owner).
+    val stops = if (deep) arrayOf(0f to Theme.bg0.copy(alpha = 0.97f), 0.45f to Theme.bg0.copy(alpha = 0.86f), 0.88f to Theme.bg0.copy(alpha = 0f))
+    else arrayOf(0f to Theme.bg0.copy(alpha = 0.96f), 0.30f to Theme.bg0.copy(alpha = 0.78f), 0.68f to Theme.bg0.copy(alpha = 0f))
     Box(
         Modifier.fillMaxSize().background(
             Brush.horizontalGradient(
-                0f to Theme.bg0.copy(alpha = 0.96f), 0.30f to Theme.bg0.copy(alpha = 0.78f), 0.68f to Theme.bg0.copy(alpha = 0f),
+                *stops,
                 startX = if (rtl) Float.POSITIVE_INFINITY else 0f, endX = if (rtl) 0f else Float.POSITIVE_INFINITY,
             )))
     // Rows side: solid at the bottom edge.

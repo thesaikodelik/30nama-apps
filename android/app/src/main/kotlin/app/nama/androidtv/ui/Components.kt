@@ -582,7 +582,9 @@ fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier,
 @Composable
 fun Chip(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
   Box(
-      modifier.height(44.dp).background(Color.White.copy(alpha = 0.12f), capsule).padding(horizontal = 17.dp),
+      // Dark glass with a light rim, not the Mac's white 0.12: over a bright, busy picture that
+      // left the words on light (the owner).
+      modifier.height(44.dp).background(Color.Black.copy(alpha = 0.42f), capsule).border(1.dp, Color.White.copy(alpha = 0.14f), capsule).padding(horizontal = 17.dp),
       contentAlignment = Alignment.Center,
   ) { content() }
 }

@@ -212,7 +212,7 @@ fun DetailsScreen(route: Route.Details) {
     val small = items.firstOrNull()?.qualities?.let { q -> q.filter { !it.isAuto && it.height > 0 }.minByOrNull { it.height } ?: q.firstOrNull() }
     val nav = LocalNav.current
     val looking = app.playback == null && app.trailer == null && app.sheets.shown == null && nav.top == route
-    Stage(post, dim = 0.3f, settleMs = 0, tint = hue) {
+    Stage(post, dim = 0.3f, settleMs = 0, tint = hue, deep = true) {
       // Keyed on the film being known as well, so the clip is chosen with what is known by then.
       Teaser(post?.id?.takeIf { small != null || app.inIran }?.let { it to (small != null) }, {
         // In Iran Aparat's trailer first; Aparat checks where its video is played from.
@@ -396,6 +396,9 @@ private fun Header(
       RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = (Theme.posterWidth.value * 1.2f).toInt())
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
     }
+    // A soft shadow under every line of the header: over a busy picture the words and chips were
+    // hard to read from the sofa (the owner).
+    CompositionLocalProvider(androidx.tv.material3.LocalTextStyle provides androidx.tv.material3.LocalTextStyle.current.copy(shadow = TEXT_SHADOW)) {
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
       // The kind line, and beside it as the Apple TV's: Persian subtitles, and a series' next episode.
       Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -447,6 +450,7 @@ private fun Header(
       val progress = stream?.resume?.progress ?: 0.0
       if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(6, revealed)) { ProgressBar(progress) }
       if (post.updates.isNotEmpty()) Box(Modifier.comingIn(7, revealed)) { UpdatesTicker(post.updates) }
+    }
     }
   }
 }
@@ -990,3 +994,6 @@ private fun Facts(post: Post) {
 
 /** Half a breath of the light behind the title page's poster: in, then out, about nine seconds. */
 private const val BREATH_MS = 4_500
+
+/** Under the header's words, so they hold over a busy picture. */
+private val TEXT_SHADOW = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.75f), Offset(0f, 2f), 14f)
