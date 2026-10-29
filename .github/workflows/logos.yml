@@ -1,6 +1,7 @@
 # Keeps logos.json on the `data` branch: the TMDB logos of 30nama's titles, for the apps to show
 # where TMDB is filtered. See Tools/logos/build_logos.py. Beside it trending.json, TMDB's list of
-# the week, for apps whose viewer has no TMDB key (Tools/trending/build_trending.py).
+# the week, for apps whose viewer has no TMDB key (Tools/trending/build_trending.py). And cards/,
+# what the back of a title's poster shows, for every viewer (Tools/logos/build_cards.py).
 name: logos
 
 on:
@@ -14,6 +15,9 @@ on:
       max_pages:
         description: "Most catalogue pages of each kind to read (empty: all)"
         default: ""
+      cards_budget:
+        description: "Most titles to look up for the backs of posters this run"
+        default: "20000"
 
 permissions:
   contents: write
@@ -24,7 +28,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    # The logos at most 200 minutes, the cards 120; GitHub stops a job at 360.
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - name: Fetch what the last run left
@@ -34,6 +39,8 @@ jobs:
             git show FETCH_HEAD:logos.json > out/logos.json
             git show FETCH_HEAD:state.json > out/state.json
             git show FETCH_HEAD:trending.json > out/trending.json 2>/dev/null || rm -f out/trending.json
+            git show FETCH_HEAD:cards_state.json > out/cards_state.json 2>/dev/null || rm -f out/cards_state.json
+            git archive --format=tar FETCH_HEAD cards 2>/dev/null | tar -x -C out || true
           fi
       - name: Trending this week
         # Its own step: a day TMDB does not answer keeps yesterday's list and the logos still run.
@@ -47,7 +54,18 @@ jobs:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
           BUDGET: ${{ inputs.budget || '60000' }}
           MAX_PAGES: ${{ inputs.max_pages }}
+          MAX_MINUTES: "200"
         run: python3 -I Tools/logos/build_logos.py out
+      - name: The backs of posters
+        # Its own step: a day it fails keeps yesterday's cards, and the logos are still published.
+        continue-on-error: true
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+          BUDGET: ${{ inputs.cards_budget || '20000' }}
+          MAX_MINUTES: "120"
+        run: |
+          python3 -I Tools/logos/test_cards.py
+          python3 -I Tools/logos/build_cards.py out
       - name: Publish on the data branch
         run: |
           cd out
@@ -56,6 +74,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add logos.json state.json
           if [ -f trending.json ]; then git add trending.json; fi
+          if [ -d cards ]; then git add cards; fi
+          if [ -f cards_state.json ]; then git add cards_state.json; fi
           # One commit only, replaced each day: the history of this file is of no use to anyone.
           git commit -q -m "logos.json, $(date -u +%F)"
           git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
