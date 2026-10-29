@@ -32,6 +32,14 @@ public sealed record Settings
     public bool MaxQuality { get; init; }
     public bool ReduceMotion { get; init; }
     /// <summary>
+    /// Motion is kept still: chosen here, or Windows' own animation effects are off (Settings ›
+    /// Accessibility › Visual effects), as the Android app follows the system's.
+    /// </summary>
+    [JsonIgnore]
+    public bool Calm => ReduceMotion || !Motion.SystemAllows;
+    /// <summary>For metered internet: no seek previews, no trailer behind a title's page (the Android app's).</summary>
+    public bool DataSaver { get; init; }
+    /// <summary>
     /// How far ahead the player reads, in seconds; zero leaves it to mpv. From 30nama's own
     /// desktop app: a short buffer on a metered line, a long one on a shaky line.
     /// </summary>
@@ -83,9 +91,48 @@ public sealed record Settings
     public void Save() => Storage.Write(File, JsonSerializer.Serialize(this, Options));
 }
 
+/// <summary>Whether Windows' own animation effects are on, read again every few seconds: it is asked often.</summary>
+public static class Motion
+{
+    private static readonly Windows.UI.ViewManagement.UISettings System = new();
+    private static (bool Allows, DateTime At) _read = (true, DateTime.MinValue);
+
+    public static bool SystemAllows
+    {
+        get
+        {
+            if (DateTime.UtcNow - _read.At < TimeSpan.FromSeconds(3)) return _read.Allows;
+            bool allows;
+            try { allows = System.AnimationsEnabled; }
+            catch (Exception) { allows = true; }
+            _read = (allows, DateTime.UtcNow);
+            return allows;
+        }
+    }
+}
+
 /// <summary>The app's own folder, under LocalAppData.</summary>
 public static class Storage
 {
+    /// <summary>What the app keeps only to be quicker or lighter, and can clear: trailers' web data, TMDB's answers, translations.</summary>
+    public static readonly string[] Caches = ["WebView2", "WebView2-backdrop", "tmdb", "translations"];
+
+    public static long CacheBytes() => Caches.Select(c => Path.Combine(Folder, c)).Where(Directory.Exists)
+        .SelectMany(d => { try { return new DirectoryInfo(d).EnumerateFiles("*", SearchOption.AllDirectories); } catch (Exception) { return []; } })
+        .Sum(f => { try { return f.Length; } catch (Exception) { return 0L; } });
+
+    /// <summary>Each file that can go; one in use (a trailer's web view still open) stays.</summary>
+    public static void ClearCaches()
+    {
+        foreach (var dir in Caches.Select(c => Path.Combine(Folder, c)).Where(Directory.Exists))
+        {
+            foreach (var file in new DirectoryInfo(dir).EnumerateFiles("*", SearchOption.AllDirectories).ToList())
+            {
+                try { file.Delete(); } catch (Exception) { }
+            }
+        }
+    }
+
     public static string Folder { get; } = Directory.CreateDirectory(
 #if DEBUG
         // NAMA_DATA: another folder, for a guest beside the signed-in one (screenshots for the README).

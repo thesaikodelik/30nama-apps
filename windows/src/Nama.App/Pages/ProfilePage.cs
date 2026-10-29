@@ -314,12 +314,12 @@ public sealed class ProfilePage : Grid
     {
         var loc = App.Loc;
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 28, HorizontalAlignment = HorizontalAlignment.Right };
-        void Figure(string value, string label, bool star = false, string? hint = null)
+        void Figure(string value, string label, bool star = false, string? hint = null, Color? colour = null)
         {
             var item = new StackPanel { Spacing = 2 };
             var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, HorizontalAlignment = HorizontalAlignment.Center };
             if (star) top.Children.Add(Centered(Glyph.Icon(Glyph.StarFill, 13, Gold)));
-            top.Children.Add(Centered(Theme.Text(value, 26, FontWeights.Black)));
+            top.Children.Add(Centered(Theme.Text(value, 26, FontWeights.Black, colour)));
             item.Children.Add(top);
             var word = Theme.Text(label, 12, FontWeights.Medium, Theme.Text3);
             word.HorizontalAlignment = HorizontalAlignment.Center;
@@ -334,7 +334,9 @@ public sealed class ProfilePage : Grid
             Figure(loc.Num(App.Ratings.Count), loc[S.ratedCount]);
             if (App.Ratings.Average is { } average) Figure(loc.Num(Fmt.Score(average)), loc[S.averageRating], star: true);
         }
-        if (App.User is { } user && user.DaysLeft() is { } days) Figure(loc.Num(days), loc[S.subscriptionDays], hint: loc.SubscriptionLine(user));
+        // Under a week left, in the app's red, so it is seen in time (the Android app's).
+        if (App.User is { } user && user.DaysLeft() is { } days)
+            Figure(loc.Num(days), loc[S.subscriptionDays], hint: loc.SubscriptionLine(user), colour: days < 7 ? Theme.Accent : null);
         return row.Children.Count > 0 ? row : null;
     }
 

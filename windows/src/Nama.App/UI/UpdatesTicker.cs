@@ -31,7 +31,7 @@ public sealed class UpdatesTicker : Grid
         Show(0, moving: false);
         _timer.Tick += (_, _) =>
         {
-            if (AppModel.Shared.Settings.ReduceMotion || !MainWindow.IsActive) return;
+            if (AppModel.Shared.Settings.Calm || !MainWindow.IsActive) return;
             Show((_index + 1) % _updates.Count, moving: true);
         };
         Loaded += (_, _) => { if (_updates.Count > 1) _timer.Start(); };

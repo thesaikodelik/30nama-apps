@@ -165,7 +165,7 @@ public sealed class PeekCard : Grid
         };
         var host = new Grid { IsHitTestVisible = false };
         host.Children.Add(band);
-        if (App.Settings.ReduceMotion) return (host, () => host.Opacity = 0);
+        if (App.Settings.Calm) return (host, () => host.Opacity = 0);
         var story = new Microsoft.UI.Xaml.Media.Animation.Storyboard { RepeatBehavior = Microsoft.UI.Xaml.Media.Animation.RepeatBehavior.Forever };
         var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
         {

@@ -48,7 +48,7 @@ public sealed class TitlePage : Grid
     private Glow? _glow;
     private Glow.Look GlowRest => new(Hue, 0.4f, 56, 18);
     /// <summary>Breathing, where motion is welcome and nothing covers the page.</summary>
-    private bool Breathing => !App.Settings.ReduceMotion && App.Playback is null;
+    private bool Breathing => !App.Settings.Calm && App.Playback is null;
     /// <summary>The last key pressed or pointer moved on the page: the trailer waits for a pause.</summary>
     private DateTime _lastInput = DateTime.UtcNow;
 
@@ -107,7 +107,7 @@ public sealed class TitlePage : Grid
     /// </summary>
     private async Task RunTeaserAsync()
     {
-        if (_teaserShown || App.Settings.ReduceMotion) return;
+        if (_teaserShown || App.Settings.Calm || App.Settings.DataSaver) return;
         var cancel = (_teaser = new CancellationTokenSource()).Token;
         try
         {
@@ -362,7 +362,7 @@ public sealed class TitlePage : Grid
     {
         if (poster.Children.OfType<Grid>().FirstOrDefault(g => "back".Equals(g.Tag)) is not { } back) return;
         void Swap() => back.Visibility = back.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        if (App.Settings.ReduceMotion)
+        if (App.Settings.Calm)
         {
             Swap();
             return;
@@ -463,7 +463,7 @@ public sealed class TitlePage : Grid
         if (post.Updates.Count > 0) info.Children.Add(ticker = new UpdatesTicker(post.Updates));
         var coming = buttons.Children.Cast<UIElement>().Concat(ticker is null ? [] : [ticker]).ToList();
         if (!_revealed) foreach (var c in coming) c.Opacity = 0;
-        else if (_staggering && !App.Settings.ReduceMotion)
+        else if (_staggering && !App.Settings.Calm)
             for (var i = 0; i < coming.Count; i++)
             {
                 var c = coming[i];

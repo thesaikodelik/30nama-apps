@@ -232,7 +232,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void StartSplash()
     {
-        if (_app.Settings.ReduceMotion) return;
+        if (_app.Settings.Calm) return;
         _splash = new SplashCurtain();
         _root.Children.Add(_splash);
         // The app behind settles into place as the glass parts.
@@ -364,7 +364,7 @@ public sealed partial class MainWindow : Window
         if (top is not null && _shownRoute is not null && _shownRoute.Same(top)) return;
         _shownRoute = top;
         _route.Children.Clear();
-        var flight = top is Route.Title opened && !_app.Settings.ReduceMotion ? PosterEffects.TakeLaunch(opened.Post.Id) : null;
+        var flight = top is Route.Title opened && !_app.Settings.Calm ? PosterEffects.TakeLaunch(opened.Post.Id) : null;
         FrameworkElement? page = top switch
         {
             Route.Title title => new TitlePage(title.Post, _nav, title.Playing, held: flight is not null),

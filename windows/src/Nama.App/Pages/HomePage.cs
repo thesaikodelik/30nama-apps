@@ -162,7 +162,7 @@ public sealed class HomePage : Grid
     /// The billboard has no audience: something covers it, the window is not the one in use, it
     /// has scrolled away, or the user is reading it. It costs nothing while it rests.
     /// </summary>
-    private bool Resting => App.Settings.ReduceMotion || _paused || _nav.Opened.Count > 0 || App.Playback is not null
+    private bool Resting => App.Settings.Calm || _paused || _nav.Opened.Count > 0 || App.Playback is not null
         || _scroller.VerticalOffset > _billboard.ActualHeight * 0.6 || !MainWindow.IsActive;
 
     /// <summary>The current segment's fill, and whether it is running smoothly toward its end.</summary>
@@ -177,8 +177,8 @@ public sealed class HomePage : Grid
     {
         if (_fill is null) return;
         var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(_fill);
-        var at = App.Settings.ReduceMotion ? 1 : (float)Math.Max(4.0 / 44, _turn);
-        if (Resting || App.Settings.ReduceMotion)
+        var at = App.Settings.Calm ? 1 : (float)Math.Max(4.0 / 44, _turn);
+        if (Resting || App.Settings.Calm)
         {
             visual.StopAnimation("Scale.X");
             visual.Scale = new System.Numerics.Vector3(at, 1, 1);
@@ -281,7 +281,7 @@ public sealed class HomePage : Grid
     /// <summary>A row with its cards. One not in yet shows stand-ins under unseen cards, and brings the cards in once their pictures are.</summary>
     private void AddShelf(string key, string title, IReadOnlyList<FrameworkElement> cards, Action? more, double step = 5)
     {
-        if (_arrived.Contains(key) || App.Settings.ReduceMotion && _arrived.Add(key))
+        if (_arrived.Contains(key) || App.Settings.Calm && _arrived.Add(key))
         {
             _shelves.Children.Add(Kit.Shelf(title, cards, more, step));
             return;

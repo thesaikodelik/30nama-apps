@@ -95,6 +95,8 @@ public sealed class SettingsPage : Grid
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),
             Row(loc[S.bufferTime], Choice(Settings.BufferChoices.Select(n => (n == 0 ? loc[S.qualityAuto] : $"{loc.Num(n)} {loc[S.seconds]}", (object)n)), s.BufferSeconds, v => App.Update(x => x with { BufferSeconds = (int)v }))),
             Row(loc[S.reduceMotion], Toggle(s.ReduceMotion, v => App.Update(x => x with { ReduceMotion = v }))),
+            Hinted(Row(loc[Extra.dataSaver], Toggle(s.DataSaver, v => App.Update(x => x with { DataSaver = v }))), loc[Extra.dataSaverHint]),
+            Row(loc[Extra.clearCaches], CacheButton()),
         ]);
 
         Group(loc[S.subtitles],
@@ -149,6 +151,35 @@ public sealed class SettingsPage : Grid
         {
             CornerRadius = new CornerRadius(18), Background = Theme.White(0.05), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08), Child = card,
         });
+    }
+
+    private static FrameworkElement Hinted(FrameworkElement row, string hint)
+    {
+        ToolTipService.SetToolTip(row, hint);
+        return row;
+    }
+
+    /// <summary>How much the caches hold, and a button that clears them; the size is counted away from the UI thread.</summary>
+    private static FrameworkElement CacheButton()
+    {
+        var loc = App.Loc;
+        var size = Theme.Text("", 14, color: Theme.Text3);
+        size.VerticalAlignment = VerticalAlignment.Center;
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        row.Children.Add(size);
+        async Task Count()
+        {
+            var bytes = await Task.Run(Storage.CacheBytes);
+            size.Text = $"{loc.Num((int)(bytes >> 20))} {loc[Extra.megabytes]}";
+        }
+        row.Children.Add(Kit.Glass(loc[Extra.clear], null, async () =>
+        {
+            await Task.Run(Storage.ClearCaches);
+            await Count();
+            App.ShowToast(loc[Extra.cleared]);
+        }, height: 34));
+        _ = Count();
+        return row;
     }
 
     private static FrameworkElement Row(string label, FrameworkElement control)

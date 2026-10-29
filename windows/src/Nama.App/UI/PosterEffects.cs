@@ -67,7 +67,7 @@ public static class PosterEffects
     /// </summary>
     public static void Tilt(Button button, Grid face, double degrees = 6)
     {
-        if (App.Settings.ReduceMotion) return;
+        if (App.Settings.Calm) return;
         // On a holder: the face grows under the pointer by XAML's own scale, which the compositor's
         // turn may not share an element with.
         var holder = new Grid();
@@ -84,7 +84,7 @@ public static class PosterEffects
     /// </summary>
     public static void Lean(UIElement source, Grid face, FrameworkElement turned, double degrees)
     {
-        if (App.Settings.ReduceMotion) return;
+        if (App.Settings.Calm) return;
         var holder = turned;
         var button = source;
         var visual = ElementCompositionPreview.GetElementVisual(holder);

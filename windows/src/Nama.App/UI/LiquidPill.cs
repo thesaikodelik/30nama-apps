@@ -93,7 +93,7 @@ public sealed class LiquidPill : Grid
     private void Frame(object? sender, object e)
     {
         var t = (DateTime.UtcNow - _started).TotalSeconds;
-        if (AppModel.Shared.Settings.ReduceMotion)
+        if (AppModel.Shared.Settings.Calm)
         {
             // Short and plain: an ease out over a fifth of a second.
             var x = Math.Min(1, t / 0.18);
@@ -107,7 +107,7 @@ public sealed class LiquidPill : Grid
             var wd = w * Math.Sqrt(1 - damping * damping);
             _progress = 1 - Math.Exp(-damping * w * t) * (Math.Cos(wd * t) + damping * w / wd * Math.Sin(wd * t));
         }
-        var done = t > (AppModel.Shared.Settings.ReduceMotion ? 0.18 : 1.3);
+        var done = t > (AppModel.Shared.Settings.Calm ? 0.18 : 1.3);
         if (done) _progress = 1;
         Draw();
         if (done) Stop();

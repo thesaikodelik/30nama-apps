@@ -241,7 +241,8 @@ public sealed class PlayerEngine
         else Load(quality, from);
         _resume = null;
         // Frames for the timeline from the lightest rendition: the adaptive one starts at its lowest.
-        Preview.Open(Current.Qualities.Where(q => !q.IsAuto).MinBy(q => q.Height)?.Url ?? Current.Qualities.FirstOrDefault()?.Url);
+        // None with the data saver on.
+        Preview.Open(_app.Settings.DataSaver ? null : Current.Qualities.Where(q => !q.IsAuto).MinBy(q => q.Height)?.Url ?? Current.Qualities.FirstOrDefault()?.Url);
         // A file belongs to the episode it was picked for.
         _fileTrack = null;
         SubtitleFileName = null;
