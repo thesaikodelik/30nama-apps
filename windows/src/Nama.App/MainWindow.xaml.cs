@@ -429,7 +429,9 @@ public sealed partial class MainWindow : Window
 
     private void ClosePeek()
     {
-        foreach (var card in _effects.Children.OfType<PeekCard>().ToList()) _effects.Children.Remove(card);
+        // Each steps aside before it goes; a new one may already be opening beside it.
+        foreach (var card in _effects.Children.OfType<PeekCard>().Where(c => c.IsHitTestVisible).ToList())
+            card.Leave(() => _effects.Children.Remove(card));
     }
 
     /// <summary>

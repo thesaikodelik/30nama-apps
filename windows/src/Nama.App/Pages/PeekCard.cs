@@ -40,7 +40,23 @@ public sealed class PeekCard : Grid
 
         var column = new StackPanel();
         var scene = new Grid { Height = 194 };
-        scene.Children.Add(Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, post.Poster.Blurhash, CardWidth * 1.5, fallback: post.Poster.Big ?? post.Poster.Large));
+        // Until the scene's picture is in: the title's own colour, darkening downward, and a soft light
+        // passing across it (the owner: the blur code's wash under it was often another poster's
+        // colour). The light stops once the picture is there, and does not move at all with less motion.
+        scene.Children.Add(new Border
+        {
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(0.4, 1),
+                GradientStops = { new GradientStop { Color = hue.WithAlpha(0.55), Offset = 0 }, new GradientStop { Color = Theme.Bg1, Offset = 1 } },
+            },
+        });
+        var sheen = Sheen();
+        scene.Children.Add(sheen.Element);
+        var picture = Images.Remote(post.Cover ?? post.Poster.Big ?? post.Poster.Large, null, CardWidth * 1.5, fallback: post.Poster.Big ?? post.Poster.Large);
+        if (picture.Children.OfType<Image>().LastOrDefault()?.Source is Microsoft.UI.Xaml.Media.Imaging.BitmapImage bitmap)
+            bitmap.ImageOpened += (_, _) => sheen.Stop();
+        scene.Children.Add(picture);
         scene.Children.Add(new Border
         {
             Background = new LinearGradientBrush
@@ -113,6 +129,59 @@ public sealed class PeekCard : Grid
             Opacity = 1;
             Scale = System.Numerics.Vector3.One;
         };
+    }
+
+    /// <summary>
+    /// Steps aside, shrinking a little as it fades, then leaves the tree: closed at once, as when the
+    /// page scrolls under it, it simply vanished (the owner).
+    /// </summary>
+    public void Leave(Action gone)
+    {
+        IsHitTestVisible = false;
+        Opacity = 0;
+        Scale = new System.Numerics.Vector3(0.94f, 0.94f, 1);
+        Translation = new System.Numerics.Vector3(0, 6, 0);
+        _ = Task.Delay(240).ContinueWith(_ => DispatcherQueue.TryEnqueue(() => gone()), TaskScheduler.Default);
+    }
+
+    /// <summary>A band of light passing over the scene while it loads; still with less motion.</summary>
+    private static (FrameworkElement Element, Action Stop) Sheen()
+    {
+        var move = new TranslateTransform { X = -CardWidth };
+        var band = new Microsoft.UI.Xaml.Shapes.Rectangle
+        {
+            Width = CardWidth,
+            RenderTransform = move,
+            Fill = new LinearGradientBrush
+            {
+                StartPoint = new Windows.Foundation.Point(0, 0.5), EndPoint = new Windows.Foundation.Point(1, 0.5),
+                GradientStops =
+                {
+                    new GradientStop { Color = Colors.Transparent, Offset = 0.2 },
+                    new GradientStop { Color = Colors.White.WithAlpha(0.10), Offset = 0.5 },
+                    new GradientStop { Color = Colors.Transparent, Offset = 0.8 },
+                },
+            },
+        };
+        var host = new Grid { IsHitTestVisible = false };
+        host.Children.Add(band);
+        if (App.Settings.ReduceMotion) return (host, () => host.Opacity = 0);
+        var story = new Microsoft.UI.Xaml.Media.Animation.Storyboard { RepeatBehavior = Microsoft.UI.Xaml.Media.Animation.RepeatBehavior.Forever };
+        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = -CardWidth, To = CardWidth, Duration = TimeSpan.FromSeconds(1.2),
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.SineEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseInOut },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, move);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "X");
+        story.Children.Add(slide);
+        host.Loaded += (_, _) => story.Begin();
+        host.Unloaded += (_, _) => story.Stop();
+        return (host, () =>
+        {
+            story.Stop();
+            host.Opacity = 0;
+        });
     }
 
     private void OnChanged(string what)
