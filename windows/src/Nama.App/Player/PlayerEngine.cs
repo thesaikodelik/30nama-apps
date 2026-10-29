@@ -214,7 +214,17 @@ public sealed class PlayerEngine
             Close();
             return;
         }
-        Load(quality, position ?? ResumePosition());
+        var from = position ?? ResumePosition();
+        // "Max": the download file itself, once 30nama has said which there are; the stream where
+        // there is none, or where it would not play (Failed).
+        _direct = false;
+        if (_app.Settings.MaxQuality && Current.Token != Downloads.LocalToken)
+        {
+            if (_downloads is null) _ = StartDirectAsync(Index, quality, from);
+            else if (DirectFor() is { } file) PlayDirect(file, from);
+            else Load(quality, from);
+        }
+        else Load(quality, from);
         _resume = null;
         // A file belongs to the episode it was picked for.
         _fileTrack = null;
@@ -222,6 +232,43 @@ public sealed class PlayerEngine
         var kept = SubtitleLanguage == FileSubtitle || SubtitleLanguage.StartsWith(Found);
         SelectSubtitle(kept ? _app.Settings.DefaultSubtitle : SubtitleLanguage, remember: false);
         LookForSubtitles();
+        Changed?.Invoke();
+    }
+
+    /// <summary>The download files of the title, once asked for; "Max" plays one of them.</summary>
+    private DownloadOptions? _downloads;
+    /// <summary>The file playing is the download file itself, not the stream.</summary>
+    private bool _direct;
+
+    private Quality? DirectFor() =>
+        _downloads is { } options && Direct.Pick(options, Post.IsSeries, Current.Season, Current.EpisodeRaw) is { } file ? Direct.AsQuality(file) : null;
+
+    private void PlayDirect(Quality file, double? from)
+    {
+        _direct = true;
+        Load(file, from);
+    }
+
+    /// <summary>Asks 30nama for the download files, then starts item <paramref name="index"/> on one, or on the stream.</summary>
+    private async Task StartDirectAsync(int index, Quality stream, double? from)
+    {
+        Buffering = true;
+        Changed?.Invoke();
+        try
+        {
+#if DEBUG
+            if (DemoStream.IsEnabled) _downloads = DemoStream.Downloads(Post);
+            else
+#endif
+            {
+            using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var answer = await _app.Api.CallAsync("download", new Dictionary<string, string> { ["post_id"] = Post.Id.ToString(), ["free_download"] = _app.IsLoggedIn ? "0" : "1" }).WaitAsync(patience.Token);
+            _downloads = answer.Success ? new DownloadOptions(answer.Result) : new DownloadOptions(Json.Null);
+            }
+        }
+        catch (Exception) { _downloads = new DownloadOptions(Json.Null); }
+        if (_closed || index != Index) return;
+        if (DirectFor() is { } file) PlayDirect(file, from); else Load(stream, from);
         Changed?.Invoke();
     }
 
@@ -262,6 +309,14 @@ public sealed class PlayerEngine
     private void Failed()
     {
         if (_closed) return;
+        // The download file would not play: the stream takes over at the same moment.
+        if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive) is { } stream)
+        {
+            _direct = false;
+            Load(stream, Time > 1 ? Time : null);
+            Changed?.Invoke();
+            return;
+        }
         _app.ShowToast(Loc[S.playError]);
         Close();
     }
@@ -380,6 +435,7 @@ public sealed class PlayerEngine
     public void SelectQuality(Quality option)
     {
         if (option == Quality) return;
+        _direct = false;
         Load(option, CurrentPosition);
         Changed?.Invoke();
     }

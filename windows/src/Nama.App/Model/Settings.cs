@@ -28,6 +28,8 @@ public sealed record Settings
     public AudioMix AudioMix { get; init; } = AudioMix.Stereo;
     /// <summary>Use the adaptive stream instead of the highest fixed rendition.</summary>
     public bool PreferAdaptive { get; init; }
+    /// <summary>"Max": the download file itself, played straight, where there is one (the Android app's).</summary>
+    public bool MaxQuality { get; init; }
     public bool ReduceMotion { get; init; }
     /// <summary>
     /// How far ahead the player reads, in seconds; zero leaves it to mpv. From 30nama's own

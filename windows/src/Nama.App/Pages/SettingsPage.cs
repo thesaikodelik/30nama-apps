@@ -87,7 +87,9 @@ public sealed class SettingsPage : Grid
 
         Group(loc[S.playback],
         [
-            Row(loc[S.quality], Choice([(loc[S.qualityBest], false), (loc[S.qualityAuto], (object)true)], s.PreferAdaptive, v => App.Update(x => x with { PreferAdaptive = (bool)v }))),
+            Row(loc[S.quality], Choice([(loc[S.qualityBest], "best"), (loc[S.qualityAuto], "auto"), (loc[Extra.qualityMax], (object)"max")],
+                s.MaxQuality ? "max" : s.PreferAdaptive ? "auto" : "best",
+                v => App.Update(x => x with { PreferAdaptive = (string)v == "auto", MaxQuality = (string)v == "max" }))),
             Row(loc[S.audio], Choice([(loc[S.audioStereo], AudioMix.Stereo), (loc[S.audioSurround], AudioMix.Surround), (loc[S.audioOriginal], (object)AudioMix.Original)], s.AudioMix, v => App.Update(x => x with { AudioMix = (AudioMix)v }))),
             Row(loc[S.autoplay], Toggle(s.AutoplayNext, v => App.Update(x => x with { AutoplayNext = v }))),
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),
