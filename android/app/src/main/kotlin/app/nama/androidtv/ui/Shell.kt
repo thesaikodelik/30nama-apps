@@ -91,6 +91,12 @@ class Chrome {
   var rootShown by mutableStateOf(true)
   /** The viewer is on the tab bar: a tab opening as they cross it must leave focus there. */
   var barFocused by mutableStateOf(false)
+  /**
+   * Counts the times focus went up into the bar from a page. The page showing then scrolls to its
+   * very top ([FollowBar]): focus had stopped at its first control, so whatever stands above that
+   * (a title's header, a heading) stayed off the screen, and the page looked stuck half way up.
+   */
+  var toTop by androidx.compose.runtime.mutableIntStateOf(0)
   /** A card over the page (a key, the member's name) is open: the bar takes no focus until it closes. */
   var modal by mutableStateOf(false)
   /** A page may move focus into itself when it opens. */
@@ -123,6 +129,7 @@ fun ReportTop(atTop: Boolean) {
 fun ReportTop(state: androidx.compose.foundation.lazy.grid.LazyGridState) {
   val atTop by remember(state) { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset < 60 } }
   ReportTop(atTop)
+  FollowBar { state.animateScrollToItem(0) }
 }
 
 /** [ReportTop] for a lazy list. */
@@ -130,6 +137,22 @@ fun ReportTop(state: androidx.compose.foundation.lazy.grid.LazyGridState) {
 fun ReportTop(state: androidx.compose.foundation.lazy.LazyListState) {
   val atTop by remember(state) { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset < 60 } }
   ReportTop(atTop)
+  FollowBar { state.animateScrollToItem(0) }
+}
+
+/**
+ * Every scrolling page's way back up, in one place: when focus goes up into the bar, the page
+ * showing under it runs [toTop]. A page hidden under an open one does not.
+ */
+@Composable
+fun FollowBar(toTop: suspend () -> Unit) {
+  val chrome = LocalChrome.current
+  val onRoute = LocalOnRoute.current
+  val asked = chrome.toTop
+  LaunchedEffect(asked) {
+    if (asked == 0 || onRoute == chrome.rootShown) return@LaunchedEffect
+    toTop()
+  }
 }
 
 /** The whole app: the opening title over the phase it is in, toasts, and the player over everything. */
@@ -363,6 +386,7 @@ fun MainScreen(onExit: () -> Unit) {
           routeOpen = route != null,
           onBack = { nav.pop() },
           focusedChange = {
+            if (it && !barFocused) chrome.toTop++
             barFocused = it
             chrome.barFocused = it
           },

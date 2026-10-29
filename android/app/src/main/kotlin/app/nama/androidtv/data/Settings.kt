@@ -17,6 +17,8 @@ data class Settings(
     val subtitleSize: Int = 46,
     val subtitleColor: SubtitleColor = SubtitleColor.white,
     val subtitleBackground: SubtitleBackground = SubtitleBackground.none,
+    /** Where on the picture subtitles sit. */
+    val subtitlePosition: SubtitlePosition = SubtitlePosition.bottom,
     val autoplayNext: Boolean = true,
     /** Jump over the opening titles and the recap without being asked. */
     val autoSkip: Boolean = false,
@@ -54,6 +56,7 @@ data class Settings(
           subtitleSize = p.getInt("subSize", d.subtitleSize).takeIf { it in subtitleSizes } ?: d.subtitleSize,
           subtitleColor = enumOf(SubtitleColor.entries.toTypedArray(), "subColor", d.subtitleColor),
           subtitleBackground = enumOf(SubtitleBackground.entries.toTypedArray(), "subBackground", d.subtitleBackground),
+          subtitlePosition = enumOf(SubtitlePosition.entries.toTypedArray(), "subPosition", d.subtitlePosition),
           autoplayNext = p.getBoolean("autoplay", d.autoplayNext),
           autoSkip = p.getBoolean("autoSkip", d.autoSkip),
           audioMix = enumOf(AudioMix.entries.toTypedArray(), "audioMix", d.audioMix),
@@ -77,6 +80,7 @@ data class Settings(
         .putInt("subSize", subtitleSize)
         .putString("subColor", subtitleColor.name)
         .putString("subBackground", subtitleBackground.name)
+        .putString("subPosition", subtitlePosition.name)
         .putBoolean("autoplay", autoplayNext)
         .putBoolean("autoSkip", autoSkip)
         .putString("audioMix", audioMix.name)
@@ -121,6 +125,10 @@ enum class Effects {
     light -> false
   }
 }
+
+/** Where on the picture subtitles sit: at the foot as usual, or in the middle or at the top. */
+@Suppress("EnumEntryName")
+enum class SubtitlePosition { bottom, middle, top }
 
 enum class SubtitleBackground(val label: S, val plate: Float) {
   none(S.bgNone, 0f),

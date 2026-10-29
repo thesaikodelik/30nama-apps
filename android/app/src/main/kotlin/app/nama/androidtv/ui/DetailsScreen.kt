@@ -208,6 +208,7 @@ fun DetailsScreen(route: Route.Details) {
   // The bar stays over the page while it is at its top, and steps out of the way below.
   val chrome = LocalChrome.current
   LaunchedEffect(scroll) { androidx.compose.runtime.snapshotFlow { scroll.value < 60 }.collect { chrome.routeAtTop = it } }
+  FollowBar { scroll.animateScrollTo(0) }
   // Back from the player: pick up the new resume point.
   LaunchedEffect(app.watchVersion) { if (stream != null) loadStream(quietly = true) }
 

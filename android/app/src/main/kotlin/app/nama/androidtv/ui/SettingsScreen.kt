@@ -1,5 +1,6 @@
 package app.nama.androidtv.ui
 
+import app.nama.androidtv.data.SubtitlePosition
 import app.nama.androidtv.data.Effects
 import app.nama.androidtv.latinName
 import androidx.compose.foundation.layout.widthIn
@@ -119,6 +120,7 @@ fun SettingsScreen() {
   // The bar steps out of the way once the list is scrolled, as on the other pages.
   LaunchedEffect(scroll.value == 0) { chrome.pageAtTop = scroll.value == 0 }
   DisposableEffect(Unit) { onDispose { chrome.pageAtTop = true } }
+  FollowBar { scroll.animateScrollTo(0) }
 
   Ambient {
     // While a key or the name is being typed in its card, the rows behind it cannot take focus.
@@ -217,6 +219,11 @@ fun SettingsScreen() {
           val backs = SubtitleBackground.entries.map { loc(it.label) }
           Choice(loc(S.subBackground), loc(s.subtitleBackground.label), subHelp(backs, loc(s.subtitleBackground.label)), { help = it }) {
             app.update { it.copy(subtitleBackground = next(it.subtitleBackground, SubtitleBackground.entries.toList())) }
+          }
+          val places = listOf(SubtitlePosition.bottom to tv(TV.positionBottom), SubtitlePosition.middle to tv(TV.positionMiddle), SubtitlePosition.top to tv(TV.positionTop))
+          val placeName = places.first { it.first == s.subtitlePosition }.second
+          Choice(tv(TV.subtitlePosition), placeName, Help(tv(TV.subtitlePositionHint), places.map { it.second }, placeName), { help = it }) {
+            app.update { it.copy(subtitlePosition = next(it.subtitlePosition, places.map { p -> p.first })) }
           }
           // As the Mac's: the sample in the group, under the rows it shows.
           Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp)) { SubtitleSample(s) }

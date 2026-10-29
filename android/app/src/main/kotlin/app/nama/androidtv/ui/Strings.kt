@@ -99,6 +99,16 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "«Max» خود فایل دانلود را پخش می‌کند، که اغلب 4K و HDR است، اگر تلویزیون بتواند پخشش کند: فایل‌های با صدای DTS یا TrueHD کنار گذاشته می‌شوند. اینترنت پرسرعت می‌خواهد. اگر فایلی پخش نشد یا بی‌صدا بود، همان لحظه استریم معمولی جایش را می‌گیرد.",
       "يشغّل «Max» ملف التنزيل نفسه، وغالباً بدقة 4K وHDR، إن استطاع التلفاز تشغيله: تُستبعد الملفات ذات صوت DTS أو TrueHD. يحتاج إلى اتصال سريع. إن لم يعمل ملف أو عمل بلا صوت، يحل البث العادي محله في اللحظة نفسها.",
   ),
+  subtitlePosition("Subtitle position", "جای زیرنویس", "موضع الترجمة"),
+  positionBottom("Bottom", "پایین", "أسفل"),
+  positionMiddle("Middle", "وسط", "الوسط"),
+  positionTop("Top", "بالا", "أعلى"),
+  subtitlePositionHint(
+      "Where subtitles sit on the picture. Bottom is usual; Top or Middle keep them off a film's own text at its foot.",
+      "زیرنویس کجای تصویر بنشیند. معمولاً پایین؛ بالا یا وسط آن را از روی نوشته‌های خود فیلم در پایین تصویر دور نگه می‌دارد.",
+      "أين تظهر الترجمة على الصورة. عادةً في الأسفل؛ الأعلى أو الوسط يبعدانها عن نصوص الفيلم نفسه في أسفل الصورة.",
+  ),
+  audioAndSubtitles("Audio and subtitles", "صدا و زیرنویس", "الصوت والترجمة"),
   qualityCapHint(
       "1080p, 720p and 480p are for a slow line: the film starts in the highest quality up to that, and never climbs above it on its own.",
       "کیفیت‌های 1080p و 720p و 480p برای اینترنت کند است: فیلم با بالاترین کیفیت تا همان اندازه شروع می‌شود و خودش از آن بالاتر نمی‌رود.",

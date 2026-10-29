@@ -112,6 +112,24 @@ suspend fun warmBillboard(context: android.content.Context, app: app.nama.androi
   backdrop.join()
 }
 
+/**
+ * The title's logo at [height] points, for the player's top; until its picture is in hand, or where
+ * there is none, [name] in its place. The title page has usually fetched it already.
+ */
+@Composable
+fun TitleMark(post: Post, height: Int, maxWidth: Int, name: @Composable () -> Unit) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  val context = androidx.compose.ui.platform.LocalContext.current
+  var picture by remember(post.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+  LaunchedEffect(post.id) { picture = runCatching { logoPicture(context, app, post, loc.lang) }.getOrNull() }
+  val p = picture
+  if (p == null) return name()
+  val ratio = p.width.toFloat() / p.height.coerceAtLeast(1)
+  val h = minOf(height.toFloat(), maxWidth / ratio)
+  androidx.compose.foundation.Image(p, post.title(loc.lang), Modifier.size((h * ratio).dp, h.dp), contentScale = ContentScale.Fit)
+}
+
 /** The title's logo from TMDB, decoded; null where there is none or it would not load. */
 private suspend fun logoPicture(context: android.content.Context, app: app.nama.androidtv.AppModel, post: Post, lang: Lang): androidx.compose.ui.graphics.ImageBitmap? {
   val url = (app.extras.known[post.id] ?: app.extras.info(post, lang))?.logo ?: return null

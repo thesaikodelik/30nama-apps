@@ -184,6 +184,7 @@ fun SearchScreen() {
   val atTop by remember { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
   LaunchedEffect(atTop) { chrome.pageAtTop = atTop }
   DisposableEffect(Unit) { onDispose { chrome.pageAtTop = true } }
+  FollowBar { grid.animateScrollToItem(0) }
 
   // The Mac's search page (the field a dark capsule under the bar, then a wall of posters) with
   // the Apple TV's keyboard, a line of letters between the two. One grid holds it all.

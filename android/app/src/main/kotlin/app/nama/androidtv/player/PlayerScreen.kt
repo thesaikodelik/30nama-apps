@@ -1,5 +1,7 @@
 package app.nama.androidtv.player
 
+import app.nama.androidtv.data.SubtitlePosition
+import app.nama.androidtv.ui.RemoteImage
 import app.nama.androidtv.ui.LocalLively
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.animation.Crossfade
@@ -40,6 +42,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -125,11 +129,11 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-/** Which side panel is open over the picture. */
-private enum class Panel { Subtitles, Audio, Quality, Speed, Sleep, Episodes, Settings }
+/** Which side panel is open over the picture. Sound and subtitles share one, as on the Mac's bubble. */
+private enum class Panel { Subtitles, Quality, Speed, Sleep, Episodes, Settings }
 
-/** What the Mac keeps behind its gear: quality, sound and the sleep timer, each a panel of its own. */
-private val Panel.inSettings get() = this == Panel.Quality || this == Panel.Audio || this == Panel.Sleep
+/** What stays behind the gear: quality and the sleep timer, each a list of its own. */
+private val Panel.inSettings get() = this == Panel.Quality || this == Panel.Sleep
 
 /**
  * Full-screen playback. The picture alone until a key is pressed; then the title, the seek bar and
@@ -374,12 +378,20 @@ fun PlayerScreen(request: PlaybackRequest) {
     // seek point that rides above the bar.
     val lift by animateDpAsState(
         when {
-          panel == Panel.Episodes -> 520.dp
-          controls && seekTarget != null -> 300.dp
-          controls -> 180.dp
+          controls && seekTarget != null -> 340.dp
+          controls -> 220.dp
           else -> 70.dp
         }, label = "lift")
-    SubtitleLine(engine.cue, Modifier.align(Alignment.BottomCenter).padding(bottom = lift))
+    // At the top, clear of the title and the episode while the controls show them.
+    val drop by animateDpAsState(if (controls) 250.dp else 70.dp, label = "drop")
+    SubtitleLine(
+        engine.cue,
+        when (app.settings.subtitlePosition) {
+          SubtitlePosition.bottom -> Modifier.align(Alignment.BottomCenter).padding(bottom = lift)
+          SubtitlePosition.middle -> Modifier.align(Alignment.Center)
+          SubtitlePosition.top -> Modifier.align(Alignment.TopCenter).padding(top = drop)
+        },
+    )
 
     val shownOffer = engine.offer.takeIf { !controls && panel == null }
     AnimatedVisibility(
@@ -392,13 +404,15 @@ fun PlayerScreen(request: PlaybackRequest) {
     AnimatedVisibility((controls || seekTarget != null) && panel != Panel.Episodes, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
       Controls(engine, seekTarget, full = controls, playButton = playButton, opener = opener, open = { panel = it }, blocked = panel != null, seek = { sign, repeat -> seekBy(sign, repeat) }, land = ::landSeek)
     }
+    // On the right of the picture in every language, as the Mac's and a TV's own menus are; what is
+    // inside it still reads in its language.
     AnimatedVisibility(
-        panel != null && panel != Panel.Episodes, Modifier.align(Alignment.CenterEnd),
-        enter = slideInHorizontally { if (rtl) -it else it } + fadeIn(), exit = slideOutHorizontally { if (rtl) -it else it } + fadeOut(),
+        panel != null && panel != Panel.Episodes, Modifier.align(androidx.compose.ui.AbsoluteAlignment.CenterRight),
+        enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(),
     ) { panel?.let { SidePanel(engine, it, go = { next -> panel = next }) { panel = null } } }
     AnimatedVisibility(
-        panel == Panel.Episodes, Modifier.align(Alignment.BottomCenter),
-        enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut(),
+        panel == Panel.Episodes, Modifier.align(androidx.compose.ui.AbsoluteAlignment.CenterRight),
+        enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(),
     ) { EpisodesPanel(engine) { panel = null } }
   }
 }
@@ -487,32 +501,34 @@ private fun Controls(
       CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
       Scrubber(engine, seekTarget, focusable = full, seek = seek, land = land)
       if (full) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          PlayerButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton), size = 60, glyph = 28)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          PlayerButton(if (engine.playing) Icons.pause else Icons.play, loc(if (engine.playing) S.pause else S.play), { engine.togglePlay() }, Modifier.focusRequester(playButton), size = 100, glyph = 54)
           if (engine.items.size > 1) PlayerButton(Icons.skipPrevious, loc(S.rowPrevious), { engine.previous() })
-          PlayerButton(Icons.replay, loc(S.back10), { engine.seekTo(engine.position - 10) })
-          PlayerButton(Icons.forward, loc(S.forward10), { engine.seekTo(engine.position + 10) })
+          // The Mac's gobackward.10 and goforward.10: a turning arrow with the seconds inside it.
+          PlayerButton(Icons.replay, loc(S.back10), { engine.seekTo(engine.position - 10) }, badge = "10")
+          PlayerButton(Icons.replay, loc(S.forward10), { engine.seekTo(engine.position + 10) }, badge = "10", mirror = true)
           if (engine.index + 1 < engine.items.size) PlayerButton(Icons.skipNext, loc(S.nextEpisode), { engine.next() })
           val d = engine.duration
           val shown = seekTarget ?: engine.position
           // As the Mac's: Latin digits in every language, as the timeline runs left to right in
           // every language, semibold in the text's own white (docs/design/mac/fa/player).
           Text(
-              "${Fmt.clock(shown)} / ${Fmt.clock(d)}", Modifier.padding(start = 14.dp),
-              style = app(19, FontWeight.SemiBold).copy(fontFeatureSettings = "tnum"), color = Theme.text1,
+              "${Fmt.clock(shown)} / ${Fmt.clock(d)}", Modifier.padding(start = 18.dp),
+              style = app(25, FontWeight.SemiBold).copy(fontFeatureSettings = "tnum"), color = Theme.text1,
           )
           if (d > 0) {
             // When it will end at this speed, as Netflix shows it; its digits as the clock's beside it.
             val end = LocalTime.now().plusSeconds(((d - shown) / engine.speed).toLong())
             CompositionLocalProvider(LocalLayoutDirection provides if (loc.lang.isRTL) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-              Text("${tv(TV.endsAt)} ${end.format(DateTimeFormatter.ofPattern("HH:mm"))}", Modifier.padding(start = 14.dp), style = app(17, FontWeight.Medium), color = Color.White.copy(alpha = 0.55f))
+              Text("${tv(TV.endsAt)} ${end.format(DateTimeFormatter.ofPattern("HH:mm"))}", Modifier.padding(start = 18.dp), style = app(22, FontWeight.Medium), color = Color.White.copy(alpha = 0.55f))
             }
           }
           Spacer(Modifier.weight(1f))
           PlayerButton(Icons.speed, loc(S.speed), { open(Panel.Speed) }, Modifier.focusRequester(opener.getValue(Panel.Speed)), lit = engine.speed != 1f)
-          if (item.subtitles.isNotEmpty() || engine.found.isNotEmpty()) PlayerButton(Icons.subtitles, loc(S.subtitles), { open(Panel.Subtitles) }, Modifier.focusRequester(opener.getValue(Panel.Subtitles)), lit = engine.subtitleLanguage != "off")
-          // The rest behind one button, as the Mac's gear: quality, sound and the sleep timer. It is
-          // the moon while a timer runs, so a timer is not forgotten behind it.
+          // Sound and subtitles behind one bubble, as on the Mac.
+          if (hasSoundOrSubtitles(engine)) PlayerButton(Icons.captions, tv(TV.audioAndSubtitles), { open(Panel.Subtitles) }, Modifier.focusRequester(opener.getValue(Panel.Subtitles)), lit = engine.subtitleLanguage != "off")
+          // Quality and the sleep timer behind the gear. It is the moon while a timer runs, so a
+          // timer is not forgotten behind it.
           PlayerButton(if (engine.sleep != Sleep.Off) Icons.moon else Icons.gear, loc(S.settings), { open(Panel.Settings) }, Modifier.focusRequester(opener.getValue(Panel.Settings)), lit = engine.sleep != Sleep.Off)
           if (engine.items.size > 1) PlayerButton(Icons.list, loc(S.episodes), { open(Panel.Episodes) }, Modifier.focusRequester(opener.getValue(Panel.Episodes)))
         }
@@ -533,11 +549,14 @@ fun PlayerTop(engine: PlayerEngine) {
   val post = engine.post
   val item = engine.current
   Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))) {
-    Column(Modifier.padding(start = Theme.edge, end = Theme.edge, top = 50.dp, bottom = 90.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-      Text(post.title(loc.lang), style = app(26, FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.padding(start = Theme.edge, end = Theme.edge, top = 54.dp, bottom = 100.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      // The film's logo, as on its page; its name where it has none.
+      app.nama.androidtv.ui.TitleMark(post, height = 84, maxWidth = 620) {
+        Text(post.title(loc.lang), style = app(40, FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      }
       if (post.isSeries || engine.items.size > 1) {
         val line = loc.episodeTag(item.season, Episode.label(item.episodeRaw, engine.index + 1)) + (item.title(loc.lang)?.let { " · $it" } ?: "")
-        Text(line, style = app(18, FontWeight.Medium), color = Color.White.copy(alpha = 0.72f), maxLines = 1)
+        Text(line, style = app(27, FontWeight.Medium), color = Color.White.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
     }
   }
@@ -546,9 +565,13 @@ fun PlayerTop(engine: PlayerEngine) {
 /**
  * The Mac player's round button: a plain glyph, a white disc in focus. While [lit] (subtitles on, a
  * speed other than 1×) a faint disc: filled white, it looked like a second focus beside the real one.
+ * A [badge] sits inside the glyph (the seconds of a skip); [mirror] turns the glyph the other way.
  */
 @Composable
-private fun PlayerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, lit: Boolean = false, size: Int = 50, glyph: Int = 22) {
+private fun PlayerButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+    lit: Boolean = false, size: Int = 84, glyph: Int = 44, badge: String? = null, mirror: Boolean = false,
+) {
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
@@ -564,7 +587,11 @@ private fun PlayerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
       ),
       scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
   ) {
-    Box(Modifier.size(size.dp), contentAlignment = Alignment.Center) { androidx.tv.material3.Icon(icon, null, Modifier.size(glyph.dp)) }
+    Box(Modifier.size(size.dp), contentAlignment = Alignment.Center) {
+      androidx.tv.material3.Icon(icon, null, Modifier.size(glyph.dp).graphicsLayer { if (mirror) scaleX = -1f })
+      // In the ring's middle, which sits a little below the glyph's.
+      badge?.let { Text(it, Modifier.offset(y = (glyph / 22f).dp), style = app((glyph * 0.32f).toInt(), FontWeight.ExtraBold).copy(fontFeatureSettings = "tnum")) }
+    }
   }
 }
 
@@ -652,157 +679,304 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?, focusable: Boole
 
 // MARK: Panels
 
-private data class Choice(val title: String, val selected: Boolean, val run: () -> Unit)
+/**
+ * One row of a panel. Its [title] in large type; a [detail] under it, small and dim (a release's
+ * name, a translation's progress); the [value] now chosen at its end, for a row that [opens] a list
+ * of its own; or, for a [header], the name of a group of rows.
+ */
+private data class Choice(
+    val title: String, val selected: Boolean = false, val detail: String? = null, val value: String? = null,
+    val opens: Boolean = false, val header: Boolean = false, val run: () -> Unit = {},
+)
 
-/** A side panel of choices from the end edge: select applies at once, and the film plays on behind it. */
+/** Whether the bubble has anything to offer: a second sound, or subtitles of any kind. */
+private fun hasSoundOrSubtitles(engine: PlayerEngine): Boolean =
+    (engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty() ||
+        engine.current.subtitles.isNotEmpty() || engine.found.isNotEmpty() || engine.canTranslate || engine.subtitleLanguage == PlayerEngine.TRANSLATED
+
+/** A panel of choices on the right of the picture: select applies at once, and the film plays on behind it. */
 @Composable
 private fun SidePanel(engine: PlayerEngine, panel: Panel, go: (Panel) -> Unit, close: () -> Unit) {
-  val app = LocalApp.current
   val loc = LocalLoc.current
   val item = engine.current
+  fun language(code: String) = java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.forLanguageTag(loc.lang.name)).ifEmpty { code }
+  fun mixName(m: AudioMix) = loc(if (m == AudioMix.stereo) S.audioStereo else if (m == AudioMix.surround) S.audioSurround else S.audioOriginal)
+  fun sleepName(s: Sleep) = when (s) {
+    Sleep.Off -> loc(S.off)
+    Sleep.EndOfEpisode -> loc(if (engine.post.isSeries) S.endOfEpisode else S.endOfFilm)
+    is Sleep.Minutes -> "${loc.num(s.n)} ${loc(S.min)}"
+  }
   val (title, choices) = when (panel) {
     Panel.Subtitles -> {
-      val languages = listOf("fa", "en").filter { item.subtitles[it] != null }
-      val list = mutableListOf(Choice(loc(S.off), engine.subtitleLanguage == "off") { engine.selectSubtitle("off", true) })
-      languages.forEach { l -> list += Choice(loc(if (l == "fa") S.persian else S.english), engine.subtitleLanguage == l) { engine.selectSubtitle(l, true) } }
-      // Found ones are named by their release; the same name twice gets a number.
+      val list = mutableListOf<Choice>()
+      val mixes = engine.quality?.mixes?.takeIf { it.size > 1 }.orEmpty()
+      if (mixes.isNotEmpty() || engine.audioTracks.isNotEmpty()) {
+        list += Choice(loc(S.audio), header = true)
+        mixes.forEach { m -> list += Choice(mixName(m), m == engine.mix) { engine.chooseMix(m) } }
+        engine.audioTracks.forEach { l -> list += Choice(language(l), l == engine.audioTrack) { engine.chooseAudioTrack(l) } }
+      }
+      list += Choice(loc(S.subtitles), header = true)
+      list += Choice(loc(S.off), engine.subtitleLanguage == "off") { engine.selectSubtitle("off", true) }
+      listOf("fa", "en").filter { item.subtitles[it] != null }.forEach { l ->
+        list += Choice(loc(if (l == "fa") S.persian else S.english), engine.subtitleLanguage == l) { engine.selectSubtitle(l, true) }
+      }
+      // Found ones are named by their release, under the language; the same name twice gets a number.
       val seen = HashMap<String, Int>()
       engine.found.forEach { c ->
         val n = (seen[c.name] ?: 0) + 1
         seen[c.name] = n
         val code = PlayerEngine.FOUND + c.id
-        list += Choice("${loc(S.persian)} · ${c.name}" + if (n > 1) " (${loc.num(n)})" else "", engine.subtitleLanguage == code) { engine.selectSubtitle(code, true) }
+        list += Choice(loc(S.persian), engine.subtitleLanguage == code, detail = c.name + if (n > 1) " (${loc.num(n)})" else "") { engine.selectSubtitle(code, true) }
       }
       // English put into Persian by Gemini, when there is nothing Persian to choose.
       if (engine.canTranslate || engine.subtitleLanguage == PlayerEngine.TRANSLATED) {
         val target = Translation.target(loc.lang)
         val name = if (target == Lang.ar) Lang.ar.nativeName else loc(S.persian)
-        val progress = engine.translated?.takeIf { it < 1f }?.let { " (${loc.num((it * 100).toInt())}${if (loc.lang == Lang.en) "%" else "٪"})" }.orEmpty()
-        list += Choice("$name · ${tv(TV.machineTranslation)}$progress", engine.subtitleLanguage == PlayerEngine.TRANSLATED) { engine.selectSubtitle(PlayerEngine.TRANSLATED, true) }
+        val progress = engine.translated?.takeIf { it < 1f }?.let { " · ${loc.num((it * 100).toInt())}${if (loc.lang == Lang.en) "%" else "٪"}" }.orEmpty()
+        list += Choice(name, engine.subtitleLanguage == PlayerEngine.TRANSLATED, detail = tv(TV.machineTranslation) + progress) { engine.selectSubtitle(PlayerEngine.TRANSLATED, true) }
       }
       // The nudge in words, never a sign: a minus would land at the wrong end of a Persian line.
-      val quarter = loc.num("0.25")
-      list += Choice("${loc(S.subtitleEarlier)} ($quarter ${loc(S.secondsShort)})", false) { engine.nudgeSubtitles(-0.25) }
-      list += Choice("${loc(S.subtitleLater)} ($quarter ${loc(S.secondsShort)})", false) { engine.nudgeSubtitles(0.25) }
-      if (engine.subtitleOffset != 0.0) list += Choice("${loc(S.reset)} (${loc.num(String.format(java.util.Locale.ROOT, "%+.2f", engine.subtitleOffset))} ${loc(S.secondsShort)})", false) { engine.nudgeSubtitles(0.0) }
-      loc(S.subtitles) to list
-    }
-    Panel.Audio -> {
-      val list = mutableListOf<Choice>()
-      engine.quality?.mixes?.takeIf { it.size > 1 }?.forEach { m ->
-        list += Choice(loc(if (m == AudioMix.stereo) S.audioStereo else if (m == AudioMix.surround) S.audioSurround else S.audioOriginal), m == engine.mix) { engine.chooseMix(m) }
+      if (engine.subtitleLanguage != "off") {
+        val step = "${loc.num("0.25")} ${loc(S.secondsShort)}"
+        list += Choice(loc(S.subtitleEarlier), value = step) { engine.nudgeSubtitles(-0.25) }
+        list += Choice(loc(S.subtitleLater), value = step) { engine.nudgeSubtitles(0.25) }
+        if (engine.subtitleOffset != 0.0) list += Choice(loc(S.reset), value = "${loc.num(String.format(java.util.Locale.ROOT, "%+.2f", engine.subtitleOffset))} ${loc(S.secondsShort)}") { engine.nudgeSubtitles(0.0) }
       }
-      engine.audioTracks.forEach { l -> list += Choice(java.util.Locale.forLanguageTag(l).getDisplayLanguage(java.util.Locale.forLanguageTag(loc.lang.name)).ifEmpty { l }, l == engine.audioTrack) { engine.chooseAudioTrack(l) } }
-      loc(S.audio) to list
+      tv(TV.audioAndSubtitles) to list
     }
     Panel.Quality -> loc(S.quality) to (
         // "Max", the download file, first when one fits (the Tizen app's).
-        listOfNotNull(engine.directFor()?.let { f -> Choice("Max · " + Direct.label(f), engine.direct?.id == f.id) { engine.playDirect(f, engine.position) } }) +
+        listOfNotNull(engine.directFor()?.let { f -> Choice("Max", engine.direct?.id == f.id, detail = Direct.label(f)) { engine.playDirect(f, engine.position) } }) +
             item.qualities.map { q -> Choice(if (q.isAuto) loc(S.qualityAuto) else q.label, engine.direct == null && q == engine.quality) { engine.chooseQuality(q) } })
     Panel.Speed -> loc(S.speed) to listOf(0.5f, 0.75f, 0.9f, 1f, 1.05f, 1.1f, 1.25f, 1.5f, 1.75f, 2f).map { s -> Choice(loc.num(s.toString().removeSuffix(".0")) + "×", s == engine.speed) { engine.chooseSpeed(s) } }
-    Panel.Sleep -> loc(S.sleepTimer) to (listOf(Sleep.Off, Sleep.EndOfEpisode) + listOf(15, 30, 45, 60).map { Sleep.Minutes(it) }).map { s ->
-      val name = when (s) {
-        Sleep.Off -> loc(S.off)
-        Sleep.EndOfEpisode -> loc(if (engine.post.isSeries) S.endOfEpisode else S.endOfFilm)
-        is Sleep.Minutes -> "${loc.num(s.n)} ${loc(S.min)}"
-      }
-      Choice(name, s == engine.sleep) { engine.chooseSleep(s) }
-    }
+    Panel.Sleep -> loc(S.sleepTimer) to (listOf(Sleep.Off, Sleep.EndOfEpisode) + listOf(15, 30, 45, 60).map { Sleep.Minutes(it) }).map { s -> Choice(sleepName(s), s == engine.sleep) { engine.chooseSleep(s) } }
     Panel.Episodes -> "" to emptyList()
     Panel.Settings -> {
-      // Each row says what is chosen now and opens its own list.
+      // Each row says what is chosen now, at its end, and opens its own list.
       val list = mutableListOf<Choice>()
-      if (item.qualities.size > 1) list += Choice("${loc(S.quality)} · ${engine.quality?.let { if (it.isAuto) loc(S.qualityAuto) else it.label } ?: loc(S.qualityAuto)}", false) { go(Panel.Quality) }
-      if ((engine.quality?.mixes?.size ?: 0) > 1 || engine.audioTracks.isNotEmpty()) {
-        val sound = engine.audioTrack?.let { l -> java.util.Locale.forLanguageTag(l).getDisplayLanguage(java.util.Locale.forLanguageTag(loc.lang.name)).ifEmpty { l } }
-            ?: loc(if (engine.mix == AudioMix.stereo) S.audioStereo else if (engine.mix == AudioMix.surround) S.audioSurround else S.audioOriginal)
-        list += Choice("${loc(S.audio)} · $sound", false) { go(Panel.Audio) }
+      if (item.qualities.size > 1) {
+        val now = engine.direct?.let { "Max" } ?: engine.quality?.let { if (it.isAuto) loc(S.qualityAuto) else it.label } ?: loc(S.qualityAuto)
+        list += Choice(loc(S.quality), value = now, opens = true) { go(Panel.Quality) }
       }
-      val sleep = when (val s = engine.sleep) {
-        Sleep.Off -> loc(S.off)
-        Sleep.EndOfEpisode -> loc(if (engine.post.isSeries) S.endOfEpisode else S.endOfFilm)
-        is Sleep.Minutes -> "${loc.num(s.n)} ${loc(S.min)}"
-      }
-      list += Choice("${loc(S.sleepTimer)} · $sleep", false) { go(Panel.Sleep) }
+      list += Choice(loc(S.sleepTimer), value = sleepName(engine.sleep), opens = true) { go(Panel.Sleep) }
       loc(S.settings) to list
     }
   }
+  // Focus starts on what is chosen, or on the first row that can be chosen.
+  val start = choices.indexOfFirst { it.selected && !it.header }.takeIf { it >= 0 } ?: choices.indexOfFirst { !it.header }.coerceAtLeast(0)
   val first = remember(panel) { FocusRequester() }
+  val state = rememberLazyListState()
   LaunchedEffect(panel) {
+    state.scrollToItem((start - 1).coerceAtLeast(0))
     withFrameNanos {}
     runCatching { first.requestFocus() }
   }
+  val shape = RoundedCornerShape(36.dp)
+  // A card floating on the right, as the title page's sheets are, not a slab down the whole edge.
   Column(
-      Modifier.fillMaxHeight().width(580.dp).background(Theme.surface.copy(alpha = 0.96f)).padding(horizontal = 40.dp, vertical = 70.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+      Modifier.absolutePadding(right = 56.dp).width(620.dp).heightIn(max = 920.dp)
+          .background(Theme.surface.copy(alpha = 0.94f), shape).border(1.dp, Theme.glassEdge, shape)
+          .padding(horizontal = 24.dp, vertical = 34.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Text(title, Modifier.padding(bottom = 18.dp), style = app(36, FontWeight.Bold), color = Theme.text1)
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+    Text(title, Modifier.padding(start = 20.dp, bottom = 10.dp), style = app(34, FontWeight.Bold), color = Theme.text1, maxLines = 1)
+    LazyColumn(state = state, verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
       items(choices.size) { i ->
         val c = choices[i]
-        ChoiceRow(c, if (i == 0) Modifier.focusRequester(first) else Modifier)
+        if (c.header) PanelHeader(c.title, first = i == 0)
+        else ChoiceRow(c, if (i == start) Modifier.focusRequester(first) else Modifier)
       }
     }
   }
 }
 
+/** The name of a group of rows (Audio, Subtitles): small, dim, apart from the rows above it. */
+@Composable
+private fun PanelHeader(name: String, first: Boolean) {
+  Text(name, Modifier.padding(start = 20.dp, top = if (first) 4.dp else 22.dp, bottom = 6.dp), style = app(20, FontWeight.SemiBold), color = Theme.text3, maxLines = 1)
+}
+
+/**
+ * A row of a panel, in the app's focus: lit glass and the turning ring, the text staying white (a
+ * white bar with dark text made the panel flash as focus moved). What is chosen has the accent's
+ * check and a heavier weight, in focus or not.
+ */
 @Composable
 private fun ChoiceRow(c: Choice, modifier: Modifier) {
   val interaction = remember { MutableInteractionSource() }
-  val focused by interaction.collectIsFocusedAsState()
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+  val shape = RoundedCornerShape(20.dp)
   androidx.tv.material3.Surface(
       onClick = c.run,
-      modifier = modifier.fillMaxWidth().focusRing(interaction, RoundedCornerShape(18.dp)),
+      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
       interactionSource = interaction,
-      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(RoundedCornerShape(18.dp)),
-      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
-      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
+      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+          containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.14f), pressedContainerColor = Color.White.copy(alpha = 0.20f),
+          contentColor = Theme.text1, focusedContentColor = Theme.text1, pressedContentColor = Theme.text1,
+      ),
+      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 0.98f),
   ) {
-    Row(Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-      Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-        if (c.selected) Icon(Icons.check, null, Modifier.size(28.dp), tint = if (focused) Theme.accent else Theme.accent)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      // The check's place is kept on every row of a list, so the names line up whether chosen or not.
+      if (!c.opens) Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+        if (c.selected) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.accent)
       }
-      Text(c.title, style = app(26, FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(c.title, style = app(26, if (c.selected) FontWeight.Bold else FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        c.detail?.let { Text(it, style = app(19, FontWeight.Medium), color = Theme.text3, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+      }
+      c.value?.let { Text(it, style = app(22, FontWeight.Medium), color = Theme.text2, maxLines = 1) }
+      if (c.opens) Icon(Icons.chevronEnd, null, Modifier.size(28.dp).graphicsLayer { if (rtl) scaleX = -1f }, tint = Theme.text3)
     }
   }
 }
 
-/** The series' episodes from the bottom: the seasons in a row, and the episodes of the one chosen. */
+/**
+ * The series' episodes on a card at the right of the picture, as the Mac's: the series' scene at
+ * the head, then its seasons by name, one of them open at a time, and the open season's episodes
+ * under it. The one playing is lit in the series' colour, the ones seen ticked.
+ */
 @Composable
 private fun EpisodesPanel(engine: PlayerEngine, close: () -> Unit) {
+  val app = LocalApp.current
   val loc = LocalLoc.current
+  val post = engine.post
   val seasons = engine.items.map { it.season }.distinct().sorted()
-  val playingSeason = engine.current.season
-  var season by remember { mutableStateOf(playingSeason) }
-  val entries = engine.items.withIndex().filter { it.value.season == season }
+  val titled = seasons.size > 1
+  var open by remember { mutableStateOf<Int?>(engine.current.season) }
+  // The rows as one list: a season's bar, then its episodes while it is open.
+  val rows = buildList {
+    for (season in seasons) {
+      if (titled) add(-season - 1)
+      if (!titled || open == season) engine.items.withIndex().filter { it.value.season == season }.forEach { add(it.index) }
+    }
+  }
+  val playingRow = rows.indexOf(engine.index)
   val playingTile = remember { FocusRequester() }
   val state = rememberLazyListState()
   LaunchedEffect(Unit) {
-    entries.indexOfFirst { it.index == engine.index }.takeIf { it >= 0 }?.let { state.scrollToItem(it) }
+    if (playingRow >= 0) state.scrollToItem((playingRow - 1).coerceAtLeast(0))
     withFrameNanos {}
     runCatching { playingTile.requestFocus() }
   }
+  val shape = RoundedCornerShape(36.dp)
+  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: post.tint())) {
   Column(
-      Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.92f)))).padding(top = 60.dp, bottom = 40.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+      Modifier.absolutePadding(right = 56.dp).padding(vertical = 60.dp).width(640.dp).fillMaxHeight()
+          .clip(shape).background(Theme.surface.copy(alpha = 0.94f)).border(1.dp, Theme.glassEdge, shape),
   ) {
-    if (seasons.size > 1) {
-      LazyRow(contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        items(seasons) { s -> PillButton("${loc(S.season)} ${loc.num(s)}", { season = s }, kind = PillKind.Chip, selected = s == season) }
+    // The series' scene, fading into the card, with its name and how many seasons it has.
+    Box(Modifier.fillMaxWidth().height(180.dp)) {
+      RemoteImage(post.cover ?: post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 800)
+      Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.1f), Theme.surface.copy(alpha = 0.96f)))))
+      Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 30.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(post.title(loc.lang), style = app(30, FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val count = "${loc.num(engine.items.size)} ${loc(S.episodeCount)}"
+        Text(if (titled) "${loc.num(seasons.size)} ${loc(S.seasonsCount)} · $count" else count, style = app(20, FontWeight.Medium), color = Color.White.copy(alpha = 0.7f))
       }
     }
-    LazyRow(state = state, contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 22.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-      // By place: two versions of one episode without a file id share an id.
-      items(entries, key = { it.index }) { (i, item) ->
-        CardSurface(
-            onClick = {
-              close()
-              engine.start(i)
-            },
-            modifier = if (i == engine.index) Modifier.focusRequester(playingTile) else Modifier,
-            radius = Theme.tileRadius, scale = 1.06f,
-        ) { EpisodeTile(item, i + 1, nowPlaying = i == engine.index) }
+    LazyColumn(state = state, contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      items(rows.size, key = { rows[it] }) { r ->
+        val row = rows[r]
+        if (row < 0) {
+          val season = -row - 1
+          SeasonBar(season, engine.items.count { it.season == season }, open == season, playing = season == engine.current.season) {
+            open = if (open == season) null else season
+          }
+        } else {
+          val item = engine.items[row]
+          val playing = row == engine.index
+          EpisodeRow(
+              item, row + 1, playing, seen = item.fileID in app.watched,
+              progress = if (playing && engine.duration > 0) (engine.position / engine.duration).toFloat() else null,
+              modifier = if (playing) Modifier.focusRequester(playingTile) else Modifier,
+          ) {
+            close()
+            engine.start(row)
+          }
+        }
       }
+    }
+  }
+  }
+}
+
+/** A season's name, which opens and closes its episodes: the season, how many, a chevron. */
+@Composable
+private fun SeasonBar(season: Int, count: Int, open: Boolean, playing: Boolean, toggle: () -> Unit) {
+  val loc = LocalLoc.current
+  val interaction = remember { MutableInteractionSource() }
+  val shape = RoundedCornerShape(20.dp)
+  val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
+  androidx.tv.material3.Surface(
+      onClick = toggle,
+      modifier = Modifier.fillMaxWidth().padding(top = 6.dp).focusRing(interaction, shape),
+      interactionSource = interaction,
+      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
+      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+          containerColor = Color.White.copy(alpha = if (open) 0.08f else 0.04f), focusedContainerColor = Color.White.copy(alpha = 0.16f),
+          contentColor = Theme.text1, focusedContentColor = Theme.text1,
+      ),
+      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 0.98f),
+  ) {
+    Row(Modifier.fillMaxWidth().height(70.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Text("${loc(S.season)} ${loc.num(season)}", style = app(25, FontWeight.Bold))
+      if (playing) Box(Modifier.size(10.dp).background(LocalHue.current ?: Theme.accent, CircleShape))
+      Text("${loc.num(count)} ${loc(S.episodeCount)}", style = app(19, FontWeight.Medium), color = Theme.text3)
+      Spacer(Modifier.weight(1f))
+      Icon(Icons.chevronDown, null, Modifier.size(30.dp).graphicsLayer { rotationZ = turn }, tint = Theme.text2)
+    }
+  }
+}
+
+/**
+ * One episode, as the Mac's row: its number on a tile of its own, filled in the series' colour for
+ * the one playing; its name; "Now playing" or its length; how far in; a tick once seen.
+ */
+@Composable
+private fun EpisodeRow(item: app.nama.core.StreamItem, position: Int, playing: Boolean, seen: Boolean, progress: Float?, modifier: Modifier, onClick: () -> Unit) {
+  val loc = LocalLoc.current
+  val tint = LocalHue.current ?: Theme.accent
+  val interaction = remember { MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  val shape = RoundedCornerShape(22.dp)
+  androidx.tv.material3.Surface(
+      onClick = onClick,
+      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
+      interactionSource = interaction,
+      shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
+      colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+          containerColor = Color.White.copy(alpha = if (playing) 0.08f else 0f), focusedContainerColor = Color.White.copy(alpha = 0.14f),
+          contentColor = Theme.text1, focusedContentColor = Theme.text1,
+      ),
+      scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 0.98f),
+  ) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+      Box(
+          Modifier.size(66.dp).background(if (playing) tint else Color.White.copy(alpha = if (focused) 0.16f else 0.08f), RoundedCornerShape(16.dp)),
+          contentAlignment = Alignment.Center,
+      ) {
+        if (focused && !playing) Icon(Icons.play, null, Modifier.size(30.dp), tint = Theme.text1)
+        else Text(loc.num(Episode.label(item.episodeRaw, position)), style = app(24, FontWeight.ExtraBold), color = if (playing) Color.White else Theme.text2, maxLines = 1)
+      }
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}", style = app(24, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          if (playing) Text(loc(S.nowPlaying), style = app(18, FontWeight.Bold), color = tint)
+          item.durationMinutes?.let { Text("${loc.num(it)} ${loc(S.min)}", style = app(18), color = Theme.text3) }
+        }
+        // Left to right in every language, as the seek bar runs.
+        progress?.let { p ->
+          Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(5.dp).background(Color.White.copy(alpha = 0.15f), CircleShape)) {
+            Box(Modifier.align(androidx.compose.ui.AbsoluteAlignment.CenterLeft).fillMaxWidth(p.coerceIn(0.02f, 1f)).height(5.dp).background(tint, CircleShape))
+          }
+        }
+      }
+      if (seen && !playing) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.text3)
     }
   }
 }
