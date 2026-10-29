@@ -30,6 +30,8 @@ public sealed class HomePage : Grid
     private bool _trendDone, _topDone;
     /// <summary>What is trending on TMDB this week and is on 30nama; asked for once per run.</summary>
     private static List<Post> Trend = [];
+    /// <summary>New and returning series, and the films now popular: with a TMDB key only.</summary>
+    private static List<Post> Fresh = [], Pop = [];
     /// <summary>
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own, so
     /// these are the first ten of the catalogue's "most popular" order, asked for once per run.
@@ -250,6 +252,12 @@ public sealed class HomePage : Grid
                 Ranked("top-movies", loc[S.topFilms], Top.GetValueOrDefault("movies"));
                 Ranked("top-series", loc[S.topSeries], Top.GetValueOrDefault("series"));
             }
+            // After the top tens, with the user's TMDB key (the Android app's order).
+            if (section == feed.Sections[0])
+            {
+                if (Fresh.Count > 0) AddShelf("fresh", loc[Extra.freshSeries], Fresh.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
+                if (Pop.Count > 0) AddShelf("popular", loc[Extra.popularFilms], Pop.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
+            }
         }
     }
 
@@ -372,8 +380,8 @@ public sealed class HomePage : Grid
 
     private async Task LoadTrendingAsync()
     {
-        if (Trend.Count > 0) return;
-        var found = await App.TrendingThisWeekAsync();
+        if (Trend.Count > 0 && (Fresh.Count > 0 || TmdbStore.Key is null)) return;
+        var found = Trend.Count > 0 ? Trend : await App.TrendingThisWeekAsync();
         _trendDone = true;
         // Whether it came, for the next launch to keep its place or not.
         try
@@ -384,6 +392,16 @@ public sealed class HomePage : Grid
         catch (Exception) { }
         Trend = found;
         ShowShelves();
+        if (Fresh.Count == 0 && await App.TmdbRowAsync(TrendingRow.Fresh) is { Count: > 0 } fresh)
+        {
+            Fresh = fresh;
+            ShowShelves();
+        }
+        if (Pop.Count == 0 && await App.TmdbRowAsync(TrendingRow.Pop) is { Count: > 0 } pop)
+        {
+            Pop = pop;
+            ShowShelves();
+        }
     }
 
     private void Show(HomeFeed feed)

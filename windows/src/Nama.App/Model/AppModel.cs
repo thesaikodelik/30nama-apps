@@ -321,9 +321,17 @@ public sealed class AppModel
     /// the user's TMDB key when there is one, else TMDB's public page. Each title costs a 30nama
     /// search the first time, so the answers are kept on disk (see <see cref="Trending"/>).
     /// </summary>
-    public async Task<List<Post>> TrendingThisWeekAsync()
+    public Task<List<Post>> TrendingThisWeekAsync() => TmdbRowAsync(TrendingRow.Trend);
+
+    /// <summary>
+    /// A row made from TMDB's lists. New and returning series and the films now popular only with
+    /// the user's TMDB key, as the Android and Tizen apps: without one they would cost a 30nama
+    /// search for every title on every machine.
+    /// </summary>
+    public async Task<List<Post>> TmdbRowAsync(TrendingRow row)
     {
         var key = TmdbStore.Key;
+        if (key is null && row != TrendingRow.Trend) return [];
         if (_trending is not { } t || t.Key != key)
         {
             var file = Path.Combine(Storage.Folder, key is null ? "trending-public.json" : "trending.json");
@@ -332,7 +340,7 @@ public sealed class AppModel
                 ["query"] = query, ["streamonly"] = "false", ["page"] = "1",
             }, background: true), file));
         }
-        return await t.Service.RowAsync(TrendingRow.Trend);
+        return await t.Service.RowAsync(row);
     }
 
     private (string? Key, Trending Service)? _trending;
