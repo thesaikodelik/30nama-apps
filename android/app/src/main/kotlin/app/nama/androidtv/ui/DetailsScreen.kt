@@ -662,18 +662,21 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
       modifier = modifier.focusRing(interaction, shape),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
-      colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.07f), focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
+      // The Mac's tile under the pointer: the same dark glass a shade lighter and the words as they
+      // were, the number giving way to a play mark; the ring says where focus is. A white tile with
+      // dark words was the only one of its kind (the owner).
+      colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.07f), focusedContainerColor = Color.White.copy(alpha = 0.16f), contentColor = Theme.text1, focusedContentColor = Theme.text1),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
   ) {
     Box(Modifier.fillMaxWidth().height(104.dp)) {
       Row(Modifier.fillMaxSize().padding(horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(60.dp), contentAlignment = Alignment.Center) {
-          if (focused) Icon(Icons.play, null, Modifier.size(30.dp))
+          if (focused) Icon(Icons.play, null, Modifier.size(30.dp), tint = Color.White)
           else Text(loc.num(item.episodeRaw ?: "${item.episodeNumber}"), style = app(34, FontWeight.ExtraBold), color = if (progress != null) hue else Theme.text2, maxLines = 1)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text(item.title(loc.lang) ?: name ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}", style = app(25, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-          item.durationMinutes?.let { Text("${loc.num(it)} ${loc(S.min)}", style = app(20), color = if (focused) Theme.focusInk.copy(alpha = 0.6f) else Theme.text3) }
+          item.durationMinutes?.let { Text("${loc.num(it)} ${loc(S.min)}", style = app(20), color = Theme.text3) }
         }
         if (watched) Icon(Icons.check, null, Modifier.size(28.dp), tint = Theme.good)
       }
