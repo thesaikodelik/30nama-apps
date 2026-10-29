@@ -26,7 +26,27 @@ public static partial class EpisodeWatch
 
     private static string File => Path.Combine(Storage.Folder, "episode-alerts.json");
 
-    private sealed record Kept(double Last, Dictionary<string, double> Expected);
+    /// <summary>What is kept between runs; <paramref name="News"/> is each series with news: when it came, and where it was left then.</summary>
+    private sealed record Kept(double Last, Dictionary<string, double> Expected, Dictionary<string, double[]>? News = null);
+
+    /// <summary>A new episode stays news for a week, or until the series is watched on (the Android app's, from 30namaTV).</summary>
+    private static readonly TimeSpan NewsFor = TimeSpan.FromDays(7);
+
+    private static Dictionary<string, double[]>? _news;
+
+    /// <summary>
+    /// The series has an episode out since it was last watched: said on its card in the app as well
+    /// as by the notification. Gone once its place in "continue watching" moves.
+    /// </summary>
+    public static bool IsNew(Post post)
+    {
+        lock (Shown) _news ??= Load().News ?? [];
+        double[]? entry;
+        lock (Shown) entry = _news.GetValueOrDefault(post.Id.ToString());
+        if (entry is not [var at, var left]) return false;
+        if (DateTime.UtcNow - DateTime.UnixEpoch.AddSeconds(at) > NewsFor) return false;
+        return post.Resume is not { } resume || Math.Abs(resume.Time - left) <= 1;
+    }
 
     /// <summary>A click on a notification, with the post it is about. Raised on a thread of Windows' own.</summary>
     public static event Action<int>? Opened;
@@ -61,8 +81,12 @@ public static partial class EpisodeWatch
         var followed = upcoming.Concat(watching.Where(p => p.IsSeries)).ToList();
         var alerts = new EpisodeAlerts(kept.Expected);
         var due = followed.Count > 0 ? alerts.Update(followed) : [];
+        var now = (DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds;
+        var news = (kept.News ?? []).Where(n => n.Value is [var at, _] && now - at <= NewsFor.TotalSeconds).ToDictionary();
+        foreach (var post in due) news[post.Id.ToString()] = [now, watching.FirstOrDefault(w => w.Id == post.Id)?.Resume?.Time ?? 0];
+        lock (Shown) _news = news;
         // Counted from a look that worked; one that failed is tried again within the hour.
-        Storage.Write(File, JsonSerializer.Serialize(new Kept((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds, followed.Count > 0 ? alerts.Stored : kept.Expected)));
+        Storage.Write(File, JsonSerializer.Serialize(new Kept(now, followed.Count > 0 ? alerts.Stored : kept.Expected, news)));
         foreach (var post in due) Show(post, app.Loc);
     }
 

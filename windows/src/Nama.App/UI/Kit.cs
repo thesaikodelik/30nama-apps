@@ -410,8 +410,11 @@ public static class Kit
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12), Spacing = 4 };
         text.Children.Add(Theme.Text(post.Title(loc.Lang), 15, FontWeights.Bold, Colors.White));
         var parts = new List<string>();
-        if (post.Resume is { Season: { } season, Episode: { } episode }) parts.Add(loc.EpisodeTag(season, episode));
-        if (post.Resume?.RemainingMinutes is { } left) parts.Add($"{loc.Num(left)} {loc[S.minLeft]}");
+        // A followed series with an episode out since: said in place of where it was left (the Android app's).
+        var fresh = Model.EpisodeWatch.IsNew(post);
+        if (fresh) parts.Add($"● {loc[S.newEpisode]}");
+        else if (post.Resume is { Season: { } season, Episode: { } episode }) parts.Add(loc.EpisodeTag(season, episode));
+        if (!fresh && post.Resume?.RemainingMinutes is { } left) parts.Add($"{loc.Num(left)} {loc[S.minLeft]}");
         if (parts.Count > 0) text.Children.Add(Theme.Text(string.Join(" · ", parts), 12, FontWeights.Medium, Theme.Hex(0xFFFFFF, 0.72)));
         var track = new Grid { Height = 4, Margin = new Thickness(0, 4, 0, 0) };
         track.Children.Add(new Border { CornerRadius = new CornerRadius(2), Background = Theme.White(0.22) });
