@@ -55,6 +55,8 @@ public sealed record Settings
     public int? DownloadTo { get; init; }
     /// <summary>The user's own SubSource key, if they made one. Kept on this computer only.</summary>
     public string? SubsourceKey { get; init; }
+    /// <summary>The user's own Gemini key, for translating English subtitles. Kept on this computer only.</summary>
+    public string? GeminiKey { get; init; }
     /// <summary>The user's own TMDB key or read access token, if they made one. Kept on this computer only.</summary>
     public string? TmdbKey { get; init; }
     /// <summary>The name for the profile when the site's is private; only on this computer.</summary>

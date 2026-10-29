@@ -498,6 +498,13 @@ public sealed partial class PlayerPage : Grid
             }
             menu.Items.Add(found);
         }
+        // English put into Persian by Gemini, when there is nothing Persian to choose.
+        if (_engine.CanTranslate || current == PlayerEngine.Translated)
+        {
+            var into = Nama.Core.Translation.Target(Loc.Lang) == Lang.Ar ? Lang.Ar.Name() : Loc[S.persian];
+            var share = _engine.TranslatedShare is { } part && part < 1 ? $" · {Loc.Num((int)(part * 100))}{(Loc.Lang == Lang.En ? "%" : "٪")}" : "";
+            menu.Items.Add(Radio($"{into} ({Loc[Extra.machineTranslation]}{share})", "sub", current == PlayerEngine.Translated, () => _engine.SelectSubtitle(PlayerEngine.Translated, remember: true)));
+        }
         var file = new MenuFlyoutItem { Text = Loc[S.subtitleFile] };
         file.Click += async (_, _) => await ChooseSubtitleFileAsync();
         menu.Items.Add(file);

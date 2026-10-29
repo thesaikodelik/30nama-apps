@@ -125,6 +125,7 @@ public sealed class SettingsPage : Grid
         [
             KeyField("subsource", loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
             KeyField("tmdb", loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => SaveTyped(x => x with { TmdbKey = v })),
+            KeyField("gemini", loc[Extra.geminiKey], loc[Extra.geminiKeyHint], s.GeminiKey, v => SaveTyped(x => x with { GeminiKey = v })),
         ]);
 
         var version = typeof(SettingsPage).Assembly.GetName().Version;

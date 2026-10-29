@@ -19,6 +19,8 @@ public sealed class PlayerEngine
     public const string FileSubtitle = "file";
     /// <summary>The subtitle choice for one found on SubSource: this, followed by the candidate's id.</summary>
     public const string Found = "found:";
+    /// <summary>The subtitle choice for the English one put into Persian by Gemini.</summary>
+    public const string Translated = "translated";
     public static readonly double[] Speeds = [0.5, 0.75, 0.9, 1, 1.05, 1.1, 1.25, 1.5, 1.75, 2];
     /// <summary>What [ and ] change the speed by: small enough to catch up with a slow scene unnoticed.</summary>
     public const double SpeedStep = 0.05;
@@ -236,7 +238,7 @@ public sealed class PlayerEngine
         // A file belongs to the episode it was picked for.
         _fileTrack = null;
         SubtitleFileName = null;
-        var kept = SubtitleLanguage == FileSubtitle || SubtitleLanguage.StartsWith(Found);
+        var kept = SubtitleLanguage == FileSubtitle || SubtitleLanguage == Translated || SubtitleLanguage.StartsWith(Found);
         SelectSubtitle(kept ? _app.Settings.DefaultSubtitle : SubtitleLanguage, remember: false);
         LookForSubtitles();
         Changed?.Invoke();
@@ -686,7 +688,8 @@ public sealed class PlayerEngine
     {
         SubtitleLanguage = language;
         // A subtitle found for this title is remembered as Persian, which is what it is.
-        if (remember && language != FileSubtitle) _app.Update(s => s with { DefaultSubtitle = language.StartsWith(Found) ? "fa" : language });
+        if (remember && language != FileSubtitle) _app.Update(s => s with { DefaultSubtitle = language.StartsWith(Found) || language == Translated ? "fa" : language });
+        if (language != Translated) TranslatedShare = null;
         _subtitleLoad?.Cancel();
         _track = new SubtitleTrack();
         Cue = "";
@@ -715,6 +718,11 @@ public sealed class PlayerEngine
             _track = _fileTrack ?? new SubtitleTrack();
             return;
         }
+        if (language == Translated)
+        {
+            Translate();
+            return;
+        }
         if (language == "off" || !Current.Subtitles.TryGetValue(language, out var url)) return;
         if (_subtitleCache.TryGetValue(url, out var cached))
         {
@@ -738,6 +746,79 @@ public sealed class PlayerEngine
                 _subtitleCache[url] = parsed;
                 if (SubtitleLanguage == language && Current.Subtitles.GetValueOrDefault(language) == url) _track = parsed;
             });
+        });
+    }
+
+    /// <summary>How much of the translation has come, 0 to 1, while there is one.</summary>
+    public double? TranslatedShare { get; private set; }
+
+    /// <summary>
+    /// A translation can be offered: no Persian subtitle anywhere (30nama's or SubSource's), an
+    /// English one to start from, and the user's own Gemini key (the Android app's).
+    /// </summary>
+    public bool CanTranslate => !Current.Subtitles.ContainsKey("fa") && !FindingSubtitles && FoundSubtitles.Count == 0
+        && Current.Subtitles.ContainsKey("en") && _app.GeminiKey is not null;
+
+    /// <summary>
+    /// The English subtitle translated by Gemini (Translation.cs). The film goes on with the English
+    /// lines; each batch replaces its lines as it arrives, starting from where the viewer is.
+    /// </summary>
+    private void Translate()
+    {
+        if (!Current.Subtitles.TryGetValue("en", out var url) || _app.GeminiKey is not { } key) return;
+        var item = Index;
+        var load = _subtitleLoad = new CancellationTokenSource();
+        var target = Translation.Target(Loc.Lang);
+        var title = Post.TitleEnglish ?? Post.Title(Lang.En);
+        // A signed address changes from one evening to the next; the file it names does not.
+        var name = url.GetLeftPart(UriPartial.Path);
+        var at = Time - SubtitleOffset;
+        var gemini = _app.Gemini;
+        _subtitleCache.TryGetValue(url, out var cached);
+        bool Still() => !load.IsCancellationRequested && SubtitleLanguage == Translated && Index == item;
+        TranslatedShare = 0;
+        _ = Task.Run(async () =>
+        {
+            var source = cached;
+            if (source is null)
+            {
+                try
+                {
+                    var data = url.IsFile ? await File.ReadAllBytesAsync(url.LocalPath, load.Token) : await Subtitles.FetchAsync(url, load.Token);
+                    source = SubtitleTrack.FromVtt(SubtitleSite.Text(data) ?? System.Text.Encoding.UTF8.GetString(data));
+                }
+                catch (Exception) { }
+            }
+            if (source is null)
+            {
+                _ui.TryEnqueue(() => { if (Still()) { TranslatedShare = null; _app.ShowToast(Loc[S.subFailed]); } });
+                return;
+            }
+            _ui.TryEnqueue(() => { if (Still()) _track = source; });
+            var cues = source.Cues.ToList();
+            var count = Translation.BatchCount(cues);
+            var done = 0;
+            foreach (var n in Translation.Order(count, Translation.BatchAt(cues, at)))
+            {
+                var outcome = await gemini.TranslateAsync(key, name, target, title, n, Translation.BatchOf(cues, n));
+                if (load.IsCancellationRequested) return;
+                if (outcome is not Gemini.Outcome.Lines lines)
+                {
+                    var why = outcome is Gemini.Outcome.Rejected ? Loc[Extra.keyRejected] : Loc[Extra.translationStopped];
+                    _ui.TryEnqueue(() => { if (Still()) { TranslatedShare = null; _app.ShowToast(why); Changed?.Invoke(); } });
+                    return;
+                }
+                cues = Translation.Apply(cues, n, lines.Text);
+                var track = new SubtitleTrack(SubtitleTrack.Directed(SubtitleTrack.Persianised(cues)));
+                var share = (double)++done / count;
+                _ui.TryEnqueue(() =>
+                {
+                    if (!Still()) return;
+                    _track = track;
+                    TranslatedShare = share;
+                    Changed?.Invoke();
+                });
+            }
         });
     }
 

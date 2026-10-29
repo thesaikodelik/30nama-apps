@@ -79,6 +79,11 @@ public sealed class AppModel
     private ContinueDismissals _dismissals = LoadDismissals();
     private CancellationTokenSource? _toastTimer;
 
+    /// <summary>Translates English subtitles with the user's own Gemini key; batches kept on disk.</summary>
+    public Gemini Gemini { get; }
+
+    public string? GeminiKey => Settings.GeminiKey?.Trim() is { Length: > 0 } key ? key : null;
+
     private static string RatingsFile => Path.Combine(Storage.Folder, "ratings.json");
     private static string WatchedFile => Path.Combine(Storage.Folder, "watched.json");
     private static string KeptFile => Path.Combine(Storage.Folder, "left.json");
@@ -112,6 +117,7 @@ public sealed class AppModel
         _ui = ui;
         Shared = this;
         Subtitles = new SubtitleFinder(ApiClient.HttpTransport(), () => Settings.SubsourceKey?.Trim());
+        Gemini = new Gemini(ApiClient.HttpTransport(), Path.Combine(Storage.Folder, "translations"));
     }
 
     private void Tell(string what) => Changed?.Invoke(what);

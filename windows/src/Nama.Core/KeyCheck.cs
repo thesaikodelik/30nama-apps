@@ -21,16 +21,22 @@ public static class KeyCheck
                 var request = new HttpRequestMessage(HttpMethod.Get, SubSource.SearchUrl(new SubSource.Query("Inception", 2010, "tt1375666", false, null)));
                 request.Headers.TryAddWithoutValidation("X-API-Key", key);
                 return request;
+            case "gemini":
+                var models = new HttpRequestMessage(HttpMethod.Get, Gemini.ModelsAddress);
+                models.Headers.TryAddWithoutValidation("x-goog-api-key", key);
+                return models;
             default:
                 return null;
         }
     }
 
     /// <summary>What an answer's status says of the key: a refusal is the key, anything else the service.</summary>
-    public static KeyState Read(int status) => status switch
+    public static KeyState Read(int status, string service = "") => status switch
     {
         >= 200 and < 300 => KeyState.Works,
         401 or 403 => KeyState.Rejected,
+        // Gemini answers a wrong key with 400 API_KEY_INVALID.
+        400 when service == "gemini" => KeyState.Rejected,
         _ => KeyState.Unreachable,
     };
 
@@ -43,7 +49,7 @@ public static class KeyCheck
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
                 using var response = await transport(request, timeout.Token);
-                return Read((int)response.StatusCode);
+                return Read((int)response.StatusCode, service);
             }
         }
         catch (Exception) { return KeyState.Unreachable; }
