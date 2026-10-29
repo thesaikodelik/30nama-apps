@@ -365,7 +365,10 @@ private fun Header(
             .graphicsLayer { alpha = if (flying) 0f else 1f }
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
+            // The one place the red ring turns and lights the edge inward (the owner).
+            .focusWash(true, 0.30f, shape)
+            .focusRing(true, shape, width = 3.dp, turning = true),
     ) {
       RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 300)
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
@@ -646,7 +649,7 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         CardSurface(
             onClick = { play(index) },
             modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
-            radius = Theme.tileRadius, glow = rememberPosterTint(post),
+            radius = Theme.tileRadius,
             // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
             onLongClick = {
               val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"

@@ -167,7 +167,7 @@ private fun ArticleCard(article: Article, onClick: () -> Unit) {
   CardSurface(onClick, radius = 16.dp, scale = 1.03f, glint = false) {
     val focused = LocalCardFocused.current
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-      Column(Modifier.fillMaxWidth().background(if (focused) Theme.surface2 else Theme.surface).focusWash(focused)) {
+      Column(Modifier.fillMaxWidth().background(if (focused) Theme.surface2 else Theme.surface)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Theme.surface2), contentAlignment = Alignment.Center) {
           Icon(Icons.newspaper, null, Modifier.size(40.dp), tint = Theme.text3)
           RemoteImage(article.thumbnail ?: article.picture, Modifier.fillMaxSize(), pixelWidth = 480)

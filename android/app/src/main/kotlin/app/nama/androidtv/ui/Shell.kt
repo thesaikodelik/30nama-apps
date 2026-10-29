@@ -744,7 +744,7 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
   ) {
     // The menu's glass stays as it is; the ring is drawn over it.
-    Row(Modifier.focusWash(focused, 0.30f, RoundedCornerShape(50)).focusRing(focused, RoundedCornerShape(50)).height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.focusRing(focused, RoundedCornerShape(50)).height(58.dp).padding(horizontal = if (iconOnly) 18.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       if (icon != null) Icon(icon, title, Modifier.size(26.dp))
       if (!iconOnly) Text(title, style = app(25, FontWeight.SemiBold), maxLines = 1)
     }

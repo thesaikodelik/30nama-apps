@@ -90,10 +90,10 @@ enum class PillKind { Primary, Secondary, Chip }
 /**
  * Where the remote is, the same on every control (the owner chose it among four): a thin ring of
  * 30nama's own red gradient (coral, red, raspberry, as on the profile's picture) on the control's
- * own edge, inside it, turning slowly. It sits over whatever the control already is in focus (the
- * menu's lit glass, Play's white, a card's glow), so none of that is lost. Only the control in focus
- * turns, and its angle is read only when drawn, so nothing is rebuilt for it; on a weak TV, or with
- * reduced motion, the ring stands still.
+ * own edge, inside it, still. It sits over whatever the control already is in focus (the menu's lit
+ * glass, Play's white), so none of that is lost. The turning and the light were too much on every
+ * control (the owner): only the title page's poster turns its ring ([turning]), its angle read only
+ * when drawn; on a weak TV, or with reduced motion, it stands still too.
  */
 @Composable
 fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
@@ -107,8 +107,8 @@ fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.Inte
  * control grows inside it (a TV Surface scales its content, not its modifiers): the ring is drawn
  * that much larger, so it sits on the grown edge and not inside it (the owner).
  */
-fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
-  val turns = LocalLively.current && !LocalCalm.current
+fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f, turning: Boolean = false): Modifier {
+  val turns = turning && LocalLively.current && !LocalCalm.current
   val angle = remember { androidx.compose.animation.core.Animatable(0f) }
   LaunchedEffect(focused, turns) {
     if (!focused || !turns) return@LaunchedEffect
@@ -137,7 +137,7 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
 }
 
 /**
- * The light the chosen preview threw round its ring, inside a control in focus: a soft glow from its
+ * The light the chosen preview threw round its ring, now only on the title page's poster: a soft glow from its
  * edge inward in the ring's own gradient (coral, red, raspberry), turning with it, the middle left
  * as it is (the owner: a red pool in the middle was not it). Layered strokes, no blur; read only
  * when drawn; still on a weak TV or with reduced motion.
@@ -163,8 +163,10 @@ fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: android
       val w = reach * i / WASH_BANDS
       w to shape.createOutline(androidx.compose.ui.geometry.Size(size.width - w, size.height - w), layoutDirection, this)
     }
-    onDrawBehind {
-      if (shown <= 0f) return@onDrawBehind
+    // Over the content: on the poster it is the picture's own edge that lights.
+    onDrawWithContent {
+      drawContent()
+      if (shown <= 0f) return@onDrawWithContent
       matrix.setRotate(angle.value, cx, cy)
       shader.setLocalMatrix(matrix)
       val each = strength * shown / WASH_BANDS * 1.6f
@@ -262,8 +264,7 @@ fun PillButton(
                 })
             // The ring's red light moving inside, over the button's own face (the owner); on the
             // white ones fainter, so they stay white.
-            .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
-            .focusRing(focused, capsule)
+                        .focusRing(focused, capsule)
             .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -300,7 +301,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusWash(focused, 0.30f, CircleShape).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -314,7 +315,7 @@ val LocalCardFront = compositionLocalOf { false }
 
 /**
  * A card, as the Mac's poster under the pointer (docs/design "پوستر"): at rest a hairline of white
- * 0.08; in focus ×1.07, the focus ring, and a glow in [glow] (the poster's own colour). The Mac's
+ * 0.08; in focus ×1.07, the focus ring, and a dark shadow (the poster's coloured light was too much, the owner). The Mac's
  * card leans to the pointer and a glint of light follows it (`Tilt`, MacKit.swift); a TV has no
  * pointer, so in focus an imagined one wanders slowly over the card and the card does the same:
  * leans up to 7 degrees toward it (the Mac's 4 was too little from the sofa), the glint under it. Read only where drawn, so nothing
@@ -327,7 +328,6 @@ fun CardSurface(
     modifier: Modifier = Modifier,
     radius: Dp = Theme.cardRadius,
     scale: Float = 1.07f,
-    glow: Color = Color.White,
     onLongClick: (() -> Unit)? = null,
     front: (@Composable BoxScope.() -> Unit)? = null,
     glint: Boolean = true,
@@ -364,7 +364,7 @@ fun CardSurface(
               cameraDistance = 9f * density
             }
           }
-          .colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
+          .colouredGlow(Color.Black, if (focused) 0.5f else 0f, 31.dp, shape, y = 18.dp),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),
@@ -531,8 +531,7 @@ fun PosterCard(
           if (!calm) bounds?.let { nav.flight = Flight(post, it) }
           onClick()
         },
-        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
-        glow = rememberPosterTint(post), onLongClick = lists,
+        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() }, onLongClick = lists,
         front = { PosterCaption(post) },
     ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
@@ -577,7 +576,7 @@ fun RankedCard(rank: Int, post: Post, onClick: () -> Unit, modifier: Modifier = 
 fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
   val loc = LocalLoc.current
   val app = LocalApp.current
-  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, glow = rememberPosterTint(post), onLongClick = onLongClick) {
+  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, onLongClick = onLongClick) {
     val focused = LocalCardFocused.current
     val disc by animateFloatAsState(if (focused) 1f else 0f, Theme.focusSpring(), label = "disc")
     Box(Modifier.size(374.dp, 210.dp).background(Theme.surface2)) {
