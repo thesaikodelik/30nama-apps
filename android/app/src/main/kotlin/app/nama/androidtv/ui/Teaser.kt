@@ -47,7 +47,7 @@ data class TeaserClip(val url: URI, val trailer: Boolean, val referer: String? =
 fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
   val app = LocalApp.current
   val context = LocalContext.current
-  val allowed = LocalLively.current && !LocalCalm.current
+  val allowed = LocalLively.current && !LocalCalm.current && !app.settings.dataSaver
   var played by remember(key) { mutableStateOf(false) }
   var running by remember { mutableStateOf<ExoPlayer?>(null) }
   var showing by remember { mutableStateOf(false) }

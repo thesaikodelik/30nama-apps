@@ -33,6 +33,12 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "الرسوم المتحركة متوقفة للتلفاز كله في إعداداته، لذا يبقى التطبيق ثابتاً مهما كان هذا الخيار.",
   ),
   matchFrameRate("Match frame rate", "هماهنگی نرخ تصویر", "مطابقة معدل الإطارات"),
+  dataSaver("Data saver", "صرفه‌جویی در اینترنت", "توفير البيانات"),
+  dataSaverHint(
+      "For metered internet or a VPN with a data cap. The next titles' pictures and logos are not fetched before you reach them, episodes take no frames from their own video, no preview shows while seeking, and no clip plays behind a title's page. Read ahead under Playback is set on its own.",
+      "برای اینترنت حجمی یا VPN با حجم محدود. تصویر و لوگوی عنوان‌های بعدی پیش از رسیدن به آن‌ها گرفته نمی‌شود، قسمت‌ها از ویدئوی خودشان عکس نمی‌گیرند، هنگام جلو و عقب بردن پیش‌نمایش نمی‌آید و پشت صفحهٔ عنوان فیلمی پخش نمی‌شود. «خواندن جلوتر» در بخش پخش جدا تنظیم می‌شود.",
+      "للإنترنت المحدود أو VPN بحجم محدود. لا تُجلب صور العناوين التالية وشعاراتها قبل الوصول إليها، ولا تأخذ الحلقات صوراً من الفيديو نفسه، ولا تظهر معاينة أثناء التقديم والترجيع، ولا يُعرض مقطع خلف صفحة العنوان. يُضبط «التحميل المسبق» في قسم التشغيل بشكل منفصل.",
+  ),
   matchFrameRateHint(
       "Switch the TV to the film's own frame rate, so motion is smooth. Most TVs go black for a moment when it switches.",
       "تلویزیون به نرخ تصویر خود فیلم برود تا حرکت نرم باشد. بیشتر تلویزیون‌ها هنگام این کار یک لحظه سیاه می‌شوند.",

@@ -813,7 +813,7 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
         val done = item.fileID in app.watched
         // A still from the episode itself, once on screen; on a weak TV only those already taken.
-        if (lively) LaunchedEffect(item.fileID) { app.stills.still(item) }
+        if (lively && !app.settings.dataSaver) LaunchedEffect(item.fileID) { app.stills.still(item) }
         val still = app.stills.known[item.fileID]
         CardSurface(
             onClick = { play(index) },

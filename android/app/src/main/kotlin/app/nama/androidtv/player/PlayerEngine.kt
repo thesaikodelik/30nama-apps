@@ -398,7 +398,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     }
     // Previews come from the smallest rendition: a tiny picture, at the least cost to the line.
     val lowest = current.qualities.filter { !it.isAuto }.minByOrNull { it.height } ?: current.qualities.firstOrNull()
-    preview.use(lowest?.url(AudioMix.stereo)?.toString())
+    // None with Data saver: a preview is a stream of its own.
+    preview.use(if (app.settings.dataSaver) null else lowest?.url(AudioMix.stereo)?.toString())
     if (subtitleLanguage.startsWith(FOUND)) subtitleLanguage = "fa"
     // A translation goes on into the next episode, if that has nothing Persian either.
     if (subtitleLanguage == TRANSLATED && current.subtitles["fa"] != null) subtitleLanguage = "fa"

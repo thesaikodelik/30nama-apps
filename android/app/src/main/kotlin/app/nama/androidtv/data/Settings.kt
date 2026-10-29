@@ -39,6 +39,12 @@ data class Settings(
     val readAhead: Int = 25,
     /** Switch the TV's refresh rate to the film's frame rate, even where that blanks the screen. */
     val matchFrameRate: Boolean = false,
+    /**
+     * For metered internet and a VPN by the gigabyte (30namaTV's): nothing fetched the viewer has
+     * not asked for yet, no frames from the episodes' own video, no seek previews and no film
+     * behind a title's page. The film's own read-ahead keeps [readAhead].
+     */
+    val dataSaver: Boolean = false,
 ) {
   companion object {
     val subtitleSizes = listOf(38, 46, 54)
@@ -68,6 +74,7 @@ data class Settings(
           sceneGlow = p.getBoolean("sceneGlow", d.sceneGlow),
           readAhead = p.getInt("readAhead", d.readAhead).takeIf { it in readAheadChoices } ?: d.readAhead,
           matchFrameRate = p.getBoolean("matchFrameRate", d.matchFrameRate),
+          dataSaver = p.getBoolean("dataSaver", d.dataSaver),
       )
     }
   }
@@ -92,6 +99,7 @@ data class Settings(
         .putBoolean("sceneGlow", sceneGlow)
         .putInt("readAhead", readAhead)
         .putBoolean("matchFrameRate", matchFrameRate)
+        .putBoolean("dataSaver", dataSaver)
         .apply()
   }
 }

@@ -239,6 +239,7 @@ fun SettingsScreen() {
             app.update { it.copy(effects = next(it.effects, Effects.entries.toList())) }
           }
           Toggle(loc(S.reduceMotion), s.reduceMotion, motionHint, { help = it }) { app.update { it.copy(reduceMotion = !it.reduceMotion) } }
+          Toggle(tv(TV.dataSaver), s.dataSaver, tv(TV.dataSaverHint), { help = it }) { app.update { it.copy(dataSaver = !it.dataSaver) } }
           val scope = rememberCoroutineScope()
           val cleared = tv(TV.cleared)
           // What the pictures, the episode stills and the read-ahead video take on the TV.
