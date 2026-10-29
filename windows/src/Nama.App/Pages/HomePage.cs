@@ -320,6 +320,9 @@ public sealed class HomePage : Grid
 
     // MARK: Data
 
+    /// <summary>"No internet" was said for the saved page shown; not again until it has come back.</summary>
+    private bool _saidOffline;
+
     private async Task LoadAsync()
     {
         // Last time's page at once, so there is something to see from the first frame; the fresh
@@ -334,20 +337,35 @@ public sealed class HomePage : Grid
         }
         catch (Exception)
         {
+            void Again()
+            {
+                Children.Clear();
+                Children.Add(_stage);
+                Children.Add(_scroller);
+                _ = LoadAsync();
+            }
             if (_feed is null)
             {
                 Children.Clear();
                 Children.Add(Kit.Ambient());
-                Children.Add(Kit.Error(() =>
-                {
-                    Children.Clear();
-                    Children.Add(_stage);
-                    Children.Add(_scroller);
-                    _ = LoadAsync();
-                }));
+                Children.Add(Kit.Error(Again));
             }
+            // The saved page stays, saying so once; and the page tries again by itself every half
+            // minute while it is open, instead of waiting for a click (the Android app's).
+            else if (!_saidOffline)
+            {
+                _saidOffline = true;
+                App.ShowToast(App.Loc[Extra.offline]);
+            }
+            var shown = _feed is not null;
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!IsLoaded) return;
+                if (shown) _ = LoadAsync(); else Again();
+            }), TaskScheduler.Default);
             return;
         }
+        _saidOffline = false;
         _ = LoadTrendingAsync();
         await LoadTopAsync();
     }
