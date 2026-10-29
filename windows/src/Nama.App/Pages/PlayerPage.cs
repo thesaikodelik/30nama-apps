@@ -233,7 +233,9 @@ public sealed partial class PlayerPage : Grid
         var engine = _engine;
         _curtain.Opacity = engine.Started ? 0 : 1;
         _spinner.Visibility = engine.Started && engine.Buffering ? Visibility.Visible : Visibility.Collapsed;
-        _clock.Text = $"{Fmt.Clock(engine.Time)} / {Fmt.Clock(engine.Duration)}";
+        // "Ends at" beside the length, at the speed it is playing (the Android app's).
+        var ends = engine.EndsAt is { } end ? $"   ·   {Loc[Extra.endsAt]} {Loc.Num(end.ToString("HH:mm"))}" : "";
+        _clock.Text = $"{Fmt.Clock(engine.Time)} / {Fmt.Clock(engine.Duration)}{ends}";
         _scrubber.Update(engine.Time, engine.Duration, engine.Marks);
         _level.Update(engine.Muted ? 0 : engine.Volume);
         SetGlyph(_playButton, engine.Playing ? Glyph.Pause : Glyph.Play, Loc[engine.Playing ? S.pause : S.play]);
@@ -595,8 +597,14 @@ public sealed partial class PlayerPage : Grid
         };
         _countdown = new Border { Background = Theme.White(0.24), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
         face.Children.Add(_countdown);
-        var label = Kit.Label(Loc[offer switch { PlayerEngine.Offers.Intro => S.skipIntro, PlayerEngine.Offers.Recap => S.skipRecap, _ => S.nextEpisode }],
-            offer == PlayerEngine.Offers.Next ? Glyph.Play : "\uEB9D", 16, FontWeights.Bold, Colors.White);
+        var words = offer switch
+        {
+            PlayerEngine.Offers.Intro => Loc[S.skipIntro],
+            PlayerEngine.Offers.Recap => Loc[S.skipRecap],
+            PlayerEngine.Offers.StartOver => Loc[Extra.startOver],
+            _ => Loc[S.nextEpisode],
+        };
+        var label = Kit.Label(words, offer switch { PlayerEngine.Offers.Next => Glyph.Play, PlayerEngine.Offers.StartOver => "\uE72C", _ => "\uEB9D" }, 16, FontWeights.Bold, Colors.White);
         label.Margin = new Thickness(22, 0, 22, 0);
         face.Children.Add(label);
         face.SizeChanged += (_, e) => { _offerWidth = e.NewSize.Width; _countdown.Width = _offerWidth * (_engine.Countdown ?? 0); };

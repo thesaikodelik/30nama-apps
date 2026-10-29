@@ -13,7 +13,7 @@ namespace Nama.App.Player;
 /// </summary>
 public sealed class PlayerEngine
 {
-    public enum Offers { Intro, Recap, Next }
+    public enum Offers { Intro, Recap, Next, StartOver }
 
     /// <summary>The subtitle choice that is neither a language nor "off": a file the user picked.</summary>
     public const string FileSubtitle = "file";
@@ -220,6 +220,8 @@ public sealed class PlayerEngine
             return;
         }
         var from = position ?? ResumePosition();
+        // Resumed part-way: "start over" is offered for the first ten seconds (the Android app's).
+        _resumedAt = position is null && from is > 60 ? DateTime.UtcNow : null;
         // "Max": the download file itself, once 30nama has said which there are; the stream where
         // there is none, or where it would not play (Failed).
         _direct = false;
@@ -300,6 +302,19 @@ public sealed class PlayerEngine
         Playing = true;
         Playback.Play();
     }
+
+    /// <summary>When this file was resumed part-way, for the "start over" offer.</summary>
+    private DateTime? _resumedAt;
+
+    /// <summary>Back to the start of this episode if it has run more than ten seconds, else the one before (as most players).</summary>
+    public void Previous()
+    {
+        if (Playback.Position > 10 || Index == 0) Seek(0);
+        else Start(Index - 1);
+    }
+
+    /// <summary>The clock time playback ends at, at the speed it is going.</summary>
+    public DateTime? EndsAt => Duration > 0 && Speed > 0 ? DateTime.Now.AddSeconds((Duration - Time) / Speed) : null;
 
     /// <summary>Episodes begun on their own in a row, with nothing pressed or moved since.</summary>
     private int _unattended;
@@ -507,6 +522,10 @@ public sealed class PlayerEngine
             case Offers.Next:
                 Start(Index + 1);
                 break;
+            case Offers.StartOver:
+                _resumedAt = null;
+                Seek(0);
+                break;
         }
     }
 
@@ -547,7 +566,8 @@ public sealed class PlayerEngine
 
         Offers? due = null;
         double? left = null;
-        if (Current.SkipTargetAt(seconds) is { } skip)
+        if (_resumedAt is { } resumed && DateTime.UtcNow - resumed < TimeSpan.FromSeconds(10)) due = Offers.StartOver;
+        else if (Current.SkipTargetAt(seconds) is { } skip)
         {
             due = skip.IsIntro ? Offers.Intro : Offers.Recap;
             // Once per stretch: going back into it on purpose is not undone.

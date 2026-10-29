@@ -78,8 +78,8 @@ public sealed partial class NowPlaying : IDisposable
                 case SystemMediaTransportControlsButton.Next when _engine.HasNext:
                     _engine.Start(_engine.Index + 1);
                     break;
-                case SystemMediaTransportControlsButton.Previous when _engine.Index > 0:
-                    _engine.Start(_engine.Index - 1);
+                case SystemMediaTransportControlsButton.Previous:
+                    _engine.Previous();
                     break;
             }
         });

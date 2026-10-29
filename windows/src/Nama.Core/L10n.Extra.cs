@@ -16,7 +16,7 @@ public enum Extra
     keyWorks, keyRejected, keyUnreachable, keyChecking,
     // From the Android app: the download file itself, played straight.
     qualityMax,
-    stillWatchingStopped,
+    stillWatchingStopped, startOver, endsAt,
 }
 #pragma warning restore IDE1006
 
@@ -35,6 +35,8 @@ public sealed partial class Loc
         [Extra.keySavedHere] = "Saved on this computer",
         [Extra.qualityMax] = "Max, the original file",
         [Extra.stillWatchingStopped] = "Autoplay paused after three episodes",
+        [Extra.startOver] = "Start over",
+        [Extra.endsAt] = "Ends at",
         [Extra.keyWorks] = "Works",
         [Extra.keyRejected] = "The service says this key is wrong",
         [Extra.keyUnreachable] = "Saved. The service could not be reached to try it",
@@ -52,6 +54,8 @@ public sealed partial class Loc
         [Extra.keySavedHere] = "روی همین کامپیوتر ذخیره شد",
         [Extra.qualityMax] = "Max، فایل اصلی",
         [Extra.stillWatchingStopped] = "پخش خودکار بعد از سه قسمت ایستاد",
+        [Extra.startOver] = "از اول",
+        [Extra.endsAt] = "تا ساعت",
         [Extra.keyWorks] = "کار می‌کند",
         [Extra.keyRejected] = "سرویس می‌گوید این کلید درست نیست",
         [Extra.keyUnreachable] = "ذخیره شد. سرویس برای امتحان در دسترس نبود",
@@ -69,6 +73,8 @@ public sealed partial class Loc
         [Extra.keySavedHere] = "حُفظ على هذا الكمبيوتر",
         [Extra.qualityMax] = "Max، الملف الأصلي",
         [Extra.stillWatchingStopped] = "توقف التشغيل التلقائي بعد ثلاث حلقات",
+        [Extra.startOver] = "من البداية",
+        [Extra.endsAt] = "ينتهي في",
         [Extra.keyWorks] = "يعمل",
         [Extra.keyRejected] = "تقول الخدمة إن هذا المفتاح خاطئ",
         [Extra.keyUnreachable] = "تم الحفظ. تعذر الوصول إلى الخدمة لتجربته",
