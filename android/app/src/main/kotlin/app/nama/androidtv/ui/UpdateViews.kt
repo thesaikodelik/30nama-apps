@@ -69,7 +69,7 @@ fun updateRow(state: Updater.State, current: String): Pair<String, String> {
  * TV seldom has a browser, and a word on where the cause was written.
  */
 @Composable
-fun UpdateFailedCard(page: String, retry: () -> Unit, close: () -> Unit) {
+fun UpdateFailedCard(page: String, step: String, blocked: Boolean, retry: () -> Unit, close: () -> Unit) {
   val loc = LocalLoc.current
   val qr = remember(page) { qrImage(page) }
   val shape = RoundedCornerShape(36.dp)
@@ -80,7 +80,13 @@ fun UpdateFailedCard(page: String, retry: () -> Unit, close: () -> Unit) {
     Row(Modifier.width(1300.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Text(loc(S.updateFailed), style = app(40, FontWeight.Bold), color = Theme.text1)
-        Text(tv(TV.updateFailedHint), style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
+        Text(tv(if (blocked) TV.installsNotAllowed else TV.updateFailedHint), style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
+        // The step in the log's own words: a TV's update.log is out of reach without adb, a photo is not.
+        if (step.isNotEmpty()) {
+          CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Text(step, style = app(18), color = Theme.text3, maxLines = 3)
+          }
+        }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
           PillButton(tv(TV.retry), retry, Modifier.focusRequester(first), kind = PillKind.Primary)
           PillButton(loc(S.later), close)

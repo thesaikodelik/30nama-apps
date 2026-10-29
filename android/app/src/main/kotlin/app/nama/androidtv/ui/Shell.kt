@@ -249,7 +249,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         val updatedTo = tv(TV.updatedTo)
         LaunchedEffect(updater.arrived, splashGone) { if (splashGone) updater.arrived?.let { app.showToast("$updatedTo ${it}") } }
         failed?.let { failed ->
-          UpdateFailedCard(failed.page, retry = { updater.showFailure = false; updater.check() }, close = { updater.showFailure = false })
+          UpdateFailedCard(failed.page, failed.step, failed.blocked, retry = { updater.showFailure = false; updater.check() }, close = { updater.showFailure = false })
         }
         AnimatedVisibility(
             visible = app.toast != null,

@@ -173,6 +173,11 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "اندروید تأیید می‌خواهد. بعد ۳۰نما برای به‌روزرسانی بسته می‌شود؛ اگر خودش دوباره باز نشد، از صفحهٔ اصلی تلویزیون بازش کنید.",
       "يطلب أندرويد التأكيد. ثم يُغلق ۳۰نما للتحديث؛ إن لم يُفتح من تلقاء نفسه، افتحه من الشاشة الرئيسية للتلفاز.",
   ),
+  installsNotAllowed(
+      "Android did not let 30nama install it. Turn 30nama on under Unknown sources, in the TV's Settings › Apps › Security & restrictions (on Google TV: Settings › Privacy › Security & restrictions), then try again. Or scan this with a phone to download the new version by hand.",
+      "اندروید اجازهٔ نصب به ۳۰نما نداد. در تنظیمات تلویزیون › برنامه‌ها › امنیت و محدودیت‌ها › منابع ناشناس (در Google TV: تنظیمات › حریم خصوصی › امنیت و محدودیت‌ها)، ۳۰نما را روشن کنید و دوباره بزنید. یا این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید.",
+      "لم يسمح أندرويد لـ۳۰نما بتثبيته. فعّل ۳۰نما ضمن المصادر غير المعروفة، في إعدادات التلفاز › التطبيقات › الأمان والقيود (في Google TV: الإعدادات › الخصوصية › الأمان والقيود)، ثم أعد المحاولة. أو امسح هذا بهاتف لتنزيل الإصدار الجديد يدوياً.",
+  ),
   updateFailedHint(
       "Scan this with a phone to download the new version by hand. Each step of the update is written in update.log, in the app's files.",
       "این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید. هر قدم به‌روزرسانی در فایل update.log، میان فایل‌های برنامه، نوشته شده است.",

@@ -50,11 +50,15 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     data class Installing(val release: AndroidRelease) : State
     /** Android first asks to let this app install apps; it comes back here once allowed. */
     data class NeedsPermission(val release: AndroidRelease) : State
-    data class Failed(val page: String) : State
+    /**
+     * [step] is the step that failed, in the log's words, shown small on the card for a photo;
+     * [blocked]: Android had not let this app install apps, and the card says where to allow it.
+     */
+    data class Failed(val page: String, val step: String = "", val blocked: Boolean = false) : State
   }
 
   var state: State by mutableStateOf(State.Idle)
-    private set
+    internal set
 
   /** The failure card is up; it goes when closed, and the row in Settings brings it back. */
   var showFailure: Boolean by mutableStateOf(false)
@@ -97,7 +101,7 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
         arrived = current
       } else {
         log("opened as $current, not ${pending.version}: the installer did not finish")
-        state = State.Failed(pending.page)
+        state = State.Failed(pending.page, "installer did not finish (${pending.version})", blocked = !allowedToInstall())
         showFailure = true
       }
     }
@@ -145,7 +149,7 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
       val apk = File(dir, "30nama-androidtv.apk")
       val step = withContext(Dispatchers.IO) { prepare(release, apk) }
       if (step != null) return@launch fail(release, step)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+      if (!allowedToInstall()) {
         log("asking to be allowed to install apps")
         state = State.NeedsPermission(release)
         val asked = runCatching {
@@ -161,11 +165,8 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   /** Back from the system's "install unknown apps" screen. */
   fun resumed() {
     val s = state as? State.NeedsPermission ?: return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-      log("not allowed to install apps")
-      state = State.Available(s.release)
-      return
-    }
+    // Some TVs (a Sony on Android 12) open the screen but keep the switch elsewhere: the card says where.
+    if (!allowedToInstall()) return fail(s.release, "not allowed to install apps")
     scope.launch { commit(s.release, File(dir, "30nama-androidtv.apk")) }
   }
 
@@ -270,9 +271,12 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   private fun fail(release: AndroidRelease?, step: String) {
     log("failed at $step")
     Log.w(AppModel.TAG, "update: $step")
-    state = State.Failed(release?.page ?: AndroidRelease.DOWNLOADS)
+    state = State.Failed(release?.page ?: AndroidRelease.DOWNLOADS, step, blocked = !allowedToInstall())
     showFailure = true
   }
+
+  private fun allowedToInstall(): Boolean =
+      Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
 
   private fun archiveInfo(apk: File): PackageInfo? =
       // Android 9 reads a downloaded APK's key only when asked for both (AGENTS.md).

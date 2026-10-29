@@ -113,6 +113,15 @@ class Shots {
         nav.tab = tab
         take("tab-${tab.name}")
       }
+      // The card a failed update leaves, once with the step and once where Android did not allow it.
+      nav.tab = Tab.settings
+      for ((name, blocked) in listOf("update-failed" to false, "update-blocked" to true)) {
+        model.updater.state = app.nama.androidtv.Updater.State.Failed("https://github.com/thesaikodelik/30nama-apps/releases/tag/android-v1.1.0", "installer status 1: INSTALL_FAILED_ABORTED: User rejected permissions", blocked)
+        model.updater.showFailure = true
+        take(name)
+        model.updater.showFailure = false
+      }
+      model.updater.state = app.nama.androidtv.Updater.State.Idle
       nav.tab = Tab.home
       take("home-browsing", listOf(Key.DirectionDown, Key.DirectionDown))
       // On down to the top tens, as the Mac's home-top10.
