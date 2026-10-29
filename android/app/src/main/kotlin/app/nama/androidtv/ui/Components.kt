@@ -233,7 +233,7 @@ fun PillButton(
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier,
+      modifier = modifier.mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(capsule),
       colors = ClickableSurfaceDefaults.colors(
@@ -290,7 +290,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
   val hue = LocalHue.current ?: Theme.accent
   Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label },
+      modifier = modifier.semantics { contentDescription = label }.mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(
@@ -339,7 +339,7 @@ fun CardSurface(
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier.colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
+      modifier = modifier.colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp).mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),

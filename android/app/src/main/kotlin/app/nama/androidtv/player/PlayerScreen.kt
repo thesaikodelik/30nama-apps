@@ -1,5 +1,6 @@
 package app.nama.androidtv.player
 
+import app.nama.androidtv.ui.mouseClicks
 import app.nama.androidtv.ui.rememberPosterTint
 import androidx.compose.foundation.clickable
 import app.nama.androidtv.data.SubtitlePosition
@@ -594,7 +595,7 @@ private fun PlayerButton(
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape, grown = 1.12f),
+      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape, grown = 1.12f).mouseClicks(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -826,7 +827,7 @@ private fun ChoiceRow(c: Choice, modifier: Modifier) {
   val shape = RoundedCornerShape(20.dp)
   androidx.tv.material3.Surface(
       onClick = c.run,
-      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
+      modifier = modifier.fillMaxWidth().focusRing(interaction, shape).mouseClicks(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -932,7 +933,7 @@ private fun SeasonBar(season: Int, count: Int, open: Boolean, playing: Boolean, 
   val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
   androidx.tv.material3.Surface(
       onClick = toggle,
-      modifier = Modifier.fillMaxWidth().padding(top = 6.dp).focusRing(interaction, shape),
+      modifier = Modifier.fillMaxWidth().padding(top = 6.dp).focusRing(interaction, shape).mouseClicks(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -964,7 +965,7 @@ private fun EpisodeRow(item: app.nama.core.StreamItem, position: Int, playing: B
   val shape = RoundedCornerShape(22.dp)
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
+      modifier = modifier.fillMaxWidth().focusRing(interaction, shape).mouseClicks(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(

@@ -716,7 +716,7 @@ private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) 
       onClick = onBack,
       enabled = shownNow,
       // Hidden, it takes no focus: a TV's Surface keeps it even when disabled.
-      modifier = modifier.focusProperties { canFocus = shownNow && !modal }.graphicsLayer {
+      modifier = modifier.mouseClicks().focusProperties { canFocus = shownNow && !modal }.graphicsLayer {
         alpha = shown
         scaleX = 0.8f + 0.2f * shown
         scaleY = 0.8f + 0.2f * shown
@@ -743,7 +743,7 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
   val ink by animateColorAsState(if (selected || focused) Theme.text1 else Theme.text1.copy(alpha = 0.7f), tween(180), label = "ink")
   Surface(
       onClick = onClick,
-      modifier = modifier,
+      modifier = modifier.mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
       colors = ClickableSurfaceDefaults.colors(

@@ -723,7 +723,7 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
                   else -> n.toDouble()
                 })
           },
-          modifier = Modifier.focusRing(interaction, CircleShape, grown = 1.2f),
+          modifier = Modifier.focusRing(interaction, CircleShape, grown = 1.2f).mouseClicks(),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),
@@ -847,7 +847,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier,
+      modifier = modifier.mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       // The Mac's tile under the pointer: the same dark glass a shade lighter and the words as they
@@ -962,7 +962,7 @@ private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: St
     Column(Modifier.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Surface(
           onClick = onClick,
-          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp, grown = 1.08f),
+          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp, grown = 1.08f).mouseClicks(),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
@@ -994,7 +994,7 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
         Surface(
             // The whole review, to read on the TV (the Mac opens it on TMDB).
             onClick = { app.sheets.reading = ReadSpec(review.author, review.text, ltr = true) },
-            modifier = Modifier.focusRing(interaction, shape, grown = 1.03f),
+            modifier = Modifier.focusRing(interaction, shape, grown = 1.03f).mouseClicks(),
             interactionSource = interaction,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.14f)),
@@ -1046,7 +1046,7 @@ private fun Storyline(post: Post) {
     SectionTitle(loc(S.storyline), Modifier.padding(start = Theme.edge))
     Surface(
         onClick = { app.sheets.reading = ReadSpec(post.title(loc.lang), post.plot(loc.lang)) },
-        modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, shape),
+        modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, shape).mouseClicks(),
         interactionSource = interaction,
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),
@@ -1121,7 +1121,7 @@ private fun Facts(post: Post) {
   val interaction = remember { MutableInteractionSource() }
   Surface(
       onClick = {},
-      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, RoundedCornerShape(22.dp)),
+      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, RoundedCornerShape(22.dp)).mouseClicks(),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(22.dp)),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),

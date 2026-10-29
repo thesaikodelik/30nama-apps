@@ -1,0 +1,56 @@
+package app.nama.androidtv.ui
+
+import android.view.KeyEvent
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
+
+/**
+ * A mouse or an air mouse (most Iranian Android boxes come with one; LG's Magic Remote is one):
+ * a click on a control focuses it and presses select, so it does just what the remote's OK does
+ * there. Compose for TV's controls answer keys only, and a click went nowhere (the owner, after
+ * mmahdim77/30nama-webos). A long press is held select, for what holding OK does. Touch and the
+ * remote are left as they are.
+ */
+@Composable
+fun Modifier.mouseClicks(): Modifier {
+  val focus = remember { FocusRequester() }
+  val view = LocalView.current
+  return this.focusRequester(focus).pointerInput(Unit) {
+    awaitPointerEventScope {
+      var downAt = 0L
+      while (true) {
+        val event = awaitPointerEvent(PointerEventPass.Initial)
+        val change = event.changes.firstOrNull() ?: continue
+        if (change.type != PointerType.Mouse) continue
+        when (event.type) {
+          PointerEventType.Press -> if (change.pressed) {
+            downAt = change.uptimeMillis
+            change.consume()
+          }
+          PointerEventType.Release -> if (downAt != 0L) {
+            change.consume()
+            val held = change.uptimeMillis - downAt >= LONG_PRESS_MS
+            downAt = 0L
+            runCatching { focus.requestFocus() }
+            val time = android.os.SystemClock.uptimeMillis()
+            val down = KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0)
+            view.dispatchKeyEvent(down)
+            // Held select: the down repeats past the long press, as a held key does.
+            if (held) view.dispatchKeyEvent(KeyEvent.changeTimeRepeat(down, time + LONG_PRESS_MS, 1, KeyEvent.FLAG_LONG_PRESS))
+            view.dispatchKeyEvent(KeyEvent(time, time + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER, 0))
+          }
+        }
+      }
+    }
+  }
+}
+
+private const val LONG_PRESS_MS = 600L
