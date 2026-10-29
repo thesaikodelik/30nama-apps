@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,6 +57,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -78,6 +82,7 @@ import androidx.tv.material3.Text
 import app.nama.androidtv.DemoStream
 import app.nama.androidtv.PlaybackRequest
 import app.nama.androidtv.attempt
+import app.nama.core.TitleCard
 import app.nama.core.Episode
 import app.nama.core.Fmt
 import app.nama.core.Lang
@@ -379,10 +384,22 @@ private fun Header(
     val app = LocalApp.current
     LaunchedEffect(post.id) { app.extras.card(post) }
     val card = app.extras.cards[post.id]
+    // Its pictures fetched as soon as it is known, so the back is never blank as it turns.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(card) {
+      val c = card ?: return@LaunchedEffect
+      for ((name, width) in listOfNotNull(c.poster?.let { it to 360 }, c.companyLogo?.let { it to 400 })) {
+        val url = TitleCard.picture(name, app.inIran)?.toString() ?: continue
+        coil3.SingletonImageLoader.get(context).enqueue(
+            coil3.request.ImageRequest.Builder(context).data(url).size(coil3.size.Size(coil3.size.Dimension(width), coil3.size.Dimension.Undefined)).build())
+      }
+    }
     val calm = LocalCalm.current
     var turned by remember(post.id) { mutableStateOf(false) }
     val turn by animateFloatAsState(if (turned) 180f else 0f, if (calm) snap() else spring(dampingRatio = 0.78f, stiffness = 110f), label = "turn")
     val touch = remember { MutableInteractionSource() }
+    val posterFocus = remember { FocusRequester() }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val touched by touch.collectIsFocusedAsState()
     // Leaving it turns it back: the next look at the page starts at the front.
     LaunchedEffect(touched) { if (!touched) turned = false }
@@ -407,7 +424,7 @@ private fun Header(
                   radius = r, center = c,
               )
             }
-            .then(if (card != null) Modifier.clickable(touch, indication = null) { turned = !turned } else Modifier)
+            .then(if (card != null) Modifier.focusRequester(posterFocus).clickable(touch, indication = null) { turned = !turned } else Modifier)
             .graphicsLayer {
               rotationY = turn
               cameraDistance = 14f * density
@@ -465,7 +482,15 @@ private fun Header(
       )
       // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
       Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed)
+            // Toward the reading start, the poster beside the row: it is above the row, and the
+            // search for the nearest found the season chips below instead.
+            .onPreviewKeyEvent { e ->
+              val toStart = if (rtl) androidx.compose.ui.input.key.Key.DirectionRight else androidx.compose.ui.input.key.Key.DirectionLeft
+              if (card == null || e.key != toStart) return@onPreviewKeyEvent false
+              if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) runCatching { posterFocus.requestFocus() }
+              true
+            }, kind = PillKind.Primary, icon = Icons.play, busy = busy)
         trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.comingIn(2, revealed), icon = Icons.film) }
         Box(Modifier.comingIn(3, revealed)) { Mine(post) }
         if (app.isLoggedIn) {
@@ -515,12 +540,14 @@ private fun PosterBack(card: app.nama.core.TitleCard, filtered: Boolean) {
         }
       } ?: Spacer(Modifier)
       card.companyLogo?.let { logo ->
-        coil3.compose.AsyncImage(
-            model = app.nama.core.TitleCard.picture(logo, filtered)?.toString(), contentDescription = card.companyName,
-            modifier = Modifier.widthIn(max = 230.dp).height(58.dp),
-            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White.copy(alpha = 0.9f)),
-        )
+        // In its own colours on a light plate: made white, a solid mark was only a blot, and a dark
+        // one on the dark back was nothing at all.
+        Box(Modifier.background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(14.dp)).padding(horizontal = 18.dp, vertical = 10.dp)) {
+          RemoteImage(
+              app.nama.core.TitleCard.picture(logo, filtered), Modifier.widthIn(max = 200.dp).height(44.dp).aspectRatio(3f, matchHeightConstraintsFirst = true),
+              pixelWidth = 400, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+          )
+        }
       } ?: card.companyName?.let { Text(it, style = app(22, FontWeight.SemiBold), color = Theme.text2, maxLines = 1) } ?: Spacer(Modifier)
     }
   }
