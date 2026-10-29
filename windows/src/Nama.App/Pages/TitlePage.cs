@@ -22,7 +22,7 @@ public sealed class TitlePage : Grid
     private readonly Post _preview;
     private readonly Nav _nav;
     private readonly bool _autoplay;
-    private readonly Stage _stage = new(dim: 0.3);
+    private readonly Stage _stage = new(dim: 0.3, deep: true);
     private readonly StackPanel _column = new() { Spacing = 40, Padding = new Thickness(Theme.Edge, Top, Theme.Edge, 60) };
     private Post? _loaded;
     private StreamResult? _stream;
@@ -44,6 +44,13 @@ public sealed class TitlePage : Grid
     /// <summary>A poster is flying here from the card that was clicked; the page's own waits for it to land.</summary>
     private bool _held;
     private FrameworkElement? _poster;
+    /// <summary>The light behind the poster, and how it looks at rest.</summary>
+    private Glow? _glow;
+    private Glow.Look GlowRest => new(Hue, 0.4f, 56, 18);
+    /// <summary>Breathing, where motion is welcome and nothing covers the page.</summary>
+    private bool Breathing => !App.Settings.ReduceMotion && App.Playback is null;
+    /// <summary>The last key pressed or pointer moved on the page: the trailer waits for a pause.</summary>
+    private DateTime _lastInput = DateTime.UtcNow;
 
     public TitlePage(Post preview, Nav nav, bool autoplay, bool held = false)
     {
@@ -75,6 +82,8 @@ public sealed class TitlePage : Grid
         _ = LoadTmdbAsync();
         _ = Task.Delay(2000).ContinueWith(_ => DispatcherQueue.TryEnqueue(Reveal), TaskScheduler.Default);
         Loaded += (_, _) => _ = RunTeaserAsync();
+        PointerMoved += (_, _) => _lastInput = DateTime.UtcNow;
+        AddHandler(KeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler((_, _) => _lastInput = DateTime.UtcNow), true);
         Unloaded += (_, _) => EndTeaser();
         _quiet.Tick += (_, _) => { if (!Quiet) EndTeaser(); };
     }
@@ -102,7 +111,10 @@ public sealed class TitlePage : Grid
         var cancel = (_teaser = new CancellationTokenSource()).Token;
         try
         {
-            await Task.Delay(3000, cancel);
+            // Once the page has been left alone four seconds, mouse and keyboard (the Android app's):
+            // not over someone still reading or choosing.
+            while (DateTime.UtcNow - _lastInput < TimeSpan.FromSeconds(4))
+                await Task.Delay(TimeSpan.FromSeconds(4) - (DateTime.UtcNow - _lastInput) + TimeSpan.FromMilliseconds(50), cancel);
             if (!Quiet || await TmdbStore.Shared.TrailerAsync(_preview, App.Loc.Lang) is not { } video || cancel.IsCancellationRequested || !Quiet) return;
             _teaserShown = true;
             var backdrop = _backdrop = new BackdropTrailer(video);
@@ -153,6 +165,7 @@ public sealed class TitlePage : Grid
     private void OnChanged(string what)
     {
         if (what == "playback" && App.Playback is not null) EndTeaser();
+        if (what == "playback") _glow?.Breathe(Breathing, GlowRest);
         if (what is "lists" or "ratings") Render();
         // Back from the player: where to resume has moved.
         if (what == "watch" && _stream is not null) _ = LoadStreamAsync(quietly: true);
@@ -391,7 +404,10 @@ public sealed class TitlePage : Grid
         poster.Children.Add(new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.14) });
         // As on the Mac: the poster leans 3 degrees to the pointer, and throws a glow in the title's colour.
         PosterEffects.Lean(poster, poster, poster, 4.5);
-        var lifted = Glow.Behind(poster, new Glow(new Glow.Look(Hue, 0.4f, 56, 18)));
+        var glow = _glow = new Glow(GlowRest);
+        // The light behind the poster breathes, in its own colour (the Android app's).
+        glow.Breathe(Breathing, GlowRest);
+        var lifted = Glow.Behind(poster, glow);
         lifted.VerticalAlignment = VerticalAlignment.Top;
         if (_held) lifted.Opacity = 0;
         _poster = lifted;

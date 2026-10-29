@@ -22,13 +22,19 @@ public sealed class Stage : Grid
     private int? _shown;
     private int _asked;
 
-    public Stage(double dim = 0)
+    public Stage(double dim = 0, bool deep = false)
     {
         Background = Theme.Brush(Theme.Bg0);
         Children.Add(_pictures);
         // Text side: near-opaque at the start edge, clear by two thirds across. Drawn in the
-        // reading direction, so in Persian it darkens the right.
-        Children.Add(new Rectangle { Fill = Linear(new Point(0, 0.5), new Point(1, 0.5), (0.96, 0), (0.78, 0.30), (0, 0.68)) });
+        // reading direction, so in Persian it darkens the right. Deep, under a title's page, where
+        // the words run across most of the window: dark further across, so they hold over a busy
+        // picture (the Android app's).
+        Children.Add(new Rectangle
+        {
+            Fill = deep ? Linear(new Point(0, 0.5), new Point(1, 0.5), (0.97, 0), (0.86, 0.45), (0, 0.88))
+                : Linear(new Point(0, 0.5), new Point(1, 0.5), (0.96, 0), (0.78, 0.30), (0, 0.68)),
+        });
         // Rows side: solid at the bottom edge.
         Children.Add(new Rectangle { Fill = Linear(new Point(0.5, 1), new Point(0.5, 0), (1, 0), (0.85, 0.32), (0, 0.62)) });
         Children.Add(new Rectangle { Height = 220, VerticalAlignment = VerticalAlignment.Top, Fill = Linear(new Point(0.5, 0), new Point(0.5, 1), (0.55, 0), (0, 1)) });
@@ -76,17 +82,22 @@ public sealed class Stage : Grid
     {
         if ((cover ?? post.Poster.Big ?? post.Poster.Large) is not { } url) return;
         // In the tree from the start, unseen: a bitmap is only fetched once an image shows it.
-        var bitmap = new BitmapImage { DecodePixelWidth = cover is null ? 640 : 1920, DecodePixelType = DecodePixelType.Physical };
-        var picture = new Image { Source = bitmap, Stretch = Stretch.UniformToFill, Opacity = 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        // A poster is read small and drawn large: softened, not a wash, so it is still the poster
+        // (the Android app's), and from its top, where its picture usually is.
+        var bitmap = new BitmapImage { DecodePixelWidth = cover is null ? 220 : 1920, DecodePixelType = DecodePixelType.Physical };
+        var picture = new Image
+        {
+            Source = bitmap, Stretch = Stretch.UniformToFill, Opacity = 0, HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = cover is null ? VerticalAlignment.Top : VerticalAlignment.Center,
+        };
         picture.OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromSeconds(0.7) };
         UIElement layer = picture;
         if (cover is null)
         {
-            // A poster is tall and small: blurred, it still lends the page its colours.
-            var blurred = new Grid();
-            blurred.Children.Add(picture);
-            blurred.Children.Add(new Border { Background = new Microsoft.UI.Xaml.Media.AcrylicBrush { TintColor = Theme.Bg0, TintOpacity = 0.2, FallbackColor = Theme.Bg1 } });
-            layer = blurred;
+            var softened = new Grid();
+            softened.Children.Add(picture);
+            softened.Children.Add(new Border { Background = Theme.Brush(Theme.Bg0.WithAlpha(0.25)) });
+            layer = softened;
         }
         bitmap.ImageOpened += async (_, _) =>
         {

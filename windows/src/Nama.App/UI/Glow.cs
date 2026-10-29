@@ -66,6 +66,36 @@ public sealed class Glow : Grid
         Animate(_sprite, "Scale", () => { var a = compositor.CreateVector3KeyFrameAnimation(); a.InsertKeyFrame(1, new Vector3(scale, scale, 1), ease); return a; });
     }
 
+    /// <summary>
+    /// The light breathes: swells and fades, slowly, about nine seconds a breath (the Android app's
+    /// title page). Off, it holds at <paramref name="rest"/>. The compositor runs it, but it still
+    /// redraws the window every frame, so it is stopped wherever the page is not seen.
+    /// </summary>
+    public void Breathe(bool on, Look rest)
+    {
+        if (!on)
+        {
+            _shadow.StopAnimation("Opacity");
+            _shadow.StopAnimation("BlurRadius");
+            Set(rest);
+            return;
+        }
+        var compositor = _sprite.Compositor;
+        var ease = compositor.CreateCubicBezierEasingFunction(new(0.4f, 0), new(0.2f, 1));
+        void Swing(string property, float low, float high)
+        {
+            var a = compositor.CreateScalarKeyFrameAnimation();
+            a.InsertKeyFrame(0, low);
+            a.InsertKeyFrame(1, high, ease);
+            a.Duration = TimeSpan.FromSeconds(4.5);
+            a.IterationBehavior = AnimationIterationBehavior.Forever;
+            a.Direction = AnimationDirection.Alternate;
+            _shadow.StartAnimation(property, a);
+        }
+        Swing("Opacity", rest.Opacity * 0.5f, Math.Min(1, rest.Opacity * 1.9f));
+        Swing("BlurRadius", rest.Radius * 0.85f, rest.Radius * 1.35f);
+    }
+
     /// <summary>Puts <paramref name="content"/> in front of a glow of the same size, in a holder that does not clip the glow.</summary>
     public static Grid Behind(FrameworkElement content, Glow glow)
     {
