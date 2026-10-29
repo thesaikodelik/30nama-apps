@@ -8,7 +8,9 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_cards import card, collection_entry, shard  # noqa: E402
+import datetime  # noqa: E402
+import build_cards  # noqa: E402
+from build_cards import card, collection_entry, look, restamp, shard  # noqa: E402
 
 MOVIE = {
     "id": 604, "title": "The Matrix Reloaded", "original_title": "The Matrix Reloaded", "original_language": "en",
@@ -56,6 +58,31 @@ class CardTests(unittest.TestCase):
     def test_a_collection_of_one_is_none(self):
         alone = collection_entry({"name": "Solo", "parts": [{"id": 604}]})
         self.assertNotIn("c", card(MOVIE, alone))
+
+    def test_a_new_part_tells_the_others(self):
+        three = collection_entry({"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}, {"id": 2, "release_date": "2001"}, {"id": 3, "release_date": "2026"}]})
+        shards = {"01": {"tt0000001": {"c": {"names": {"en": "Duo"}, "at": 1, "of": 2}}}, "02": {"tt0000002": {"o": "Zwei"}}}
+        restamp(shards, {"tt0000001": 1, "tt0000002": 2}, three)
+        self.assertEqual({"names": {"en": "Duo"}, "at": 1, "of": 3}, shards["01"]["tt0000001"]["c"])
+        self.assertEqual({"names": {"en": "Duo"}, "at": 2, "of": 3}, shards["02"]["tt0000002"]["c"], "a card without its place gains it")
+
+    def test_a_part_the_kept_collection_lacks_asks_again(self):
+        today = datetime.date(2026, 10, 29)
+        collections = {"9": {**collection_entry({"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}, {"id": 2, "release_date": "2001"}]}), "day": "2026-10-28"}}
+        answers = {
+            "find/tt3": {"movie_results": [{"id": 3}]},
+            "movie/3": {"id": 3, "title": "Three", "original_title": "Three", "original_language": "en", "belongs_to_collection": {"id": 9}},
+            "collection/9": {"name": "Duo", "parts": [{"id": 1, "release_date": "2000"}, {"id": 2, "release_date": "2001"}, {"id": 3, "release_date": "2026"}]},
+        }
+        real = build_cards.call
+        build_cards.call = lambda path, query, key: answers.get(path, {})
+        try:
+            changed = set()
+            found, part_of, tmdb_id = look("tt3", "k", collections, today, changed)
+        finally:
+            build_cards.call = real
+        self.assertEqual({"names": {"en": "Duo"}, "at": 3, "of": 3}, found["c"], "asked again though kept a day ago")
+        self.assertEqual(("9", 3, {"9"}), (part_of, tmdb_id, changed))
 
     def test_shard(self):
         self.assertEqual("03", shard("tt0234203"))

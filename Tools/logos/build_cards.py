@@ -108,7 +108,23 @@ def card(details, collection=None):
     return found
 
 
-def look(imdb, key, collections, today):
+def restamp(shards, members, entry):
+    """Every card of a collection's members told its place again from the collection as it now is:
+    a part added makes the others "of" one more. No request: the members' TMDB ids are kept."""
+    for imdb, tmdb_id in members.items():
+        found = shards.get(shard(imdb), {}).get(imdb)
+        if found is None:
+            continue
+        if tmdb_id in entry["parts"] and len(entry["parts"]) > 1:
+            found["c"] = {"names": entry["names"], "at": entry["parts"].index(tmdb_id) + 1, "of": len(entry["parts"])}
+        else:
+            found.pop("c", None)
+
+
+def look(imdb, key, collections, today, changed):
+    """The title's card, the collection it is part of and its TMDB id (None for none), or None
+    where TMDB did not answer. A collection asked again whose parts are not what they were is
+    put in `changed`, so its other members are told."""
     found = call(f"find/{imdb}", {"external_source": "imdb_id"}, key)
     for kind, results in (("movie", found.get("movie_results")), ("tv", found.get("tv_results"))):
         if not results:
@@ -120,14 +136,18 @@ def look(imdb, key, collections, today):
         part_of = (details.get("belongs_to_collection") or {}).get("id")
         if part_of:
             kept = collections.get(str(part_of))
-            if not kept or (today - datetime.date.fromisoformat(kept["day"])).days >= COLLECTION_DAYS:
+            # Asked again a month on, and at once for a part it does not know yet: a new film in it.
+            if not kept or details.get("id") not in kept["parts"] or (today - datetime.date.fromisoformat(kept["day"])).days >= COLLECTION_DAYS:
                 answer = call(f"collection/{part_of}", {"append_to_response": "translations"}, key)
                 if answer:
-                    kept = {**collection_entry(answer), "day": today.isoformat()}
+                    fresh = {**collection_entry(answer), "day": today.isoformat()}
+                    if kept and kept["parts"] != fresh["parts"]:
+                        changed.add(str(part_of))
+                    kept = fresh
                     collections[str(part_of)] = kept
             collection = kept
-        return card(details, collection)
-    return {}
+        return card(details, collection), (str(part_of) if part_of else None), details.get("id")
+    return {}, None, None
 
 
 def main():
@@ -149,6 +169,10 @@ def main():
     # The day each title was last looked up, and the collections met, kept a month.
     done = state.get("done", {})
     collections = state.get("collections", {})
+    # Each collection's members on file, by IMDb id, with their TMDB ids.
+    members = state.get("members", {})
+    member_of = {imdb for group in members.values() for imdb in group}
+    changed = set()
     shards = {}
     for name in os.listdir(os.path.join(folder, "cards")) if os.path.isdir(os.path.join(folder, "cards")) else []:
         if name.endswith(".json"):
@@ -160,12 +184,16 @@ def main():
 
     new = sorted((i for i in titles if i not in done), key=lambda i: (i not in logos, -number(i)))
     stale = sorted((i for i, day in done.items() if (today - datetime.date.fromisoformat(day)).days >= RECHECK_DAYS), key=lambda i: done[i])
-    todo = (new + stale)[:budget]
+    # Cards in a collection from before members were kept: looked up again first, once, to be known.
+    fresh = set(new)
+    unknown = [i for cards in shards.values() for i, c in cards.items() if "c" in c and i not in member_of and i not in fresh]
+    again = set(unknown)
+    todo = (unknown + new + [i for i in stale if i not in again])[:budget]
     print(f"{len(titles)} titles, {len(done)} looked up before, {len(new)} new, {len(stale)} to look at again; up to {budget} this run", flush=True)
 
     def one(imdb):
         try:
-            found = look(imdb, key, collections, today)
+            found = look(imdb, key, collections, today, changed)
         except Exception as error:  # one title's failure is not the run's
             print(f"{imdb}: {error}", flush=True)
             return imdb, None
@@ -182,6 +210,7 @@ def main():
             for imdb, found in pool.map(one, todo[start:start + 200]):
                 if found is None:
                     continue
+                found, part_of, tmdb_id = found
                 looked += 1
                 done[imdb] = today.isoformat()
                 cards = shards.setdefault(shard(imdb), {})
@@ -189,7 +218,15 @@ def main():
                     cards[imdb] = found
                 else:
                     cards.pop(imdb, None)
+                for group in members.values():
+                    group.pop(imdb, None)
+                if part_of and tmdb_id:
+                    members.setdefault(part_of, {})[imdb] = tmdb_id
             print(f"{looked} looked up", flush=True)
+
+    for part_of in changed:
+        restamp(shards, members.get(part_of, {}), collections[part_of])
+    print(f"{len(changed)} collections with a new part: their members told", flush=True)
 
     os.makedirs(os.path.join(folder, "cards"), exist_ok=True)
     for name in (f"{n:02d}" for n in range(100)):
@@ -197,7 +234,8 @@ def main():
             json.dump({"version": 1, "updated": today.isoformat(), "cards": dict(sorted(shards.get(name, {}).items()))},
                       file, ensure_ascii=False, separators=(",", ":"))
     with open(os.path.join(folder, "cards_state.json"), "w", encoding="utf-8") as file:
-        json.dump({"done": dict(sorted(done.items())), "collections": collections}, file, ensure_ascii=False, separators=(",", ":"))
+        json.dump({"done": dict(sorted(done.items())), "collections": collections, "members": {k: v for k, v in members.items() if v}},
+                  file, ensure_ascii=False, separators=(",", ":"))
     print(f"done: {looked} looked up; {sum(len(c) for c in shards.values())} titles with something to show", flush=True)
 
 
