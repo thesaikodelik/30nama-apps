@@ -285,7 +285,7 @@ fun MainScreen(onExit: () -> Unit) {
     when {
       nav.pop() -> Unit
       !barFocused -> runCatching { chrome.bar.requestFocus() }
-      nav.tab != Tab.home -> nav.tab = Tab.home
+      nav.tab != Tab.home -> nav.open(Tab.home)
       System.currentTimeMillis() - lastBack < 3_000 -> onExit()
       else -> {
         lastBack = System.currentTimeMillis()
@@ -578,7 +578,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
   LaunchedEffect(pending) {
     val next = pending ?: return@LaunchedEffect
     delay(300)
-    nav.tab = next
+    nav.open(next)
   }
   // The tab changed from elsewhere (Back to home, a title opened from the TV's home screen): a
   // move along the bar still waiting must not switch away from it.
@@ -622,7 +622,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
               androidx.compose.ui.input.key.Key.DirectionRight -> step(forward = !rtl)
               androidx.compose.ui.input.key.Key.DirectionDown -> {
                 // A tab still waiting its beat opens now, so Down goes into the page it shows.
-                pending?.let { nav.tab = it }
+                pending?.let { nav.open(it) }
                 pending = null
                 down()
               }
@@ -660,7 +660,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
               onFocus = { if (nav.tab != tab && !routeOpen) pending = tab },
               onClick = {
                 pending = null
-                if (nav.tab == tab) while (nav.pop()) Unit else nav.tab = tab
+                nav.open(tab)
               },
           )
         }

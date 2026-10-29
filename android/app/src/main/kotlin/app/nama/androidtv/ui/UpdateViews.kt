@@ -43,6 +43,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.tv.material3.Text
 import app.nama.androidtv.Updater
 import app.nama.core.S
@@ -304,11 +306,11 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
       when {
         state is Updater.State.Available -> {
           PillButton(loc(S.installUpdate), { updater.install(state.release) }, Modifier.focusRequester(focus), kind = PillKind.Primary)
-          PillButton(loc(S.later), { updater.postpone(); up() }, kind = PillKind.Chip, icon = Icons.close)
+          PillButton("", { updater.postpone(); up() }, Modifier.semantics { contentDescription = loc(S.later) }, kind = PillKind.Chip, icon = Icons.close)
         }
         failed -> {
           PillButton(loc(S.downloadPage), { updater.showFailure = true }, Modifier.focusRequester(focus), kind = PillKind.Primary)
-          PillButton(loc(S.later), { updater.postpone(); up() }, kind = PillKind.Chip, icon = Icons.close)
+          PillButton("", { updater.postpone(); up() }, Modifier.semantics { contentDescription = loc(S.later) }, kind = PillKind.Chip, icon = Icons.close)
         }
         else -> Box(Modifier.size(12.dp, 60.dp))
       }

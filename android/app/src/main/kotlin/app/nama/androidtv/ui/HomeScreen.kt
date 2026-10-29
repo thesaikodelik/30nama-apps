@@ -543,11 +543,11 @@ private fun Rows(
               if (section.key in setOf("movies", "series", "anime")) {
                 item(key = "all") {
                   SeeAllCard(loc.title(section.key)) {
-                    nav.tab = when (section.key) {
+                    nav.open(when (section.key) {
                       "movies" -> Tab.movies
                       "series" -> Tab.series
                       else -> Tab.anime
-                    }
+                    })
                   }
                 }
               }

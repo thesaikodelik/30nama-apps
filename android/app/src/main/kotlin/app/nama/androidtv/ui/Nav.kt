@@ -74,6 +74,17 @@ class Nav {
     return true
   }
 
+  /**
+   * A tab from the bar (or See all, or Back to home) opens at its own page, not at whatever was left
+   * open on it: a title or a person opened from home earlier came back in place of home (the owner).
+   */
+  fun open(tab: Tab) {
+    serials[tab]?.forEach { closed += "$tab/$it" }
+    stacks.remove(tab)
+    serials.remove(tab)
+    this.tab = tab
+  }
+
   /** A new language or account means a different catalogue: every tab starts over. */
   fun reset() {
     for ((t, s) in serials) s.forEach { closed += "$t/$it" }

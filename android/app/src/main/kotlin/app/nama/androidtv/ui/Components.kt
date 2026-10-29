@@ -265,13 +265,14 @@ fun PillButton(
             // white ones fainter, so they stay white.
             .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
             .focusRing(focused, capsule)
-            .padding(horizontal = if (chip) 30.dp else 38.dp),
+            // With no words, a circle round its icon (the capsule's ✕, the owner).
+            .padding(horizontal = if (text.isEmpty()) (if (chip) 17.dp else 24.dp) else if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         if (busy) Spinner(Modifier.size(26.dp), color = if (white) Theme.focusInk else Color.White)
         else if (icon != null) Icon(icon, null, Modifier.size(if (chip) 24.dp else 28.dp))
-        Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
+        if (text.isNotEmpty()) Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
         if (trailing != null) Icon(trailing, null, Modifier.size(24.dp))
       }
     }
