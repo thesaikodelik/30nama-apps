@@ -58,6 +58,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -447,7 +449,22 @@ private fun Header(
     // A soft shadow under every line of the header: over a busy picture the words and chips were
     // hard to read from the sofa (the owner).
     CompositionLocalProvider(androidx.tv.material3.LocalTextStyle provides androidx.tv.material3.LocalTextStyle.current.copy(shadow = TEXT_SHADOW)) {
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(
+        Modifier.weight(1f)
+            // Out of anything here toward the reading start goes to the poster beside it: it sits
+            // above the buttons, and the search for the nearest found the season chips below.
+            .focusProperties {
+              onExit = {
+                val toStart = if (rtl) androidx.compose.ui.focus.FocusDirection.Right else androidx.compose.ui.focus.FocusDirection.Left
+                if (card != null && requestedFocusDirection == toStart) {
+                  cancelFocusChange()
+                  scope.launch { runCatching { posterFocus.requestFocus() } }
+                }
+              }
+            }
+            .focusGroup(),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
       // The kind line, and beside it as the Apple TV's: Persian subtitles, and a series' next episode.
       Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2)
@@ -483,15 +500,7 @@ private fun Header(
       )
       // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
       Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed)
-            // Toward the reading start, the poster beside the row: it is above the row, and the
-            // search for the nearest found the season chips below instead.
-            .onPreviewKeyEvent { e ->
-              val toStart = if (rtl) androidx.compose.ui.input.key.Key.DirectionRight else androidx.compose.ui.input.key.Key.DirectionLeft
-              if (card == null || e.key != toStart) return@onPreviewKeyEvent false
-              if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) runCatching { posterFocus.requestFocus() }
-              true
-            }, kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
         trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.comingIn(2, revealed), icon = Icons.film) }
         Box(Modifier.comingIn(3, revealed)) { Mine(post) }
         if (app.isLoggedIn) {
