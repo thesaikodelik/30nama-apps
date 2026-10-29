@@ -170,17 +170,11 @@ fun DetailsScreen(route: Route.Details) {
     if (fetched != null) loaded = fetched else if (route.preview == null) failed = true
     loadStream(quietly = false)
   }
-  // Focus starts on Play once the page is there to hold it.
+  // Focus starts on Play: the shell enters the page there, and waits for it (PageEntry).
+  DeclarePageEntry()
   val scroll = rememberScrollState()
   val margin = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.toPx() }
   val minimal = remember(margin) { Minimal(margin) }
-  LaunchedEffect(post != null) {
-    if (post == null) return@LaunchedEffect
-    withFrameNanos {}
-    runCatching { play.requestFocus() }
-    // The page starts at its top, whatever focus did on the way.
-    scroll.scrollTo(0)
-  }
   LaunchedEffect(post?.id) {
     val p = post ?: return@LaunchedEffect
     // Only once a trailer has been found, so there is never a button that leads nowhere.
@@ -414,7 +408,7 @@ private fun Header(
       )
       // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
       Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
         trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.comingIn(2, revealed), icon = Icons.film) }
         Box(Modifier.comingIn(3, revealed)) { Mine(post) }
         if (app.isLoggedIn) {

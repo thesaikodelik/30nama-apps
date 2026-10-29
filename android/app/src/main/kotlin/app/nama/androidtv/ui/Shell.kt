@@ -310,6 +310,9 @@ fun MainScreen(onExit: () -> Unit) {
       val routeFocus = remember { FocusRequester() }
       val focus = androidx.compose.ui.platform.LocalFocusManager.current
       var routeHasFocus by remember { mutableStateOf(false) }
+      // Each opened page's entry, made with it: a page that says it has one is entered there and
+      // only there, once it is on the screen; one that does not, at the first control (as before).
+      val entry = remember(route) { PageEntry() }
       LaunchedEffect(route) {
         if (route == null) return@LaunchedEffect
         var tries = 0
@@ -317,8 +320,12 @@ fun MainScreen(onExit: () -> Unit) {
         while (true) {
           withFrameNanos {}
           if (routeHasFocus || barFocused) return@LaunchedEffect
-          runCatching { routeFocus.requestFocus() }
-          // Still nothing on the page to take it: off the hidden page at least, so the remote does nothing there.
+          when {
+            entry.ready -> runCatching { entry.requester.requestFocus() }
+            // Waiting for its entry; meanwhile off the hidden page, so the remote does nothing there.
+            entry.declared -> Unit
+            else -> runCatching { routeFocus.requestFocus() }
+          }
           if (++tries == 2 && !routeHasFocus && !barFocused) focus.clearFocus(force = true)
           delay(if (tries < 40) 50 else 200)
         }
@@ -363,8 +370,13 @@ fun MainScreen(onExit: () -> Unit) {
             val scale = 1.02f - 0.02f * appear.value
             scaleX = scale
             scaleY = scale
-          }.focusRequester(routeFocus).onFocusChanged { routeHasFocus = it.hasFocus }) {
-            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") { CompositionLocalProvider(LocalOnRoute provides true) { RouteScreen(route) } }
+          }.focusRequester(routeFocus)
+              // Back into the page (Down from the bar or Back) where it was left, else at its entry.
+              .focusRestorer(if (entry.ready) entry.requester else FocusRequester.Default).focusGroup()
+              .onFocusChanged { routeHasFocus = it.hasFocus }) {
+            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") {
+              CompositionLocalProvider(LocalOnRoute provides true, LocalPageEntry provides entry) { RouteScreen(route) }
+            }
           }
         }
       }
