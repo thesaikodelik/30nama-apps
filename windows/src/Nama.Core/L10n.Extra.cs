@@ -12,6 +12,8 @@ public enum Extra
     showInFolder, keepInTray, keepInTrayHint, openApp, quit,
     // The Mac's keySaved and yourNameHint say "this Mac"; on Windows it is this computer.
     keySavedHere, yourNameHintHere,
+    // From the Android app: a key is saved, then tried.
+    keyWorks, keyRejected, keyUnreachable, keyChecking,
 }
 #pragma warning restore IDE1006
 
@@ -28,6 +30,10 @@ public sealed partial class Loc
         [Extra.quit] = "Quit",
         [Extra.showInFolder] = "Show in folder",
         [Extra.keySavedHere] = "Saved on this computer",
+        [Extra.keyWorks] = "Works",
+        [Extra.keyRejected] = "The service says this key is wrong",
+        [Extra.keyUnreachable] = "Saved. The service could not be reached to try it",
+        [Extra.keyChecking] = "Trying the key…",
         [Extra.yourNameHintHere] = "Shown on your profile when your 30nama profile is private. Stays on this computer.",
     };
 
@@ -39,6 +45,10 @@ public sealed partial class Loc
         [Extra.quit] = "خروج",
         [Extra.showInFolder] = "نمایش در پوشه",
         [Extra.keySavedHere] = "روی همین کامپیوتر ذخیره شد",
+        [Extra.keyWorks] = "کار می‌کند",
+        [Extra.keyRejected] = "سرویس می‌گوید این کلید درست نیست",
+        [Extra.keyUnreachable] = "ذخیره شد. سرویس برای امتحان در دسترس نبود",
+        [Extra.keyChecking] = "در حال امتحان کلید…",
         [Extra.yourNameHintHere] = "وقتی پروفایل شما در ۳۰نما خصوصی است، این نام در پروفایل می‌آید. فقط روی همین کامپیوتر می‌ماند.",
     };
 
@@ -50,6 +60,10 @@ public sealed partial class Loc
         [Extra.quit] = "إنهاء",
         [Extra.showInFolder] = "إظهار في المجلد",
         [Extra.keySavedHere] = "حُفظ على هذا الكمبيوتر",
+        [Extra.keyWorks] = "يعمل",
+        [Extra.keyRejected] = "تقول الخدمة إن هذا المفتاح خاطئ",
+        [Extra.keyUnreachable] = "تم الحفظ. تعذر الوصول إلى الخدمة لتجربته",
+        [Extra.keyChecking] = "جارٍ تجربة المفتاح…",
         [Extra.yourNameHintHere] = "يظهر في ملفك الشخصي عندما يكون ملفك في 30nama خاصًا. يبقى على هذا الكمبيوتر فقط.",
     };
 }

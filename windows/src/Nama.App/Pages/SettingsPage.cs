@@ -121,8 +121,8 @@ public sealed class SettingsPage : Grid
 
         Group(loc[S.services],
         [
-            KeyField(loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
-            KeyField(loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => SaveTyped(x => x with { TmdbKey = v })),
+            KeyField("subsource", loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
+            KeyField("tmdb", loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => SaveTyped(x => x with { TmdbKey = v })),
         ]);
 
         var version = typeof(SettingsPage).Assembly.GetName().Version;
@@ -258,7 +258,7 @@ public sealed class SettingsPage : Grid
     /// one kept, the field says so: the app's red on its edge and on a tick under it, a button to
     /// show or hide it, and one to remove it. As KeyField on the Mac.
     /// </summary>
-    private static FrameworkElement KeyField(string label, string hint, string? value, Action<string?> set)
+    private static FrameworkElement KeyField(string service, string label, string hint, string? value, Action<string?> set)
     {
         var loc = App.Loc;
         var shown = false;
@@ -308,16 +308,43 @@ public sealed class SettingsPage : Grid
         var words = Theme.Text("", 12, color: Theme.Text3, lines: 2);
 
         var current = value?.Trim() ?? "";
+        // Saved first, then tried a moment after the typing stops (Android's KeyCheck): an
+        // unreachable service keeps the key, and only a refusal says it is wrong.
+        var state = KeyState.Unset;
+        CancellationTokenSource? trying = null;
+        async void Try()
+        {
+            trying?.Cancel();
+            if (current.Length == 0) { state = KeyState.Unset; return; }
+            var mine = trying = new CancellationTokenSource();
+            var key = current;
+            state = KeyState.Checking;
+            Show();
+            try { await Task.Delay(800, mine.Token); } catch (TaskCanceledException) { return; }
+            var found = await KeyCheck.CheckAsync(ApiClient.HttpTransport(), service, key);
+            if (mine.IsCancellationRequested || key != current) return;
+            state = found;
+            Show();
+        }
         void Show()
         {
             var saved = current.Length > 0;
+            var rejected = saved && state == KeyState.Rejected;
             // The app's own red, on the edge and the tick only: the words in the usual colour, so it does not read as an error.
             capsule.BorderBrush = new SolidColorBrush(Theme.Accent.WithAlpha(saved ? 0.55 : 0));
             reveal.Visibility = remove.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
             note.Children.Clear();
-            if (saved) note.Children.Add(tick);
-            words.Text = saved ? loc[Extra.keySavedHere] : hint;
-            words.Foreground = Theme.Brush(saved ? Theme.Text2 : Theme.Text3);
+            if (saved && !rejected && state != KeyState.Checking) note.Children.Add(tick);
+            words.Text = !saved ? hint : state switch
+            {
+                KeyState.Checking => loc[Extra.keyChecking],
+                KeyState.Works => loc[Extra.keyWorks] + " · " + loc[Extra.keySavedHere],
+                KeyState.Rejected => loc[Extra.keyRejected],
+                KeyState.Unreachable => loc[Extra.keyUnreachable],
+                _ => loc[Extra.keySavedHere],
+            };
+            // A wrong key is the one thing said in the app's red.
+            words.Foreground = rejected ? new SolidColorBrush(Theme.Accent) : Theme.Brush(saved ? Theme.Text2 : Theme.Text3);
             note.Children.Add(words);
             eye.Glyph = shown ? "\uED1A" : "\uE7B3";
             var name = shown ? loc[S.hideKey] : loc[S.showKey];
@@ -334,7 +361,9 @@ public sealed class SettingsPage : Grid
             if (plain.Text != text) plain.Text = text;
             set(current.Length == 0 ? null : current);
             if (current.Length == 0) shown = false;
+            state = KeyState.Unset;
             Show();
+            Try();
         }
         secret.PasswordChanged += (_, _) => Typed(secret.Password);
         plain.TextChanged += (_, _) => Typed(plain.Text);
