@@ -338,29 +338,51 @@ public static class Kit
         figure.LineHeight = 170;
         figure.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
         figure.Margin = new Thickness(0, 0, -24, -14);
-        Brush Fill(Color top, Color bottom) => new LinearGradientBrush
+        // One brush whose two colours are faded, not swapped: at rest the figure is grey; under the
+        // pointer it stays grey until the poster's own colour is known, then fades into it (the owner:
+        // a first colour giving way to another a moment later read as a flicker).
+        var upper = new GradientStop { Color = Theme.Text1.WithAlpha(0.5), Offset = 0 };
+        var lower = new GradientStop { Color = Theme.Text1.WithAlpha(0.07), Offset = 1 };
+        figure.Foreground = new LinearGradientBrush
         {
             StartPoint = new Windows.Foundation.Point(0.5, 0), EndPoint = new Windows.Foundation.Point(0.5, 1),
-            GradientStops = { new GradientStop { Color = top, Offset = 0 }, new GradientStop { Color = bottom, Offset = 1 } },
+            GradientStops = { upper, lower },
         };
-        figure.Foreground = Fill(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07));
+        Microsoft.UI.Xaml.Media.Animation.Storyboard? fading = null;
+        void FadeTo(Color top, Color bottom, double seconds)
+        {
+            fading?.Stop();
+            var story = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+            foreach (var (stop, to) in new[] { (upper, top), (lower, bottom) })
+            {
+                var fade = new Microsoft.UI.Xaml.Media.Animation.ColorAnimation
+                {
+                    To = to, Duration = TimeSpan.FromSeconds(seconds), EnableDependentAnimation = true,
+                    EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
+                };
+                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(fade, stop);
+                Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(fade, "Color");
+                story.Children.Add(fade);
+            }
+            fading = story;
+            story.Begin();
+        }
         var card = Poster(post, click);
         // The poster's own colour, the one its glow takes from the picture, not the blur code's: 30nama
-        // sends the same few codes for many posters, and the figure was orange beside a blue glow (the
-        // owner). The glow takes it as the pointer comes; the figure follows once it is known.
+        // sends the same few codes for many posters, and the figure was orange beside a blue glow.
         var over = false;
         card.PointerEntered += async (_, _) =>
         {
             over = true;
+            for (var i = 0; i < 15 && over && PosterColours.Known(post) is null; i++) await Task.Delay(100);
+            if (!over) return;
             var colour = PosterColours.Of(post);
-            figure.Foreground = Fill(colour, colour.WithAlpha(0.4));
-            for (var i = 0; i < 12 && over && PosterColours.Known(post) is null; i++) await Task.Delay(100);
-            if (over && PosterColours.Known(post) is { } taken && taken != colour) figure.Foreground = Fill(taken, taken.WithAlpha(0.4));
+            FadeTo(colour, colour.WithAlpha(0.4), 0.35);
         };
         card.PointerExited += (_, _) =>
         {
             over = false;
-            figure.Foreground = Fill(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07));
+            FadeTo(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07), 0.3);
         };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Height = Theme.PosterWidth * 1.5 };
         row.Children.Add(figure);
