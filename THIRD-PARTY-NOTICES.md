@@ -102,6 +102,22 @@ The Windows installer carries Microsoft's Windows App SDK (MIT License) and the 
 (Microsoft's BSD-style licence), both from NuGet. The trailer player uses the WebView2 runtime
 that comes with Windows.
 
+## Android TV app libraries
+
+The Android TV APK carries these libraries, each under the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0):
+
+- [AndroidX](https://developer.android.com/jetpack/androidx): Jetpack Compose, Compose for TV
+  (`androidx.tv`), Activity, Core and Lifecycle, and [Media3](https://github.com/androidx/media)
+  (ExoPlayer), the player, by Google
+- [Kotlin](https://github.com/JetBrains/kotlin) and
+  [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines), by JetBrains
+- [Coil](https://github.com/coil-kt/coil), images, by Coil Contributors
+- [OkHttp](https://github.com/square/okhttp), networking, by Square
+- [ZXing](https://github.com/zxing/zxing) core, the sign-in QR codes, by ZXing authors
+
+It also carries two of the Vazirmatn fonts (above).
+
 ## Subtitle site
 
 When 30nama has no subtitle of its own for a download, the Mac app reads the public pages of the
