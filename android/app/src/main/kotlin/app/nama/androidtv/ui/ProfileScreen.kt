@@ -32,12 +32,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
@@ -94,12 +94,16 @@ fun ProfileScreen() {
   var picksIn by remember { mutableStateOf(false) }
   var upcomingIn by remember { mutableStateOf(false) }
   var nameIn by remember { mutableStateOf(false) }
+  // The film the line on the card comes from, on 30nama: its picture is the page's backdrop, its
+  // poster where it has no scene picture (Stage).
+  var film by remember { mutableStateOf<Post?>(null) }
+  var filmIn by remember { mutableStateOf(false) }
   var ready by remember { mutableStateOf(false) }
   var revealed by remember { mutableIntStateOf(0) }
   val calm = LocalCalm.current
   LaunchedEffect(Unit) {
     val start = System.currentTimeMillis()
-    while (!(listsIn && picksIn && upcomingIn && nameIn) && System.currentTimeMillis() - start < 2_500) delay(100)
+    while (!(listsIn && picksIn && upcomingIn && nameIn && filmIn) && System.currentTimeMillis() - start < 2_500) delay(100)
     ready = true
     for (step in 1..8) {
       revealed = step
@@ -148,7 +152,8 @@ fun ProfileScreen() {
   Box(Modifier.fillMaxSize()) {
     Ambient {}
     // Chosen once the lists are in, not one picture and then another as each list comes.
-    Stage(if (ready) favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post else null, dim = 0.5f, glow = false)
+    // The film the line is from (the owner), else what the viewer keeps or rated.
+    Stage(if (ready) film ?: favorites.firstOrNull() ?: watchlist.firstOrNull() ?: ratings.newestFirst.firstOrNull()?.post else null, dim = 0.5f, glow = false)
     val list = androidx.compose.foundation.lazy.rememberLazyListState()
     ReportTop(list)
     LazyColumn(
@@ -158,7 +163,10 @@ fun ProfileScreen() {
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
       // A section: its buttons, at its foot, in focus bring the whole card back, and so the page's top.
-      item(key = "header") { Box(Modifier.wholeSection()) { Header(watchlist, favorites, sizes, ready) { nameIn = true } } }
+      item(key = "header") { Box(Modifier.wholeSection()) { Header(watchlist, favorites, sizes, ready, written = revealed >= 8, nameCame = { nameIn = true }) { found ->
+          film = found
+          filmIn = true
+        } } }
       if (!ratings.isEmpty) item(key = "insights") { Box(Modifier.rising(1, revealed)) { Insights() } }
       if (!ready) return@LazyColumn
       if (upcoming.isNotEmpty()) item(key = "upcoming") { Box(Modifier.animateItem().rising(2, revealed)) { Shelf(loc(S.upcoming), upcoming, note = { it.nextEpisodeLabel(loc.lang) }) } }
@@ -187,25 +195,24 @@ fun ProfileScreen() {
  * buttons under them.
  */
 @Composable
-private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>, ready: Boolean, nameCame: () -> Unit) {
+private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<String, Int>, ready: Boolean, written: Boolean, nameCame: () -> Unit, filmFound: (Post?) -> Unit) {
   val app = LocalApp.current
   val loc = LocalLoc.current
   val user = app.user
   val shape = RoundedCornerShape(36.dp)
   // The name the member gave the site, or failing that (a private profile) the one written in
   // Settings, or failing that the username, as on the Mac.
+  // Asked of the site, answered or not: the names are settled, and the line with them.
+  var asked by remember(user?.name) { mutableStateOf(false) }
   val site by androidx.compose.runtime.produceState<SiteProfile?>(null, user?.name) {
     value = null
-    val username = user?.name ?: return@produceState
-    value = runCatching { SiteProfile.fromSite(app.api.site(SiteQuery.profile(username), background = true)) }.getOrNull()
+    val username = user?.name
+    if (username != null && app.api.hasSite) value = runCatching { SiteProfile.fromSite(app.api.site(SiteQuery.profile(username), background = true)) }.getOrNull()
+    asked = true
   }
   // The name, the counts and the line wait for the site's name and the lists: shown at once, one
   // name gave way to another and the counts came one by one.
-  LaunchedEffect(user?.name) {
-    if (user?.name == null || !app.api.hasSite) return@LaunchedEffect nameCame()
-    androidx.compose.runtime.snapshotFlow { site }.first { it != null }
-    nameCame()
-  }
+  LaunchedEffect(asked) { if (asked) nameCame() }
   val words by animateFloatAsState(if (ready) 1f else 0f, if (LocalCalm.current) snap() else tween(450), label = "words")
   val own = app.ownName?.takeIf { user != null }
   val shown = site?.fullName ?: own ?: user?.name
@@ -246,7 +253,7 @@ private fun Header(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Stri
       if (user == null) Text(loc(S.signInHint), Modifier.widthIn(max = 600.dp), style = app(19), color = Theme.text2)
       // The username, small, under a name given instead of it.
       else if (shown != user.name) user.name?.let { Text(it, style = app(18, FontWeight.Medium), color = Theme.text3, maxLines = 1) }
-      Box(Modifier.padding(top = 12.dp)) { Quote(names.first, names.second) }
+      Box(Modifier.padding(top = 12.dp)) { Quote(names.first, names.second, settled = asked, write = written, filmFound = filmFound) }
     }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(23.dp)) {
       Box(Modifier.graphicsLayer { alpha = words }) { Figures(watchlist, favorites, sizes) }
@@ -293,25 +300,90 @@ private fun Figures(watchlist: List<Post>, favorites: List<Post>, sizes: Map<Str
  * A line from a film, in the film's own English, said to the viewer by first name where a line has
  * one, and under it the film, its year and its director: the Mac's greeting. One is picked each
  * time the app opens. Written left to right inside a Persian page, kept to the name's edge.
+ *
+ * The last thing on the page to come (the owner): once [write], it is written out by hand, letter
+ * by letter behind a soft pen edge, quick inside a word and resting at a space or a stop; then the
+ * line under it comes in from the left. Once [settled] (the names known, so the line is the one
+ * that stays), its film is looked for on 30nama, as the Mac does, for the page's backdrop.
  */
 @Composable
-private fun Quote(first: String?, family: String?) {
+private fun Quote(first: String?, family: String?, settled: Boolean, write: Boolean, filmFound: (Post?) -> Unit) {
+  val model = LocalApp.current
   val hue = LocalHue.current ?: Theme.accent
   val key = "$first|$family"
   val line = remember(key) { picked?.takeIf { it.first == key }?.second ?: app.nama.core.MovieLines.pick(first, family).also { picked = key to it } }
+  LaunchedEffect(line, settled) {
+    if (!settled) return@LaunchedEffect
+    val found = line.searchQueries.firstNotNullOfOrNull { query ->
+      runCatching { line.match(PostPage.from(model.api.get("search", mapOf("query" to query, "page" to "1"), background = true)).posts) }.getOrNull()
+    }
+    filmFound(found)
+  }
+  val calm = LocalCalm.current
+  // How far the pen has gone, in letters; then how far the line under it has come in, 0 to 1.
+  val pen = remember(line) { androidx.compose.animation.core.Animatable(0f) }
+  val under = remember(line) { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(line, write) {
+    if (!write) return@LaunchedEffect
+    val text = line.text
+    if (calm || pen.value >= text.length) {
+      pen.snapTo(text.length.toFloat())
+      under.snapTo(1f)
+      return@LaunchedEffect
+    }
+    delay(250)
+    for (i in pen.value.toInt() until text.length) {
+      val c = text[i]
+      val ms = when {
+        c in ".!?" -> 260
+        c in ",;:—–" -> 190
+        c == ' ' -> 70
+        else -> 42
+      }
+      pen.animateTo(i + 1f, tween(ms, easing = androidx.compose.animation.core.LinearEasing))
+    }
+    delay(200)
+    under.animateTo(1f, tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+  }
+  var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
   val serif = androidx.compose.ui.text.font.FontFamily.Serif
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Column(Modifier.widthIn(max = 806.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       Box {
-        // Hung at the line's start without taking room of its own.
-        Text("\u201C", Modifier.size(0.dp).wrapContentSize(Alignment.TopStart, unbounded = true).offset(x = (-3).dp, y = (-16).dp), style = androidx.compose.ui.text.TextStyle(fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = app(65).fontSize), color = hue.copy(alpha = 0.75f))
+        // Hung at the line's start without taking room of its own; it comes with the first letter.
         Text(
-            line.text, Modifier.padding(start = 34.dp),
+            "“", Modifier.size(0.dp).wrapContentSize(Alignment.TopStart, unbounded = true).offset(x = (-3).dp, y = (-16).dp).graphicsLayer { alpha = pen.value.coerceIn(0f, 1f) },
+            style = androidx.compose.ui.text.TextStyle(fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = app(65).fontSize), color = hue.copy(alpha = 0.75f),
+        )
+        Text(
+            line.text,
+            Modifier.padding(start = 34.dp)
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                  drawContent()
+                  val l = layout ?: return@drawWithContent
+                  hideUnwritten(l, pen.value, line.text.length)
+                },
             style = androidx.compose.ui.text.TextStyle(fontFamily = serif, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = app(25).fontSize, lineHeight = app(25).fontSize * 1.3f),
             color = Theme.text1.copy(alpha = 0.92f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            onTextLayout = { layout = it },
         )
       }
-      Row(Modifier.padding(start = 34.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+      Row(
+          Modifier.padding(start = 34.dp)
+              .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+              .drawWithContent {
+                drawContent()
+                // In from the left behind a soft edge.
+                val edge = 60.dp.toPx()
+                val x = (size.width + edge) * under.value - edge
+                drawRect(
+                    Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = x, endX = x + edge),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstOut,
+                )
+              },
+          horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+      ) {
         Box(Modifier.size(21.dp, 2.6.dp).background(hue, RoundedCornerShape(50)))
         Text(
             "${line.film.uppercase()} · ${line.year} · ${line.directors.joinToString(", ")}",
@@ -319,6 +391,31 @@ private fun Quote(first: String?, family: String?) {
         )
       }
     }
+  }
+}
+
+/**
+ * Takes away what the pen has not written yet: the rest of the line it is on, behind a soft edge
+ * just past the pen, and every line after it.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.hideUnwritten(layout: androidx.compose.ui.text.TextLayoutResult, pen: Float, length: Int) {
+  if (pen >= length) return
+  val out = androidx.compose.ui.graphics.BlendMode.DstOut
+  val visibleEnd = layout.getLineEnd(layout.lineCount - 1, visibleEnd = true)
+  val at = pen.toInt().coerceIn(0, visibleEnd)
+  val row = layout.getLineForOffset(at)
+  val from = layout.getHorizontalPosition(at, true)
+  val to = if (at + 1 <= layout.getLineEnd(row)) layout.getHorizontalPosition(at + 1, true) else from
+  val x = from + (to - from) * (pen - pen.toInt())
+  val edge = 14.dp.toPx()
+  val top = layout.getLineTop(row)
+  val bottom = layout.getLineBottom(row)
+  drawRect(
+      Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = x, endX = x + edge),
+      topLeft = androidx.compose.ui.geometry.Offset(x, top), size = androidx.compose.ui.geometry.Size(size.width - x + edge, bottom - top), blendMode = out,
+  )
+  if (bottom < size.height) {
+    drawRect(Color.Black, topLeft = androidx.compose.ui.geometry.Offset(0f, bottom), size = androidx.compose.ui.geometry.Size(size.width, size.height - bottom), blendMode = out)
   }
 }
 
