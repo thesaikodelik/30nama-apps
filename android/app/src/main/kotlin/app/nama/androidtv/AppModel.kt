@@ -204,6 +204,9 @@ class AppModel(
     private set
   var playback by mutableStateOf<PlaybackRequest?>(null)
     private set
+  /** When a key on the remote was last pressed: what waits for the viewer to rest reads it. */
+  var lastKey by androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis())
+
   var toast by mutableStateOf<String?>(null)
     private set
   /** The home page has arrived at least once since launch. */

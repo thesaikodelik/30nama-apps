@@ -54,7 +54,16 @@ fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
   /** Width over height of the picture, once known. */
   var aspect by remember { mutableStateOf(16f / 9f) }
 
-  LaunchedEffect(key, active && allowed) {
+  // Until it has started, every key starts the wait again: it plays once the viewer has rested on
+  // the page a few seconds, not while moving about it (the owner). The Mac waits three seconds
+  // from opening; it has no remote to rest.
+  var rested by remember(key) { mutableStateOf(false) }
+  LaunchedEffect(key, active && allowed, app.lastKey) {
+    if (rested || !active || !allowed) return@LaunchedEffect
+    delay(REST_MS)
+    rested = true
+  }
+  LaunchedEffect(key, active && allowed, rested) {
     if (key == null || !active || !allowed || played) {
       // Stopped at once: the player or trailer opening over the page wants the decoder now.
       running?.pause()
@@ -64,7 +73,7 @@ fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
       running = null
       return@LaunchedEffect
     }
-    delay(3_000)
+    if (!rested) return@LaunchedEffect
     val clip = pick() ?: return@LaunchedEffect
     played = true
     val source = OkHttpDataSource.Factory(app.http).apply { clip.referer?.let { setDefaultRequestProperties(mapOf("Referer" to it)) } }
@@ -123,3 +132,5 @@ fun Teaser(key: Any?, pick: suspend () -> TeaserClip?, active: Boolean) {
   }
 }
 
+/** How long the viewer rests on a title's page, no key pressed, before what plays behind it starts. */
+private const val REST_MS = 4_000L
