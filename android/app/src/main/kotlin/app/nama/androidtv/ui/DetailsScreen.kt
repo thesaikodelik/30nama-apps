@@ -602,46 +602,62 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
   // Coming down from the header lands on the episode to resume, not on whichever tile is nearest.
   val landing = shown.firstOrNull { it.index == resumeIndex } ?: shown.firstOrNull()
 
-  Column(Modifier.padding(horizontal = Theme.edge), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-    SectionTitle(loc(S.episodes))
+  // The Apple TV's: the heading with the season's count, the seasons in a row of chips, and the
+  // episodes as large tiles in one row that slides, the number big at the top, the name at the foot
+  // (the owner). A still from the episode itself where one has been taken.
+  val nav = LocalNav.current
+  val lively = LocalLively.current
+  Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    Row(Modifier.padding(horizontal = Theme.edge), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+      SectionTitle(loc(S.episodes))
+      Text("${loc.num(inSeason.size)} ${loc(S.episodeCount)}", Modifier.padding(bottom = 4.dp), style = app(24), color = Theme.text3)
+    }
     if (seasons.size > 1 || groups > 1) {
-      // On lines of their own that wrap, so every season is in sight.
-      androidx.compose.foundation.layout.FlowRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      LazyRow(
+          Modifier.bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+          contentPadding = PaddingValues(horizontal = Theme.edge + 14.dp, vertical = 8.dp),
+      ) {
         for (s in seasons) {
           val count = items.count { it.season == s }
           val parts = if (s == shelf.season) (count + Shelf.SIZE - 1) / Shelf.SIZE else 1
           for (g in 0 until parts) {
-            val name = if (parts > 1) {
-              val from = g * Shelf.SIZE + 1
-              val to = minOf(count, (g + 1) * Shelf.SIZE)
-              "${loc(S.season)} ${loc.num(s)} · ${loc.num(from)}–${loc.num(to)}"
-            } else "${loc(S.season)} ${loc.num(s)}"
-            PillButton(name, { choose(Shelf(s, g)) }, kind = PillKind.Chip, selected = s == shelf.season && g == shelf.group)
+            item(key = "$s/$g") {
+              val name = if (parts > 1) {
+                val from = g * Shelf.SIZE + 1
+                val to = minOf(count, (g + 1) * Shelf.SIZE)
+                "${loc(S.season)} ${loc.num(s)} · ${loc.num(from)}–${loc.num(to)}"
+              } else "${loc(S.season)} ${loc.num(s)}"
+              PillButton(name, { choose(Shelf(s, g)) }, kind = PillKind.Chip, selected = s == shelf.season && g == shelf.group)
+            }
           }
         }
       }
     }
-    Column(Modifier.focusRestorer(focus), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-      shown.chunked(4).forEach { line ->
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-          line.forEach { (index, item) ->
-            val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
-            val done = item.fileID in app.watched
-            EpisodeRow(
-                item, resume?.progress, watched = done, name = tmdbNames[item.episodeNumber],
-                modifier = Modifier.weight(1f).then(if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier),
-                // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
-                onLongClick = {
-                  val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
-                  app.sheets.show(SheetSpec(name, listOf(
-                      SheetAction(loc(S.play), Icons.play) { play(index) },
-                      if (done) SheetAction(loc(S.markUnwatched), Icons.close) { app.setWatched(item.fileID, false) }
-                      else SheetAction(loc(S.markWatched), Icons.check) { app.setWatched(item.fileID, true) },
-                  )))
-                },
-            ) { play(index) }
-          }
-          repeat(4 - line.size) { Spacer(Modifier.weight(1f)) }
+    LazyRow(
+        Modifier.focusRestorer(focus), horizontalArrangement = Arrangement.spacedBy(24.dp),
+        contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 18.dp),
+    ) {
+      items(shown, key = { it.value.id }) { (index, item) ->
+        val resume = stream?.resume?.takeIf { it.fileID == item.fileID }
+        val done = item.fileID in app.watched
+        // A still from the episode itself, once on screen; on a weak TV only those already taken.
+        if (lively) LaunchedEffect(item.fileID) { app.stills.still(item) }
+        val still = app.stills.known[item.fileID]
+        CardSurface(
+            onClick = { play(index) },
+            modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
+            radius = Theme.tileRadius, glow = rememberPosterTint(post),
+            // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
+            onLongClick = {
+              val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
+              app.sheets.show(SheetSpec(name, listOf(
+                  SheetAction(loc(S.play), Icons.play) { play(index) },
+                  if (done) SheetAction(loc(S.markUnwatched), Icons.close) { app.setWatched(item.fileID, false) }
+                  else SheetAction(loc(S.markWatched), Icons.check) { app.setWatched(item.fileID, true) },
+              )))
+            },
+        ) {
+          EpisodeTile(item, index + 1, progress = resume?.progress ?: 0.0, watched = done, still = still, name = tmdbNames[item.episodeNumber])
         }
       }
     }
@@ -694,7 +710,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
 
 /** Episode tile for the player's list. The API has no stills, so the tile is typographic: a big number and the title. */
 @Composable
-fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlaying: Boolean = false, watched: Boolean = false, still: androidx.compose.ui.graphics.ImageBitmap? = null) {
+fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlaying: Boolean = false, watched: Boolean = false, still: androidx.compose.ui.graphics.ImageBitmap? = null, name: String? = null) {
   val loc = LocalLoc.current
   val number = Episode.label(item.episodeRaw, position)
   val shape = RoundedCornerShape(Theme.tileRadius)
@@ -726,7 +742,7 @@ fun EpisodeTile(item: StreamItem, position: Int, progress: Double = 0.0, nowPlay
         }
       }
       Spacer(Modifier.weight(1f))
-      Text(item.title(loc.lang) ?: "${loc(S.episode)} ${loc.num(number)}", style = app(26, FontWeight.SemiBold), color = Theme.text1, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      Text(item.title(loc.lang) ?: name ?: "${loc(S.episode)} ${loc.num(number)}", style = app(26, FontWeight.SemiBold), color = Theme.text1, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
     if (progress > 0) Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 22.dp, vertical = 10.dp)) { ProgressBar(progress) }
   }
