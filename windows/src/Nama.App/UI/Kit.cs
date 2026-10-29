@@ -451,15 +451,26 @@ public static class Kit
     /// <summary>
     /// Lets the mouse wheel over a row that scrolls sideways move the page up and down, as on the
     /// Mac: Windows otherwise turns the wheel into the row's own sideways scroll. A touchpad's
-    /// sideways swipe, or Shift with the wheel, still moves the row.
+    /// sideways swipe, or Shift with the wheel, still moves the row, unless <paramref name="still"/>:
+    /// then nothing the pointer does moves it, and only its arrows do (home's rows, the owner: the
+    /// wheel and the touchpad are for up and down).
     /// </summary>
-    public static ScrollViewer Sideways(ScrollViewer row)
+    public static ScrollViewer Sideways(ScrollViewer row, bool still = false)
     {
         if (row.Content is not UIElement content) return row;
+        if (still)
+        {
+            // No pan from a touchpad or a touch screen; ChangeView, which the arrows use, still moves it.
+            row.HorizontalScrollMode = ScrollMode.Disabled;
+            row.IsHorizontalRailEnabled = false;
+        }
         content.PointerWheelChanged += (_, e) =>
         {
             var point = e.GetCurrentPoint(content);
-            if (point.Properties.IsHorizontalMouseWheel || e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift)) return;
+            var sideways = point.Properties.IsHorizontalMouseWheel;
+            if (!still && (sideways || e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift))) return;
+            // A sideways wheel over a row that keeps still goes nowhere.
+            if (still && sideways) { e.Handled = true; return; }
             if (Upward(row) is not { } page) return;
             e.Handled = true;
             page.ChangeView(null, Math.Clamp(page.VerticalOffset - point.Properties.MouseWheelDelta, 0, page.ScrollableHeight), null);
@@ -509,7 +520,7 @@ public static class Kit
             HorizontalScrollMode = ScrollMode.Enabled,
             VerticalScrollMode = ScrollMode.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        });
+        }, still: true);
         var area = new Grid { Margin = new Thickness(0, -12, 0, -42) };
         area.Children.Add(scroller);
         Button Arrow(int direction)
