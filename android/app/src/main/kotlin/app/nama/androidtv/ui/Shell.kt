@@ -374,11 +374,20 @@ fun MainScreen(onExit: () -> Unit) {
               // Back into the page (Down from the bar or Back) where it was left, else at its entry.
               .focusRestorer(if (entry.ready) entry.requester else FocusRequester.Default).focusGroup()
               .onFocusChanged { routeHasFocus = it.hasFocus }) {
-            holder.SaveableStateProvider("${nav.tab}/${nav.stack(nav.tab).size}/${route.hashCode()}") {
+            holder.SaveableStateProvider(nav.topKey ?: "${nav.tab}/${route.hashCode()}") {
               CompositionLocalProvider(LocalOnRoute provides true, LocalPageEntry provides entry) { RouteScreen(route) }
             }
           }
         }
+      }
+      // A closed page's saved state goes once it has left the screen: opened again, it starts at its
+      // top with nothing remembered, not where it was last scrolled (the owner).
+      LaunchedEffect(nav.closed.size) {
+        if (nav.closed.isEmpty()) return@LaunchedEffect
+        withFrameNanos {}
+        val gone = nav.closed.toList()
+        nav.closed.clear()
+        gone.forEach { holder.removeState(it) }
       }
       val pillFocus = remember { FocusRequester() }
       val updater = app.updater

@@ -45,6 +45,14 @@ class Nav {
   /** The poster flying to a title's page as it opens (Shell's FlyingPoster); its page holds its own back meanwhile. */
   var flight by mutableStateOf<Flight?>(null)
   private val stacks = mutableStateMapOf<Tab, List<Route>>()
+  /** Each open page's own number: its saved state (scroll, what was focused) is its alone. */
+  private val serials = mutableStateMapOf<Tab, List<Long>>()
+  private var next = 0L
+  /** Pages closed whose saved state is still to be dropped (the shell drops it once they are gone). */
+  val closed = androidx.compose.runtime.mutableStateListOf<String>()
+
+  /** The open page's key for its saved state: a page opened again starts fresh, at its top. */
+  val topKey: String? get() = serials[tab]?.lastOrNull()?.let { "$tab/$it" }
 
   fun stack(tab: Tab): List<Route> = stacks[tab].orEmpty()
 
@@ -53,6 +61,7 @@ class Nav {
   fun push(route: Route) {
     if (top == route) return
     stacks[tab] = stack(tab) + route
+    serials[tab] = serials[tab].orEmpty() + next++
   }
 
   /** One step back on the open tab; false when it was already at its root. */
@@ -60,12 +69,16 @@ class Nav {
     val s = stack(tab)
     if (s.isEmpty()) return false
     stacks[tab] = s.dropLast(1)
+    serials[tab]?.lastOrNull()?.let { closed += "$tab/$it" }
+    serials[tab] = serials[tab].orEmpty().dropLast(1)
     return true
   }
 
   /** A new language or account means a different catalogue: every tab starts over. */
   fun reset() {
+    for ((t, s) in serials) s.forEach { closed += "$t/$it" }
     stacks.clear()
+    serials.clear()
     tab = Tab.home
   }
 }
