@@ -109,8 +109,14 @@ public sealed class PlayerEngine
         Post = request.Post;
         Items = request.Items;
         Index = Math.Clamp(request.Index, 0, Math.Max(0, request.Items.Count - 1));
-        _resume = request.Resume;
         _app = app;
+        // From whichever is further on, 30nama's record or this computer's: the server's keeps only
+        // steps of thirty seconds and sometimes nothing at all.
+        var serverIndex = request.Resume?.FileId is { } at ? request.Items.ToList().FindIndex(i => i.FileId == at) : -1;
+        var picked = Index != Math.Max(serverIndex, 0);
+        var start = Resume.Start(request.Items, Index, request.Resume, app.KeptPosition(request.Post.Id), picked);
+        Index = Math.Clamp(start.Index, 0, Math.Max(0, request.Items.Count - 1));
+        _resume = start.Seconds is { } seconds ? new ContinueWatching { FileId = request.Items[Index].FileId, Time = seconds } : null;
         _ui = ui;
         Mix = app.Settings.AudioMix;
         SubtitleLanguage = app.Settings.DefaultSubtitle;
@@ -491,9 +497,11 @@ public sealed class PlayerEngine
             if (Playback.Position > 5) Downloads.KeepPosition(Current.FileId, Playback.Position);
             return;
         }
-        if (!_app.IsLoggedIn) return;
         var seconds = Playback.Position;
         if (!double.IsFinite(seconds)) return;
+        // Kept here to the second, beside what 30nama is told (see Resume).
+        if (seconds > 5) _app.KeepPosition(Post.Id, Current.FileId, seconds);
+        if (!_app.IsLoggedIn) return;
         var position = (int)seconds / 30 * 30;
         if (position <= 0 || position == _reportedTime) return;
         _reportedTime = position;

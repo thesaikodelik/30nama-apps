@@ -76,11 +76,34 @@ public sealed class AppModel
     private (HomeFeed Feed, DateTime At, Lang Lang)? _homeCache;
     private (Menu Menu, Lang Lang)? _menuCache;
     private (FilterOptions Options, Lang Lang)? _filterCache;
-    private readonly ContinueDismissals _dismissals = LoadDismissals();
+    private ContinueDismissals _dismissals = LoadDismissals();
     private CancellationTokenSource? _toastTimer;
 
     private static string RatingsFile => Path.Combine(Storage.Folder, "ratings.json");
     private static string WatchedFile => Path.Combine(Storage.Folder, "watched.json");
+    private static string KeptFile => Path.Combine(Storage.Folder, "left.json");
+
+    /// <summary>Where this computer left each title, by post id: "file seconds" (see <see cref="Resume"/>).</summary>
+    private readonly Dictionary<string, string> _kept = LoadKept();
+
+    private static Dictionary<string, string> LoadKept()
+    {
+        try { return Storage.Read(KeptFile) is { } text ? JsonSerializer.Deserialize<Dictionary<string, string>>(text) ?? [] : []; }
+        catch (Exception) { return []; }
+    }
+
+    public Resume.Kept? KeptPosition(int post)
+    {
+        if (!_kept.TryGetValue(post.ToString(), out var raw) || raw.Split(' ', 2) is not [var file, var seconds]) return null;
+        return double.TryParse(seconds, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? new Resume.Kept(file, s) : null;
+    }
+
+    public void KeepPosition(int post, string fileId, double seconds)
+    {
+        if (fileId.Length == 0 || !double.IsFinite(seconds)) return;
+        _kept[post.ToString()] = $"{fileId} {(long)seconds}";
+        Storage.Write(KeptFile, JsonSerializer.Serialize(_kept));
+    }
     private static string DismissalsFile => Path.Combine(Storage.Folder, "continue-dismissals.json");
     private static string HostFile => Path.Combine(Storage.Folder, "host.txt");
 
@@ -197,6 +220,7 @@ public sealed class AppModel
 
     private void ClearSession()
     {
+        ForgetAccount();
         User = null;
         Lists = [];
         SessionStore.Clear();
@@ -208,6 +232,23 @@ public sealed class AppModel
         Tell("playback");
         Tell("content");
         Tell("phase");
+    }
+
+    /// <summary>
+    /// What was this account's alone, gone with it: where each title was left, the episodes marked
+    /// seen, the titles taken off Continue watching, and the name written for it (another member
+    /// may sign in next). As the Android app's forgetAccount.
+    /// </summary>
+    private void ForgetAccount()
+    {
+        _kept.Clear();
+        Watched.Clear();
+        _dismissals = new ContinueDismissals();
+        foreach (var file in new[] { KeptFile, WatchedFile, DismissalsFile })
+        {
+            try { File.Delete(file); } catch (Exception) { }
+        }
+        Update(s => s with { DisplayName = null });
     }
 
     public async Task RetryBootAsync() => await BootAsync();
