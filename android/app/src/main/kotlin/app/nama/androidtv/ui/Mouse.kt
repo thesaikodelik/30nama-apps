@@ -16,8 +16,8 @@ import androidx.compose.ui.platform.LocalView
  * A mouse or an air mouse (most Iranian Android boxes come with one; LG's Magic Remote is one):
  * a click on a control focuses it and presses select, so it does just what the remote's OK does
  * there. Compose for TV's controls answer keys only, and a click went nowhere (the owner, after
- * mmahdim77/30nama-webos). A long press is held select, for what holding OK does. Touch and the
- * remote are left as they are.
+ * mmahdim77/30nama-webos). A long press is held select, for what holding OK does. The remote is
+ * left as it is.
  */
 @Composable
 fun Modifier.mouseClicks(): Modifier {
@@ -29,7 +29,9 @@ fun Modifier.mouseClicks(): Modifier {
       while (true) {
         val event = awaitPointerEvent(PointerEventPass.Initial)
         val change = event.changes.firstOrNull() ?: continue
-        if (change.type != PointerType.Mouse) continue
+        // A touch too: the emulator's window sends the computer's mouse as one, and a TV has no
+        // touch screen of its own to mind it.
+        if (change.type != PointerType.Mouse && change.type != PointerType.Touch) continue
         when (event.type) {
           PointerEventType.Press -> if (change.pressed) {
             downAt = change.uptimeMillis
