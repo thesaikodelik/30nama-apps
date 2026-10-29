@@ -297,7 +297,8 @@ fun SettingsScreen() {
 /** The Mac's group: its name small above, the rows in one pane of glass. */
 @Composable
 private fun Group(name: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  // A section: a row in focus brings the group's name with it while both fit.
+  Column(Modifier.wholeSection(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Text(name, Modifier.padding(start = 10.dp), style = app(18, FontWeight.SemiBold), color = Theme.text3)
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(21.dp), fill = 0.03f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
   }

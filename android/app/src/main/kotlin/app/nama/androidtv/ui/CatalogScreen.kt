@@ -223,8 +223,8 @@ fun CatalogScreen(slug: String, title: String) {
       PagedGrid(posts, loading, page >= pages, ::loadNext, failed = failed, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
           // The Mac's header: the name and its count at the start, the orders at the end, and the
-          // filters as menus under the name.
-          Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+          // filters as menus under the name. A section: a chip in focus shows the whole header.
+          Column(Modifier.wholeSection(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth().focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text(title, style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1)
@@ -298,7 +298,7 @@ fun BrowseScreen() {
         // What only the 30nama website has, through its own API.
         if (app.api.hasSite) {
           item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(Modifier.padding(bottom = 22.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Row(Modifier.wholeSection().padding(bottom = 22.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
               SiteTile(loc(S.weeklySchedule), Icons.calendar, Modifier.weight(1f)) { nav.push(Route.Schedule) }
               SiteTile(loc(S.topLists), Icons.trophy, Modifier.weight(1f)) { nav.push(Route.TopLists) }
               SiteTile(loc(S.news), Icons.newspaper, Modifier.weight(1f)) { nav.push(Route.News) }

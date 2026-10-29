@@ -96,7 +96,8 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
         // Room for each one's name under it.
         verticalArrangement = Arrangement.spacedBy(44.dp),
     ) {
-      item(span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(24.dp)) { header() } }
+      // A section: a chip in focus shows the whole header, its title with it.
+      item(span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.wholeSection(), verticalArrangement = Arrangement.spacedBy(24.dp)) { header() } }
       when {
         posts != null -> {
           if (posts.isEmpty() || empty) item(span = { GridItemSpan(maxLineSpan) }) { Text(loc(S.noMatches), style = app(28, FontWeight.Medium), color = Theme.text2) }
@@ -124,6 +125,8 @@ private fun PosterPage(posts: List<Post>?, failed: Boolean, retry: () -> Unit, h
 fun ScheduleScreen() {
   val app = LocalApp.current
   val loc = LocalLoc.current
+  // Entered at the chosen day.
+  DeclarePageEntry()
   var kind by remember { mutableStateOf(Schedule.Kind.series) }
   // Looked at again each minute, so a page left open past midnight moves on to the new day.
   val today by androidx.compose.runtime.produceState(Schedule.day(Instant.now())) {
@@ -167,7 +170,7 @@ fun ScheduleScreen() {
       items(week) { d ->
         PillButton(
             if (d == today) loc(S.today) else names[Schedule.symbolIndex(d)], { day = d },
-            if (day == d) Modifier.focusRequester(chosen) else Modifier, kind = PillKind.Chip, selected = day == d,
+            if (day == d) Modifier.focusRequester(chosen).pageEntry() else Modifier, kind = PillKind.Chip, selected = day == d,
         )
       }
     }
@@ -179,6 +182,8 @@ fun ScheduleScreen() {
 fun TopListsScreen() {
   val app = LocalApp.current
   val loc = LocalLoc.current
+  // Entered at the chosen list.
+  DeclarePageEntry()
   var list by remember { mutableStateOf(TopList.imdbMovies) }
   val lists = remember { mutableStateMapOf<TopList, List<TopList.Entry>>() }
   var failed by remember { mutableStateOf(false) }
@@ -204,7 +209,7 @@ fun TopListsScreen() {
           TopList.siteMovies -> loc(S.siteTopMovies)
           TopList.siteSeries -> loc(S.siteTopSeries)
         }
-        PillButton(title, { list = option }, if (list == option) Modifier.focusRequester(chosen) else Modifier, kind = PillKind.Chip, selected = list == option)
+        PillButton(title, { list = option }, if (list == option) Modifier.focusRequester(chosen).pageEntry() else Modifier, kind = PillKind.Chip, selected = list == option)
       }
     }
   }, badge = { post ->
@@ -282,7 +287,7 @@ fun PersonScreen(person: Person) {
         verticalArrangement = Arrangement.spacedBy(44.dp),
     ) {
       item(span = { GridItemSpan(maxLineSpan) }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+        Row(Modifier.wholeSection(), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
           // Something has to take the focus as soon as the page opens: the titles come later.
           // The Mac's IMDb profile button: the card opens its code for the phone.
           val imdbPage = details?.imdb?.toString()

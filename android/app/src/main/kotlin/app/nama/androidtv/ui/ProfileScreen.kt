@@ -333,7 +333,8 @@ private fun Panel(title: String, modifier: Modifier, content: @Composable () -> 
 private fun Shelf(title: String, posts: List<Post>, stars: Map<Int, Double>? = null, note: ((Post) -> String?)? = null) {
   val nav = LocalNav.current
   val loc = LocalLoc.current
-  Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+  // A section: a poster in focus brings the shelf's name with it.
+  Column(Modifier.wholeSection(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
     Text(title, style = app(30, FontWeight.Bold), color = Theme.text1)
     LazyRow(Modifier.bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(21.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
       items(posts, key = { it.id }) { post ->

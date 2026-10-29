@@ -99,6 +99,8 @@ class Chrome {
   var toTop by androidx.compose.runtime.mutableIntStateOf(0)
   /** A card over the page (a key, the member's name) is open: the bar takes no focus until it closes. */
   var modal by mutableStateOf(false)
+  /** A sheet or a card over the page (Sheets): the bar takes no focus meanwhile. */
+  var overlay by mutableStateOf(false)
   /** A page may move focus into itself when it opens. */
   val mayTakeFocus get() = rootShown && !barFocused
   /** Moves focus up into the tab bar, as Back does from a page's root. */
@@ -298,6 +300,8 @@ fun MainScreen(onExit: () -> Unit) {
       val route = nav.top
       chrome.rootShown = route == null
       val sheet = app.sheets.shown != null || app.sheets.link != null || app.sheets.reading != null
+      // While a sheet or a card is up the bar takes no focus either: Up from its button went there.
+      chrome.overlay = sheet
       val root = remember { FocusRequester() }
       // Back at a tab's root: focus returns to where it was before the page was opened.
       LaunchedEffect(route) {
@@ -621,7 +625,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
               modifier = (if (tab == nav.tab) Modifier.focusRequester(chrome.bar) else Modifier)
                   .focusRequester(steps.getValue(tab))
                   .onFocusChanged { if (it.hasFocus) focusedTab = tab }
-                  .focusProperties { canFocus = !chrome.modal && (inside || (!routeOpen && tab == nav.tab)) }
+                  .focusProperties { canFocus = !chrome.modal && !chrome.overlay && (inside || (!routeOpen && tab == nav.tab)) }
                   .onGloballyPositioned { places[tab] = Rect(it.positionInParent(), it.size.toSize()) },
               // While a page is open over the tab, moving along the bar only moves; pressing goes.
               onFocus = { if (nav.tab != tab && !routeOpen) pending = tab },
@@ -684,7 +688,7 @@ private fun BackDisc(shownNow: Boolean, onBack: () -> Unit, modifier: Modifier) 
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
   val shown by animateFloatAsState(if (shownNow) 1f else 0f, tween(220), label = "back")
-  val modal = LocalChrome.current.modal
+  val modal = LocalChrome.current.modal || LocalChrome.current.overlay
   Surface(
       onClick = onBack,
       enabled = shownNow,

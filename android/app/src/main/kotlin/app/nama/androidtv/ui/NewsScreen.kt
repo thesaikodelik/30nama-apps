@@ -66,6 +66,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun NewsScreen() {
   val app = LocalApp.current
+  // Entered at the chosen kind.
+  DeclarePageEntry()
   val nav = LocalNav.current
   val loc = LocalLoc.current
   var kind by rememberSaveable { mutableStateOf(Article.Kind.news) }
@@ -131,9 +133,9 @@ fun NewsScreen() {
     ) {
       item(span = { GridItemSpan(maxLineSpan) }) {
         // The Mac's header: the name at the start, the three kinds at the end.
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp).focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.wholeSection().fillMaxWidth().padding(bottom = 6.dp).focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
           Text(loc(S.news), Modifier.weight(1f), style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1)
-          Article.Kind.entries.forEach { k -> PillButton(kindName(k), { kind = k }, kind = PillKind.Chip, selected = kind == k) }
+          Article.Kind.entries.forEach { k -> PillButton(kindName(k), { kind = k }, if (kind == k) Modifier.pageEntry() else Modifier, kind = PillKind.Chip, selected = kind == k) }
         }
       }
       items(articles, key = { it.id }) { a -> ArticleCard(a) { nav.push(Route.ArticlePage(a)) } }
