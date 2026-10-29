@@ -779,12 +779,40 @@ public sealed class TitlePage : Grid
             text.TextAlignment = TextAlignment.Left;
             Grid.SetRow(text, 1);
             face.Children.Add(text);
-            var button = Theme.Bare(face, () => { if (review.Link is { } link) _ = Windows.System.Launcher.LaunchUriAsync(link); });
+            Button? button = null;
+            button = Theme.Bare(face, () => { if (button?.XamlRoot is { } root) _ = ReadAsync(review, root); });
             button.PointerEntered += (_, _) => face.Background = Theme.White(0.1);
             button.PointerExited += (_, _) => face.Background = Theme.White(0.06);
             Kit.AutomationName(button, $"{review.Author}: {review.Text}");
             return (FrameworkElement)button;
         }), 16);
+    }
+
+    /// <summary>The whole review, here in the app rather than on TMDB's site (the Android app's); TMDB's page a click away.</summary>
+    private static async Task ReadAsync(TMDB.Review review, XamlRoot root)
+    {
+        var loc = App.Loc;
+        var text = Theme.Text(review.Text, 14, color: Theme.Text2, lines: 0);
+        text.LineHeight = 22;
+        text.IsTextSelectionEnabled = true;
+        // Written left to right whatever the interface reads in.
+        text.FlowDirection = FlowDirection.LeftToRight;
+        text.TextAlignment = TextAlignment.Left;
+        var title = review.Rating is { } rating ? $"{review.Author}  ·  {loc.Num(Fmt.Score(rating))}/{loc.Num(10)}" : review.Author;
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = new ScrollViewer { Content = text, MaxHeight = 460, Padding = new Thickness(0, 0, 14, 0) },
+            CloseButtonText = loc[S.close], PrimaryButtonText = review.Link is null ? "" : "TMDB",
+            DefaultButton = ContentDialogButton.Close, XamlRoot = root, RequestedTheme = ElementTheme.Dark,
+            FlowDirection = loc.Lang.IsRtl() ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
+        };
+        try
+        {
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary && review.Link is { } link) _ = Windows.System.Launcher.LaunchUriAsync(link);
+        }
+        // Another dialog already open: one at a time.
+        catch (Exception) { }
     }
 
     /// <summary>
