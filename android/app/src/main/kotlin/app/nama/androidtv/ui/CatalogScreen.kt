@@ -222,17 +222,15 @@ fun CatalogScreen(slug: String, title: String) {
     } else {
       PagedGrid(posts, loading, page >= pages, ::loadNext, failed = failed, header = {
         item(span = { GridItemSpan(maxLineSpan) }) {
-          // The Mac's header: the name and its count at the start, the orders at the end, and the
-          // filters as menus under the name. A section: a chip in focus shows the whole header.
+          // The name and its count, and under them one row: the filters as menus at the start, the
+          // orders at the end, on one line (the owner). A section: a chip in focus shows the whole header.
           Column(Modifier.wholeSection(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(Modifier.fillMaxWidth().focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-              Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                Text(title, style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1)
-                total?.let { Text("${Fmt.count(it, loc.lang)} ${loc(S.results)}", Modifier.padding(bottom = 8.dp), style = app(20, FontWeight.Medium), color = Theme.text3) }
-              }
-              sorts.forEach { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+              Text(title, style = app(44, FontWeight.Bold), color = Theme.text1, maxLines = 1)
+              total?.let { Text("${Fmt.count(it, loc.lang)} ${loc(S.results)}", Modifier.padding(bottom = 8.dp), style = app(20, FontWeight.Medium), color = Theme.text3) }
             }
-            LazyRow(Modifier.bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(Modifier.fillMaxWidth().focusRestorer(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyRow(Modifier.weight(1f).bleed(14.dp).focusRestorer(), horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
               options?.let { o ->
                 val all = loc(S.allChoices)
                 val menu = Icons.chevronDown
@@ -255,6 +253,8 @@ fun CatalogScreen(slug: String, title: String) {
                 }
                 if (!filter.isEmpty) item { PillButton(loc(S.reset), { filter = Filter() }, kind = PillKind.Chip, icon = Icons.close) }
               }
+            }
+              sorts.forEach { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
             }
             if (!loading && posts.isEmpty() && page >= pages) Text(loc(S.noMatches), style = app(28), color = Theme.text2)
           }
@@ -330,7 +330,7 @@ private fun SiteTile(title: String, icon: androidx.compose.ui.graphics.vector.Im
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.focusRing(interaction, shape, grown = 1.02f),
+      modifier = modifier,
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.12f)),

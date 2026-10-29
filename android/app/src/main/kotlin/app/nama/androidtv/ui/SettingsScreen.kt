@@ -349,7 +349,7 @@ private fun Row(label: String, help: Help, show: (Help) -> Unit, modifier: Modif
   LaunchedEffect(focused, help) { if (focused) show(help) }
   Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth().padding(horizontal = 10.dp).focusRing(interaction, RoundedCornerShape(16.dp)),
+      modifier = modifier.fillMaxWidth().padding(horizontal = 10.dp),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(16.dp)),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.1f), contentColor = Theme.text1, focusedContentColor = Theme.text1),
@@ -486,7 +486,7 @@ private fun KeyCard(service: String, close: () -> Unit) {
             val fieldInteraction = remember { MutableInteractionSource() }
             Surface(
                 onClick = { typing = true },
-                modifier = Modifier.fillMaxWidth().focusRequester(fieldButton).focusRing(fieldInteraction, shapeField),
+                modifier = Modifier.fillMaxWidth().focusRequester(fieldButton),
                 interactionSource = fieldInteraction,
                 shape = ClickableSurfaceDefaults.shape(shapeField),
                 colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
@@ -570,7 +570,7 @@ private fun NameCard(close: () -> Unit) {
           val fieldInteraction = remember { MutableInteractionSource() }
           Surface(
               onClick = { typing = true },
-              modifier = Modifier.fillMaxWidth().focusRequester(fieldButton).focusRing(fieldInteraction, shapeField),
+              modifier = Modifier.fillMaxWidth().focusRequester(fieldButton),
               interactionSource = fieldInteraction,
               shape = ClickableSurfaceDefaults.shape(shapeField),
               colors = ClickableSurfaceDefaults.colors(containerColor = Theme.glass, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),

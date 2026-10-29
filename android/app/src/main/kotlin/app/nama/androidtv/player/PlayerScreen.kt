@@ -12,7 +12,6 @@ import app.nama.androidtv.ui.LocalCalm
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
-import app.nama.androidtv.ui.focusRing
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import app.nama.androidtv.ui.tint
@@ -473,7 +472,7 @@ private fun OfferPill(offer: Offer, focusable: Boolean = false, accept: () -> Un
       Modifier
           .then(if (focusable) Modifier.clickable(interactionSource = interaction, indication = null, onClick = accept) else Modifier)
           .graphicsLayer { val s = if (focused) 1.06f else 1f; scaleX = s; scaleY = s }
-          .focusRing(focused, shape)
+          
           .height(80.dp).clip(shape).background(accentGradient)
           .drawBehind {
             // Fills as the credits run: when it is full, the next episode starts.
@@ -594,7 +593,7 @@ private fun PlayerButton(
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape, grown = 1.12f),
+      modifier = modifier.semantics { contentDescription = label },
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -676,7 +675,7 @@ private fun Scrubber(engine: PlayerEngine, seekTarget: Double?, focusable: Boole
                     else -> false
                   }
                 }
-                .focusRing(interaction, RoundedCornerShape(50))
+                
                 .focusable(interactionSource = interaction))
             .padding(horizontal = 16.dp).drawBehind {
           val y = size.height / 2
@@ -826,7 +825,7 @@ private fun ChoiceRow(c: Choice, modifier: Modifier) {
   val shape = RoundedCornerShape(20.dp)
   androidx.tv.material3.Surface(
       onClick = c.run,
-      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
+      modifier = modifier.fillMaxWidth(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -932,7 +931,7 @@ private fun SeasonBar(season: Int, count: Int, open: Boolean, playing: Boolean, 
   val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
   androidx.tv.material3.Surface(
       onClick = toggle,
-      modifier = Modifier.fillMaxWidth().padding(top = 6.dp).focusRing(interaction, shape),
+      modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -964,7 +963,7 @@ private fun EpisodeRow(item: app.nama.core.StreamItem, position: Int, playing: B
   val shape = RoundedCornerShape(22.dp)
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.fillMaxWidth().focusRing(interaction, shape),
+      modifier = modifier.fillMaxWidth(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
