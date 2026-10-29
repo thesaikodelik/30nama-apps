@@ -38,6 +38,30 @@ public static class TMDB
 
     public static int? IdInSearch(Json answer) => answer["results"][0]["id"].Int;
 
+    /// <summary>
+    /// The result that is this title, not merely the first: its name (or original name) at least
+    /// 0.8 alike, then the nearest year. Nothing when none is alike enough, so a wrong title's logo
+    /// and plot are not shown (the Tizen and Android apps').
+    /// </summary>
+    public static int? BestInSearch(Json answer, string title, int? year)
+    {
+        var wanted = TitleMatch.StripYear(title);
+        (int Id, double Score)? best = null;
+        foreach (var r in answer["results"].Array)
+        {
+            if (r["id"].Int is not { } id) continue;
+            var names = new[] { r["title"].Text, r["name"].Text, r["original_title"].Text, r["original_name"].Text }.OfType<string>();
+            var alike = names.Select(n => TitleMatch.Similarity(wanted, n)).DefaultIfEmpty(0).Max();
+            if (alike < 0.8) continue;
+            var date = r["release_date"].Text ?? r["first_air_date"].Text;
+            int? theirs = date is { Length: >= 4 } && int.TryParse(date[..4], out var y) ? y : null;
+            var off = year is { } a && theirs is { } b ? Math.Abs(a - b) : 0;
+            var score = alike + off switch { 0 => 0.2, 1 => 0.1, _ => -0.05 * off };
+            if (best is null || score > best.Value.Score) best = (id, score);
+        }
+        return best?.Id;
+    }
+
     /// <summary>Everything a title page shows, in one request.</summary>
     public static HttpRequestMessage DetailsRequest(int id, bool isSeries, string key) =>
         Request($"{(isSeries ? "tv" : "movie")}/{id}",

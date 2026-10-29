@@ -17,6 +17,19 @@ public class TMDBTests
     }
 
     [Fact]
+    public void SearchTakesTheTitleNotTheFirstResult()
+    {
+        static Dictionary<string, object?> R(int id, string title, string date) => new() { ["id"] = id, ["title"] = title, ["release_date"] = date };
+        var answer = Json.From(new Dictionary<string, object?>
+        {
+            ["results"] = new[] { R(1, "Dune Drifter", "2020-01-01"), R(2, "Dune", "1984-12-14"), R(3, "Dune", "2021-09-15") },
+        });
+        Assert.Equal(3, TMDB.BestInSearch(answer, "Dune 2021", 2021));
+        Assert.Equal(2, TMDB.BestInSearch(answer, "Dune", 1984));
+        Assert.Null(TMDB.BestInSearch(answer, "Arrival", 2016));
+    }
+
+    [Fact]
     public void FindsTheTitle()
     {
         var found = Json.From(new Dictionary<string, object?>

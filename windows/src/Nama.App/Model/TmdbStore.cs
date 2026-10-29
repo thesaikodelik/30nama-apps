@@ -72,8 +72,13 @@ public sealed class TmdbStore
         if (Key is not { } key) return await PublicLookAsync(post, lang);
         int? id = null;
         if (post.ImdbId is { } imdb && await JsonAsync(TMDB.FindRequest(imdb, key)) is { } found) id = TMDB.IdInFind(found, post.IsSeries);
-        if (id is null && await JsonAsync(TMDB.SearchRequest(post.TitleEnglish ?? post.Title(Lang.En), post.Year, post.IsSeries, key)) is { } searched)
-            id = TMDB.IdInSearch(searched);
+        // By name: the result that is this title, and again without the year, which TMDB and 30nama
+        // do not always agree on.
+        var name = post.TitleEnglish ?? post.Title(Lang.En);
+        if (id is null && await JsonAsync(TMDB.SearchRequest(name, post.Year, post.IsSeries, key)) is { } searched)
+            id = TMDB.BestInSearch(searched, name, post.Year);
+        if (id is null && post.Year is not null && await JsonAsync(TMDB.SearchRequest(name, null, post.IsSeries, key)) is { } again)
+            id = TMDB.BestInSearch(again, name, post.Year);
         // A failed look is tried again next time the title is opened.
         if (id is not { } tmdbId || await JsonAsync(TMDB.DetailsRequest(tmdbId, post.IsSeries, key)) is not { } details) return null;
         var info = TMDB.InfoIn(details, lang);
