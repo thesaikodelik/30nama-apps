@@ -59,6 +59,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -537,11 +538,21 @@ private fun UpdatesTicker(updates: List<app.nama.core.TitleUpdate>) {
       index = (index + 1) % updates.size
     }
   }
+  val ease = androidx.compose.animation.core.FastOutSlowInEasing
   androidx.compose.animation.AnimatedContent(
-      updates[index.coerceAtMost(updates.size - 1)], Modifier.height(36.dp).widthIn(max = 1100.dp),
+      updates[index.coerceAtMost(updates.size - 1)],
+      // The same box for every line: as wide as the page lets it be, so it never grows or shrinks
+      // with the words and nothing below or beside it moves.
+      Modifier.widthIn(max = 1100.dp).fillMaxWidth().height(40.dp).clipToBounds(),
+      contentAlignment = Alignment.CenterStart,
       transitionSpec = {
-        (androidx.compose.animation.fadeIn(tween(500)) + androidx.compose.animation.slideInVertically(tween(500)) { it / 3 }) togetherWith
-            (androidx.compose.animation.fadeOut(tween(500)) + androidx.compose.animation.slideOutVertically(tween(500)) { -it / 3 })
+        // One line after the other, not both at once over each other (the owner): the old one lifts
+        // away quickly, and the new one rises into its place as it goes.
+        (androidx.compose.animation.fadeIn(tween(380, delayMillis = 160, easing = ease)) +
+            androidx.compose.animation.slideInVertically(tween(420, delayMillis = 160, easing = ease)) { (it * 0.45f).toInt() }) togetherWith
+            (androidx.compose.animation.fadeOut(tween(200)) +
+                androidx.compose.animation.slideOutVertically(tween(260, easing = ease)) { -(it * 0.3f).toInt() }) using
+            androidx.compose.animation.SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.snap() }
       },
       label = "updates",
   ) { update ->
