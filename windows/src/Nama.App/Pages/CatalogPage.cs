@@ -206,7 +206,7 @@ public sealed class CatalogPage : Grid
                 var result = narrowed.IsEmpty
                     ? await App.Api.GetAsync("archive", new Dictionary<string, string>
                     {
-                        ["slugs"] = _slug, ["streamonly"] = "1", ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "desc",
+                        ["slugs"] = _slug, ["streamonly"] = "true", ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "desc",
                     })
                     : await App.Api.GetAsync("advanced_search", new Dictionary<string, string>
                     {
@@ -478,7 +478,8 @@ public sealed class SearchPage : Grid
         {
             var page = new PostPage(await App.Api.GetAsync("search", new Dictionary<string, string>
             {
-                ["query"] = text, ["streamonly"] = _streamOnly ? "1" : "0", ["page"] = "1",
+                // "true", not "1": the server ignores "1" (probed 6 Aban: 2,391 results against 374).
+                ["query"] = text, ["streamonly"] = _streamOnly ? "true" : "false", ["page"] = "1",
             }));
             if (cancel.IsCancellationRequested) return;
             if (page.Posts.Count == 0) await ShowPopularAsync($"{loc[S.nothingFor]} «{text}»");

@@ -288,7 +288,7 @@ public sealed class AppModel
             var file = Path.Combine(Storage.Folder, key is null ? "trending-public.json" : "trending.json");
             _trending = t = (key, new Trending(key, query => Api.GetAsync("search", new Dictionary<string, string>
             {
-                ["query"] = query, ["streamonly"] = "0", ["page"] = "1",
+                ["query"] = query, ["streamonly"] = "false", ["page"] = "1",
             }, background: true), file));
         }
         return await t.Service.RowAsync(TrendingRow.Trend);
