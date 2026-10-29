@@ -17,7 +17,7 @@ on:
         default: ""
       cards_budget:
         description: "Most titles to look up for the backs of posters this run"
-        default: "20000"
+        default: "60000"
 
 permissions:
   contents: write
@@ -61,7 +61,7 @@ jobs:
         continue-on-error: true
         env:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
-          BUDGET: ${{ inputs.cards_budget || '20000' }}
+          BUDGET: ${{ inputs.cards_budget || '60000' }}
           MAX_MINUTES: "120"
         run: |
           python3 -I Tools/logos/test_cards.py

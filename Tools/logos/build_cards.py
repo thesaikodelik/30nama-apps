@@ -11,7 +11,7 @@ from the last: a title already looked up is asked again after RECHECK_DAYS, and 
 BUDGET lookups or MAX_MINUTES. Titles TMDB has a logo for (the better known) come first, newest
 first.
 
-    TMDB_KEY=... [BUDGET=20000] [MAX_MINUTES=120] build_cards.py <folder holding logos.json and state.json>
+    TMDB_KEY=... [BUDGET=60000] [MAX_MINUTES=120] build_cards.py <folder holding logos.json and state.json>
 
 Only TMDB's API is used, with the owner's key from the workflow's secrets; its website turns away
 bulk reading, as it may.
@@ -133,7 +133,7 @@ def look(imdb, key, collections, today):
 def main():
     folder = sys.argv[1]
     key = os.environ["TMDB_KEY"]
-    budget = int(os.environ.get("BUDGET") or 20000)
+    budget = int(os.environ.get("BUDGET") or 60000)
     today = datetime.date.today()
 
     def load(name):
