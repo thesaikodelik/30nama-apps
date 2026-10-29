@@ -411,6 +411,19 @@ public sealed partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(x, y, 0, 0), FlowDirection = _root.FlowDirection,
         };
+        // The wheel over the card moves the page under it, as everywhere else (the owner): the card
+        // steps aside, as it does on the Mac when the page scrolls, and the page goes on.
+        card.PointerWheelChanged += (_, e) =>
+        {
+            var point = e.GetCurrentPoint(_root);
+            e.Handled = true;
+            ClosePeek();
+            if (point.Properties.IsHorizontalMouseWheel) return;
+            var page = Microsoft.UI.Xaml.Media.VisualTreeHelper.FindElementsInHostCoordinates(point.Position, _root)
+                .OfType<ScrollViewer>()
+                .FirstOrDefault(s => s.VerticalScrollMode != ScrollMode.Disabled && s.ScrollableHeight > 0);
+            page?.ChangeView(null, Math.Clamp(page.VerticalOffset - point.Properties.MouseWheelDelta, 0, page.ScrollableHeight), null);
+        };
         _effects.Children.Add(card);
     }
 
