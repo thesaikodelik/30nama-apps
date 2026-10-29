@@ -116,7 +116,11 @@ The Android TV APK carries these libraries, each under the
 - [OkHttp](https://github.com/square/okhttp), networking, by Square
 - [ZXing](https://github.com/zxing/zxing) core, the sign-in QR codes, by ZXing authors
 
-It also carries two of the Vazirmatn fonts (above).
+It also carries five of the Vazirmatn fonts (above), and, for an interface in English, five weights
+of [Inter](https://github.com/rsms/inter) 4.1 cut to Latin, punctuation and symbols, Copyright
+(c) 2016 The Inter Project Authors, under the
+[SIL Open Font License 1.1](https://openfontlicense.org); the licence goes with the APK in
+`assets/licenses/inter.txt`.
 
 Its icons are drawn from [Phosphor Icons](https://github.com/phosphor-icons/core)
 (`@phosphor-icons/core` 2.1.1), by Phosphor Icons, under the MIT License:

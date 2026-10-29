@@ -193,6 +193,16 @@ class AppModel(
     private set
   /** Set by Settings' language row: the pages are built anew in the new language, and focus goes back to that row. */
   var refocusLanguage = false
+
+  /**
+   * A language asked for and not yet put on: the shell turns the screen off as an old TV did, puts
+   * the language on in the dark, and turns it on again (the owner). Null when none is waiting.
+   */
+  var switchingTo by mutableStateOf<Lang?>(null)
+
+  fun switchLanguage(lang: Lang) {
+    if (switchingTo == null && lang != settings.lang) switchingTo = lang
+  }
   /** Bumped when the catalogue itself may differ: sign-in, sign-out, language. */
   var contentVersion by mutableIntStateOf(0)
     private set

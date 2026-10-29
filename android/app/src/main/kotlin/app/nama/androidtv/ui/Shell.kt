@@ -65,6 +65,9 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -165,6 +168,8 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
   // The TV's own "animations off" (an accessibility setting) counts as reduced motion too.
   val context = androidx.compose.ui.platform.LocalContext.current
   val systemCalm = remember { systemAnimationsOff(context) }
+  // Read before anything is drawn in the language, so the first frame is already in its face.
+  useLatinType(context, !app.settings.lang.isRTL)
   ScreenUnits {
     // Every page, list, panel and menu scrolls as the title page does (Minimal): what has focus is
     // always whole on the screen, 120 points clear of each edge (so of the tab bar too), and the
@@ -206,7 +211,19 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
       // only a Backspace whose going down reached here too.
       val back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
       var backspaceDown by remember { mutableStateOf(false) }
-      Box(Modifier.fillMaxSize().background(Theme.bg0).onKeyEvent { e ->
+      // A new language: the picture closes to a bright line and a dot and goes dark, the language
+      // goes on in the dark, and it opens again (the owner); with reduced motion, a fade through black.
+      val crt = remember { Animatable(0f) }
+      val calmNow = LocalCalm.current
+      LaunchedEffect(app.switchingTo) {
+        val to = app.switchingTo ?: return@LaunchedEffect
+        crt.animateTo(1f, tween(if (calmNow) 300 else 520, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+        app.update { it.copy(lang = to) }
+        delay(420)
+        crt.animateTo(0f, tween(if (calmNow) 400 else 640, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+        app.switchingTo = null
+      }
+      Box(Modifier.fillMaxSize().crt({ crt.value }, calmNow).onPreviewKeyEvent { app.switchingTo != null }.background(Theme.bg0).onKeyEvent { e ->
         if (e.key != Key.Backspace) return@onKeyEvent false
         if (e.type == KeyEventType.KeyDown) backspaceDown = true
         else if (e.type == KeyEventType.KeyUp && backspaceDown) {
@@ -771,3 +788,42 @@ private fun TabItem(title: String, icon: androidx.compose.ui.graphics.vector.Ima
 /** Animations switched off for the whole TV, in its accessibility or developer settings. */
 fun systemAnimationsOff(context: android.content.Context): Boolean =
     runCatching { android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
+
+/**
+ * An old TV turning off at [progress] 0 to 1: the picture squeezed to a line as it brightens, the
+ * line drawn in to a dot, the dot fading on black. Run backwards, it turns on. [calm]: black alone.
+ */
+private fun Modifier.crt(progress: () -> Float, calm: Boolean): Modifier = drawWithContent {
+  val p = progress()
+  if (p <= 0f) return@drawWithContent drawContent()
+  if (calm) {
+    drawContent()
+    return@drawWithContent drawRect(Color.Black.copy(alpha = p))
+  }
+  drawRect(Color.Black)
+  val squeeze = (p / 0.55f).coerceAtMost(1f)
+  val narrow = ((p - 0.55f) / 0.3f).coerceIn(0f, 1f)
+  val fade = ((p - 0.85f) / 0.15f).coerceIn(0f, 1f)
+  val lineHeight = 3f
+  val h = (size.height * (1f - squeeze * squeeze)).coerceAtLeast(lineHeight)
+  val w = size.width * (1f - narrow * narrow).coerceAtLeast(0f)
+  val top = (size.height - h) / 2f
+  val left = (size.width - w) / 2f
+  if (narrow == 0f) {
+    clipRect(0f, top, size.width, top + h) {
+      scale(1f, h / size.height, center) { this@drawWithContent.drawContent() }
+    }
+  }
+  // The picture whitening as it closes, then the line itself.
+  drawRect(Color.White.copy(alpha = (squeeze * 0.9f) * (1f - fade)), androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Size(w, h))
+  if (squeeze >= 1f) {
+    val glow = 1f - fade
+    for ((spread, a) in listOf(28f to 0.10f, 12f to 0.22f, 5f to 0.5f)) {
+      drawRect(Color(0xFFDDE8FF).copy(alpha = a * glow), androidx.compose.ui.geometry.Offset(left, center.y - spread), androidx.compose.ui.geometry.Size(w, spread * 2))
+    }
+    if (narrow >= 1f) {
+      drawCircle(Color.White.copy(alpha = glow), radius = 7f, center = center)
+      drawCircle(Color(0xFFDDE8FF).copy(alpha = 0.25f * glow), radius = 26f, center = center)
+    }
+  }
+}

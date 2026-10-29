@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -81,9 +83,63 @@ val Vazirmatn = FontFamily(
     Font(R.font.vazirmatn_extrabold, FontWeight.Black),
 )
 
+/**
+ * Inter for an interface in English: Vazirmatn's Latin is drawn to sit beside Persian and alone read
+ * heavy and rough (the owner). The Mac's is SF Pro; Inter is the free face nearest it. Cut to Latin,
+ * punctuation and symbols (Tools: fontTools subset), so it adds little to the APK.
+ */
+private val Inter = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+    Font(R.font.inter_extrabold, FontWeight.ExtraBold),
+    Font(R.font.inter_extrabold, FontWeight.Black),
+)
+
+/**
+ * The families an English interface uses, one per weight, set by the shell from the language; null
+ * in Persian and Arabic, which keep Vazirmatn. From Android 10 each is Inter with Vazirmatn behind it,
+ * so a Persian name in an English line (a title's updates, a person) is still Vazirmatn; before
+ * that, Android's own Persian face draws such a line.
+ */
+private var latinType by androidx.compose.runtime.mutableStateOf<Map<FontWeight, FontFamily>?>(null)
+
+private val weights = listOf(
+    FontWeight.Normal to R.font.inter_regular, FontWeight.Medium to R.font.inter_medium,
+    FontWeight.SemiBold to R.font.inter_semibold, FontWeight.Bold to R.font.inter_bold,
+    FontWeight.ExtraBold to R.font.inter_extrabold,
+)
+private val persianOf = mapOf(
+    FontWeight.Normal to R.font.vazirmatn_regular, FontWeight.Medium to R.font.vazirmatn_medium,
+    FontWeight.SemiBold to R.font.vazirmatn_semibold, FontWeight.Bold to R.font.vazirmatn_bold,
+    FontWeight.ExtraBold to R.font.vazirmatn_extrabold,
+)
+
+/** Builds (once) or drops the English families, as the language is. */
+fun useLatinType(context: android.content.Context, english: Boolean) {
+  if (!english) return run { latinType = null }
+  if (latinType != null) return
+  latinType = weights.associate { (weight, latin) ->
+    val chained = if (android.os.Build.VERSION.SDK_INT >= 29) runCatching {
+      fun family(id: Int) = android.graphics.fonts.FontFamily.Builder(android.graphics.fonts.Font.Builder(context.resources, id).build()).build()
+      val typeface = android.graphics.Typeface.CustomFallbackBuilder(family(latin))
+          .addCustomFallback(family(persianOf.getValue(weight)))
+          .setStyle(android.graphics.fonts.FontStyle(weight.weight, android.graphics.fonts.FontStyle.FONT_SLANT_UPRIGHT))
+          .build()
+      FontFamily(androidx.compose.ui.text.font.Typeface(typeface))
+    }.getOrNull() else null
+    weight to (chained ?: Inter)
+  }
+}
+
 /** The app's type at a size in screen points, as `.app(size, weight)` on the Apple TV. */
-fun app(size: Int, weight: FontWeight = FontWeight.Normal): TextStyle =
-    TextStyle(fontFamily = Vazirmatn, fontSize = size.sp, fontWeight = weight)
+fun app(size: Int, weight: FontWeight = FontWeight.Normal): TextStyle {
+  val latin = latinType ?: return TextStyle(fontFamily = Vazirmatn, fontSize = size.sp, fontWeight = weight)
+  // Each English family is one weight already: the nearest is taken, and nothing is made bolder by hand.
+  val family = latin[weights.minBy { kotlin.math.abs(it.first.weight - weight.weight) }.first] ?: Inter
+  return TextStyle(fontFamily = family, fontSize = size.sp, fontWeight = weight, fontSynthesis = androidx.compose.ui.text.font.FontSynthesis.None)
+}
 
 /**
  * The colour of the title this part of the screen is about, from its poster (`Post.tint()`), as the

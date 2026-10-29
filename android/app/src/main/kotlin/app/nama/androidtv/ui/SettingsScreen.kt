@@ -160,7 +160,7 @@ fun SettingsScreen() {
           }
           Choice(loc(S.language), s.lang.nativeName, Help(tv(TV.languageHint), langs, s.lang.nativeName), { help = it }, Modifier.focusRequester(languageRow)) {
             app.refocusLanguage = true
-            app.update { it.copy(lang = next(it.lang, Lang.entries.toList())) }
+            app.switchLanguage(next(app.settings.lang, Lang.entries.toList()))
           }
         }
         Group(loc(S.playback)) {
@@ -282,7 +282,7 @@ fun SettingsScreen() {
             }
           }
           Fact(loc(S.apiHost), app.apiHost ?: "—")
-          Choice(tv(TV.licenses), "Vazirmatn · OFL", Help(loc(S.unofficial)), { help = it }) {}
+          Choice(tv(TV.licenses), "Vazirmatn, Inter · OFL", Help(loc(S.unofficial)), { help = it }) {}
         }
       }
     }
