@@ -294,6 +294,19 @@ public sealed class PlayerEngine
         Playback.Play();
     }
 
+    /// <summary>Episodes begun on their own in a row, with nothing pressed or moved since.</summary>
+    private int _unattended;
+
+    /// <summary>A key, or the mouse: someone is watching.</summary>
+    public void Touched() => _unattended = 0;
+
+    /// <summary>
+    /// Where the credits begin: 30nama's mark, or without one the last 25 seconds, so the next
+    /// episode is offered and counted down to all the same (the Android app's).
+    /// </summary>
+    private double? CreditsAt => Current.CreditsStart is double credits and > 0 && credits < Duration ? credits
+        : Duration > 120 ? Duration - 25 : null;
+
     private void Finished()
     {
         if (Sleep is SleepTimer.EndOfEpisode)
@@ -302,7 +315,19 @@ public sealed class PlayerEngine
             Close();
             return;
         }
-        if (HasNext && _app.Settings.AutoplayNext) Start(Index + 1);
+        if (HasNext && _app.Settings.AutoplayNext)
+        {
+            // After three episodes in a row with nothing pressed, nobody may be watching: stop there,
+            // with no dialog asking (the Android app's).
+            if (_unattended >= 3)
+            {
+                _app.ShowToast(Loc[Extra.stillWatchingStopped]);
+                Close();
+                return;
+            }
+            _unattended++;
+            Start(Index + 1);
+        }
         else Close();
     }
 
@@ -525,10 +550,10 @@ public sealed class PlayerEngine
                 due = null;
             }
         }
-        else if (Current.CreditsStart is double credits and > 0 && seconds >= credits && HasNext)
+        else if (CreditsAt is double credits && seconds >= credits && HasNext)
         {
             due = Offers.Next;
-            if (_app.Settings.AutoplayNext && Sleep is not SleepTimer.EndOfEpisode && Duration > credits)
+            if (_app.Settings.AutoplayNext && Sleep is not SleepTimer.EndOfEpisode && _unattended < 3 && Duration > credits)
                 // In steps, so the pill is not redrawn four times a second.
                 left = Math.Round(Math.Clamp((seconds - credits) / (Duration - credits), 0, 1) * 50) / 50;
         }

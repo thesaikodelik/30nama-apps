@@ -88,7 +88,12 @@ public sealed partial class PlayerPage : Grid
             if (_window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter) presenter.IsAlwaysOnTop = pinned;
         };
         _hide.Tick += (_, _) => HideControls();
-        PointerMoved += (_, _) => Wake();
+        // The mouse, a click or a key: someone is watching (autoplay stops after three episodes without).
+        PointerMoved += (_, _) =>
+        {
+            _engine.Touched();
+            Wake();
+        };
         Tapped += OnTapped;
         DoubleTapped += (_, e) =>
         {
@@ -169,6 +174,7 @@ public sealed partial class PlayerPage : Grid
     /// <summary>A click on the picture shows the controls, or puts them away; pausing is Space or the button.</summary>
     private void OnTapped(object sender, TappedRoutedEventArgs e)
     {
+        _engine.Touched();
         if (e.OriginalSource is not FrameworkElement f || !IsOnPicture(f)) return;
         if (_episodesOpen) { SetEpisodes(false); Wake(); }
         else if (_controls) HideControls();
@@ -181,6 +187,7 @@ public sealed partial class PlayerPage : Grid
 
     private void OnKey(object sender, KeyRoutedEventArgs e)
     {
+        _engine.Touched();
         Wake();
         var handled = true;
         switch (e.Key)
