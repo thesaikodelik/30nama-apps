@@ -197,13 +197,23 @@ fun PlayerScreen(request: PlaybackRequest) {
     delay(5_000)
     controls = false
   }
+  // Up by themselves as a film starts: focus goes to the offer showing (start over, skip intro),
+  // so select still takes it, as it does with nothing up; Play otherwise.
+  var startShown by remember { mutableStateOf(false) }
+  val offerFocus = remember { FocusRequester() }
   LaunchedEffect(controls) {
     withFrameNanos {}
-    runCatching { if (controls) playButton.requestFocus() else surface.requestFocus() }
+    val toOffer = controls && startShown && engine.offer != null
+    startShown = false
+    runCatching { if (toOffer) offerFocus.requestFocus() else if (controls) playButton.requestFocus() else surface.requestFocus() }
   }
   // As each film or episode starts, its controls and timeline show for a few seconds, the skip
   // offer with them, and then step aside as after any key (the owner).
-  LaunchedEffect(engine.index, engine.pictured) { if (engine.pictured) controls = true }
+  LaunchedEffect(engine.index, engine.pictured) {
+    if (!engine.pictured) return@LaunchedEffect
+    startShown = true
+    controls = true
+  }
   // A panel closing gives focus back to the button that opened it.
   val opener = remember { Panel.entries.associateWith { FocusRequester() } }
   var lastPanel by remember { mutableStateOf<Panel?>(null) }
@@ -408,7 +418,7 @@ fun PlayerScreen(request: PlaybackRequest) {
         // Its margin from the right in every language too: `end` is the left in Persian.
         Modifier.align(androidx.compose.ui.AbsoluteAlignment.BottomRight).absolutePadding(right = Theme.edge, bottom = offerLift),
         enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut(),
-    ) { engine.offer?.let { OfferPill(it, focusable = controls) { engine.acceptOffer() } } }
+    ) { engine.offer?.let { OfferPill(it, focusable = controls, focus = offerFocus) { engine.acceptOffer() } } }
 
     AnimatedVisibility(controls && panel != Panel.Episodes, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) { PlayerTop(engine) }
     AnimatedVisibility((controls || seekTarget != null) && panel != Panel.Episodes, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
@@ -458,7 +468,7 @@ private fun SubtitleLine(text: String, modifier: Modifier) {
 // MARK: The pill
 
 @Composable
-private fun OfferPill(offer: Offer, focusable: Boolean = false, accept: () -> Unit = {}) {
+private fun OfferPill(offer: Offer, focusable: Boolean = false, focus: FocusRequester? = null, accept: () -> Unit = {}) {
   val loc = LocalLoc.current
   val shape = RoundedCornerShape(50)
   // With the controls up it is a button of its own, Up from them; with nothing up, select takes it.
@@ -472,7 +482,7 @@ private fun OfferPill(offer: Offer, focusable: Boolean = false, accept: () -> Un
   }
   Row(
       Modifier
-          .then(if (focusable) Modifier.clickable(interactionSource = interaction, indication = null, onClick = accept) else Modifier)
+          .then(if (focusable) (focus?.let { Modifier.focusRequester(it) } ?: Modifier).clickable(interactionSource = interaction, indication = null, onClick = accept) else Modifier)
           .graphicsLayer { val s = if (focused) 1.06f else 1f; scaleX = s; scaleY = s }
           .focusRing(focused, shape)
           .height(80.dp).clip(shape).background(accentGradient)

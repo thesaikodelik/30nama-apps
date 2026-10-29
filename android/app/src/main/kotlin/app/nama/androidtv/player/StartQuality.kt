@@ -15,7 +15,10 @@ object StartQuality {
   fun pick(item: StreamItem, adaptive: Boolean, cap: Int, device: Int = 0): Quality? {
     val fixed = item.qualities.filter { !it.isAuto && it.height > 0 }
     if (fixed.isEmpty()) return item.quality(adaptive)
-    val limit = if (cap > 0) cap else if (!adaptive) device else 0
+    // The adaptive stream is held down by the player; a fixed file, chosen also where adaptive was
+    // asked for but the title has none, is held here.
+    val adaptiveThere = adaptive && item.qualities.any { it.isAuto }
+    val limit = if (cap > 0) cap else if (!adaptiveThere) device else 0
     if (limit <= 0) return item.quality(adaptive)
     val most = if (device > 0) minOf(limit, device) else limit
     return fixed.filter { it.height <= most }.maxByOrNull { it.height } ?: fixed.minBy { it.height }

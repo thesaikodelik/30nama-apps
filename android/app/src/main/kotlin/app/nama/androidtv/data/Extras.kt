@@ -211,7 +211,7 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
   /** What the back of each title's poster shows, by post id, once looked for; a title with nothing is not kept. */
   val cards = mutableStateMapOf<Int, app.nama.core.TitleCard>()
   /** The daily files read this session, by name: each holds a hundredth of the catalogue. */
-  private val cardFiles = HashMap<String, Json>()
+  private val cardFiles = android.util.LruCache<String, Json>(6)
 
   /**
    * The back of the title's poster: from the daily file on GitHub, which every viewer can read (in
@@ -227,7 +227,7 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
 
   private suspend fun dailyCard(imdb: String): app.nama.core.TitleCard? {
     val name = app.nama.core.TitleCard.shard(imdb)
-    val file = cardFiles[name] ?: app.nama.core.TitleCard.address(imdb)?.let { json(HttpRequest(it.toString())) }?.also { cardFiles[name] = it } ?: return null
+    val file = cardFiles.get(name) ?: app.nama.core.TitleCard.address(imdb)?.let { json(HttpRequest(it.toString())) }?.also { cardFiles.put(name, it) } ?: return null
     return app.nama.core.TitleCard.fromShard(file, imdb)
   }
 

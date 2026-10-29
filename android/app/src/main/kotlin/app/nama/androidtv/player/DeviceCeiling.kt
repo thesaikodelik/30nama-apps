@@ -18,10 +18,16 @@ object DeviceCeiling {
 
   fun lines(context: Context): Int = known ?: (runCatching { shown(context).let { s -> decoded().let { d -> listOf(s, d).filter { it > 0 }.minOrNull() ?: 0 } } }.getOrDefault(0)).also { known = it }
 
-  /** The tallest mode the screen offers, as lines of a landscape picture. */
+  /**
+   * The tallest mode the screen offers, as lines of a landscape picture. Some 4K TVs (Sony's,
+   * some Philips and TCL) list only 1080p modes; Media3 knows their own ways of saying 4K.
+   */
+  @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
   private fun shown(context: Context): Int {
     val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY) ?: return 0
-    return display.supportedModes.maxOfOrNull { minOf(it.physicalWidth, it.physicalHeight) } ?: 0
+    val modes = display.supportedModes.maxOfOrNull { minOf(it.physicalWidth, it.physicalHeight) } ?: 0
+    val media3 = runCatching { androidx.media3.common.util.Util.getCurrentDisplayModeSize(context, display).let { minOf(it.x, it.y) } }.getOrDefault(0)
+    return maxOf(modes, media3)
   }
 
   /** The tallest 16:9 picture a hardware decoder for H.264 or HEVC takes; 0 where none says. */
@@ -32,7 +38,12 @@ object DeviceCeiling {
       for (type in info.supportedTypes) {
         if (!type.equals("video/avc", true) && !type.equals("video/hevc", true)) continue
         val video = runCatching { info.getCapabilitiesForType(type).videoCapabilities }.getOrNull() ?: continue
-        best = maxOf(best, listOf(3840 to 2160, 2560 to 1440, 1920 to 1080, 1280 to 720).firstOrNull { (w, h) -> video.isSizeSupported(w, h) }?.second ?: 0)
+        // Rounded up to the decoder's own alignment first, as Media3 does: 1080 is not a multiple
+        // of 16, and a 1080p decoder that wants 16 said no to it, leaving 720.
+        fun up(v: Int, by: Int) = if (by > 1) (v + by - 1) / by * by else v
+        best = maxOf(best, listOf(3840 to 2160, 2560 to 1440, 1920 to 1080, 1280 to 720).firstOrNull { (w, h) ->
+          video.isSizeSupported(up(w, video.widthAlignment), up(h, video.heightAlignment))
+        }?.second ?: 0)
       }
     }
     return best

@@ -235,7 +235,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       .build().also { p ->
         // The adaptive stream no taller than this screen shows and its decoder reads (DeviceCeiling).
         DeviceCeiling.lines(context).takeIf { it > 0 }?.let { lines ->
-          p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setMaxVideoSize(lines * 16 / 9 + 16, lines + 16).build()
+          // By height alone: a 2048x858 scope picture is well within a 1080p screen.
+          p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setMaxVideoSize(Int.MAX_VALUE, lines + 16).build()
         }
       }
 
@@ -372,6 +373,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     report()
     keep()
     index = i
+    // Each file's own first frame brings the controls up (PlayerScreen), not the change of index.
+    pictured = false
     reportedTime = 0
     // Not the last file's length for this one, as the switch reports it.
     duration = 0.0

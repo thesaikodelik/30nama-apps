@@ -25,11 +25,11 @@ class MainActivity : ComponentActivity() {
    * the key first), so every card and sheet, which close on Back, stayed open.
    */
   override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+    if (event.action == android.view.KeyEvent.ACTION_DOWN) (application as NamaApp).model.lastKey = System.currentTimeMillis()
     if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
       if (event.action == android.view.KeyEvent.ACTION_UP && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
       return true
     }
-    if (event.action == android.view.KeyEvent.ACTION_DOWN) (application as NamaApp).model.lastKey = System.currentTimeMillis()
     val handled = super.dispatchKeyEvent(event)
     // An arrow Compose found nowhere to go with (the last item of a page, its first row) stays
     // here. Left unhandled, Android's own view focus search took it and put focus back into Compose

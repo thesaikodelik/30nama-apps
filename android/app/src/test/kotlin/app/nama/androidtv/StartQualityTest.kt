@@ -31,6 +31,7 @@ class StartQualityTest {
     assertEquals("the lower of the two", "720p", StartQuality.pick(i, adaptive = false, cap = 720, device = 1080)?.label)
     assertEquals("a cap above the device is the device", "1080p", StartQuality.pick(i, adaptive = false, cap = 2160, device = 1080)?.label)
     assertEquals("the adaptive stream stays it; the player holds it down", "Auto", StartQuality.pick(i, adaptive = true, cap = 0, device = 1080)?.label)
+    assertEquals("adaptive asked for but not there: the device still bounds the file", "1080p", StartQuality.pick(item("2160p", "1080p"), adaptive = true, cap = 0, device = 1080)?.label)
   }
 
   @Test fun nothingThatLowTakesTheLowest() {

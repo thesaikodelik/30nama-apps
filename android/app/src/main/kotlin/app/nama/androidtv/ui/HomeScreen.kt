@@ -205,6 +205,8 @@ fun HomeScreen() {
   LaunchedEffect(browsing) {
     val at = browsing ?: return@LaunchedEffect
     if (app.settings.dataSaver) return@LaunchedEffect
+    // Once focus rests a moment: a held remote along a row queued dozens, ahead of the title in focus.
+    delay(250)
     val posts = rows.firstOrNull { it.key == at.row }?.posts ?: return@LaunchedEffect
     val i = at.rank - 1
     val near = (if (lively) listOf(i + 1, i + 2, i - 1) else listOf(i + 1, i - 1)).mapNotNull { posts.getOrNull(it) }
