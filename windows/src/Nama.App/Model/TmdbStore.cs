@@ -150,6 +150,48 @@ public sealed class TmdbStore
     }
 
 
+    /// <summary>What the back of each title's poster shows, by post id, once found.</summary>
+    private readonly Dictionary<int, TitleCard> _cards = [];
+    /// <summary>The daily files read this run, newest last: each holds a hundredth of the catalogue.</summary>
+    private readonly List<(string Name, Json File)> _cardFiles = [];
+
+    /// <summary>
+    /// The back of the title's poster: from the daily file on GitHub, which every viewer can read; for
+    /// a title not in it yet, from TMDB's own answer where the viewer has a key (the Android app's).
+    /// </summary>
+    public async Task<TitleCard?> CardAsync(Post post)
+    {
+        if (_cards.TryGetValue(post.Id, out var known)) return known;
+        TitleCard? card = null;
+        if (post.ImdbId is { } imdb && await CardFileAsync(imdb) is { } file) card = TitleCard.FromShard(file, imdb);
+        if (card is null && Key is { } key && Stored(post) is { Details: { } details })
+        {
+            var collection = details["belongs_to_collection"]["id"].Int is { } c
+                ? await JsonAsync(TMDB.Request($"collection/{c}", [("append_to_response", "translations")], key)) : null;
+            card = TitleCard.FromTMDB(details, collection);
+        }
+        if (card is not null) _cards[post.Id] = card;
+        return card;
+    }
+
+    private async Task<Json?> CardFileAsync(string imdb)
+    {
+        var name = TitleCard.Shard(imdb);
+        if (_cardFiles.FindIndex(f => f.Name == name) is var at and >= 0) return _cardFiles[at].File;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, TitleCard.Address(imdb));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var response = await Net(request, timeout.Token);
+            if ((int)response.StatusCode != 200) return null;
+            var file = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
+            if (_cardFiles.FindIndex(f => f.Name == name) < 0) _cardFiles.Add((name, file));
+            if (_cardFiles.Count > 6) _cardFiles.RemoveAt(0);
+            return file;
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>
     /// Until when TMDB is not asked: after it failed to answer, a minute (as the Android app and
     /// 30namaTV do), so a home page of forty titles does not wait out forty timeouts on a filtered line.

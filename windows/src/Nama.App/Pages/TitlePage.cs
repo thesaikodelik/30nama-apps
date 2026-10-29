@@ -3,6 +3,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Nama.App.Model;
 using Nama.App.Shell;
 using Nama.App.UI;
@@ -243,6 +244,137 @@ public sealed class TitlePage : Grid
         _column.Children.Add(Facts());
     }
 
+    /// <summary>The back of the poster, once found: another of its posters, its own name, its collection and its maker.</summary>
+    private async Task BackAsync(Grid poster, Button turn)
+    {
+        var post = Post;
+        if (await TmdbStore.Shared.CardAsync(post) is not { } card || post.Id != Post.Id) return;
+        poster.Children.Add(Back(card));
+        turn.IsTabStop = true;
+    }
+
+    private static Grid Back(TitleCard card)
+    {
+        var loc = App.Loc;
+        var back = new Grid { Background = Theme.Brush(Theme.Bg0), Visibility = Visibility.Collapsed, Tag = "back", FlowDirection = loc.Lang.IsRtl() ? FlowDirection.RightToLeft : FlowDirection.LeftToRight };
+        if (card.Poster is { } other)
+        {
+            var picture = Images.Remote(TitleCard.Picture(other), null, PosterWidth * 1.5);
+            picture.Opacity = 0.85;
+            back.Children.Add(picture);
+        }
+        // Dark enough for the words over it, at the top and the foot; the picture clear between.
+        back.Children.Add(new Border
+        {
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Windows.Foundation.Point(0.5, 0), EndPoint = new Windows.Foundation.Point(0.5, 1),
+                GradientStops =
+                {
+                    new GradientStop { Color = Theme.Hex(0, 0.62), Offset = 0 }, new GradientStop { Color = Theme.Hex(0, 0.18), Offset = 0.35 },
+                    new GradientStop { Color = Theme.Hex(0, 0.38), Offset = 0.65 }, new GradientStop { Color = Theme.Hex(0, 0.85), Offset = 1 },
+                },
+            },
+        });
+        var words = new Grid { Padding = new Thickness(18, 24, 18, 24) };
+        for (var i = 0; i < 3; i++) words.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        TextBlock Centred(string text, double size, Windows.UI.Text.FontWeight weight, Color color, int lines)
+        {
+            var t = Theme.Text(text, size, weight, color, lines: lines);
+            t.TextAlignment = TextAlignment.Center;
+            t.HorizontalAlignment = HorizontalAlignment.Center;
+            t.TextReadingOrder = TextReadingOrder.DetectFromContent;
+            return t;
+        }
+        if (card.OwnName is { } own)
+        {
+            var name = Centred(own, 26, FontWeights.ExtraBold, Colors.White, 4);
+            name.VerticalAlignment = VerticalAlignment.Top;
+            words.Children.Add(name);
+        }
+        if (card.Collection is { } c)
+        {
+            var part = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            if (c.Name(loc.Lang) is { } title) part.Children.Add(Centred(title, 15, FontWeights.SemiBold, Theme.Text2, 3));
+            part.Children.Add(Centred(loc[Extra.partOf].Replace("{at}", loc.Num(c.At)).Replace("{of}", loc.Num(c.Of)), 20, FontWeights.Bold, Colors.White, 1));
+            Grid.SetRow(part, 1);
+            words.Children.Add(part);
+        }
+        FrameworkElement? maker = card.CompanyLogo is { } logo ? MakerLogo(TitleCard.Picture(logo), card.CompanyName)
+            : card.CompanyName is { } company ? Centred(company, 14, FontWeights.SemiBold, Theme.Text2, 1) : null;
+        if (maker is not null)
+        {
+            maker.VerticalAlignment = VerticalAlignment.Bottom;
+            Grid.SetRow(maker, 2);
+            words.Children.Add(maker);
+        }
+        back.Children.Add(words);
+        return back;
+    }
+
+    /// <summary>
+    /// The maker's logo in its own colours, with a light outline of its own shape around it, as a
+    /// sticker has (the Android app's): bare, a dark logo is lost on the dark back, and on a white
+    /// plate it stands out too much. The outline is a white shadow cast from the logo's own shape.
+    /// </summary>
+    private static FrameworkElement MakerLogo(Uri url, string? name)
+    {
+        var image = new Image { Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(url) { DecodePixelWidth = 300 }, Stretch = Stretch.Uniform, MaxWidth = 150, MaxHeight = 38 };
+        if (name is not null) Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(image, name);
+        var host = new Grid { HorizontalAlignment = HorizontalAlignment.Center };
+        var under = new Border();
+        host.Children.Add(under);
+        host.Children.Add(image);
+        void Cast()
+        {
+            if (image.ActualWidth <= 0) return;
+            var compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(under).Compositor;
+            var shadow = compositor.CreateDropShadow();
+            shadow.Mask = image.GetAlphaMask();
+            shadow.Color = Colors.White;
+            shadow.BlurRadius = 3;
+            shadow.Opacity = 0.9f;
+            var sprite = compositor.CreateSpriteVisual();
+            sprite.Size = new System.Numerics.Vector2((float)image.ActualWidth, (float)image.ActualHeight);
+            sprite.Shadow = shadow;
+            Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetElementChildVisual(under, sprite);
+        }
+        image.ImageOpened += (_, _) => image.DispatcherQueue.TryEnqueue(Cast);
+        image.SizeChanged += (_, _) => Cast();
+        return host;
+    }
+
+    /// <summary>Over to the back and again: the poster narrows to an edge and opens on its other side.</summary>
+    private static void Turn(Grid poster, FrameworkElement lifted)
+    {
+        if (poster.Children.OfType<Grid>().FirstOrDefault(g => "back".Equals(g.Tag)) is not { } back) return;
+        void Swap() => back.Visibility = back.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        if (App.Settings.ReduceMotion)
+        {
+            Swap();
+            return;
+        }
+        var scale = lifted.RenderTransform as ScaleTransform ?? new ScaleTransform();
+        lifted.RenderTransform = scale;
+        lifted.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+        Storyboard Half(double to, EasingMode mode)
+        {
+            var a = new DoubleAnimation { To = to, Duration = TimeSpan.FromMilliseconds(170), EasingFunction = new CubicEase { EasingMode = mode } };
+            Storyboard.SetTarget(a, scale);
+            Storyboard.SetTargetProperty(a, "ScaleX");
+            var board = new Storyboard();
+            board.Children.Add(a);
+            return board;
+        }
+        var closing = Half(0, EasingMode.EaseIn);
+        closing.Completed += (_, _) =>
+        {
+            Swap();
+            Half(1, EasingMode.EaseOut).Begin();
+        };
+        closing.Begin();
+    }
+
     private FrameworkElement Header()
     {
         var loc = App.Loc;
@@ -263,7 +395,12 @@ public sealed class TitlePage : Grid
         lifted.VerticalAlignment = VerticalAlignment.Top;
         if (_held) lifted.Opacity = 0;
         _poster = lifted;
-        row.Children.Add(lifted);
+        // Clicked, the poster turns over to what is behind it, once there is something there.
+        var turn = Theme.Bare(lifted, () => Turn(poster, lifted));
+        turn.VerticalAlignment = VerticalAlignment.Top;
+        turn.IsTabStop = false;
+        row.Children.Add(turn);
+        _ = BackAsync(poster, turn);
 
         var info = new StackPanel { Spacing = 14 };
         info.Children.Add(Theme.Text(loc.KindLine(post), 14, FontWeights.SemiBold, Theme.Text2));
