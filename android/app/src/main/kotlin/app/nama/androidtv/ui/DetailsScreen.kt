@@ -184,7 +184,8 @@ fun DetailsScreen(route: Route.Details) {
     loadStream(quietly = false)
   }
   // Focus starts on Play: the shell enters the page there, and waits for it (PageEntry).
-  DeclarePageEntry()
+  // Not while it shows only Retry: the shell then waited for a Play that never came, and nothing had focus.
+  DeclarePageEntry(!failed)
   val scroll = rememberScrollState()
   val margin = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.toPx() }
   val minimal = remember(margin) { Minimal(margin) }
@@ -373,7 +374,9 @@ private fun Header(
   val flying = LocalNav.current.flight?.post?.id == post.id
   // The light behind the poster breathes, slowly, in the poster's own colour (the owner's choice
   // among five). Read only where drawn; still at its middle on a weak TV or with reduced motion.
-  val breathes = LocalLively.current && !LocalCalm.current
+  val covered = LocalApp.current.let { it.playback != null || it.trailer != null }
+  // Not under the player: it redrew the page every frame through the film.
+  val breathes = LocalLively.current && !LocalCalm.current && !covered
   val breath = remember { androidx.compose.animation.core.Animatable(0.5f) }
   LaunchedEffect(breathes) {
     if (!breathes) return@LaunchedEffect breath.snapTo(0.5f)
@@ -805,8 +808,15 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         }
       }
     }
+    // At the episode it lands on (the one to resume): only tiles on screen exist in a lazy row, and
+    // focus coming down found no tile to take it when that one was far along.
+    val tiles = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(landing?.value?.id, shown.size) {
+      val at = shown.indexOfFirst { it.value.id == landing?.value?.id }
+      if (at >= 0) tiles.scrollToItem(at)
+    }
     LazyRow(
-        Modifier.focusRestorer(focus), horizontalArrangement = Arrangement.spacedBy(24.dp),
+        Modifier.focusRestorer(focus), state = tiles, horizontalArrangement = Arrangement.spacedBy(24.dp),
         contentPadding = PaddingValues(horizontal = Theme.edge, vertical = 18.dp),
     ) {
       items(shown, key = { it.value.id }) { (index, item) ->

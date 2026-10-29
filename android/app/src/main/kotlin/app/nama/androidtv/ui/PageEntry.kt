@@ -38,9 +38,9 @@ val LocalPageEntry = staticCompositionLocalOf<PageEntry?> { null }
  * exists (it may wait for the page's data). Call it at the top of the page.
  */
 @Composable
-fun DeclarePageEntry() {
+fun DeclarePageEntry(has: Boolean = true) {
   val entry = LocalPageEntry.current ?: return
-  entry.declared = true
+  entry.declared = has
 }
 
 /** Marks the control the shell gives focus to when it enters this page. */

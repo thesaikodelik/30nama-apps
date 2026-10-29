@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -229,6 +230,7 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
               }
             }
             .shadowGlow(level)
+            .clip(shape)
             .drawBehind {
               // The red rising from the side a line starts on.
               val w = size.width * level
@@ -266,4 +268,3 @@ private fun Modifier.shadowGlow(level: Float): Modifier =
 
 /** Whether the capsule is up with buttons to reach, for Down from the bar. */
 fun Updater.pillHasButtons(): Boolean = (state is Updater.State.Available || state is Updater.State.Failed) && !postponed
-

@@ -146,6 +146,8 @@ private class SectionNode : androidx.compose.ui.Modifier.Node(), androidx.compos
     val self = requireLayoutCoordinates()
     val screen = with(requireDensity()) { 1080.dp.toPx() }
     askParents {
+      // Gone mid-scroll (a lazy item reused, the page closed): nothing to show, as Compose's own do.
+      if (!self.isAttached || !childCoordinates.isAttached) return@askParents null
       val child = boundsProvider() ?: return@askParents null
       val inSelf = self.localBoundingBoxOf(childCoordinates, clipBounds = false).let { box -> child.translate(box.topLeft) }
       val whole = androidx.compose.ui.geometry.Rect(0f, 0f, self.size.width.toFloat(), inSelf.bottom)

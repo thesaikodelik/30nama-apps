@@ -105,6 +105,8 @@ class Chrome {
   val mayTakeFocus get() = rootShown && !barFocused
   /** Moves focus up into the tab bar, as Back does from a page's root. */
   val bar = FocusRequester()
+  /** Back, beside the bar: with a page open the tab is not focusable, and Up went nowhere. */
+  val backDisc = FocusRequester()
 }
 
 val LocalApp = compositionLocalOf<AppModel> { error("no app") }
@@ -461,8 +463,8 @@ fun MainScreen(onExit: () -> Unit) {
       )
       // The Mac's update capsule, out from under the bar, and with it when the bar steps away.
       UpdatePill(
-          updater, pillFocus, up = { runCatching { chrome.bar.requestFocus() } }, down = { enterPage() },
-          modifier = Modifier.align(Alignment.TopCenter).padding(top = 112.dp).graphicsLayer {
+          updater, pillFocus, up = { runCatching { if (nav.top != null) chrome.backDisc.requestFocus() else chrome.bar.requestFocus() } }, down = { enterPage() },
+          modifier = Modifier.align(Alignment.TopCenter).padding(top = 112.dp).blockFocus(chrome.overlay || chrome.modal || !barShown).graphicsLayer {
             alpha = shown
             translationY = -40f * (1f - shown)
           },
@@ -628,7 +630,7 @@ private fun TabBar(modifier: Modifier, routeOpen: Boolean, onBack: () -> Unit, f
   ) {
     // Back has a place of its own beside the bar, kept while hidden, and the same room is kept on
     // the other side, so the bar stays centred and its tabs do not shift as Back comes and goes.
-    BackDisc(routeOpen, onBack, Modifier.focusRequester(back).onFocusChanged { if (it.hasFocus) focusedTab = null })
+    BackDisc(routeOpen, onBack, Modifier.focusRequester(back).focusRequester(LocalChrome.current.backDisc).onFocusChanged { if (it.hasFocus) focusedTab = null })
     Box(Modifier.glass(RoundedCornerShape(50)).padding(6.dp)) {
       LiquidPill(places[nav.tab], calm)
       Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {

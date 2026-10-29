@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
@@ -24,9 +25,12 @@ import androidx.compose.ui.platform.LocalView
 @Composable
 fun Modifier.mouseClicks(): Modifier {
   val focus = remember { FocusRequester() }
+  // Whether this control itself has focus: asked into a group that restores focus (a row of
+  // buttons, a row of cards), the request can land on the one remembered there instead.
+  val holds = remember { booleanArrayOf(false) }
   val view = LocalView.current
   val inputMode = LocalInputModeManager.current
-  return this.focusRequester(focus).pointerInput(Unit) {
+  return this.focusRequester(focus).onFocusChanged { holds[0] = it.isFocused }.pointerInput(Unit) {
     awaitPointerEventScope {
       var downAt = 0L
       var downPos = androidx.compose.ui.geometry.Offset.Zero
@@ -56,7 +60,10 @@ fun Modifier.mouseClicks(): Modifier {
             // Out of touch mode first: in it focus will not move, and select went to whatever
             // had it before (the home page's Play, which opened its film).
             inputMode.requestInputMode(InputMode.Keyboard)
-            if (!runCatching { focus.requestFocus() }.getOrDefault(false)) continue
+            runCatching { focus.requestFocus() }
+            // Once inside the group, a second request is not redirected.
+            if (!holds[0]) runCatching { focus.requestFocus() }
+            if (!holds[0]) continue
             val time = android.os.SystemClock.uptimeMillis()
             val down = KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0)
             view.dispatchKeyEvent(down)

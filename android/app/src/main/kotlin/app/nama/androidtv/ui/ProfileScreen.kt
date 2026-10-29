@@ -323,6 +323,7 @@ private fun Quote(first: String?, family: String?, settled: Boolean, write: Bool
   // How far the pen has gone, in letters; then how far the line under it has come in, 0 to 1.
   val pen = remember(line) { androidx.compose.animation.core.Animatable(0f) }
   val under = remember(line) { androidx.compose.animation.core.Animatable(0f) }
+  var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
   LaunchedEffect(line, write) {
     if (!write) return@LaunchedEffect
     val text = line.text
@@ -332,7 +333,9 @@ private fun Quote(first: String?, family: String?, settled: Boolean, write: Bool
       return@LaunchedEffect
     }
     delay(250)
-    for (i in pen.value.toInt() until text.length) {
+    // As far as the line is shown: a long one ends in "…", and the pen went on through the hidden rest.
+    val shownEnd = layout?.let { it.getLineEnd(it.lineCount - 1, visibleEnd = true) } ?: text.length
+    for (i in pen.value.toInt() until shownEnd) {
       val c = text[i]
       val ms = when {
         c in ".!?" -> 260
@@ -342,10 +345,10 @@ private fun Quote(first: String?, family: String?, settled: Boolean, write: Bool
       }
       pen.animateTo(i + 1f, tween(ms, easing = androidx.compose.animation.core.LinearEasing))
     }
+    pen.snapTo(text.length.toFloat())
     delay(200)
     under.animateTo(1f, tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing))
   }
-  var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
   val serif = androidx.compose.ui.text.font.FontFamily.Serif
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Column(Modifier.widthIn(max = 806.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
