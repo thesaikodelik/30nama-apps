@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
@@ -59,11 +60,12 @@ fun Stage(post: Post?, dim: Float = 0f, settleMs: Long = 350, glow: Boolean = tr
     // The first image appears at once; later ones wait for focus to settle.
     if (shown != null) delay(settleMs)
     if (shown?.id == post.id && (post.cover != null || tmdbBackdrop == null || shown?.url == tmdbBackdrop)) return@LaunchedEffect
-    // A title without a wide scene picture takes TMDB's, else its poster, blurred into a wash of colour.
+    // A title without a wide scene picture takes TMDB's, else its poster itself, filling the screen
+    // (the owner): once a blur of its colours only, which on a dark poster was a plain grey.
     shown = when {
       post.cover != null -> Backdrop(post.id, post.cover, post.poster.blurhash, false)
       tmdbBackdrop != null -> Backdrop(post.id, tmdbBackdrop, post.poster.blurhash, false)
-      else -> Backdrop(post.id, post.poster.url(428.0), post.poster.blurhash, true)
+      else -> Backdrop(post.id, post.poster.big ?: post.poster.large ?: post.poster.url(428.0), post.poster.blurhash, true)
     }
   }
   val dimmed by animateFloatAsState(dim, tween(300), label = "dim")
@@ -116,13 +118,15 @@ private fun Drifting(b: Backdrop) {
     t.animateFloat(0f, 1f, infiniteRepeatable(tween(24_000, easing = LinearEasing), RepeatMode.Reverse), label = "t").value
   } else 0f
   RemoteImage(
-      // Before Android 12 there is no blur to draw with; the blur code is already that wash.
-      url = if (b.blurred && android.os.Build.VERSION.SDK_INT < 31) null else b.url,
+      url = b.url,
       blurhash = b.blurhash,
-      pixelWidth = if (b.blurred) 320 else 1920,
+      // A poster is upright: at the screen's width only its upper part shows, where the faces are.
+      // Its own large picture, a touch soft, as it is drawn several times its size.
+      pixelWidth = if (b.blurred) 1000 else 1920,
       fade = false,
+      alignment = if (b.blurred) BiasAlignment(0f, -0.45f) else Alignment.Center,
       modifier = Modifier.fillMaxSize().clipToBounds()
-          .then(if (b.blurred) Modifier.blur(60.dp) else Modifier)
+          .then(if (b.blurred) Modifier.blur(6.dp) else Modifier)
           .graphicsLayer {
             if (perpetual) {
               val s = 1.04f + 0.08f * drift

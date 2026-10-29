@@ -255,7 +255,9 @@ data class Post(
                 runtimeMinutes = positive(info["time"]["default"]),
                 genres = j["genre"].array.mapNotNull { g -> g["name"].text?.let { Genre(it, g["slug"].text ?: it) } },
                 poster = Poster.from(j["image"]["poster"]),
-                cover = j["image"]["cover"]["webp"].url ?: j["image"]["cover"]["jpg"].url,
+                // 30nama's stand-in for a title with no wide picture (`none-cover_30NAMA.webp`) is no
+                // picture: taken for one, it hid the fallback to the poster behind the title's page.
+                cover = (j["image"]["cover"]["webp"].url ?: j["image"]["cover"]["jpg"].url)?.takeUnless { "none-cover" in (it.path ?: "") },
                 imdbScore = j["score"]["imdb"]["score"].double?.takeIf { it > 0 },
                 imdbID = j["score"]["imdb"]["link"].text?.let { imdbID(it) },
                 siteScore = j["score"]["30nama"]["score"].double?.takeIf { it > 0 },

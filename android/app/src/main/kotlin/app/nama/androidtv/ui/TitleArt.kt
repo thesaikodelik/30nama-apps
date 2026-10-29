@@ -145,8 +145,8 @@ private val TITLE_SETTLE_SIZE = androidx.compose.animation.core.spring(dampingRa
  */
 suspend fun warmBillboard(context: android.content.Context, app: app.nama.androidtv.AppModel, post: Post, lang: Lang) = kotlinx.coroutines.coroutineScope {
   val backdrop = launch {
-    val (url, width) = post.cover?.let { it to 1920 } ?: (post.poster.url(428.0) to 320)
-    if (url == null || (post.cover == null && android.os.Build.VERSION.SDK_INT < 31)) return@launch
+    val (url, width) = post.cover?.let { it to 1920 } ?: ((post.poster.big ?: post.poster.large ?: post.poster.url(428.0)) to 1000)
+    if (url == null) return@launch
     val request = coil3.request.ImageRequest.Builder(context).data(url.toString())
         .size(coil3.size.Size(coil3.size.Dimension(width), coil3.size.Dimension.Undefined)).build()
     coil3.SingletonImageLoader.get(context).execute(request)

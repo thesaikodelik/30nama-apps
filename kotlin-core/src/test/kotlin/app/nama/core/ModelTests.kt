@@ -129,6 +129,15 @@ class ModelTests {
         assertFalse(hero.genres.isEmpty())
     }
 
+    @Test fun testThirtyNamasStandInCoverIsNoCover() {
+        fun post(cover: String) = HomeFeed.from(obj("movies" to mapOf("posts" to listOf(mapOf(
+            "id" to 1, "title" to mapOf("english" to "Title"),
+            "image" to mapOf("poster" to mapOf("webp" to mapOf("large" to "https://example.com/1.webp")), "cover" to mapOf("webp" to cover)),
+        ))))).sections.flatMap { it.posts }.first()
+        assertNull("the stand-in is no picture", post("https://example.com/uploads/none-cover_30NAMA.webp").cover)
+        assertEquals("https://example.com/1-wide.webp", post("https://example.com/1-wide.webp").cover.toString())
+    }
+
     @Test fun testTitleDropsItsOwnYearOnly() {
         val hero = HomeFeed.from(fixture("home_stream")["result"]).heroes.first()
         assertEquals("Link Click 2021", hero.titleEnglish)
