@@ -332,7 +332,6 @@ public static class Kit
     /// <summary>A poster with its place in the top ten beside it, in figures as tall as the poster.</summary>
     public static FrameworkElement Ranked(int rank, Post post, Action click)
     {
-        var tint = post.Tint();
         var figure = Theme.Text(Loc.Num(rank), 170, FontWeights.ExtraBold);
         figure.FlowDirection = FlowDirection.LeftToRight;
         figure.VerticalAlignment = VerticalAlignment.Bottom;
@@ -346,8 +345,23 @@ public static class Kit
         };
         figure.Foreground = Fill(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07));
         var card = Poster(post, click);
-        card.PointerEntered += (_, _) => figure.Foreground = Fill(tint, tint.WithAlpha(0.4));
-        card.PointerExited += (_, _) => figure.Foreground = Fill(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07));
+        // The poster's own colour, the one its glow takes from the picture, not the blur code's: 30nama
+        // sends the same few codes for many posters, and the figure was orange beside a blue glow (the
+        // owner). The glow takes it as the pointer comes; the figure follows once it is known.
+        var over = false;
+        card.PointerEntered += async (_, _) =>
+        {
+            over = true;
+            var colour = PosterColours.Of(post);
+            figure.Foreground = Fill(colour, colour.WithAlpha(0.4));
+            for (var i = 0; i < 12 && over && PosterColours.Known(post) is null; i++) await Task.Delay(100);
+            if (over && PosterColours.Known(post) is { } taken && taken != colour) figure.Foreground = Fill(taken, taken.WithAlpha(0.4));
+        };
+        card.PointerExited += (_, _) =>
+        {
+            over = false;
+            figure.Foreground = Fill(Theme.Text1.WithAlpha(0.5), Theme.Text1.WithAlpha(0.07));
+        };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Height = Theme.PosterWidth * 1.5 };
         row.Children.Add(figure);
         row.Children.Add(card);
