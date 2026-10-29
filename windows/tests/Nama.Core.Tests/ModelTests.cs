@@ -9,6 +9,22 @@ public class ModelTests
     private static Json J(string text) => Json.Parse(text);
 
     [Fact]
+    public void ThirtyNamasStandInCoverIsNoCover()
+    {
+        static Post? With(string cover) => Post.Parse(Json.From(new Dictionary<string, object?>
+        {
+            ["id"] = 1, ["title"] = new Dictionary<string, object?> { ["english"] = "Title" },
+            ["image"] = new Dictionary<string, object?>
+            {
+                ["poster"] = new Dictionary<string, object?> { ["webp"] = new Dictionary<string, object?> { ["large"] = "https://example.com/1.webp" } },
+                ["cover"] = new Dictionary<string, object?> { ["webp"] = cover },
+            },
+        }));
+        Assert.Null(With("https://example.com/uploads/none-cover_30NAMA.webp")!.Cover);
+        Assert.Equal("https://example.com/1-wide.webp", With("https://example.com/1-wide.webp")!.Cover!.ToString());
+    }
+
+    [Fact]
     public void DownloadOptionsForAFilmAndForASeries()
     {
         var film = new DownloadOptions(J("""

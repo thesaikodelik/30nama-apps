@@ -160,7 +160,9 @@ public sealed class Post : IEquatable<Post>
 
         p.Genres = j["genre"].Array.Select(g => g["name"].Text is { } name ? new Genre(name, g["slug"].Text ?? name) : null).OfType<Genre>().ToList();
         p.Poster = new Poster(j["image"]["poster"]);
-        p.Cover = j["image"]["cover"]["webp"].Url ?? j["image"]["cover"]["jpg"].Url;
+        // 30nama's stand-in for a title with no wide picture (none-cover_30NAMA.webp) is no picture:
+        // taken for one, it showed a grey wash behind the title's page and among home's backdrops.
+        p.Cover = (j["image"]["cover"]["webp"].Url ?? j["image"]["cover"]["jpg"].Url) is { } cover && !cover.AbsolutePath.Contains("none-cover") ? cover : null;
 
         var score = j["score"];
         p.ImdbScore = Positive(score["imdb"]["score"].Double);
