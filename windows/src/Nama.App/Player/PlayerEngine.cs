@@ -147,7 +147,7 @@ public sealed class PlayerEngine
 
     public void Begin()
     {
-        if (Post.IsSeries && SeriesChoices.TryGetValue(Post.Id, out var kept))
+        if (SeriesChoices.TryGetValue(Post.Id.ToString(), out var kept))
         {
             Speed = kept.Speed;
             SubtitleOffset = kept.SubtitleOffset;
@@ -159,24 +159,29 @@ public sealed class PlayerEngine
     }
 
     /// <summary>
-    /// A series keeps its speed and subtitle timing from one episode, and one evening, to the next:
-    /// a subtitle that runs late on one episode usually runs late on them all.
+    /// A title keeps its speed and subtitle timing from one episode, and one evening, to the next: a
+    /// subtitle that runs late on one episode usually runs late on them all, and a film watched in
+    /// two sittings is the same film (the Android app's: films too, not series alone). The download
+    /// file played by "Max" keeps its own timing beside it, as it is cut differently from the stream.
     /// </summary>
     private sealed record Kept(double Speed, double SubtitleOffset);
 
     private static string SeriesFile => Path.Combine(Storage.Folder, "series-choices.json");
-    private static readonly Dictionary<int, Kept> SeriesChoices = LoadSeriesChoices();
+    // By post id, and "post|file" for a download file; the older file, keyed by post alone, reads the same.
+    private static readonly Dictionary<string, Kept> SeriesChoices = LoadSeriesChoices();
 
-    private static Dictionary<int, Kept> LoadSeriesChoices()
+    private static Dictionary<string, Kept> LoadSeriesChoices()
     {
-        try { return Storage.Read(SeriesFile) is { } text ? JsonSerializer.Deserialize<Dictionary<int, Kept>>(text) ?? [] : []; }
+        try { return Storage.Read(SeriesFile) is { } text ? JsonSerializer.Deserialize<Dictionary<string, Kept>>(text) ?? [] : []; }
         catch (Exception) { return []; }
     }
 
+    private string? FileChoiceKey => _direct && Quality is { } q ? $"{Post.Id}|{q.Url.LastPathComponent()}" : null;
+
     private void KeepSeriesChoices()
     {
-        if (!Post.IsSeries) return;
-        SeriesChoices[Post.Id] = new Kept(Speed, SubtitleOffset);
+        SeriesChoices[Post.Id.ToString()] = new Kept(Speed, SubtitleOffset);
+        if (FileChoiceKey is { } file) SeriesChoices[file] = new Kept(Speed, SubtitleOffset);
         Storage.Write(SeriesFile, JsonSerializer.Serialize(SeriesChoices));
     }
 
@@ -247,6 +252,8 @@ public sealed class PlayerEngine
     {
         _direct = true;
         Load(file, from);
+        // This file's own subtitle timing, where it has one.
+        if (FileChoiceKey is { } key && SeriesChoices.TryGetValue(key, out var kept)) SubtitleOffset = kept.SubtitleOffset;
     }
 
     /// <summary>Asks 30nama for the download files, then starts item <paramref name="index"/> on one, or on the stream.</summary>
@@ -338,6 +345,8 @@ public sealed class PlayerEngine
         if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive) is { } stream)
         {
             _direct = false;
+            // The stream's timing, not the file's.
+            if (SeriesChoices.TryGetValue(Post.Id.ToString(), out var kept)) SubtitleOffset = kept.SubtitleOffset;
             Load(stream, Time > 1 ? Time : null);
             Changed?.Invoke();
             return;
