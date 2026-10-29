@@ -85,6 +85,53 @@ internal static partial class Mpv
     [LibraryImport(Lib, EntryPoint = "mpv_free")]
     public static partial void Free(IntPtr data);
 
+    public const int FormatNodeMap = 8, FormatByteArray = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Node
+    {
+        public IntPtr U;
+        public int Format;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NodeList
+    {
+        public int Count;
+        public IntPtr Values;
+        public IntPtr Keys;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ByteArray
+    {
+        public IntPtr Data;
+        public nuint Size;
+    }
+
+    /// <summary>Waits for the command and returns its result. Never on the UI thread: see AGENTS.md.</summary>
+    [LibraryImport(Lib, EntryPoint = "mpv_command_ret")]
+    public static partial int CommandRet(IntPtr handle, IntPtr[] args, out Node result);
+
+    [LibraryImport(Lib, EntryPoint = "mpv_command")]
+    public static partial int CommandWait(IntPtr handle, IntPtr[] args);
+
+    [LibraryImport(Lib, EntryPoint = "mpv_free_node_contents")]
+    public static partial void FreeNodeContents(ref Node node);
+
+    /// <summary>The words as the NULL-ended array of UTF-8 strings mpv takes; freed with <see cref="FreeWords"/>.</summary>
+    public static IntPtr[] Words(params string[] words)
+    {
+        var args = new IntPtr[words.Length + 1];
+        for (var i = 0; i < words.Length; i++) args[i] = Marshal.StringToCoTaskMemUTF8(words[i]);
+        return args;
+    }
+
+    public static void FreeWords(IntPtr[] args)
+    {
+        foreach (var p in args) if (p != IntPtr.Zero) Marshal.FreeCoTaskMem(p);
+    }
+
     /// <summary>Hands mpv a command without waiting for it to be carried out.</summary>
     public static void Command(IntPtr handle, params string[] words)
     {

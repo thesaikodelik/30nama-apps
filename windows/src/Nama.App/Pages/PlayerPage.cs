@@ -58,7 +58,8 @@ public sealed partial class PlayerPage : Grid
         _window = window;
         _hue = request.Post.Tint();
         _engine = new PlayerEngine(request, App, DispatcherQueue);
-        _scrubber = new Scrubber(_hue, seconds => _engine.Seek(seconds));
+        _scrubber = new Scrubber(_hue, seconds => _engine.Seek(seconds), seconds => _engine.Preview.Ask(seconds));
+        _engine.Preview.Arrived += _scrubber.Arrived;
         _level = new Level(value => _engine.SetVolume(value));
         Background = Theme.Brush(Colors.Black);
         IsTabStop = true;
@@ -767,13 +768,26 @@ public sealed class Scrubber : Grid
     private readonly Microsoft.UI.Xaml.Shapes.Ellipse _thumb = new() { Width = 14, Height = 14, Fill = Theme.Brush(Colors.White), Opacity = 0, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _label = new() { Height = 24, Padding = new Thickness(8, 0, 8, 0), CornerRadius = new CornerRadius(12), Background = Theme.Black(0.8), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, -28, 0, 0), Opacity = 0, IsHitTestVisible = false };
     private readonly TextBlock _labelText = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Theme.Brush(Colors.White), VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>The picture at the point under the pointer, over the time; there once a frame has come.</summary>
+    private readonly Border _frame = new()
+    {
+        Width = PreviewWidth, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.25),
+        Background = Theme.Black(0.8), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left, Opacity = 0, IsHitTestVisible = false,
+    };
+    private readonly Image _framePicture = new() { Stretch = Stretch.UniformToFill };
+    private readonly Func<double, PreviewFrame?> _preview;
+    private const double PreviewWidth = 200;
+    /// <summary>The point whose frame is shown, so a late one for another point is not.</summary>
+    private double? _framePoint;
     private double _time, _duration;
     private IReadOnlyList<PlayerEngine.Mark> _markList = [];
     private double? _drag, _hover;
 
-    public Scrubber(Color hue, Action<double> seek)
+    public Scrubber(Color hue, Action<double> seek, Func<double, PreviewFrame?> preview)
     {
         _seek = seek;
+        _preview = preview;
+        _frame.Child = _framePicture;
         Height = 22;
         Background = Theme.White(0);
         _fill.Background = Theme.Brush(hue);
@@ -783,6 +797,7 @@ public sealed class Scrubber : Grid
         Children.Add(_fill);
         Children.Add(_thumb);
         Children.Add(_label);
+        Children.Add(_frame);
         PointerMoved += (_, e) =>
         {
             var x = e.GetCurrentPoint(this).Position.X;
@@ -847,6 +862,42 @@ public sealed class Scrubber : Grid
             _label.Margin = new Thickness(Math.Clamp(width * at - w / 2, 0, Math.Max(0, width - w)), -28, 0, 0);
         }
         else _label.Opacity = 0;
+        ShowFrame(width);
+    }
+
+    /// <summary>A frame has come: shown if it is for the point still under the pointer.</summary>
+    public void Arrived(double point, PreviewFrame frame)
+    {
+        if ((_drag ?? _hover) is { } at && _duration > 0 && SeekPreview.PointOf(at * _duration) == point) Put(point, frame);
+    }
+
+    private void ShowFrame(double width)
+    {
+        if ((_drag ?? _hover) is not { } at || _duration <= 0)
+        {
+            _frame.Opacity = 0;
+            _framePoint = null;
+            return;
+        }
+        var point = SeekPreview.PointOf(at * _duration);
+        if (point != _framePoint && _preview(at * _duration) is { } frame) Put(point, frame);
+        // The frame of the point before stays until the new one comes: no flicker while moving along.
+        if (_framePoint is null) return;
+        var height = _frame.Height;
+        _frame.Margin = new Thickness(Math.Clamp(width * at - PreviewWidth / 2, 0, Math.Max(0, width - PreviewWidth)), -36 - height, 0, 0);
+        _frame.Opacity = 1;
+    }
+
+    private void Put(double point, PreviewFrame frame)
+    {
+        var bitmap = new Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap(frame.Width, frame.Height);
+        using (var stream = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsStream(bitmap.PixelBuffer))
+            stream.Write(frame.Pixels, 0, frame.Pixels.Length);
+        bitmap.Invalidate();
+        _framePicture.Source = bitmap;
+        _frame.Height = Math.Round(PreviewWidth * frame.Height / frame.Width);
+        _framePoint = point;
+        Draw();
     }
 
     /// <summary>The time under the pointer, with the name of the stretch it falls in.</summary>

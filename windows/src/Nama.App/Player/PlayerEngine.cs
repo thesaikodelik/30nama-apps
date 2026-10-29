@@ -124,6 +124,7 @@ public sealed class PlayerEngine
         SubtitleLanguage = app.Settings.DefaultSubtitle;
         Volume = app.Settings.Volume;
         Playback = new MpvPlayback(ui, app.Settings.BufferSeconds);
+        Preview = new SeekPreview(ui);
         Playback.Ended += Finished;
         Playback.Failed += Failed;
         _clock.Tick += (_, _) => Tick();
@@ -199,9 +200,13 @@ public sealed class PlayerEngine
         DropPendingSkip();
         _app.Update(s => s with { Volume = Volume });
         Playback.Dispose();
+        Preview.Dispose();
     }
 
     public void Close() => _app.ClosePlayer();
+
+    /// <summary>Pictures for the point under the pointer on the timeline, from a second reader of the lowest quality.</summary>
+    public SeekPreview Preview { get; }
 
     // MARK: Items
 
@@ -235,6 +240,8 @@ public sealed class PlayerEngine
         }
         else Load(quality, from);
         _resume = null;
+        // Frames for the timeline from the lightest rendition: the adaptive one starts at its lowest.
+        Preview.Open(Current.Qualities.Where(q => !q.IsAuto).MinBy(q => q.Height)?.Url ?? Current.Qualities.FirstOrDefault()?.Url);
         // A file belongs to the episode it was picked for.
         _fileTrack = null;
         SubtitleFileName = null;
