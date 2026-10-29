@@ -196,6 +196,20 @@ fun HomeScreen() {
   // title's picture, as when the saved home gave way to the fresh one.
   var staged by remember { mutableStateOf<Post?>(null) }
   val context = androidx.compose.ui.platform.LocalContext.current
+  // The cards beside the one in focus have their picture and logo fetched at once, and finish in
+  // the app's own time even once focus has moved on: cut off at the next press, the billboard
+  // asked afresh on every step along a row and the logo took the name's place late (30namaTV's).
+  // Two ahead where the TV is strong, one each way where it is weak; none with Data saver.
+  val warmed = remember { mutableSetOf<Int>() }
+  val lively = LocalLively.current
+  LaunchedEffect(browsing) {
+    val at = browsing ?: return@LaunchedEffect
+    if (app.settings.dataSaver) return@LaunchedEffect
+    val posts = rows.firstOrNull { it.key == at.row }?.posts ?: return@LaunchedEffect
+    val i = at.rank - 1
+    val near = (if (lively) listOf(i + 1, i + 2, i - 1) else listOf(i + 1, i - 1)).mapNotNull { posts.getOrNull(it) }
+    for (post in near) if (warmed.add(post.id)) app.background { warmBillboard(context, app, post, loc.lang) }
+  }
   // The same title from the fresh home: its newer facts at once, nothing to wait for.
   if (featured != null && staged?.id == featured.id && staged !== featured) staged = featured
   LaunchedEffect(featured?.id) {
