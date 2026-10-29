@@ -171,7 +171,7 @@ public class ApiClientTests
             peak.Raise(now.Add());
             await Task.Delay(20);
             now.Sub();
-            gate.Release();
+            gate.Release(background);
         }
         var tasks = Enumerable.Range(0, 4).Select(i => Work($"bg{i}", true)).ToList();
         await Task.Delay(50);
@@ -185,5 +185,37 @@ public class ApiClientTests
         Assert.Equal("core", order[0]); // screen call jumps the background queue
         Assert.Equal(5, order.Count);
         Assert.True(peak.Value <= 2);
+    }
+
+    // As in the Android app: background work never holds every slot, so a page is not kept waiting.
+    [Fact]
+    public async Task BackgroundCallsLeaveASlotForTheScreen()
+    {
+        var gate = new RequestGate(limit: 2, spacing: TimeSpan.Zero);
+        await gate.AcquireAsync(background: true);
+        var second = gate.AcquireAsync(background: true);
+        await Task.Delay(20);
+        Assert.False(second.IsCompleted); // a second background call waits
+        var screen = gate.AcquireAsync(background: false);
+        Assert.Same(screen, await Task.WhenAny(screen, Task.Delay(1000)));
+        gate.Release(background: false);
+        gate.Release(background: true);
+        Assert.Same(second, await Task.WhenAny(second, Task.Delay(1000)));
+        gate.Release(background: true);
+    }
+
+    // As in the Android app: a rate limit pauses the calls after it even when it is not retried.
+    [Fact]
+    public async Task ARateLimitPausesTheGateEvenWithoutARetry()
+    {
+        var net = new FakeNetwork((action, _) => action == "observer" ? (429, "error code: 1015", NoHeaders) : (200, Ok, NoHeaders));
+        var api = new ApiClient(new ApiConfig { Backoff = [TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(300)], RequestSpacing = TimeSpan.Zero }, net.Transport);
+        api.UseHost("https://h.example.com/api/v2");
+        // A progress report is never replayed, so it fails at once; the gate still waits before the next call.
+        var e = await Assert.ThrowsAsync<ApiException>(() => api.CallAsync("observer", new Dictionary<string, string> { ["time"] = "10" }));
+        Assert.True(e.RateLimited);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        await api.CallAsync("profile");
+        Assert.True(clock.Elapsed >= TimeSpan.FromMilliseconds(250), "the next call waited out the pause");
     }
 }

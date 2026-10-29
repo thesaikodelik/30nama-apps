@@ -56,9 +56,12 @@ public sealed class ApiException : Exception
 
     public Kinds Kind { get; }
     public TimeSpan RetryAfter { get; }
+    /// <summary>Cloudflare's rate limit (429, or its "error code: 1015" page), which pauses the whole gate.</summary>
+    public bool RateLimited { get; }
 
-    public ApiException(Kinds kind, string message, TimeSpan retryAfter = default) : base(message)
+    public ApiException(Kinds kind, string message, TimeSpan retryAfter = default, bool rateLimited = false) : base(message)
     {
+        RateLimited = rateLimited;
         Kind = kind;
         RetryAfter = retryAfter;
     }
@@ -80,8 +83,14 @@ public delegate Task<HttpResponseMessage> Transport(HttpRequestMessage request, 
 /// </summary>
 public sealed class RequestGate(int limit = 2, TimeSpan spacing = default)
 {
+    /// <summary>
+    /// Background work never holds every slot, so a page is not kept waiting behind it (as in the
+    /// Android app's gate).
+    /// </summary>
+    private readonly int _backgroundLimit = Math.Max(1, limit - 1);
     private readonly object _lock = new();
     private int _inFlight;
+    private int _backgroundInFlight;
     private readonly Queue<TaskCompletionSource> _core = new();
     private readonly Queue<TaskCompletionSource> _background = new();
     private DateTime _nextStart = DateTime.MinValue;
@@ -92,7 +101,11 @@ public sealed class RequestGate(int limit = 2, TimeSpan spacing = default)
         TaskCompletionSource? wait = null;
         lock (_lock)
         {
-            if (_inFlight < limit) _inFlight++;
+            if (_inFlight < limit && (!background || _backgroundInFlight < _backgroundLimit))
+            {
+                _inFlight++;
+                if (background) _backgroundInFlight++;
+            }
             else
             {
                 wait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,13 +124,24 @@ public sealed class RequestGate(int limit = 2, TimeSpan spacing = default)
         if (delay > TimeSpan.Zero) await Task.Delay(delay);
     }
 
-    /// <summary>Hands the slot to the next waiter, screen calls first.</summary>
-    public void Release()
+    /// <summary>Gives back a slot taken with the same <paramref name="background"/> and hands it on, screen calls first.</summary>
+    public void Release(bool background = false)
     {
         lock (_lock)
         {
-            if (_core.TryDequeue(out var next) || _background.TryDequeue(out next)) next.SetResult();
-            else _inFlight--;
+            _inFlight--;
+            if (background) _backgroundInFlight--;
+            if (_core.TryDequeue(out var next))
+            {
+                _inFlight++;
+                next.SetResult();
+            }
+            else if (_backgroundInFlight < _backgroundLimit && _background.TryDequeue(out next))
+            {
+                _inFlight++;
+                _backgroundInFlight++;
+                next.SetResult();
+            }
         }
     }
 
@@ -331,19 +355,27 @@ public sealed class ApiClient
             try
             {
                 var envelope = await send();
-                _gate.Release();
+                _gate.Release(background);
                 return envelope;
             }
             catch (ApiException e) when (e.Kind == ApiException.Kinds.Transient && attempt < retries)
             {
-                _gate.Release();
+                _gate.Release(background);
                 var delay = new[] { Config.Backoff[attempt], e.RetryAfter }.Max();
                 _gate.Pause(delay);
                 await Task.Delay(delay);
             }
+            catch (ApiException e)
+            {
+                _gate.Release(background);
+                // A rate limit pauses every call behind it, retried or not (a write is never
+                // replayed), so the next one does not walk into the same wall.
+                if (e.RateLimited) _gate.Pause(new[] { Config.Backoff[Math.Min(attempt, Config.Backoff.Count - 1)], e.RetryAfter }.Max());
+                throw;
+            }
             catch
             {
-                _gate.Release();
+                _gate.Release(background);
                 throw;
             }
         }
@@ -454,7 +486,8 @@ public sealed class ApiClient
         {
             // Cloudflare answers rate limiting and outages with HTML or plain text.
             var seconds = double.TryParse(retryAfterHeader, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? Math.Min(s, 10) : 0;
-            throw new ApiException(ApiException.Kinds.Transient, $"{action}: HTTP {status}, not JSON", TimeSpan.FromSeconds(seconds));
+            var limited = status == 429 || System.Text.Encoding.UTF8.GetString(data).Contains("error code: 1015");
+            throw new ApiException(ApiException.Kinds.Transient, $"{action}: HTTP {status}, not JSON", TimeSpan.FromSeconds(seconds), limited);
         }
         return new Envelope(json["success"].Bool, json["msg"].Text, json["result"]);
     }
