@@ -122,12 +122,8 @@ fun ProfileScreen() {
         contentPadding = PaddingValues(start = Theme.edge, end = Theme.edge, top = 130.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
-      // The card's buttons are its only stops, at its foot: in focus they bring the whole card back,
-      // its top and the page's start, as nothing above them would (Up went to the bar instead).
-      item {
-        val scope = rememberCoroutineScope()
-        Box(Modifier.onFocusChanged { if (it.hasFocus) scope.launch { list.animateScrollToItem(0) } }) { Header(watchlist, favorites, sizes) }
-      }
+      // A section: its buttons, at its foot, in focus bring the whole card back, and so the page's top.
+      item { Box(Modifier.wholeSection()) { Header(watchlist, favorites, sizes) } }
       if (!ratings.isEmpty) item { Insights() }
       if (upcoming.isNotEmpty()) item { Shelf(loc(S.upcoming), upcoming, note = { it.nextEpisodeLabel(loc.lang) }) }
       if (picks.isNotEmpty()) item { Shelf(loc(S.forYou), picks) }

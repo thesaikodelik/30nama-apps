@@ -124,7 +124,6 @@ fun ScreenUnits(content: @Composable () -> Unit) {
  * Compose on a TV otherwise keeps the focused item a third of the way down the screen, which pulls
  * a title page's header up off the top as soon as its Play button has focus.
  */
-@androidx.compose.foundation.ExperimentalFoundationApi
 /**
  * A part of a page that is brought into view as a whole, with what in it has focus: the Apple TV's
  * sections. When the remote moves inside it, the page is asked to show from the part's top down to
@@ -155,6 +154,7 @@ private class SectionNode : androidx.compose.ui.Modifier.Node(), androidx.compos
   }
 }
 
+@androidx.compose.foundation.ExperimentalFoundationApi
 class Minimal(private val margin: Float) : androidx.compose.foundation.gestures.BringIntoViewSpec {
   override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
     val end = offset + size

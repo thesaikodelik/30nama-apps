@@ -104,7 +104,6 @@ fun DetailsScreen(route: Route.Details) {
   var playWhenReady by remember { mutableStateOf(route.autoplay) }
   /** Why the server gave no stream, in its own words. */
   var refusal by remember { mutableStateOf<String?>(null) }
-  var inHeader by remember { mutableStateOf(true) }
   var trailer by remember { mutableStateOf<TrailerVideo?>(null) }
   var trailerTried by remember { mutableStateOf(false) }
   /** How many of the header's buttons have come in (Header, `comingIn`). */
@@ -194,11 +193,6 @@ fun DetailsScreen(route: Route.Details) {
       if (!calm) delay(70)
     }
   }
-  // Back up into the header, the page goes back to its top, as the Apple TV's does: the title and
-  // its story are seen again, and the next press up reaches the bar.
-  LaunchedEffect(inHeader) {
-    if (inHeader && scroll.value > 0) scroll.animateScrollTo(0)
-  }
   // The bar stays over the page while it is at its top, and steps out of the way below.
   val chrome = LocalChrome.current
   LaunchedEffect(scroll) { androidx.compose.runtime.snapshotFlow { scroll.value < 60 }.collect { chrome.routeAtTop = it } }
@@ -236,7 +230,7 @@ fun DetailsScreen(route: Route.Details) {
             onTrailer = { t -> openTrailer(t, post, app, scope, context) },
             // A section: Play, the stars or the trailer in focus keep the whole header, and so the
             // page's top, in view.
-            modifier = Modifier.wholeSection().onFocusChanged { inHeader = it.hasFocus },
+            modifier = Modifier.wholeSection(),
         )
         // Each part below the header comes in softly as it arrives, rather than appearing at once.
         if (post.isSeries && items.size > 1) {
@@ -304,7 +298,6 @@ private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.App
 
 /** A part of the page that fades in and rises the last 16 points the first time it is drawn. */
 @Composable
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun Arriving(content: @Composable () -> Unit) {
   val calm = LocalCalm.current
   val shown = remember { androidx.compose.animation.core.Animatable(if (calm) 1f else 0f) }
