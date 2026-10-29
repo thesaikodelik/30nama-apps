@@ -233,7 +233,15 @@ class AppModel(
 
   // MARK: Boot and session
 
+  /** The model's first boot, once: an activity made again while it runs does not start another. */
+  private var booted = false
+
+  fun bootOnce() {
+    if (!booted) boot()
+  }
+
   fun boot() {
+    booted = true
     scope.launch {
       phase = Phase.Booting
       api.setLanguage(settings.lang)

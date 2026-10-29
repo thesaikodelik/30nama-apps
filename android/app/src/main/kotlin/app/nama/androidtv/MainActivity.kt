@@ -54,9 +54,12 @@ class MainActivity : ComponentActivity() {
     // Debug builds: `adb shell am start -n app.nama.androidtv/.MainActivity --es lang fa` opens in
     // that language, to look at a screen in each without going through Settings.
     if (BuildConfig.DEBUG) intent.getStringExtra("lang")?.let { l -> app.nama.core.Lang.entries.firstOrNull { it.name == l }?.let { lang -> model.update { it.copy(lang = lang) } } }
-    if (savedInstanceState == null && model.phase == AppModel.Phase.Booting) model.boot()
+    // Booting is the model's own state, not the activity's: after Android killed the app in the
+    // background (low memory, or its install permission changed) the activity comes back with saved
+    // state over a new model, which was never booted and held the splash for good.
+    model.bootOnce()
     if (savedInstanceState == null) fromLauncher(intent)
-    if (savedInstanceState == null) model.updater.start()
+    model.updater.start()
     if (BuildConfig.DEBUG && intent.getBooleanExtra("watchnext_demo", false)) model.demoWatchNext()
     setContent {
       // Debug builds: `--es tab settings` opens on that tab.
