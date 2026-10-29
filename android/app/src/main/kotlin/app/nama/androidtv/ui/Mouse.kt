@@ -29,6 +29,8 @@ fun Modifier.mouseClicks(): Modifier {
   return this.focusRequester(focus).pointerInput(Unit) {
     awaitPointerEventScope {
       var downAt = 0L
+      var downPos = androidx.compose.ui.geometry.Offset.Zero
+      val slop = viewConfiguration.touchSlop
       while (true) {
         val event = awaitPointerEvent(PointerEventPass.Initial)
         val change = event.changes.firstOrNull() ?: continue
@@ -36,11 +38,18 @@ fun Modifier.mouseClicks(): Modifier {
         // touch screen of its own to mind it.
         if (change.type != PointerType.Mouse && change.type != PointerType.Touch) continue
         when (event.type) {
+          // The press is left to the lists, so a drag still scrolls them; only a press that ends
+          // where it began, not taken by a scroll, is a click.
           PointerEventType.Press -> if (change.pressed) {
             downAt = change.uptimeMillis
-            change.consume()
+            downPos = change.position
           }
+          PointerEventType.Move -> if (downAt != 0L && (change.position - downPos).getDistance() > slop) downAt = 0L
           PointerEventType.Release -> if (downAt != 0L) {
+            if (change.isConsumed || (change.position - downPos).getDistance() > slop) {
+              downAt = 0L
+              continue
+            }
             change.consume()
             val held = change.uptimeMillis - downAt >= LONG_PRESS_MS
             downAt = 0L
