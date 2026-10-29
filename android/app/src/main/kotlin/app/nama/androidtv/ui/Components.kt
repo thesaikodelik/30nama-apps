@@ -43,6 +43,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,10 +91,10 @@ enum class PillKind { Primary, Secondary, Chip }
 /**
  * Where the remote is, the same on every control (the owner chose it among four): a thin ring of
  * 30nama's own red gradient (coral, red, raspberry, as on the profile's picture) on the control's
- * own edge, inside it, still. It sits over whatever the control already is in focus (the menu's lit
- * glass, Play's white), so none of that is lost. The turning and the light were too much on every
- * control (the owner): only the title page's poster turns its ring ([turning]), its angle read only
- * when drawn; on a weak TV, or with reduced motion, it stands still too.
+ * own edge, inside it, turning slowly. It sits over whatever the control already is in focus (the
+ * menu's lit glass, Play's white, a card's glow), so none of that is lost. Only the control in focus
+ * turns, and its angle is read only when drawn, so nothing is rebuilt for it; on a weak TV, or with
+ * reduced motion, the ring stands still.
  */
 @Composable
 fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
@@ -107,8 +108,8 @@ fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.Inte
  * control grows inside it (a TV Surface scales its content, not its modifiers): the ring is drawn
  * that much larger, so it sits on the grown edge and not inside it (the owner).
  */
-fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f, turning: Boolean = false): Modifier {
-  val turns = turning && LocalLively.current && !LocalCalm.current
+fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
+  val turns = LocalLively.current && !LocalCalm.current
   val angle = remember { androidx.compose.animation.core.Animatable(0f) }
   LaunchedEffect(focused, turns) {
     if (!focused || !turns) return@LaunchedEffect
@@ -137,7 +138,7 @@ fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Sha
 }
 
 /**
- * The light the chosen preview threw round its ring, now only on the title page's poster: a soft glow from its
+ * The light the chosen preview threw round its ring, inside a control in focus: a soft glow from its
  * edge inward in the ring's own gradient (coral, red, raspberry), turning with it, the middle left
  * as it is (the owner: a red pool in the middle was not it). Layered strokes, no blur; read only
  * when drawn; still on a weak TV or with reduced motion.
@@ -163,10 +164,8 @@ fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: android
       val w = reach * i / WASH_BANDS
       w to shape.createOutline(androidx.compose.ui.geometry.Size(size.width - w, size.height - w), layoutDirection, this)
     }
-    // Over the content: on the poster it is the picture's own edge that lights.
-    onDrawWithContent {
-      drawContent()
-      if (shown <= 0f) return@onDrawWithContent
+    onDrawBehind {
+      if (shown <= 0f) return@onDrawBehind
       matrix.setRotate(angle.value, cx, cy)
       shader.setLocalMatrix(matrix)
       val each = strength * shown / WASH_BANDS * 1.6f
@@ -264,7 +263,8 @@ fun PillButton(
                 })
             // The ring's red light moving inside, over the button's own face (the owner); on the
             // white ones fainter, so they stay white.
-                        .focusRing(focused, capsule)
+            .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
+            .focusRing(focused, capsule)
             .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -301,7 +301,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusWash(focused, 0.30f, CircleShape).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -315,12 +315,9 @@ val LocalCardFront = compositionLocalOf { false }
 
 /**
  * A card, as the Mac's poster under the pointer (docs/design "پوستر"): at rest a hairline of white
- * 0.08; in focus ×1.07, the focus ring, and a dark shadow (the poster's coloured light was too much, the owner). The Mac's
- * card leans to the pointer and a glint of light follows it (`Tilt`, MacKit.swift); a TV has no
- * pointer, so in focus an imagined one wanders slowly over the card and the card does the same:
- * leans up to 7 degrees toward it (the Mac's 4 was too little from the sofa), the glint under it. Read only where drawn, so nothing
- * is rebuilt as it moves. On a weak TV, or with reduced motion, the card stays flat with the glint
- * still at its top, as before.
+ * 0.08; in focus ×1.07, the focus ring, and a glow in [glow] (the poster's own colour). It does not
+ * lean or carry a glint in focus: on every card that was too much (the owner); that is the title
+ * page's poster's alone ([Wander]).
  */
 @Composable
 fun CardSurface(
@@ -328,43 +325,21 @@ fun CardSurface(
     modifier: Modifier = Modifier,
     radius: Dp = Theme.cardRadius,
     scale: Float = 1.07f,
+    glow: Color = Color.White,
     onLongClick: (() -> Unit)? = null,
     front: (@Composable BoxScope.() -> Unit)? = null,
-    glint: Boolean = true,
     content: @Composable () -> Unit,
 ) {
   val shape = RoundedCornerShape(radius)
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
-  val moves = LocalLively.current && !LocalCalm.current
-  // The imagined pointer's time along its path; 0 is the card's middle.
-  val wander = remember { androidx.compose.animation.core.Animatable(0f) }
-  LaunchedEffect(focused, moves) {
-    if (!focused || !moves) {
-      wander.snapTo(0f)
-      return@LaunchedEffect
-    }
-    while (true) wander.animateTo(wander.value + 1f, tween(WANDER_MS, easing = androidx.compose.animation.core.LinearEasing))
-  }
-  // Where the imagined pointer is on the card, 0..1 each way: a slow figure of eight about the middle.
-  fun across() = 0.5f + 0.42f * kotlin.math.sin(2f * Math.PI.toFloat() * wander.value)
-  fun down() = 0.5f + 0.32f * kotlin.math.sin(4f * Math.PI.toFloat() * wander.value)
   // The card's own growth in focus, for the still front to grow with it (as ClickableSurfaceDefaults does).
   val grown by animateFloatAsState(if (focused) scale else 1f, tween(150), label = "front")
   Box {
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
-      modifier = modifier
-          .graphicsLayer {
-            if (focused && moves) {
-              // The Mac's lean, stronger: up to 7 degrees each way, with a little more perspective.
-              rotationX = -(down() - 0.5f) * 2f * TILT_DEGREES
-              rotationY = (across() - 0.5f) * 2f * TILT_DEGREES
-              cameraDistance = 9f * density
-            }
-          }
-          .colouredGlow(Color.Black, if (focused) 0.5f else 0f, 31.dp, shape, y = 18.dp),
+      modifier = modifier.colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),
@@ -374,21 +349,12 @@ fun CardSurface(
           focusedBorder = Border(BorderStroke(1.dp, Color.Transparent), shape = shape),
       ),
   ) {
-    Box(
-        Modifier.drawWithContent {
-          drawContent()
-          // The Mac's glint: under the imagined pointer, or still at the top where nothing moves.
-          if (focused && glint) {
-            val at = if (moves) Offset(size.width * across(), size.height * down()) else Offset(size.width * 0.5f, size.height * 0.12f)
-            drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
-          }
-        }.focusRing(focused, shape)) {
+    Box(Modifier.focusRing(focused, shape)) {
       CompositionLocalProvider(LocalCardFocused provides focused, LocalCardFront provides (front != null)) { content() }
     }
   }
-  // Words over the card stay where they are while it leans under them (the owner: only the card
-  // moves). Outside the card's turning layer, growing with it only; above it, as the card in focus
-  // lifts itself over its neighbours.
+  // Words over the card, growing with it in focus; above it, as the card in focus lifts itself over
+  // its neighbours.
   if (front != null) {
     Box(
         Modifier.matchParentSize().zIndex(2f).graphicsLayer {
@@ -400,9 +366,54 @@ fun CardSurface(
   }
 }
 
+/**
+ * The Mac's poster under the pointer (`Tilt`, MacKit.swift), on the title page's poster: a TV has
+ * no pointer, so an imagined one wanders slowly over it, the poster leaning up to 7 degrees toward
+ * it (the Mac's 4 was too little from the sofa) and a glint of light under it. Once on every card
+ * in focus; the owner kept it for this poster alone. Read only where drawn, so nothing is rebuilt
+ * as it moves. On a weak TV, or with reduced motion, the poster stays flat with the glint still at
+ * its top.
+ */
+@Stable
+class Wander internal constructor(internal val time: androidx.compose.animation.core.Animatable<Float, *>, internal val moves: Boolean) {
+  // Where the imagined pointer is, 0..1 each way: a slow figure of eight about the middle.
+  internal fun across() = 0.5f + 0.42f * kotlin.math.sin(2f * Math.PI.toFloat() * time.value)
+  internal fun down() = 0.5f + 0.32f * kotlin.math.sin(4f * Math.PI.toFloat() * time.value)
+}
+
+@Composable
+fun rememberWander(): Wander {
+  val moves = LocalLively.current && !LocalCalm.current
+  val time = remember { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(moves) {
+    if (!moves) {
+      time.snapTo(0f)
+      return@LaunchedEffect
+    }
+    while (true) time.animateTo(time.value + 1f, tween(WANDER_MS, easing = androidx.compose.animation.core.LinearEasing))
+  }
+  return remember(moves) { Wander(time, moves) }
+}
+
+/** The lean toward the imagined pointer; before the shadow, so the shadow leans too. */
+fun Modifier.lean(w: Wander): Modifier = this.graphicsLayer {
+  if (w.moves) {
+    rotationX = -(w.down() - 0.5f) * 2f * TILT_DEGREES
+    rotationY = (w.across() - 0.5f) * 2f * TILT_DEGREES
+    cameraDistance = 9f * density
+  }
+}
+
+/** The glint under the imagined pointer, or still at the top where nothing moves; inside the clip. */
+fun Modifier.glint(w: Wander): Modifier = this.drawWithContent {
+  drawContent()
+  val at = if (w.moves) Offset(size.width * w.across(), size.height * w.down()) else Offset(size.width * 0.5f, size.height * 0.12f)
+  drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
+}
+
 /** More than the Mac's `tilting(degrees: 4)`: seen from the sofa, 4 was too little (the owner). */
 private const val TILT_DEGREES = 7f
-/** One round of the imagined pointer over a card in focus: slow, as a hand that rests. */
+/** One round of the imagined pointer: slow, as a hand that rests. */
 private const val WANDER_MS = 5500
 
 // MARK: - Artwork
@@ -531,7 +542,8 @@ fun PosterCard(
           if (!calm) bounds?.let { nav.flight = Flight(post, it) }
           onClick()
         },
-        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() }, onLongClick = lists,
+        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
+        glow = rememberPosterTint(post), onLongClick = lists,
         front = { PosterCaption(post) },
     ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
@@ -576,7 +588,7 @@ fun RankedCard(rank: Int, post: Post, onClick: () -> Unit, modifier: Modifier = 
 fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
   val loc = LocalLoc.current
   val app = LocalApp.current
-  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, onLongClick = onLongClick) {
+  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, glow = rememberPosterTint(post), onLongClick = onLongClick) {
     val focused = LocalCardFocused.current
     val disc by animateFloatAsState(if (focused) 1f else 0f, Theme.focusSpring(), label = "disc")
     Box(Modifier.size(374.dp, 210.dp).background(Theme.surface2)) {

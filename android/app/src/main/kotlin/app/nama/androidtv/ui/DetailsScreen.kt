@@ -357,18 +357,19 @@ private fun Header(
   val hue = LocalHue.current ?: Color.White
   val shape = RoundedCornerShape(24.dp)
   val flying = LocalNav.current.flight?.post?.id == post.id
+  // The lean and glint the cards once had in focus, here alone (the owner).
+  val wander = rememberWander()
   Row(modifier.fillMaxWidth().padding(start = Theme.edge, end = Theme.edge, top = DETAILS_TOP.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
     // Over its blur code at once, the large picture following.
     Box(
         Modifier.size(DETAILS_POSTER_W.dp, DETAILS_POSTER_H.dp)
             // Held back, frame and all, while the pressed card's poster is still flying to this spot.
             .graphicsLayer { alpha = if (flying) 0f else 1f }
+            .lean(wander)
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
-            // The one place the red ring turns and lights the edge inward (the owner).
-            .focusWash(true, 0.30f, shape)
-            .focusRing(true, shape, width = 3.dp, turning = true),
+            .glint(wander)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
       RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 300)
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
@@ -649,7 +650,7 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         CardSurface(
             onClick = { play(index) },
             modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
-            radius = Theme.tileRadius,
+            radius = Theme.tileRadius, glow = rememberPosterTint(post),
             // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
             onLongClick = {
               val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
