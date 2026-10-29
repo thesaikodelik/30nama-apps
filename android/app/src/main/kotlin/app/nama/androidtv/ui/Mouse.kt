@@ -10,6 +10,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 
 /**
@@ -23,6 +25,7 @@ import androidx.compose.ui.platform.LocalView
 fun Modifier.mouseClicks(): Modifier {
   val focus = remember { FocusRequester() }
   val view = LocalView.current
+  val inputMode = LocalInputModeManager.current
   return this.focusRequester(focus).pointerInput(Unit) {
     awaitPointerEventScope {
       var downAt = 0L
@@ -41,7 +44,10 @@ fun Modifier.mouseClicks(): Modifier {
             change.consume()
             val held = change.uptimeMillis - downAt >= LONG_PRESS_MS
             downAt = 0L
-            runCatching { focus.requestFocus() }
+            // Out of touch mode first: in it focus will not move, and select went to whatever
+            // had it before (the home page's Play, which opened its film).
+            inputMode.requestInputMode(InputMode.Keyboard)
+            if (!runCatching { focus.requestFocus() }.getOrDefault(false)) continue
             val time = android.os.SystemClock.uptimeMillis()
             val down = KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0)
             view.dispatchKeyEvent(down)
