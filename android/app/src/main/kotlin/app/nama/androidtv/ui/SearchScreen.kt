@@ -309,7 +309,7 @@ private fun SearchField(query: String, set: (String) -> Unit, focus: FocusReques
         val fieldInteraction = remember { MutableInteractionSource() }
         Surface(
             onClick = { typing = true },
-            modifier = Modifier.weight(1f).fillMaxSize().focusRequester(focus),
+            modifier = Modifier.weight(1f).fillMaxSize().focusRequester(focus).focusRing(fieldInteraction, RoundedCornerShape(14.dp)),
             interactionSource = fieldInteraction,
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, contentColor = Theme.text1, focusedContentColor = Theme.text1),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
@@ -382,7 +382,7 @@ private fun LineKey(text: String?, modifier: Modifier, icon: androidx.compose.ui
   Surface(
       onClick = onClick,
       onLongClick = onLong,
-      modifier = modifier.height(60.dp),
+      modifier = modifier.height(60.dp).focusRing(interaction, shape, grown = 1.18f),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text1, focusedContentColor = Theme.focusInk),
@@ -402,7 +402,7 @@ private fun RoundKey(icon: androidx.compose.ui.graphics.vector.ImageVector, size
   val focused by interaction.collectIsFocusedAsState()
   Surface(
       onClick = onClick,
-      modifier = Modifier.size(size),
+      modifier = Modifier.size(size).focusRing(interaction, CircleShape, grown = 1.1f),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(CircleShape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White, contentColor = Theme.text2, focusedContentColor = Theme.focusInk),

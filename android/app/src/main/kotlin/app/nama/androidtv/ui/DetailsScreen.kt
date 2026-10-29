@@ -365,8 +365,7 @@ private fun Header(
             .graphicsLayer { alpha = if (flying) 0f else 1f }
             .shadow(48.dp, shape, ambientColor = hue.copy(alpha = 0.5f), spotColor = hue.copy(alpha = 0.6f))
             .clip(shape)
-            // The one place the turning red ring stays (the owner).
-            .turningRing(shape, 3.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape),
     ) {
       RemoteImage(post.poster.url(Theme.posterWidth.value * 1.1), Modifier.fillMaxSize(), blurhash = post.poster.blurhash, pixelWidth = 300)
       RemoteImage(post.poster.big ?: post.poster.large, Modifier.fillMaxSize(), pixelWidth = 540)
@@ -552,6 +551,7 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
                   else -> n.toDouble()
                 })
           },
+          modifier = Modifier.focusRing(interaction, CircleShape, grown = 1.2f),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),
@@ -646,7 +646,7 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         CardSurface(
             onClick = { play(index) },
             modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
-            radius = Theme.tileRadius,
+            radius = Theme.tileRadius, glow = rememberPosterTint(post),
             // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
             onLongClick = {
               val name = item.title(loc.lang) ?: tmdbNames[item.episodeNumber] ?: "${loc(S.episode)} ${loc.num(item.episodeNumber)}"
@@ -686,7 +686,7 @@ private fun EpisodeRow(item: StreamItem, progress: Double?, watched: Boolean, mo
   ) {
     // The ring inside the tile, so it grows with it: on the tile's own modifier it stayed the
     // tile's size at rest while the tile grew past it in focus (the owner).
-    Box(Modifier.fillMaxWidth().height(104.dp)) {
+    Box(Modifier.fillMaxWidth().height(104.dp).focusRing(focused, shape)) {
       Row(Modifier.fillMaxSize().padding(horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(60.dp), contentAlignment = Alignment.Center) {
           if (focused) Icon(Icons.play, null, Modifier.size(30.dp), tint = Color.White)
@@ -790,6 +790,7 @@ private fun Face(name: String, role: String?, photo: java.net.URI?, blurhash: St
     Column(Modifier.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Surface(
           onClick = onClick,
+          modifier = Modifier.focusRing(interaction, CircleShape, width = 3.dp, grown = 1.08f),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Theme.surface2, focusedContainerColor = Theme.surface2),
@@ -821,6 +822,7 @@ private fun Reviews(list: List<app.nama.core.TMDB.Review>) {
         Surface(
             // The whole review, to read on the TV (the Mac opens it on TMDB).
             onClick = { app.sheets.reading = ReadSpec(review.author, review.text, ltr = true) },
+            modifier = Modifier.focusRing(interaction, shape, grown = 1.03f),
             interactionSource = interaction,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color.White.copy(alpha = 0.06f), focusedContainerColor = Color.White.copy(alpha = 0.14f)),
@@ -872,7 +874,7 @@ private fun Storyline(post: Post) {
     SectionTitle(loc(S.storyline), Modifier.padding(start = Theme.edge))
     Surface(
         onClick = { app.sheets.reading = ReadSpec(post.title(loc.lang), post.plot(loc.lang)) },
-        modifier = Modifier.padding(horizontal = Theme.edge - 24.dp),
+        modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, shape),
         interactionSource = interaction,
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),
@@ -947,7 +949,7 @@ private fun Facts(post: Post) {
   val interaction = remember { MutableInteractionSource() }
   Surface(
       onClick = {},
-      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp),
+      modifier = Modifier.padding(horizontal = Theme.edge - 24.dp).focusRing(interaction, RoundedCornerShape(22.dp)),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(22.dp)),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White.copy(alpha = 0.08f)),

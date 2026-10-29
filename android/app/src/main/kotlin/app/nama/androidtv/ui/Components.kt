@@ -88,22 +88,38 @@ import app.nama.core.S
 enum class PillKind { Primary, Secondary, Chip }
 
 /**
- * A thin ring of 30nama's own red gradient (coral, red, raspberry, as on the profile's picture),
- * turning slowly round the title page's poster. Once on every control in focus; the owner found it
- * too much there and kept it for the poster alone, where nothing else moves. Its angle is read only
- * when drawn, so nothing is rebuilt for it; on a weak TV, or with reduced motion, it stands still.
+ * Where the remote is, the same on every control (the owner chose it among four): a thin ring of
+ * 30nama's own red gradient (coral, red, raspberry, as on the profile's picture) on the control's
+ * own edge, inside it, turning slowly. It sits over whatever the control already is in focus (the
+ * menu's lit glass, Play's white, a card's glow), so none of that is lost. Only the control in focus
+ * turns, and its angle is read only when drawn, so nothing is rebuilt for it; on a weak TV, or with
+ * reduced motion, the ring stands still.
  */
 @Composable
-fun Modifier.turningRing(shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp): Modifier {
+fun Modifier.focusRing(interaction: androidx.compose.foundation.interaction.InteractionSource, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
+  val focused by interaction.collectIsFocusedAsState()
+  return focusRing(focused, shape, width, grown)
+}
+
+@Composable
+/**
+ * [grown]: the control's own scale in focus, where the ring is on its outer modifier and the
+ * control grows inside it (a TV Surface scales its content, not its modifiers): the ring is drawn
+ * that much larger, so it sits on the grown edge and not inside it (the owner).
+ */
+fun Modifier.focusRing(focused: Boolean, shape: androidx.compose.ui.graphics.Shape, width: Dp = 2.dp, grown: Float = 1f): Modifier {
   val turns = LocalLively.current && !LocalCalm.current
   val angle = remember { androidx.compose.animation.core.Animatable(0f) }
-  LaunchedEffect(turns) {
-    if (!turns) return@LaunchedEffect
+  LaunchedEffect(focused, turns) {
+    if (!focused || !turns) return@LaunchedEffect
     while (true) angle.animateTo(angle.value + 360f, tween(RING_TURN_MS, easing = androidx.compose.animation.core.LinearEasing))
   }
   return this.drawWithCache {
     val stroke = width.toPx()
-    val outline = shape.createOutline(androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke), layoutDirection, this)
+    val inner = androidx.compose.ui.geometry.Size(size.width * grown - stroke, size.height * grown - stroke)
+    val shift = stroke / 2f - size.width * (grown - 1f) / 2f
+    val shiftY = stroke / 2f - size.height * (grown - 1f) / 2f
+    val outline = shape.createOutline(inner, layoutDirection, this)
     val cx = size.width / 2f
     val cy = size.height / 2f
     val shader = android.graphics.SweepGradient(cx, cy, RING_COLOURS, null)
@@ -111,12 +127,56 @@ fun Modifier.turningRing(shape: androidx.compose.ui.graphics.Shape, width: Dp = 
     val brush = androidx.compose.ui.graphics.ShaderBrush(shader)
     onDrawWithContent {
       drawContent()
-      matrix.setRotate(angle.value, cx, cy)
-      shader.setLocalMatrix(matrix)
-      translate(stroke / 2f, stroke / 2f) { drawOutline(outline, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)) }
+      if (focused) {
+        matrix.setRotate(angle.value, cx, cy)
+        shader.setLocalMatrix(matrix)
+        translate(shift, shiftY) { drawOutline(outline, brush, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)) }
+      }
     }
   }
 }
+
+/**
+ * The light the chosen preview threw round its ring, inside a control in focus: a soft glow from its
+ * edge inward in the ring's own gradient (coral, red, raspberry), turning with it, the middle left
+ * as it is (the owner: a red pool in the middle was not it). Layered strokes, no blur; read only
+ * when drawn; still on a weak TV or with reduced motion.
+ */
+@Composable
+fun Modifier.focusWash(focused: Boolean, strength: Float = 0.16f, shape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape): Modifier {
+  val turns = LocalLively.current && !LocalCalm.current
+  val shown by animateFloatAsState(if (focused) 1f else 0f, tween(260), label = "wash")
+  val angle = remember { androidx.compose.animation.core.Animatable(0f) }
+  LaunchedEffect(focused, turns) {
+    if (!focused || !turns) return@LaunchedEffect
+    while (true) angle.animateTo(angle.value + 360f, tween(WASH_TURN_MS, easing = androidx.compose.animation.core.LinearEasing))
+  }
+  return this.drawWithCache {
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val shader = android.graphics.SweepGradient(cx, cy, RING_COLOURS, null)
+    val matrix = android.graphics.Matrix()
+    val brush = androidx.compose.ui.graphics.ShaderBrush(shader)
+    // Deepest at the edge, fading inward: each band wider and fainter than the last.
+    val reach = minOf(size.minDimension * 0.42f, 18.dp.toPx())
+    val bands = (1..WASH_BANDS).map { i ->
+      val w = reach * i / WASH_BANDS
+      w to shape.createOutline(androidx.compose.ui.geometry.Size(size.width - w, size.height - w), layoutDirection, this)
+    }
+    onDrawBehind {
+      if (shown <= 0f) return@onDrawBehind
+      matrix.setRotate(angle.value, cx, cy)
+      shader.setLocalMatrix(matrix)
+      val each = strength * shown / WASH_BANDS * 1.6f
+      for ((w, outline) in bands) translate(w / 2f, w / 2f) { drawOutline(outline, brush, alpha = each, style = androidx.compose.ui.graphics.drawscope.Stroke(w)) }
+    }
+  }
+}
+
+private const val WASH_BANDS = 10
+
+/** One round of the wash: slower than the ring, so the two do not race. */
+private const val WASH_TURN_MS = 7000
 
 /**
  * A row of chips or buttons given room beyond its own edges, where the one in focus grows (×1.05)
@@ -202,8 +262,8 @@ fun PillButton(
                 })
             // The ring's red light moving inside, over the button's own face (the owner); on the
             // white ones fainter, so they stay white.
-            
-            
+            .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
+            .focusRing(focused, capsule)
             .padding(horizontal = if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -240,7 +300,7 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
       ),
       scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusWash(focused, 0.30f, CircleShape).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -254,7 +314,7 @@ val LocalCardFront = compositionLocalOf { false }
 
 /**
  * A card, as the Mac's poster under the pointer (docs/design "پوستر"): at rest a hairline of white
- * 0.08; in focus ×1.07 over a dark shadow (no coloured glow or ring: the owner found it too much). The Mac's
+ * 0.08; in focus ×1.07, the focus ring, and a glow in [glow] (the poster's own colour). The Mac's
  * card leans to the pointer and a glint of light follows it (`Tilt`, MacKit.swift); a TV has no
  * pointer, so in focus an imagined one wanders slowly over the card and the card does the same:
  * leans up to 7 degrees toward it (the Mac's 4 was too little from the sofa), the glint under it. Read only where drawn, so nothing
@@ -267,6 +327,7 @@ fun CardSurface(
     modifier: Modifier = Modifier,
     radius: Dp = Theme.cardRadius,
     scale: Float = 1.07f,
+    glow: Color = Color.White,
     onLongClick: (() -> Unit)? = null,
     front: (@Composable BoxScope.() -> Unit)? = null,
     glint: Boolean = true,
@@ -303,7 +364,7 @@ fun CardSurface(
               cameraDistance = 9f * density
             }
           }
-          .colouredGlow(Color.Black, if (focused) 0.5f else 0f, 31.dp, shape, y = 18.dp),
+          .colouredGlow(glow, if (focused) 0.55f else 0f, 31.dp, shape, y = 18.dp),
       interactionSource = interaction,
       shape = ClickableSurfaceDefaults.shape(shape),
       colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent, pressedContainerColor = Color.Transparent),
@@ -321,7 +382,7 @@ fun CardSurface(
             val at = if (moves) Offset(size.width * across(), size.height * down()) else Offset(size.width * 0.5f, size.height * 0.12f)
             drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.07f), Color.Transparent), at, radius = size.width * 0.95f))
           }
-        }) {
+        }.focusRing(focused, shape)) {
       CompositionLocalProvider(LocalCardFocused provides focused, LocalCardFront provides (front != null)) { content() }
     }
   }
@@ -470,7 +531,8 @@ fun PosterCard(
           if (!calm) bounds?.let { nav.flight = Flight(post, it) }
           onClick()
         },
-        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() }, onLongClick = lists,
+        modifier = modifier.onGloballyPositioned { bounds = it.boundsInRoot() },
+        glow = rememberPosterTint(post), onLongClick = lists,
         front = { PosterCaption(post) },
     ) { PosterArt(post, width, loads) }
     // Outside the card so the caption does not scale with the poster.
@@ -515,7 +577,7 @@ fun RankedCard(rank: Int, post: Post, onClick: () -> Unit, modifier: Modifier = 
 fun ContinueCard(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
   val loc = LocalLoc.current
   val app = LocalApp.current
-  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, onLongClick = onLongClick) {
+  CardSurface(onClick = onClick, modifier = modifier, radius = 18.dp, scale = 1.04f, glow = rememberPosterTint(post), onLongClick = onLongClick) {
     val focused = LocalCardFocused.current
     val disc by animateFloatAsState(if (focused) 1f else 0f, Theme.focusSpring(), label = "disc")
     Box(Modifier.size(374.dp, 210.dp).background(Theme.surface2)) {
