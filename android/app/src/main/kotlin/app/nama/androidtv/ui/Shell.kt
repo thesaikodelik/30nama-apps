@@ -414,6 +414,18 @@ fun MainScreen(onExit: () -> Unit) {
           true
         }
       }
+      // When the player or a trailer closes, focus comes back into the page under it, where it was
+      // (Play on the title's page): nothing gave it back, and every key went nowhere (the owner).
+      val covered = app.playback != null || app.trailer != null
+      var wasCovered by remember { mutableStateOf(false) }
+      LaunchedEffect(covered) {
+        if (covered) wasCovered = true
+        else if (wasCovered) {
+          wasCovered = false
+          withFrameNanos {}
+          if (!barFocused) enterPage()
+        }
+      }
       // Over every page, as on the Mac; it steps out of the way once a page scrolls down.
       val barShown = barFocused || (if (route == null) chrome.pageAtTop else chrome.routeAtTop)
       val shown by animateFloatAsState(if (barShown) 1f else 0f, tween(260), label = "bar")

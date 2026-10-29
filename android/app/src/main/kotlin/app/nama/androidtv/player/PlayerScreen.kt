@@ -1,5 +1,7 @@
 package app.nama.androidtv.player
 
+import app.nama.androidtv.ui.rememberPosterTint
+import androidx.compose.foundation.clickable
 import app.nama.androidtv.data.SubtitlePosition
 import app.nama.androidtv.ui.RemoteImage
 import app.nama.androidtv.ui.LocalLively
@@ -198,6 +200,9 @@ fun PlayerScreen(request: PlaybackRequest) {
     withFrameNanos {}
     runCatching { if (controls) playButton.requestFocus() else surface.requestFocus() }
   }
+  // As each film or episode starts, its controls and timeline show for a few seconds, the skip
+  // offer with them, and then step aside as after any key (the owner).
+  LaunchedEffect(engine.index, engine.pictured) { if (engine.pictured) controls = true }
   // A panel closing gives focus back to the button that opened it.
   val opener = remember { Panel.entries.associateWith { FocusRequester() } }
   var lastPanel by remember { mutableStateOf<Panel?>(null) }
@@ -393,12 +398,16 @@ fun PlayerScreen(request: PlaybackRequest) {
         },
     )
 
-    val shownOffer = engine.offer.takeIf { !controls && panel == null }
+    // The offer stays while its stretch runs, controls or not, always at the right whatever the
+    // language (the owner), above the controls while they are up.
+    val shownOffer = engine.offer.takeIf { panel == null }
+    val offerLift by animateDpAsState(if (controls) 250.dp else 150.dp, label = "offer")
     AnimatedVisibility(
         shownOffer != null,
-        Modifier.align(Alignment.BottomEnd).padding(end = Theme.edge, bottom = 230.dp),
+        // Its margin from the right in every language too: `end` is the left in Persian.
+        Modifier.align(androidx.compose.ui.AbsoluteAlignment.BottomRight).absolutePadding(right = Theme.edge, bottom = offerLift),
         enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut(),
-    ) { engine.offer?.let { OfferPill(it) } }
+    ) { engine.offer?.let { OfferPill(it, focusable = controls) { engine.acceptOffer() } } }
 
     AnimatedVisibility(controls && panel != Panel.Episodes, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) { PlayerTop(engine) }
     AnimatedVisibility((controls || seekTarget != null) && panel != Panel.Episodes, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
@@ -448,9 +457,12 @@ private fun SubtitleLine(text: String, modifier: Modifier) {
 // MARK: The pill
 
 @Composable
-private fun OfferPill(offer: Offer) {
+private fun OfferPill(offer: Offer, focusable: Boolean = false, accept: () -> Unit = {}) {
   val loc = LocalLoc.current
   val shape = RoundedCornerShape(50)
+  // With the controls up it is a button of its own, Up from them; with nothing up, select takes it.
+  val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
   val title = when (offer.kind) {
     Offer.Kind.Intro -> loc(S.skipIntro)
     Offer.Kind.Recap -> loc(S.skipRecap)
@@ -458,7 +470,11 @@ private fun OfferPill(offer: Offer) {
     Offer.Kind.StartOver -> tv(TV.startOver)
   }
   Row(
-      Modifier.height(80.dp).clip(shape).background(accentGradient)
+      Modifier
+          .then(if (focusable) Modifier.clickable(interactionSource = interaction, indication = null, onClick = accept) else Modifier)
+          .graphicsLayer { val s = if (focused) 1.06f else 1f; scaleX = s; scaleY = s }
+          .focusRing(focused, shape)
+          .height(80.dp).clip(shape).background(accentGradient)
           .drawBehind {
             // Fills as the credits run: when it is full, the next episode starts.
             offer.countdown?.let { drawRect(Color.White.copy(alpha = 0.26f), size = Size(size.width * it, size.height)) }
@@ -493,7 +509,7 @@ private fun Controls(
   // The Mac's player: a shade at the bottom, the timeline thin in the title's colour, and under it
   // plain glyphs that light as white discs (in focus here, under the pointer there). The film's
   // name is at the top, over a shade of its own (PlayerTop).
-  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: post.tint())) {
+  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: rememberPosterTint(post))) {
   Box(Modifier.fillMaxWidth().blockFocus(blocked).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.85f))))) {
     Column(Modifier.fillMaxWidth().padding(start = Theme.edge - 16.dp, end = Theme.edge - 16.dp, top = 120.dp, bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       // A film's time runs left to right in every language, as on tape: the bar and the transport
@@ -864,7 +880,7 @@ private fun EpisodesPanel(engine: PlayerEngine, close: () -> Unit) {
     runCatching { playingTile.requestFocus() }
   }
   val shape = RoundedCornerShape(36.dp)
-  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: post.tint())) {
+  CompositionLocalProvider(LocalHue provides (LocalHue.current ?: rememberPosterTint(post))) {
   Column(
       Modifier.absolutePadding(right = 56.dp).padding(vertical = 60.dp).width(640.dp).fillMaxHeight()
           .clip(shape).background(Theme.surface.copy(alpha = 0.94f)).border(1.dp, Theme.glassEdge, shape),
