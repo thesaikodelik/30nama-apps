@@ -658,7 +658,7 @@ public sealed partial class MainWindow : Window
 
     // MARK: Where the window was
 
-    private const string PlaceFile = "window.txt";
+    private static string PlaceFile => Path.Combine(Storage.Folder, "window.txt");
     /// <summary>The window's place when it last neither filled the screen nor was minimised: what it goes back to.</summary>
     private Windows.Graphics.RectInt32 _restored;
 
