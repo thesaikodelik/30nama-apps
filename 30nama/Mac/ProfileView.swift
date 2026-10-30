@@ -261,7 +261,7 @@ struct ProfileView: View {
             ProfileView.kept = (names.first, picked, nil)
             // Quietly, after the page's own requests: whether 30nama has the film.
             for query in picked.searchQueries {
-                guard let found = try? await app.api.get("search", ["query": query, "streamonly": "0", "page": "1"], background: true),
+                guard let found = try? await app.api.get("search", ["query": query, "streamonly": APIClient.streamOnly(false), "page": "1"], background: true),
                       !Task.isCancelled else { continue }
                 if let post = picked.match(in: PostPage(found).posts) {
                     filmOnSite = post

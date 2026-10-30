@@ -472,7 +472,7 @@ final class AppModel {
             let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent(key == nil ? "trending-public.json" : "trending.json")
             trending = (key, Trending(key: key, cacheFile: file) { query in
-                try await api.get("search", ["query": query, "streamonly": "0", "page": "1"], background: true)
+                try await api.get("search", ["query": query, "streamonly": APIClient.streamOnly(false), "page": "1"], background: true)
             })
         }
         return await trending?.service.row(.trend) ?? []

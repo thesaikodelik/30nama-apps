@@ -319,6 +319,10 @@ actor APIClient {
         return e.result
     }
 
+    /// `streamonly` as the server reads it: only the word "true" filters. "1" was sent for years and
+    /// was ignored, so "streaming only" showed everything (found by the Android app, 6 Aban 1405).
+    static func streamOnly(_ on: Bool) -> String { on ? "true" : "false" }
+
     static func isLoginRequired(_ message: String?) -> Bool {
         guard let m = message?.lowercased() else { return false }
         return m.contains("login required") || m.contains("وارد حساب کاربری")

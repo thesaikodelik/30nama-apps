@@ -257,7 +257,7 @@ struct HomeView: View {
         guard top.isEmpty else { return }
         for slug in ["movies", "series"] {
             // Empty, not missing, when it could not be had: a missing row keeps its stand-ins.
-            guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": "1", "page": "1", "orderby": "favorite", "order": "desc"], background: true) else {
+            guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": APIClient.streamOnly(true), "page": "1", "orderby": "favorite", "order": "desc"], background: true) else {
                 top[slug] = []
                 continue
             }

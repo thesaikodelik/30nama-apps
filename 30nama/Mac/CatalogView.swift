@@ -27,19 +27,25 @@ struct CatalogView: View {
     /// it does not know brings one fixed list, which was shown as "newest" until 1.2.4. The
     /// website's own API has it, by post id, so it is offered when the build has the site's key.
     /// Recently updated is the website's own first choice.
+    /// By IMDb's score too (issue #2): through the advanced search even with no filter, as the
+    /// archive knows only update and favorite.
     enum Sort: String, CaseIterable {
-        case updated = "update", newest = "id", popular = "favorite"
+        case updated = "update", newest = "id", popular = "favorite", imdb = "imdb-rate"
 
-        var label: S {
+        var label: S? {
             switch self {
             case .popular: return .popular
             case .updated: return .updated
             case .newest: return .newest
+            // IMDb's own name, untranslated, as in the advanced search.
+            case .imdb: return nil
             }
         }
     }
 
-    private var sorts: [Sort] { Sort.allCases.filter { $0 != .newest || (type != nil && app.api.hasSite) } }
+    private var sorts: [Sort] {
+        Sort.allCases.filter { ($0 != .newest || (type != nil && app.api.hasSite)) && ($0 != .imdb || type != nil) }
+    }
 
     private let columns = [GridItem(.adaptive(minimum: Mac.posterWidth, maximum: Mac.posterWidth + 40), spacing: 20)]
 
@@ -121,7 +127,7 @@ struct CatalogView: View {
             Spacer(minLength: 0)
             HStack(spacing: 8) {
                 ForEach(sorts, id: \.self) { option in
-                    PillChoice(title: loc(option.label), selected: sort == option) { sort = option }
+                    PillChoice(title: option.label.map { loc($0) } ?? "IMDb", selected: sort == option) { sort = option }
                 }
             }
         }
@@ -157,9 +163,9 @@ struct CatalogView: View {
                 total = nil
                 return
             }
-            let result = narrowed.isEmpty
+            let result = narrowed.isEmpty && requested != .imdb
                 ? try await app.api.get("archive", [
-                    "slugs": slug, "streamonly": "1", "page": String(page + 1),
+                    "slugs": slug, "streamonly": APIClient.streamOnly(true), "page": String(page + 1),
                     "orderby": requested.rawValue, "order": "desc",
                 ])
                 : try await app.api.get("advanced_search", [
@@ -409,7 +415,7 @@ struct SearchView: View {
         searching = true
         defer { searching = false }
         do {
-            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": streamOnly ? "1" : "0", "page": "1"]))
+            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": APIClient.streamOnly(streamOnly), "page": "1"]))
             guard !Task.isCancelled else { return }
             if page.posts.isEmpty {
                 await showPopular(note: "\(loc(.nothingFor)) «\(text)»")

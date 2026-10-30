@@ -92,7 +92,7 @@ struct CommandPalette: View {
             try? await Task.sleep(for: .milliseconds(380))
             guard !Task.isCancelled else { return }
             searching = true
-            let found = try? await app.api.get("search", ["query": query, "streamonly": "0", "page": "1"])
+            let found = try? await app.api.get("search", ["query": query, "streamonly": APIClient.streamOnly(false), "page": "1"])
             guard !Task.isCancelled else { return }
             posts = found.map { PostPage($0).posts } ?? []
             searching = false

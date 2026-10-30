@@ -350,6 +350,13 @@ struct DetailsView: View {
             }
             .comingIn(at: 6, revealed)
         }
+        // The title's page on the 30nama website, to send to someone (issue #2).
+        ListToggle(symbol: "link", on: false, help: loc(.copyLink), fills: false) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(SiteLink.url(for: post).absoluteString, forType: .string)
+            app.showToast(loc(.linkCopied))
+        }
+        .comingIn(at: 7, revealed)
     }
 
     /// "Resume · S2 · E5" for a series left part-way, plain "Play" otherwise.

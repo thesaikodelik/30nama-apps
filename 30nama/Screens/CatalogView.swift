@@ -119,7 +119,7 @@ struct CatalogView: View {
                 return
             }
             let result = try await app.api.get("archive", [
-                "slugs": slug, "streamonly": "1", "page": String(page + 1),
+                "slugs": slug, "streamonly": APIClient.streamOnly(true), "page": String(page + 1),
                 "orderby": requested.rawValue, "order": "desc",
             ])
             guard requested == sort, !Task.isCancelled else { return }

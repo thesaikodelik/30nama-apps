@@ -58,7 +58,7 @@ struct SearchView: View {
         searching = true
         defer { searching = false }
         do {
-            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": "0", "page": "1"]))
+            let page = PostPage(try await app.api.get("search", ["query": text, "streamonly": APIClient.streamOnly(false), "page": "1"]))
             guard !Task.isCancelled else { return }
             if page.posts.isEmpty {
                 await showPopular(note: "\(loc(.nothingFor)) «\(text)»")
