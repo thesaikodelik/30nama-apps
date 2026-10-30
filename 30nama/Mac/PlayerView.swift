@@ -21,6 +21,7 @@ struct PlayerView: View {
     @State private var keys = false
     @State private var hideTask: Task<Void, Never>?
     @State private var keyMonitor: Any?
+    @State private var lastClick: Date?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -30,18 +31,21 @@ struct PlayerView: View {
                 if let engine {
                     surface(engine)
                         .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { engine.toggleFullScreen() }
-                        // A click shows the controls, or puts them away; pausing is Space or the button,
-                        // as in the Mac's other players.
+                        // A click pauses or plays, as in most players (the owner); the controls come
+                        // with the mouse. A second click straight after only changes the size: it
+                        // gives back the first one's pause. Counted here, as a double-tap gesture
+                        // would hold every single click back until it could not be a double.
                         .onTapGesture {
                             if episodes {
                                 episodes = false
                                 wake()
-                            } else if controls {
-                                hideTask?.cancel()
-                                controls = false
-                                NSCursor.setHiddenUntilMouseMoves(true)
+                            } else if let last = lastClick, Date().timeIntervalSince(last) < NSEvent.doubleClickInterval {
+                                lastClick = nil
+                                engine.toggle()
+                                engine.toggleFullScreen()
                             } else {
+                                lastClick = Date()
+                                engine.toggle()
                                 wake()
                             }
                         }
@@ -115,6 +119,13 @@ struct PlayerView: View {
                    event.keyCode == 123 || event.keyCode == 124 {
                     wake()
                     engine.skip(event.keyCode == 124 ? 10 : -10)
+                    return nil
+                }
+                // Enter wherever the focus is, not only on the picture: after a click on a button the
+                // button would take it (the owner).
+                if !episodes, !keys, event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
+                   event.keyCode == 36 || event.keyCode == 76 {
+                    if engine.offer != nil { engine.acceptOffer() } else { engine.toggleFullScreen() }
                     return nil
                 }
                 guard event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
@@ -282,7 +293,7 @@ struct PlayerView: View {
         HStack(spacing: 14) {
             RoundButton(symbol: "chevron.backward", help: loc(.back), hintBelow: true) { engine.close() }
             VStack(alignment: .leading, spacing: 2) {
-                Text(engine.post.title(loc.lang)).font(.app(20, .bold)).foregroundStyle(.white).lineLimit(1)
+                PlayerTitle(post: engine.post)
                 if let line = episodeLine(engine) {
                     Text(line).font(.app(14, .medium)).foregroundStyle(.white.opacity(0.72)).lineLimit(1)
                 }
@@ -1075,5 +1086,36 @@ private struct SkipPill: View {
         .glass(Capsule(style: .continuous))
         .animation(.easeOut(duration: 0.15), value: seconds)
         .allowsHitTesting(false)
+    }
+}
+
+/// The title at the top of the player: its logo, as on its page, once the logo is in; the name
+/// until then, or where there is none.
+private struct PlayerTitle: View {
+    let post: Post
+
+    @Environment(\.loc) private var loc
+    @State private var logo: PlatformImage?
+
+    var body: some View {
+        Group {
+            if let logo {
+                Image(platformImage: logo)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 300, maxHeight: 48, alignment: .leading)
+                    .shadow(color: .black.opacity(0.55), radius: 10, y: 3)
+                    .accessibilityLabel(post.title(loc.lang))
+                    .transition(.opacity)
+            } else {
+                Text(post.title(loc.lang)).font(.app(20, .bold)).foregroundStyle(.white).lineLimit(1)
+            }
+        }
+        .animation(.easeOut(duration: 0.3), value: logo != nil)
+        .task(id: post.id) {
+            let info = await TMDBStore.shared.info(for: post, lang: loc.lang)
+            guard let url = info?.logo, let image = await ImagePipeline.shared.image(url, maxPixel: 600) else { return }
+            logo = image
+        }
     }
 }
