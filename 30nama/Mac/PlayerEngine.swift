@@ -288,7 +288,7 @@ final class PlayerEngine {
         index = i
         reportedTime = 0
         markedWatched = false
-        guard let quality = current.quality(preferAdaptive: app.settings.preferAdaptive) else {
+        guard let quality = current.quality(preferAdaptive: app.settings.preferAdaptive, screenLines: PlayerEngine.screenLines, cap: app.settings.qualityCap) else {
             app.showToast(loc(.noStream))
             return close()
         }
@@ -517,6 +517,11 @@ final class PlayerEngine {
     }
 
     static let onlinePlayerKey = "onlinePlayer"
+
+    /// The tallest screen's height in pixels: "best" is no taller, as the window may go to it.
+    static var screenLines: Int {
+        NSScreen.screens.map { Int($0.frame.height * $0.backingScaleFactor) }.max() ?? 0
+    }
 
     /// The player Settings chose for online titles, while it is still on this Mac.
     static var chosenOther: (name: String, id: String, app: URL)? {

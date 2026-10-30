@@ -139,9 +139,14 @@ struct SettingsView: View {
 
     private var playback: some View {
         group(loc(.playback)) {
+            // Best, the adaptive stream, or a ceiling for a slow line (from the Windows app).
             row(loc(.quality)) {
-                picker([false, true], selection: app.settings.preferAdaptive, name: { $0 ? loc(.qualityAuto) : loc(.qualityBest) }) { value in
-                    app.update { $0.preferAdaptive = value }
+                picker([-1, 0, 1080, 720, 480], selection: app.settings.qualityCap > 0 ? app.settings.qualityCap : (app.settings.preferAdaptive ? -1 : 0),
+                       name: { $0 == 0 ? loc(.qualityBest) : $0 < 0 ? loc(.qualityAuto) : "\($0)p" }) { value in
+                    app.update {
+                        $0.preferAdaptive = value < 0
+                        $0.qualityCap = max(0, value)
+                    }
                 }
             }
             row(loc(.audio)) {

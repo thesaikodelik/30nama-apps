@@ -246,6 +246,15 @@ final class ModelTests: XCTestCase {
         let item = stream.items[0]
         XCTAssertEqual(item.fileID, "182990")
         XCTAssertEqual(item.qualities.map(\.label), ["خودکار", "720p", "1080p"])
+        // No taller than the screen: a 720p screen gets 720p, a 4K one the tallest there is.
+        XCTAssertEqual(item.quality(preferAdaptive: false, screenLines: 720)?.label, "720p")
+        XCTAssertEqual(item.quality(preferAdaptive: false, screenLines: 2160)?.label, "1080p")
+        XCTAssertEqual(item.quality(preferAdaptive: false, screenLines: 480)?.label, "720p", "none that low: the lowest")
+        // A slow line's cap: a fixed file no taller, even where the adaptive stream was asked for.
+        XCTAssertEqual(item.quality(preferAdaptive: true, cap: 720)?.label, "720p")
+        XCTAssertEqual(item.quality(preferAdaptive: false, cap: 1080)?.label, "1080p")
+        XCTAssertEqual(item.quality(preferAdaptive: false, screenLines: 720, cap: 1080)?.label, "720p")
+        XCTAssertEqual(item.quality(preferAdaptive: false, cap: 480)?.label, "720p", "none that low: the lowest")
         XCTAssertEqual(item.quality(preferAdaptive: false)?.url.lastPathComponent, "1080.m3u8")
         XCTAssertEqual(item.quality(preferAdaptive: true)?.url.lastPathComponent, "auto.m3u8")
         let full = item.qualities.first { $0.label == "1080p" }

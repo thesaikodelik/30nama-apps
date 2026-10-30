@@ -32,6 +32,8 @@ struct Settings: Equatable {
     var bufferAhead = 0
     /// Use the adaptive stream instead of the highest fixed rendition.
     var preferAdaptive = false
+    /// Mac only: a slow line's ceiling, 1080, 720 or 480 lines; zero is none.
+    var qualityCap = 0
     var reduceMotion = false
 
     static let subtitleSizes = [38, 46, 54]
@@ -55,11 +57,13 @@ struct Settings: Equatable {
         s.downloadTo = (d.object(forKey: "downloadTo") as? Int).flatMap { (0..<24).contains($0) ? $0 : nil }
         s.bufferAhead = max(0, d.integer(forKey: "bufferAhead"))
         s.preferAdaptive = d.bool(forKey: "adaptive")
+        s.qualityCap = max(0, d.integer(forKey: "qualityCap"))
         s.reduceMotion = d.bool(forKey: "calm")
         return s
     }
 
     func save(_ d: UserDefaults = .standard) {
+        d.set(qualityCap, forKey: "qualityCap")
         d.set(lang.rawValue, forKey: "lang")
         d.set(guest, forKey: "guest")
         d.set(defaultSubtitle, forKey: "sub")

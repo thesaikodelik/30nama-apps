@@ -488,8 +488,20 @@ struct StreamItem: Identifiable, Hashable {
     }
 
     /// Highest fixed rendition by default; the adaptive master when asked for or when it is all there is.
-    func quality(preferAdaptive: Bool) -> Quality? {
-        let fixed = qualities.filter { !$0.isAuto }.max { $0.height < $1.height }
+    /// - Parameter screenLines: the tallest screen's height in pixels: "best" is no taller, so a 4K
+    ///   title on a 1080p screen plays in 1080p, not at four times the data (0: no limit).
+    /// - Parameter cap: a slow line's ceiling chosen in Settings (1080, 720, 480; 0: none): a fixed
+    ///   file no taller, even where the adaptive stream was asked for. As the Windows and Android apps.
+    func quality(preferAdaptive: Bool, screenLines: Int = 0, cap: Int = 0) -> Quality? {
+        let fixedAll = qualities.filter { !$0.isAuto }
+        let lowest = fixedAll.min { $0.height < $1.height }
+        if cap > 0, !fixedAll.isEmpty {
+            let most = screenLines > 0 ? min(cap, screenLines) : cap
+            return fixedAll.filter { $0.height <= most }.max { $0.height < $1.height } ?? lowest
+        }
+        let fixed = screenLines > 0
+            ? (fixedAll.filter { $0.height <= screenLines }.max { $0.height < $1.height } ?? lowest)
+            : fixedAll.max { $0.height < $1.height }
         let auto = qualities.first(where: \.isAuto)
         return preferAdaptive ? (auto ?? fixed) : (fixed ?? auto)
     }
