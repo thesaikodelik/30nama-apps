@@ -8,7 +8,7 @@
 
 <p>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.5-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%201.0.4-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%201.0.5-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Android%20TV%201.1.2-e5484d?style=for-the-badge&logo=android&logoColor=white" alt="دانلود نسخهٔ اندروید TV"></a>
 </p>
 
@@ -187,7 +187,7 @@ xattr -dr com.apple.quarantine /Applications/30nama.app
 
 ### نصب
 
-فایل `30nama-windows-1.0.4-setup.exe` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
+فایل `30nama-windows-1.0.5-setup.exe` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را اجرا کنید. اول زبان نصب را می‌پرسد.
 
