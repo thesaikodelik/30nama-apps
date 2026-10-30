@@ -428,12 +428,6 @@ struct PlayerView: View {
                 }
                 .pickerStyle(.inline)
             }
-            if !PlayerEngine.otherPlayers.isEmpty {
-                Divider()
-                ForEach(PlayerEngine.otherPlayers, id: \.name) { other in
-                    Button("\(loc(.openIn)) \(other.name)") { engine.open(in: other.app) }
-                }
-            }
             Divider()
             Button("\(loc(.shortcuts))  (?)") { keys = true }
         }

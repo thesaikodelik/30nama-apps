@@ -261,6 +261,13 @@ final class PlayerEngine {
             app.showToast(loc(.noStream))
             return close()
         }
+        // Settings chose another player for online titles; a download always plays here.
+        if current.token != PlayerEngine.localToken, let other = PlayerEngine.chosenOther {
+            let title = post.isSeries ? "\(post.title(loc.lang)) · \(loc.episodeTag(season: current.season, episode: current.episodeRaw ?? ""))" : post.title(loc.lang)
+            hand(quality.url(for: mix), to: other, at: position ?? resumePosition(), title: title)
+            app.showToast("\(loc(.playingIn)) \(other.name)")
+            return close()
+        }
         load(quality, at: position ?? resumePosition())
         resume = nil
         // A file belongs to the episode it was picked for.
@@ -462,17 +469,37 @@ final class PlayerEngine {
 
     // MARK: Other players
 
-    /// Players on this Mac that take a stream address, for a file whose sound the system's own
-    /// decoder cannot play.
-    static let otherPlayers: [(name: String, app: URL)] = [("IINA", "com.colliderli.iina"), ("VLC", "org.videolan.vlc")].compactMap { name, id in
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { (name, $0) }
+    /// Players on this Mac that take a stream address and a starting point (the owner: one choice
+    /// in Settings, not a menu in the player).
+    static let otherPlayers: [(name: String, id: String, app: URL)] = [("IINA", "com.colliderli.iina"), ("VLC", "org.videolan.vlc")].compactMap { name, id in
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { (name, id, $0) }
     }
 
-    /// Hands the stream over and pauses here. What is watched there is not reported to 30nama.
-    func open(in other: URL) {
-        guard let quality else { return }
-        if playing { toggle() }
-        NSWorkspace.shared.open([quality.url(for: mix)], withApplicationAt: other, configuration: NSWorkspace.OpenConfiguration())
+    static let onlinePlayerKey = "onlinePlayer"
+
+    /// The player Settings chose for online titles, while it is still on this Mac.
+    static var chosenOther: (name: String, id: String, app: URL)? {
+        let id = UserDefaults.standard.string(forKey: onlinePlayerKey) ?? ""
+        return otherPlayers.first { $0.id == id }
+    }
+
+    /// Hands a stream to another player, from `position` and with the title's name. Started
+    /// through its own command line, as only that takes a starting point; opened plainly if that fails.
+    private func hand(_ url: URL, to other: (name: String, id: String, app: URL), at position: Double?, title: String) {
+        let start = Int(position ?? 0)
+        let launch = Process()
+        if other.id == "com.colliderli.iina" {
+            launch.executableURL = other.app.appendingPathComponent("Contents/MacOS/iina-cli")
+            launch.arguments = [url.absoluteString, "--mpv-start=\(start)", "--mpv-force-media-title=\(title)"]
+        } else {
+            launch.executableURL = other.app.appendingPathComponent("Contents/MacOS/VLC")
+            launch.arguments = ["--start-time=\(start)", "--meta-title=\(title)", url.absoluteString]
+        }
+        do {
+            try launch.run()
+        } catch {
+            NSWorkspace.shared.open([url], withApplicationAt: other.app, configuration: NSWorkspace.OpenConfiguration())
+        }
     }
 
     // MARK: Offers

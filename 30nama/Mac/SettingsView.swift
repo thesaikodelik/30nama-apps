@@ -132,6 +132,22 @@ struct SettingsView: View {
             row(loc(.aroundPicture)) {
                 picker([false, true], selection: ambientLight, name: { loc($0 ? .sceneGlow : .blackBars) }) { ambientLight = $0 }
             }
+            // Only when one of them is on this Mac. What plays there is not reported to 30nama.
+            if !PlayerEngine.otherPlayers.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    row(loc(.onlinePlayer)) {
+                        picker([""] + PlayerEngine.otherPlayers.map(\.id), selection: onlinePlayer,
+                               name: { id in PlayerEngine.otherPlayers.first { $0.id == id }?.name ?? loc(.thisApp) }) { onlinePlayer = $0 }
+                    }
+                    if !onlinePlayer.isEmpty {
+                        Text(loc(.onlinePlayerHint))
+                            .font(.app(12))
+                            .foregroundStyle(Theme.text3)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                    }
+                }
+            }
             // Read when a stream is opened, so it counts from the next one.
             row(loc(.bufferTime)) {
                 picker([0, 15, 30, 60, 120], selection: app.settings.bufferAhead,
@@ -176,6 +192,8 @@ struct SettingsView: View {
 
     /// Read by the player; kept on this Mac only, like the other things that are about the screen.
     @AppStorage("ambientLight") private var ambientLight = true
+    /// The player online titles open in: empty for this app's own, else a bundle id (`PlayerEngine.otherPlayers`).
+    @AppStorage(PlayerEngine.onlinePlayerKey) private var onlinePlayer = ""
 
     @Environment(Downloads.self) private var downloads
 
