@@ -2,7 +2,11 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Nama.App.Model;
+using Nama.App.Shell;
 using Nama.App.UI;
 using Nama.Core;
 
@@ -280,6 +284,7 @@ public sealed class DownloadsPage : Grid
                 case DownloadItem.States.Done when missing:
                     break;
                 case DownloadItem.States.Done:
+                    foreach (var player in Players(item)) buttons.Children.Add(PlayerButton(item, player));
                     if (item.SubtitlePath is not null) buttons.Children.Add(RowButton("", Loc[S.withSubtitle], () => { }));
                     else if (Downloads.Seeking.Contains(item.Id)) buttons.Children.Add(new ProgressRing { IsActive = true, Width = 18, Height = 18, Margin = new Thickness(8) });
                     else if (item.SubtitlePage is not null) buttons.Children.Add(RowButton(Glyph.Captions, Loc[S.getSubtitle], () => Downloads.FindSubtitle(item.Id)));
@@ -310,6 +315,50 @@ public sealed class DownloadsPage : Grid
 
     private static string Progress(DownloadItem item) =>
         item.Expected > 0 ? $"{DownloadPicker.Size(item.Received)} / {DownloadPicker.Size(item.Expected)}" : DownloadPicker.Size(item.Received);
+
+    /// <summary>
+    /// The players on this computer that take the file (Windows' "Open with"), as on the Mac. The
+    /// first row of a kind of file asks the shell, and the list is drawn again when it answers.
+    /// </summary>
+    private IReadOnlyList<OtherPlayers.Player> Players(DownloadItem item)
+    {
+        if (item.Path is not { } path) return [];
+        var extension = System.IO.Path.GetExtension(path);
+        if (OtherPlayers.Known(extension) is { } known) return known;
+        if (_asked.Add(extension))
+            _ = OtherPlayers.ForAsync(extension).ContinueWith(_ => DispatcherQueue.TryEnqueue(Render), TaskScheduler.Default);
+        return [];
+    }
+
+    private readonly HashSet<string> _asked = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, ImageSource> Icons = [];
+
+    /// <summary>A player by its own icon, in the glass of the buttons beside it.</summary>
+    private static Button PlayerButton(DownloadItem item, OtherPlayers.Player player)
+    {
+        var icon = new Image { Width = 20, Height = 20, Source = IconOf(player), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var button = Kit.Glass(icon, () => _ = OtherPlayers.OpenAsync(item.Path!, player), height: 34);
+        var help = $"{Loc[S.openIn]} {player.Name}";
+        ToolTipService.SetToolTip(button, help);
+        Kit.AutomationName(button, help);
+        return button;
+    }
+
+    private static ImageSource? IconOf(OtherPlayers.Player player)
+    {
+        if (Icons.TryGetValue(player.Program, out var kept)) return kept;
+        ImageSource? made = null;
+        if (player.IconFile is { } file) made = new BitmapImage(new Uri(file)) { DecodePixelWidth = 40 };
+        else if (player.IconPixels is { } pixels)
+        {
+            var bitmap = new WriteableBitmap(player.IconSize, player.IconSize);
+            using (var stream = bitmap.PixelBuffer.AsStream()) stream.Write(pixels);
+            bitmap.Invalidate();
+            made = bitmap;
+        }
+        if (made is not null) Icons[player.Program] = made;
+        return made;
+    }
 
     /// <summary>
     /// A round button of the row: the same glass as the title page's and the player's (Kit.Glass),

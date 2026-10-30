@@ -620,8 +620,27 @@ public sealed class AppModel
 
     public void Play(PlaybackRequest request)
     {
+        if (PlayElsewhere(request)) return;
         Playback = request;
         Tell("playback");
+    }
+
+    /// <summary>
+    /// Hands an online title to the player chosen in Settings, from where it was left, instead of
+    /// opening this app's. Downloaded files keep this app's player; they have the row's icons.
+    /// A choice whose program is gone falls back to this app's.
+    /// </summary>
+    private bool PlayElsewhere(PlaybackRequest request)
+    {
+        if (Settings.OnlinePlayer is not { } program || request.Index < 0 || request.Index >= request.Items.Count) return false;
+        var item = request.Items[request.Index];
+        if (item.Token == Downloads.LocalToken || item.PickQuality(Settings.PreferAdaptive, 0, Settings.QualityCap) is not { } quality) return false;
+        var resume = request.Resume is { } r && r.FileId == item.FileId && r.Time > 5 && !(r.Duration > 0 && r.Time > r.Duration * 0.97) ? r.Time : (double?)null;
+        var name = request.Post.Title(Settings.Lang);
+        var title = request.Post.IsSeries && item.EpisodeRaw is { } episode ? $"{name} · {Loc.EpisodeTag(item.Season, episode)}" : name;
+        if (!Shell.OtherPlayers.Stream(program, quality.UrlFor(Settings.AudioMix).OriginalString, resume, title)) return false;
+        ShowToast($"{Loc[Extra.playingIn]} {Shell.OtherPlayers.NameOf(program)}");
+        return true;
     }
 
     public void ClosePlayer()

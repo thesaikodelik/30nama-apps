@@ -26,6 +26,8 @@ public enum Extra
     actorName,
     // A finished download whose file is no longer where it was saved (a user on Twitter).
     fileMissing,
+    // Settings › Playback: the player online titles open in, this app's or one on the computer (the owner).
+    onlinePlayer, thisApp, onlinePlayerHint, playingIn,
 }
 #pragma warning restore IDE1006
 
@@ -58,6 +60,8 @@ public sealed partial class Loc
         [Extra.dataSaverHint] = "For metered internet or a VPN with a data cap: no preview shows while seeking, and no trailer plays behind a title's page.",
         [Extra.clearCaches] = "Saved trailers, TMDB answers, translations and episode stills",
         [Extra.copyLink] = "Copy link", [Extra.linkCopied] = "Link copied", [Extra.actorName] = "Actor's name", [Extra.fileMissing] = "File not found",
+        [Extra.onlinePlayer] = "Play online in", [Extra.thisApp] = "This app", [Extra.playingIn] = "Playing in",
+        [Extra.onlinePlayerHint] = "Films and episodes open in the player chosen here. What is watched there is not kept in Continue watching.",
         [Extra.clear] = "Clear",
         [Extra.megabytes] = "MB",
         [Extra.cleared] = "Cleared",
@@ -92,6 +96,8 @@ public sealed partial class Loc
         [Extra.dataSaverHint] = "برای اینترنت حجمی یا VPN با حجم محدود: هنگام جلو و عقب بردن پیش‌نمایش نمی‌آید و پشت صفحهٔ عنوان تریلری پخش نمی‌شود.",
         [Extra.clearCaches] = "تریلرها، پاسخ‌های TMDB، ترجمه‌ها و عکس قسمت‌های ذخیره‌شده",
         [Extra.copyLink] = "کپی لینک", [Extra.linkCopied] = "لینک کپی شد", [Extra.actorName] = "نام بازیگر", [Extra.fileMissing] = "فایل پیدا نشد",
+        [Extra.onlinePlayer] = "پخش آنلاین با", [Extra.thisApp] = "همین برنامه", [Extra.playingIn] = "در حال پخش در",
+        [Extra.onlinePlayerHint] = "فیلم‌ها و قسمت‌ها در پخش‌کننده‌ای که این‌جا انتخاب شده باز می‌شوند. آن‌چه آن‌جا دیده شود در «ادامه تماشا» نمی‌آید.",
         [Extra.clear] = "پاک کردن",
         [Extra.megabytes] = "مگابایت",
         [Extra.cleared] = "پاک شد",
@@ -126,6 +132,8 @@ public sealed partial class Loc
         [Extra.dataSaverHint] = "للإنترنت المحدود أو VPN بحجم محدود: لا تظهر معاينة أثناء التقديم والترجيع، ولا يُعرض إعلان خلف صفحة العنوان.",
         [Extra.clearCaches] = "الإعلانات وردود TMDB والترجمات وصور الحلقات المحفوظة",
         [Extra.copyLink] = "نسخ الرابط", [Extra.linkCopied] = "تم نسخ الرابط", [Extra.actorName] = "اسم الممثل", [Extra.fileMissing] = "لم يُعثر على الملف",
+        [Extra.onlinePlayer] = "التشغيل عبر الإنترنت في", [Extra.thisApp] = "هذا التطبيق", [Extra.playingIn] = "يُعرض الآن في",
+        [Extra.onlinePlayerHint] = "تُفتح الأفلام والحلقات في المشغّل المختار هنا. ما يُشاهَد هناك لا يُحفظ في متابعة المشاهدة.",
         [Extra.clear] = "مسح",
         [Extra.megabytes] = "ميغابايت",
         [Extra.cleared] = "تم المسح",

@@ -95,6 +95,7 @@ public sealed class SettingsPage : Grid
                     PreferAdaptive = (string)v == "auto", MaxQuality = (string)v == "max",
                     QualityCap = int.TryParse((string)v, out var cap) ? cap : 0,
                 }))),
+            OnlinePlayerRow(s),
             Row(loc[S.audio], Choice([(loc[S.audioStereo], AudioMix.Stereo), (loc[S.audioSurround], AudioMix.Surround), (loc[S.audioOriginal], (object)AudioMix.Original)], s.AudioMix, v => App.Update(x => x with { AudioMix = (AudioMix)v }))),
             Row(loc[S.autoplay], Toggle(s.AutoplayNext, v => App.Update(x => x with { AutoplayNext = v }))),
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),
@@ -186,6 +187,33 @@ public sealed class SettingsPage : Grid
         }, height: 34));
         _ = Count();
         return row;
+    }
+
+    /// <summary>
+    /// The player online titles open in: this app's, or one on the computer that takes a stream
+    /// (VLC, mpv, PotPlayer, MPC). Shown only once Windows has named at least one.
+    /// </summary>
+    private static FrameworkElement OnlinePlayerRow(Settings s)
+    {
+        var loc = App.Loc;
+        var slot = new Border();
+        var row = Hinted(Row(loc[Extra.onlinePlayer], slot), loc[Extra.onlinePlayerHint]);
+        row.Visibility = Visibility.Collapsed;
+        _ = Fill();
+        return row;
+
+        async Task Fill()
+        {
+            var players = await Shell.OtherPlayers.ForStreamsAsync();
+            var options = new List<(string, object)> { (loc[Extra.thisApp], "") };
+            options.AddRange(players.Select(p => (p.Name, (object)p.Program)));
+            // Kept although Windows no longer lists it, so the choice is not silently changed.
+            if (s.OnlinePlayer is { } kept && !players.Any(p => string.Equals(p.Program, kept, StringComparison.OrdinalIgnoreCase)))
+                options.Add((Shell.OtherPlayers.NameOf(kept), kept));
+            if (options.Count == 1) return;
+            slot.Child = Choice(options, s.OnlinePlayer ?? "", v => App.Update(x => x with { OnlinePlayer = (string)v is { Length: > 0 } program ? program : null }));
+            row.Visibility = Visibility.Visible;
+        }
     }
 
     private static FrameworkElement Row(string label, FrameworkElement control)

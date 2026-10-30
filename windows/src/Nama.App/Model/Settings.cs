@@ -41,6 +41,12 @@ public sealed record Settings
     /// reaches the rest.
     /// </summary>
     public int QualityCap { get; init; }
+    /// <summary>
+    /// Settings › Playback › Play online in: a player on the computer (its program's path) that
+    /// streams are handed to instead of this app's, as the Mac's "Open in another player" but
+    /// chosen once (the owner: no menu in the player for it). Null for this app's own.
+    /// </summary>
+    public string? OnlinePlayer { get; init; }
     public bool ReduceMotion { get; init; }
     /// <summary>
     /// Motion is kept still: chosen here, or Windows' own animation effects are off (Settings ›

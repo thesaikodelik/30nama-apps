@@ -68,12 +68,20 @@ public static class Kit
     /// <summary>Everything else: a pane of glass that brightens under the pointer.</summary>
     public static Button Glass(string? text, string? glyph, Action click, double height = 46, Color? rim = null)
     {
-        var tint = new Border { Background = Theme.White(0.1), CornerRadius = new CornerRadius(height / 2) };
         var content = text is null
             ? (FrameworkElement)Glyph.Icon(glyph!, height * 0.36)
             : Label(text, glyph, 16, FontWeights.SemiBold, Theme.Text1);
         content.HorizontalAlignment = HorizontalAlignment.Center;
         content.Margin = text is null ? new Thickness(0) : new Thickness(height * 0.5, 0, height * 0.5, 0);
+        var button = Glass(content, click, height, rim);
+        if (text is not null) AutomationName(button, text);
+        return button;
+    }
+
+    /// <summary>The same glass round anything: a player's own icon beside a download.</summary>
+    public static Button Glass(FrameworkElement content, Action click, double height, Color? rim = null)
+    {
+        var tint = new Border { Background = Theme.White(0.1), CornerRadius = new CornerRadius(height / 2) };
         var face = new Grid { Height = height, MinWidth = height }.Springy(0.2);
         face.Children.Add(new Border { Background = Theme.GlassFill(), CornerRadius = new CornerRadius(height / 2) });
         face.Children.Add(tint);
@@ -85,7 +93,6 @@ public static class Kit
         });
         face.Children.Add(content);
         var button = Theme.Bare(face, click);
-        if (text is not null) AutomationName(button, text);
         button.PointerEntered += (_, _) => tint.Background = Theme.White(0.2);
         button.PointerExited += (_, _) => tint.Background = Theme.White(0.1);
         return Hovering(button, face, 1.03);
