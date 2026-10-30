@@ -1036,8 +1036,8 @@ private struct PosterBack: View {
             VStack(spacing: 12) {
                 Spacer(minLength: 0)
                 if let logo = card.companyLogo {
-                    RemoteImage(url: TMDBStore.shared.picture(logo), maxPixel: 400)
-                        .scaledToFit()
+                    // Whole, not cut to fill a frame as a poster is: a logo's shape is the point of it.
+                    FittedPicture(url: TMDBStore.shared.picture(logo), maxPixel: 400)
                         .frame(maxWidth: 150, maxHeight: 54)
                         .shadow(color: .white.opacity(0.7), radius: 0.8)
                         .shadow(color: .white.opacity(0.35), radius: 3)
@@ -1060,5 +1060,28 @@ private struct PosterBack: View {
             .padding(18)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A picture shown whole inside its frame, for a logo: `RemoteImage` fills its frame and cuts the rest.
+private struct FittedPicture: View {
+    let url: URL?
+    let maxPixel: Int
+
+    @State private var image: PlatformImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(platformImage: image).resizable().scaledToFit().transition(.opacity)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: url) {
+            guard let url else { return }
+            let loaded = await ImagePipeline.shared.image(url, maxPixel: maxPixel)
+            if !Task.isCancelled { withAnimation(.easeOut(duration: 0.24)) { image = loaded } }
+        }
     }
 }

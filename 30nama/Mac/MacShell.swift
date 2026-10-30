@@ -228,6 +228,11 @@ struct MainView: View {
         if let name = DebugLaunch.section, let section = MacSection.allCases.first(where: { "\($0)" == name }) {
             nav.go(section)
         }
+        if let query = DebugLaunch.open, query.hasPrefix("search:") {
+            let found = try? await app.api.get("search", ["query": String(query.dropFirst(7)), "streamonly": APIClient.streamOnly(false), "page": "1"])
+            if let post = found.flatMap({ PostPage($0).posts.first }) { nav.open(post) }
+            return
+        }
         if DebugLaunch.open == "advanced" {
             nav.open(.advancedSearch())
             return
