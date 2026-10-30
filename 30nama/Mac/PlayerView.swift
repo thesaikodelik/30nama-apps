@@ -22,6 +22,8 @@ struct PlayerView: View {
     @State private var hideTask: Task<Void, Never>?
     @State private var keyMonitor: Any?
     @State private var lastClick: Date?
+    /// When the arrow key now held was first pressed.
+    @State private var heldSince: Date?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -118,7 +120,12 @@ struct PlayerView: View {
                 if !episodes, !keys, event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
                    event.keyCode == 123 || event.keyCode == 124 {
                     wake()
-                    engine.skip(event.keyCode == 124 ? 10 : -10)
+                    // Held, it goes further the longer it is held: ten seconds, doubled every second
+                    // and a half, up to eighty (from the Android and Windows apps).
+                    if !event.isARepeat { heldSince = Date() }
+                    let held = heldSince.map { Date().timeIntervalSince($0) } ?? 0
+                    let step = min(80, 10 * pow(2, (held / 1.5).rounded(.down)))
+                    engine.skip(event.keyCode == 124 ? step : -step)
                     return nil
                 }
                 // Enter wherever the focus is, not only on the picture: after a click on a button the
@@ -161,6 +168,7 @@ struct PlayerView: View {
 
     /// Brings the controls up and lets them go again a few seconds after the pointer stops.
     private func wake() {
+        engine?.noticed()
         if !controls { controls = true }
         hideTask?.cancel()
         #if DEBUG
@@ -225,6 +233,12 @@ struct PlayerView: View {
     }
 
     /// The keys with a letter shortcut, by their code: the same key whatever the keyboard layout.
+    private func subtitleTiming(_ offset: Double) -> String {
+        guard abs(offset) >= 0.01 else { return loc(.subtitleTiming) }
+        let amount = loc.num(String(format: "%g", abs(offset)))
+        return "\(loc(.subtitleTiming)): \(loc(offset > 0 ? .subtitleLater : .subtitleEarlier)) \(amount) \(loc(.secondsShort))"
+    }
+
     private static let clockTime: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -403,9 +417,10 @@ struct PlayerView: View {
             }
             Button(loc(.subtitleFile)) { engine.chooseSubtitleFile() }
             Divider()
-            Section("\(loc(.subtitleTiming)): \(engine.subtitleOffset.formatted(.number.sign(strategy: .always(includingZero: false)).precision(.fractionLength(2))))s") {
-                Button("+0.25s  (H)") { engine.nudgeSubtitles(0.25) }
-                Button("−0.25s  (G)") { engine.nudgeSubtitles(-0.25) }
+            // In words: a plus or minus sign lands on the wrong side in a Persian line.
+            Section(subtitleTiming(engine.subtitleOffset)) {
+                Button("\(loc(.subtitleLater))  (H)") { engine.nudgeSubtitles(0.25) }
+                Button("\(loc(.subtitleEarlier))  (G)") { engine.nudgeSubtitles(-0.25) }
                 Button(loc(.reset)) { engine.nudgeSubtitles(0) }
             }
         }

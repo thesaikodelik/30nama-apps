@@ -94,6 +94,8 @@ final class PlayerEngine {
     @ObservationIgnored private var reportedTime = 0
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var markedWatched = false
+    /// Episodes begun one after another by autoplay with nobody touching the Mac in between.
+    @ObservationIgnored private var unattended = 0
     private var system: SystemPlayback? { playback as? SystemPlayback }
     @ObservationIgnored private weak var window: NSWindow?
     @ObservationIgnored private var nowPlaying: NowPlaying?
@@ -124,6 +126,16 @@ final class PlayerEngine {
 
     /// The previous key, as players have it: ten seconds into an episode it goes back to its
     /// start; before that, to the episode before. A film starts over.
+    /// Someone touched the Mac: autoplay's count of unattended episodes starts again.
+    func noticed() { unattended = 0 }
+
+    /// Where the credits start: the server's mark, or, where it has none, the last 25 seconds, so
+    /// the next episode is still counted down to.
+    private var creditsStart: Double? {
+        if let credits = current.creditsStart, credits > 0 { return credits }
+        return duration > 120 ? duration - 25 : nil
+    }
+
     func startOver() {
         seek(to: 0)
     }
@@ -170,19 +182,19 @@ final class PlayerEngine {
         #if DEBUG
         if DebugLaunch.mute { toggleMute() }
         #endif
-        if post.isSeries, let kept = UserDefaults.standard.dictionary(forKey: seriesKey) {
+        if let kept = UserDefaults.standard.dictionary(forKey: seriesKey) {
             if let value = kept["speed"] as? Double { speed = Float(value) }
             if let value = kept["subtitleOffset"] as? Double { subtitleOffset = value }
         }
         if items.isEmpty { close() } else { start(index) }
     }
 
-    /// A series keeps its speed and subtitle timing from one episode, and one evening, to the next:
-    /// a subtitle that runs late on one episode usually runs late on them all.
+    /// A title keeps its speed and subtitle timing from one episode, and one evening, to the next:
+    /// a subtitle that runs late on one episode usually runs late on them all, and a film left half
+    /// watched comes back to the same subtitle. The key keeps its old name, so what series kept stays.
     private var seriesKey: String { "series.\(post.id)" }
 
     private func keepSeriesChoices() {
-        guard post.isSeries else { return }
         UserDefaults.standard.set(["speed": Double(speed), "subtitleOffset": subtitleOffset], forKey: seriesKey)
     }
 
@@ -354,6 +366,13 @@ final class PlayerEngine {
             return close()
         }
         if hasNext, app.settings.autoplayNext {
+            // Three in a row with no key, click or mouse move: someone has likely fallen asleep.
+            // It stops, saying so, with no dialog to answer (from the Android and Windows apps).
+            if unattended >= 3 {
+                app.showToast(loc(.stillWatchingStopped))
+                return close()
+            }
+            unattended += 1
             start(index + 1)
         } else {
             close()
@@ -578,7 +597,7 @@ final class PlayerEngine {
                 seek(to: skip.to)
                 due = nil
             }
-        } else if let credits = current.creditsStart, credits > 0, seconds >= credits, hasNext {
+        } else if let credits = creditsStart, seconds >= credits, hasNext {
             due = .next
             if app.settings.autoplayNext, sleep != .endOfEpisode, duration > credits {
                 // In steps, so the pill is not redrawn four times a second.
