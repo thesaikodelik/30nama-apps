@@ -94,20 +94,9 @@ public sealed class AdvancedSearchPage : Grid
         Grid.SetColumn(sorts, 1);
         top.Children.Add(sorts);
         _header.Children.Add(top);
-        // The hint, and across from it the names to search by, above the filters (Twitter feedback 3):
-        // they are what is typed, apart from the menus that are chosen from.
-        var line = new Grid { Margin = new Thickness(0, -10, 0, 0), ColumnSpacing = 16 };
-        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var hint = Theme.Text(Loc[S.advancedHint], 14, color: Theme.Text3);
-        hint.VerticalAlignment = VerticalAlignment.Center;
-        line.Children.Add(hint);
-        var names = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        names.Children.Add(Director());
-        names.Children.Add(Actor());
-        Grid.SetColumn(names, 1);
-        line.Children.Add(names);
-        _header.Children.Add(line);
+        hint.Margin = new Thickness(0, -10, 0, 0);
+        _header.Children.Add(hint);
         if (_choices is { } choices) _header.Children.Add(Filters(choices));
     }
 
@@ -131,7 +120,18 @@ public sealed class AdvancedSearchPage : Grid
         menus.Add(Menu(Loc[S.network], choices.Networks, _query.Network, v => q => q with { Network = v }));
         menus.Add(Menu(Loc[S.minScore], choices.Scores, _query.Score, v => q => q with { Score = v }));
         menus.Add(Menu(Loc[S.ageRating], choices.Ages, _query.Age, v => q => q with { Age = v }));
-        rows.Children.Add(menus);
+        // Across from the menus, level with them, the names to search by (Twitter feedback 3): on the
+        // left, as the sorts are above them, apart from the menus that are chosen from.
+        var line = new Grid { ColumnSpacing = 16 };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        line.Children.Add(menus);
+        var names = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Top };
+        names.Children.Add(Director());
+        names.Children.Add(Actor());
+        Grid.SetColumn(names, 1);
+        line.Children.Add(names);
+        rows.Children.Add(line);
 
         var more = new WrapRow(14);
         more.Add(Years());
@@ -251,6 +251,12 @@ public sealed class AdvancedSearchPage : Grid
     {
         var box = Field(now ?? "", placeholder, 200);
         box.FlowDirection = FlowDirection.LeftToRight;
+        // The menus' height, so the two sides of the line meet; the text in the middle of the capsule.
+        box.Height = box.MinHeight = 30;
+        box.CornerRadius = new CornerRadius(15);
+        box.Padding = new Thickness(12, 5, 12, 0);
+        box.Resources["TextControlThemeMinHeight"] = 0.0;
+        box.Resources["TextControlThemePadding"] = new Thickness(0);
         void Apply()
         {
             var name = string.IsNullOrWhiteSpace(box.Text) ? null : box.Text.Trim();
