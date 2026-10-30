@@ -7,7 +7,7 @@
 <p dir="rtl">برنامه‌های غیررسمی و بومی ۳۰نما برای مک، ویندوز، اندروید TV و Apple TV.</p>
 
 <p>
-<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.5-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
+<a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Mac%202.0.6-e5484d?style=for-the-badge&logo=apple&logoColor=white" alt="دانلود نسخهٔ مک"></a>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%201.0.5-e5484d?style=for-the-badge&logo=windows&logoColor=white" alt="دانلود نسخهٔ ویندوز"></a>
 <a href="https://github.com/thesaikodelik/30nama-apps/releases/latest"><img src="https://img.shields.io/badge/Download-Android%20TV%201.1.3-e5484d?style=for-the-badge&logo=android&logoColor=white" alt="دانلود نسخهٔ اندروید TV"></a>
 </p>
@@ -65,7 +65,7 @@
 
 ### نصب
 
-فایل `30nama-mac-2.0.5.dmg` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
+فایل `30nama-mac-2.0.6.dmg` را از [صفحهٔ دانلودها](https://github.com/thesaikodelik/30nama-apps/releases/latest) بگیرید.
 
 ۱. فایل را باز کنید و 30nama را روی پوشهٔ Applications بکشید.
 
