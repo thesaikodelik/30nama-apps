@@ -13,6 +13,7 @@ final class NowPlaying {
         var skip: (Double) -> Void
         var seek: (Double) -> Void
         var next: () -> Void
+        var previous: () -> Void
     }
 
     private var targets: [(MPRemoteCommand, Any)] = []
@@ -38,6 +39,7 @@ final class NowPlaying {
         on(center.skipForwardCommand) { _ in handlers.skip(10) }
         on(center.skipBackwardCommand) { _ in handlers.skip(-10) }
         on(center.nextTrackCommand) { _ in handlers.next() }
+        on(center.previousTrackCommand) { _ in handlers.previous() }
         on(center.changePlaybackPositionCommand) { event in
             if let event = event as? MPChangePlaybackPositionCommandEvent { handlers.seek(event.positionTime) }
         }

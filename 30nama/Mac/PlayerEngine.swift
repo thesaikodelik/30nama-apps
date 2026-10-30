@@ -50,6 +50,8 @@ final class PlayerEngine {
     private(set) var muted = false
     private(set) var cue = ""
     private(set) var offer: Offer?
+    /// A title resumed part-way offers to start over until ten seconds after where it resumed.
+    private(set) var startOverBefore: Double?
     /// Next episode only: how far the credits have run, 0...1, when the next one starts by itself.
     private(set) var countdown: Double?
     private(set) var subtitleLanguage: String
@@ -120,6 +122,22 @@ final class PlayerEngine {
     var hasNext: Bool { index + 1 < items.count }
     var hasPrevious: Bool { index > 0 }
 
+    /// The previous key, as players have it: ten seconds into an episode it goes back to its
+    /// start; before that, to the episode before. A film starts over.
+    func startOver() {
+        seek(to: 0)
+    }
+
+    /// The clock time the item ends at, at the speed it plays.
+    var endsAt: Date? {
+        guard duration > 0, time < duration else { return nil }
+        return Date().addingTimeInterval((duration - time) / Double(max(speed, 0.1)))
+    }
+
+    func previous() {
+        if playback.position > 10 || !hasPrevious { seek(to: 0) } else { start(index - 1) }
+    }
+
     init(request: PlaybackRequest, app: AppModel) {
         post = request.post
         items = request.items
@@ -140,7 +158,8 @@ final class PlayerEngine {
             toggle: { [weak self] in self?.toggle() },
             skip: { [weak self] in self?.skip($0) },
             seek: { [weak self] in self?.seek(to: $0) },
-            next: { [weak self] in if let self, self.hasNext { self.start(self.index + 1) } }
+            next: { [weak self] in if let self, self.hasNext { self.start(self.index + 1) } },
+            previous: { [weak self] in self?.previous() }
         ))
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -268,7 +287,9 @@ final class PlayerEngine {
             app.showToast("\(loc(.playingIn)) \(other.name)")
             return close()
         }
-        load(quality, at: position ?? resumePosition())
+        let from = position ?? resumePosition()
+        startOverBefore = position == nil ? from.map { $0 + 10 } : nil
+        load(quality, at: from)
         resume = nil
         // A file belongs to the episode it was picked for.
         fileTrack = nil
@@ -360,6 +381,7 @@ final class PlayerEngine {
     }
 
     private func place(at seconds: Double) {
+        startOverBefore = nil
         let target = max(0, duration > 0 ? min(seconds, duration - 1) : seconds)
         time = target
         playback.seek(to: target)
@@ -517,6 +539,7 @@ final class PlayerEngine {
 
     private func tick(_ seconds: Double) {
         guard !closed, seconds.isFinite else { return }
+        if let until = startOverBefore, seconds >= until { startOverBefore = nil }
         // While presses are being added up, the clock shows where they lead.
         if skipTarget == nil { time = seconds }
         let length = playback.duration

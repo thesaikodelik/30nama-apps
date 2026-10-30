@@ -225,6 +225,13 @@ struct PlayerView: View {
     }
 
     /// The keys with a letter shortcut, by their code: the same key whatever the keyboard layout.
+    private static let clockTime: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
     private static let keyLetters: [UInt16: String] = [3: "f", 46: "m", 35: "p", 17: "t", 45: "n", 14: "e", 5: "g", 4: "h", 33: "[", 30: "]", 44: "/"]
 
     private func sleepName(_ timer: PlayerEngine.SleepTimer, series: Bool) -> String {
@@ -335,6 +342,12 @@ struct PlayerView: View {
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.leading, 10)
+                // When it will be over, at the speed it plays (from the Android and Windows apps).
+                if let end = engine.endsAt {
+                    Text(loc.isolated("\(loc(.endsAt)) \(loc.num(PlayerView.clockTime.string(from: end)))"))
+                        .font(.app(13, .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
                 Spacer(minLength: 0)
                 menus(engine)
                 if engine.items.count > 1 {
@@ -738,6 +751,22 @@ private struct OfferPill: View {
             Spacer(minLength: 0)
             HStack {
                 Spacer(minLength: 0)
+                // Resumed part-way: the start is one click away for its first ten seconds.
+                if engine.offer == nil, engine.startOverBefore != nil {
+                    Button { engine.startOver() } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "backward.end.fill").font(.system(size: 13, weight: .bold))
+                            Text(loc(.startOver)).font(.app(16, .bold))
+                        }
+                        .foregroundStyle(Theme.text1)
+                        .padding(.horizontal, 22)
+                        .frame(height: 46)
+                        .glass(Capsule(style: .continuous))
+                        .contentShape(Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .offset(y: 14)))
+                }
                 if let offer = engine.offer {
                     Button { engine.acceptOffer() } label: {
                         HStack(spacing: 10) {
@@ -771,6 +800,7 @@ private struct OfferPill: View {
             }
         }
         .animation(Theme.focusSpring, value: engine.offer)
+        .animation(Theme.focusSpring, value: engine.startOverBefore != nil)
     }
 }
 
