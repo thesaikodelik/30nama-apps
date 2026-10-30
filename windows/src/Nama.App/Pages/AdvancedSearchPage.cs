@@ -125,6 +125,7 @@ public sealed class AdvancedSearchPage : Grid
         var more = new WrapRow(14);
         more.Add(Years());
         more.Add(Director());
+        more.Add(Actor());
         more.Add(Switch("x265", _query.X265, on => q => q with { X265 = on }));
         more.Add(Switch("3D", _query.ThreeD, on => q => q with { ThreeD = on }));
         more.Add(Switch(Loc[S.streamOnly], _query.StreamOnly, on => q => q with { StreamOnly = on }));
@@ -229,17 +230,26 @@ public sealed class AdvancedSearchPage : Grid
         return box;
     }
 
-    private TextBox Director()
+    private TextBox Director() => Person(_query.Director, Loc[S.directorName], Loc[S.director], name => q => q with { Director = name });
+
+    private TextBox Actor() => Person(_query.Actor, Loc[Extra.actorName], Loc[Extra.actorName], name => q => q with { Actor = name });
+
+    /// <summary>
+    /// A name to narrow by, a director's or an actor's. Left to right in every language, as the search
+    /// box: names are written in English (a user on Twitter: in Persian it read from the wrong side).
+    /// </summary>
+    private TextBox Person(string? now, string placeholder, string label, Func<string?, Func<AdvancedQuery, AdvancedQuery>> set)
     {
-        var box = Field(_query.Director ?? "", Loc[S.directorName], 200);
+        var box = Field(now ?? "", placeholder, 200);
+        box.FlowDirection = FlowDirection.LeftToRight;
         void Apply()
         {
             var name = string.IsNullOrWhiteSpace(box.Text) ? null : box.Text.Trim();
-            if (name != _query.Director) Change(q => q with { Director = name });
+            if (name != now?.Trim()) Change(set(name));
         }
         box.LostFocus += (_, _) => Apply();
         box.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) Apply(); };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, Loc[S.director]);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, label);
         return box;
     }
 

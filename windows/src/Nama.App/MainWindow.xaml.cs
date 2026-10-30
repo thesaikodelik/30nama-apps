@@ -344,12 +344,13 @@ public sealed partial class MainWindow : Window
             Environment.SetEnvironmentVariable("NAMA_NOTIFY_TEST", null);
             EpisodeWatch.Show(shown, _app.Loc);
         }
-        // NAMA_PAGE: one of the website's pages, "schedule", "toplists" or "news".
+        // NAMA_PAGE: one of the website's pages, "schedule", "toplists" or "news"; or "advanced", the advanced search.
         switch (Environment.GetEnvironmentVariable("NAMA_PAGE"))
         {
             case "schedule": _nav.Open(new Route.Schedule()); break;
             case "toplists": _nav.Open(new Route.TopLists()); break;
             case "news": _nav.Open(new Route.News()); break;
+            case "advanced": _nav.Open(new Route.Advanced()); break;
         }
         // NAMA_PERSON: a person's page, by 30nama's id for them.
         if (int.TryParse(Environment.GetEnvironmentVariable("NAMA_PERSON"), out var person))

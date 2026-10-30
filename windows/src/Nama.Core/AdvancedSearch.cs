@@ -54,6 +54,11 @@ public sealed record AdvancedQuery
     public string? Score { get; init; }
     public string? Age { get; init; }
     public string? Director { get; init; }
+    /// <summary>
+    /// An actor, by name, as the director is (a user on Twitter, 30 October 2026). The server reads
+    /// <c>actor</c> by name or by IMDb id (DiCaprio: 73 and 68); <c>cast</c> it ignores.
+    /// </summary>
+    public string? Actor { get; init; }
     public int? FromYear { get; init; }
     public int? ToYear { get; init; }
     public bool X265 { get; init; }
@@ -63,7 +68,7 @@ public sealed record AdvancedQuery
 
     /// <summary>How many fields narrow the search, for the count on the filters button.</summary>
     public int Count =>
-        new object?[] { Type, Country, Language, Network, Score, Age, Director, FromYear, ToYear }.Count(v => v is not null)
+        new object?[] { Type, Country, Language, Network, Score, Age, Director, Actor, FromYear, ToYear }.Count(v => v is not null)
         + Genres.Count + (X265 ? 1 : 0) + (ThreeD ? 1 : 0);
 
     /// <summary>The <c>parameters</c> value <c>advanced_search</c> takes: a JSON object of the chosen fields.</summary>
@@ -79,6 +84,7 @@ public sealed record AdvancedQuery
         if (Score is not null && double.TryParse(Score, NumberStyles.Float, CultureInfo.InvariantCulture, out var floor)) fields["imdb_rate"] = floor;
         if (Age is not null) fields["age"] = Age;
         if (Director?.Trim() is { Length: > 0 } director) fields["director"] = director;
+        if (Actor?.Trim() is { Length: > 0 } actor) fields["actor"] = actor;
         // The years either way round: someone writing 2010 to 2000 means the same decade.
         if (FromYear is { } from && ToYear is { } to && from > to) (from, to) = (to, from);
         else (from, to) = (FromYear ?? 0, ToYear ?? 0);

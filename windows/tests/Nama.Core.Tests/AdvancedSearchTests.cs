@@ -44,6 +44,15 @@ public class AdvancedSearchTests
     }
 
     [Fact]
+    public void AnActorByName()
+    {
+        var query = new AdvancedQuery { Actor = " Leonardo DiCaprio " };
+        Assert.Equal("""{"actor":"Leonardo DiCaprio","stream":"true"}""", query.Parameters());
+        Assert.Equal(1, query.Count);
+        Assert.Equal("""{"stream":"true"}""", new AdvancedQuery { Actor = "  " }.Parameters());
+    }
+
+    [Fact]
     public void OneYearIsEnough()
     {
         Assert.Equal("""{"min_year":"1990","stream":"true"}""", new AdvancedQuery { FromYear = 1990 }.Parameters());

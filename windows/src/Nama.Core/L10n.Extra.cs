@@ -22,6 +22,8 @@ public enum Extra
     dataSaver, dataSaverHint, clearCaches, clear, megabytes, cleared,
     // A title's page on the website, copied to share (issue #2).
     copyLink, linkCopied,
+    // Advanced search by an actor, beside the director (a user on Twitter).
+    actorName,
 }
 #pragma warning restore IDE1006
 
@@ -53,7 +55,7 @@ public sealed partial class Loc
         [Extra.dataSaver] = "Data saver",
         [Extra.dataSaverHint] = "For metered internet or a VPN with a data cap: no preview shows while seeking, and no trailer plays behind a title's page.",
         [Extra.clearCaches] = "Saved trailers, TMDB answers, translations and episode stills",
-        [Extra.copyLink] = "Copy link", [Extra.linkCopied] = "Link copied",
+        [Extra.copyLink] = "Copy link", [Extra.linkCopied] = "Link copied", [Extra.actorName] = "Actor's name",
         [Extra.clear] = "Clear",
         [Extra.megabytes] = "MB",
         [Extra.cleared] = "Cleared",
@@ -87,7 +89,7 @@ public sealed partial class Loc
         [Extra.dataSaver] = "صرفه‌جویی در اینترنت",
         [Extra.dataSaverHint] = "برای اینترنت حجمی یا VPN با حجم محدود: هنگام جلو و عقب بردن پیش‌نمایش نمی‌آید و پشت صفحهٔ عنوان تریلری پخش نمی‌شود.",
         [Extra.clearCaches] = "تریلرها، پاسخ‌های TMDB، ترجمه‌ها و عکس قسمت‌های ذخیره‌شده",
-        [Extra.copyLink] = "کپی لینک", [Extra.linkCopied] = "لینک کپی شد",
+        [Extra.copyLink] = "کپی لینک", [Extra.linkCopied] = "لینک کپی شد", [Extra.actorName] = "نام بازیگر",
         [Extra.clear] = "پاک کردن",
         [Extra.megabytes] = "مگابایت",
         [Extra.cleared] = "پاک شد",
@@ -121,7 +123,7 @@ public sealed partial class Loc
         [Extra.dataSaver] = "توفير البيانات",
         [Extra.dataSaverHint] = "للإنترنت المحدود أو VPN بحجم محدود: لا تظهر معاينة أثناء التقديم والترجيع، ولا يُعرض إعلان خلف صفحة العنوان.",
         [Extra.clearCaches] = "الإعلانات وردود TMDB والترجمات وصور الحلقات المحفوظة",
-        [Extra.copyLink] = "نسخ الرابط", [Extra.linkCopied] = "تم نسخ الرابط",
+        [Extra.copyLink] = "نسخ الرابط", [Extra.linkCopied] = "تم نسخ الرابط", [Extra.actorName] = "اسم الممثل",
         [Extra.clear] = "مسح",
         [Extra.megabytes] = "ميغابايت",
         [Extra.cleared] = "تم المسح",
