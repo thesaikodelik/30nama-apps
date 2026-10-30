@@ -393,6 +393,9 @@ struct PlayerView: View {
                 ForEach(engine.subtitleLanguages, id: \.self) { language in
                     Text(loc(language == "fa" ? .persian : .english)).tag(language)
                 }
+                if engine.canTranslate {
+                    Text("\(engine.translationTarget == .ar ? Lang.ar.name : loc(.persian)) (\(loc(.machineTranslation)))").tag(PlayerEngine.machine)
+                }
                 if let name = engine.subtitleFileName {
                     Text(name).tag(PlayerEngine.fileSubtitle)
                 }

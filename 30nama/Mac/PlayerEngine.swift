@@ -78,6 +78,9 @@ final class PlayerEngine {
     static let inFile = "infile:"
     /// The subtitle choice for one found on SubSource: this, followed by the candidate's id.
     static let found = "found:"
+    /// The English subtitle put into Persian (or Arabic) by Gemini, with the viewer's own key.
+    static let machine = "machine"
+    static let geminiKeyName = "geminiKey"
 
     /// Persian subtitles found on SubSource for an item 30nama gives none for, best first.
     private(set) var foundSubtitles: [SubSource.Candidate] = []
@@ -677,18 +680,78 @@ final class PlayerEngine {
         }
     }
 
+    // MARK: Machine translation
+
+    private var geminiKey: String? {
+        let key = UserDefaults.standard.string(forKey: PlayerEngine.geminiKeyName)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return key?.isEmpty == false ? key : nil
+    }
+
+    var translationTarget: Lang { Translation.target(loc.lang) }
+
+    /// Offered only where there is nothing better: no Persian subtitle on 30nama or SubSource, an
+    /// English one to start from, the viewer's own Gemini key, and not from Iran, where Google is
+    /// out of reach (from the Android and Windows apps).
+    var canTranslate: Bool {
+        geminiKey != nil && !app.inIran && current.token != PlayerEngine.localToken
+            && current.subtitles["fa"] == nil && current.subtitles["en"] != nil && !findingSubtitles && foundSubtitles.isEmpty
+    }
+
+    /// The English lines at once, then batch after batch put in as it arrives: from where the
+    /// viewer is, onwards, then the part before. Kept on disk, so a film is translated once.
+    private func translate() {
+        guard let key = geminiKey, let url = current.subtitles["en"] else { return }
+        let target = translationTarget, title = post.titleEnglish ?? post.title(.en), item = index
+        let gemini = Gemini(transport: APIClient.urlSessionTransport(), folder: PlayerEngine.translations)
+        subtitleTask = Task { [weak self] in
+            guard let self else { return }
+            var cues: [Cue]
+            if let cached = self.subtitleCache[url] {
+                cues = cached.cues
+            } else {
+                guard let (data, _) = try? await URLSession.shared.data(from: url) else {
+                    if !Task.isCancelled { self.app.showToast(self.loc(.subFailed)) }
+                    return
+                }
+                let parsed = await Task.detached { SubtitleTrack(vtt: SubtitleSite.text(data) ?? String(decoding: data, as: UTF8.self)) }.value
+                self.subtitleCache[url] = parsed
+                cues = parsed.cues
+            }
+            guard !Task.isCancelled, self.subtitleLanguage == PlayerEngine.machine, self.index == item else { return }
+            self.track = SubtitleTrack(cues: cues)
+            let start = Translation.batch(at: self.time, in: cues)
+            for n in Translation.order(count: Translation.batchCount(cues), start: start) {
+                let outcome = await gemini.translate(key: key, source: url.lastPathComponent + "|" + self.current.fileID, target: target,
+                                                     title: title, batch: n, cues: Translation.batch(n, of: cues))
+                guard !Task.isCancelled, self.subtitleLanguage == PlayerEngine.machine, self.index == item else { return }
+                switch outcome {
+                case .lines(let lines):
+                    cues = Translation.apply(cues, batch: n, lines: lines)
+                    self.track = SubtitleTrack(cues: cues)
+                case .rejected:
+                    return self.app.showToast(self.loc(.keyRejected))
+                case .unavailable:
+                    return self.app.showToast(self.loc(.translationStopped))
+                }
+            }
+        }
+    }
+
+    static let translations = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("30nama-translations", isDirectory: true)
+
     func selectSubtitle(_ language: String, remember: Bool) {
         subtitleLanguage = language
         let inFile = language.hasPrefix(PlayerEngine.inFile)
         // A subtitle found for this title is remembered as Persian, which is what it is.
         let chosen = language.hasPrefix(PlayerEngine.found) ? "fa" : language
-        if remember, language != PlayerEngine.fileSubtitle, !inFile { app.update { $0.defaultSubtitle = chosen } }
+        if remember, language != PlayerEngine.fileSubtitle, language != PlayerEngine.machine, !inFile { app.update { $0.defaultSubtitle = chosen } }
         subtitleTask?.cancel()
         track = SubtitleTrack()
         cue = ""
         // A track inside the file is drawn by mpv, in its own styling; anything else by the app.
         (playback as? MPVPlayback)?.selectSubtitle(inFile ? Int(language.dropFirst(PlayerEngine.inFile.count)) : nil)
         if inFile { return }
+        if language == PlayerEngine.machine { return translate() }
         if language.hasPrefix(PlayerEngine.found) {
             let id = String(language.dropFirst(PlayerEngine.found.count))
             guard let candidate = foundSubtitles.first(where: { $0.id == id }) else { return }

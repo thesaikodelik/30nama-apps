@@ -90,6 +90,7 @@ struct SettingsView: View {
                         group(loc(.services)) {
                             keyField(loc(.subsourceKey), hint: loc(.subsourceKeyHint), service: .subsource, page: "https://subsource.net/profile", text: $subsourceKey)
                             keyField(loc(.tmdbKey), hint: loc(.tmdbKeyHint), service: .tmdb, page: "https://www.themoviedb.org/settings/api", text: $tmdbKey)
+                            keyField(loc(.geminiKey), hint: loc(.geminiKeyHint), service: .gemini, page: "https://aistudio.google.com/apikey", text: $geminiKey)
                         }
                         group(loc(.about)) {
                             // The app looks by itself every hour; this is for when a release was
@@ -214,6 +215,8 @@ struct SettingsView: View {
     @AppStorage("subsourceKey") private var subsourceKey = ""
     /// The user's own TMDB key or read access token, read by `TMDBStore`.
     @AppStorage("tmdbKey") private var tmdbKey = ""
+    /// The user's own Gemini key, read by the player to translate subtitles. Never leaves this Mac.
+    @AppStorage(PlayerEngine.geminiKeyName) private var geminiKey = ""
 
     private func keyField(_ label: String, hint: String, service: KeyCheck.Service, page: String, text: Binding<String>) -> some View {
         KeyField(label: label, hint: hint, service: service, page: URL(string: page)!, text: text)
