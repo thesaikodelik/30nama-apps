@@ -384,7 +384,22 @@ final class AppModel {
             _ = try? await api.call("logout")
             await api.setToken(nil)
         }
+        forgetAccount()
         clearSession()
+    }
+
+    /// What was this account's alone goes with it, as another member may sign in next: where each
+    /// title was left on this device, the episodes marked seen, the titles taken off Continue
+    /// watching, the name written for it and its series' news (as the Android and Windows apps).
+    /// Not when a session simply runs out: that is the same member, signing in again.
+    private func forgetAccount() {
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("left.") { defaults.removeObject(forKey: key) }
+        for key in ["watched", "continueDismissals", "displayName", "episodeWatch.expected", "episodeWatch.new", "episodeWatch.last"] {
+            defaults.removeObject(forKey: key)
+        }
+        watched = []
+        dismissals = ContinueDismissals()
     }
 
     private func sessionExpired() {
@@ -468,7 +483,13 @@ final class AppModel {
     /// the user's TMDB key when there is one, else TMDB's public page. Each title costs a 30nama
     /// search the first time, so the answers are kept on disk (see `Trending`).
     func trendingThisWeek() async -> [Post] {
-        // The row is TMDB's.
+        await trendingRow(.trend)
+    }
+
+    /// One of the rows TMDB is asked for. "New and returning series" and "Popular films now" need
+    /// the user's own key; without one they come empty (from the Tizen, Android and Windows apps).
+    func trendingRow(_ row: TrendingRow) async -> [Post] {
+        // The rows are TMDB's.
         guard !inIran else { return [] }
         let key = TMDBStore.key
         if trending == nil || trending?.key != key {
@@ -479,7 +500,7 @@ final class AppModel {
                 try await api.get("search", ["query": query, "streamonly": APIClient.streamOnly(false), "page": "1"], background: true)
             })
         }
-        return await trending?.service.row(.trend) ?? []
+        return await trending?.service.row(row) ?? []
     }
 
     @ObservationIgnored private var trending: (key: String?, service: Trending)?

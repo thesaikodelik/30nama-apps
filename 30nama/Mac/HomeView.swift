@@ -15,6 +15,8 @@ struct HomeView: View {
     /// TMDB's week, as far as 30nama has it; filled in after the page is up.
     /// Nil while the row is on its way.
     @State private var trending: [Post]?
+    /// The rows a TMDB key adds; nil while on their way, empty when too few are on 30nama.
+    @State private var extraRows: [TrendingRow: [Post]] = [:]
     /// The ten best-loved films and series. The home feed no longer names a top ten of its own,
     /// so these are the first ten of the catalogue's "most popular" order.
     @State private var top: [String: [Post]] = HomeView.topCache
@@ -220,6 +222,16 @@ struct HomeView: View {
                     ranked(loc(.topFilms), top["movies"])
                     ranked(loc(.topSeries), top["series"])
                 }
+                // With the user's own TMDB key, under the top tens: only titles 30nama has.
+                if section.id == feed.sections.first?.id, TMDBStore.key != nil, !app.inIran {
+                    ForEach([(TrendingRow.fresh, S.freshSeries), (.pop, .popularFilms)], id: \.0) { row, title in
+                        if extraRows[row]?.isEmpty != true {
+                            ArrivingShelf(title: loc(title), posts: extraRows[row], card: .poster) { post in
+                                PosterCard(post: post) { nav.open(post) }
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(.top, 14)
@@ -257,6 +269,11 @@ struct HomeView: View {
             if feed == nil { failed = true }
         }
         await loadTop()
+        if TMDBStore.key != nil, !app.inIran {
+            for row in [TrendingRow.fresh, .pop] where extraRows[row] == nil {
+                extraRows[row] = await app.trendingRow(row)
+            }
+        }
         if trending == nil {
             let found = await app.trendingThisWeek()
             guard !Task.isCancelled else { return }

@@ -860,12 +860,12 @@ private struct ReviewCard: View {
 
     @Environment(\.loc) private var loc
     @State private var hovering = false
+    @State private var reading = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Mac.radius + 4, style: .continuous)
-        Button {
-            if let link = review.link { NSWorkspace.shared.open(link) }
-        } label: {
+        // The whole review here, with TMDB's page a button away (from the Android and Windows apps).
+        Button { reading = true } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Text(review.author).font(.app(14, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
@@ -897,6 +897,48 @@ private struct ReviewCard: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
         .accessibilityLabel("\(review.author): \(review.text)")
+        .sheet(isPresented: $reading) { ReviewSheet(review: review) }
+    }
+}
+
+private struct ReviewSheet: View {
+    let review: TMDB.Review
+
+    @Environment(\.loc) private var loc
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Text(review.author).font(.app(18, .bold)).foregroundStyle(Theme.text1)
+                if let rating = review.rating {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0xF5C518))
+                        Text("\(loc.num(Fmt.score(rating)))/\(loc.num(10))").font(.app(13, .bold)).foregroundStyle(Theme.text2)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            ScrollView(.vertical) {
+                Text(review.text)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.text1)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .environment(\.layoutDirection, .leftToRight)
+            }
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+                if let link = review.link {
+                    Button("\(loc(.openIn)) TMDB") { NSWorkspace.shared.open(link) }.buttonStyle(GlassButtonStyle(height: 34))
+                }
+                Button(loc(.close)) { dismiss() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 620, height: 520)
+        .background(Theme.bg1)
     }
 }
 
