@@ -85,6 +85,7 @@ import androidx.tv.material3.Text
 import app.nama.androidtv.DemoStream
 import app.nama.androidtv.PlaybackRequest
 import app.nama.androidtv.attempt
+import app.nama.core.SiteLink
 import app.nama.core.TitleCard
 import app.nama.core.Episode
 import app.nama.core.Fmt
@@ -203,7 +204,7 @@ fun DetailsScreen(route: Route.Details) {
     revealed = 0
     val start = System.currentTimeMillis()
     while ((streamPending || !trailerTried) && System.currentTimeMillis() - start < 2_000) delay(100)
-    for (step in 1..7) {
+    for (step in 1..8) {
       revealed = step
       if (!calm) delay(70)
     }
@@ -514,10 +515,16 @@ private fun Header(
             RoundButton(Icons.heartOutline, loc(S.favorites), { scope.launch { app.toggleList(post, "favorite") } }, on = app.isListed(post, "favorite"), onIcon = Icons.heart)
           }
         }
+        // Its page on the website as a QR code, to open on a phone and send on (issue #2; Windows copies it).
+        Box(Modifier.comingIn(6, revealed)) {
+          val shareTitle = tv(TV.titleLink)
+          val shareBody = tv(TV.titleLinkHint)
+          RoundButton(Icons.qr, shareTitle, { app.sheets.link = LinkSpec(shareTitle, shareBody, SiteLink.of(post)) })
+        }
       }
       val progress = stream?.resume?.progress ?: 0.0
-      if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(6, revealed)) { ProgressBar(progress) }
-      if (post.updates.isNotEmpty()) Box(Modifier.comingIn(7, revealed)) { UpdatesTicker(post.updates) }
+      if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(7, revealed)) { ProgressBar(progress) }
+      if (post.updates.isNotEmpty()) Box(Modifier.comingIn(8, revealed)) { UpdatesTicker(post.updates) }
     }
     }
   }

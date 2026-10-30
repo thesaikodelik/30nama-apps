@@ -76,7 +76,11 @@ fun Ambient(content: @Composable () -> Unit) {
 
 /** Sort orders of a catalogue (the Apple TV's CatalogView). "Newest" needs the website's own API. */
 // "Newest" by year: the server ignores `id` (and `date`) and gives its own order (tried, 6 Aban 1405).
-private enum class Sort(val order: String, val label: S) { Updated("update", S.updated), Newest("year", S.newest), Popular("favorite", S.popular) }
+private enum class Sort(val order: String, val label: S?) {
+  Updated("update", S.updated), Newest("year", S.newest), Popular("favorite", S.popular),
+  /** By the IMDb rating, best first (issue #2): the advanced search's order, so through it even with no filter. Its name is IMDb's own. */
+  Imdb("imdb-rate", null),
+}
 
 /** Posters across a wall: (1920 − 2 × 80 + 20) / (200 + 20). */
 const val WALL = 8
@@ -144,7 +148,7 @@ fun CatalogScreen(slug: String, title: String) {
   val loc = LocalLoc.current
   /** "movie", "series" or "anime" for the three catalogue tabs: the filters and the site's newest list are by kind. */
   val kind = mapOf("movies" to "movie", "series" to "series", "anime" to "anime")[slug]
-  val sorts = Sort.entries.filter { it != Sort.Newest || (kind != null && app.api.hasSite) }
+  val sorts = Sort.entries.filter { (it != Sort.Newest || (kind != null && app.api.hasSite)) && (it != Sort.Imdb || kind != null) }
   var sort by rememberSaveable { mutableStateOf(Sort.Updated) }
   var filter by remember { mutableStateOf(Filter()) }
   var options by remember { mutableStateOf<FilterOptions?>(null) }
@@ -166,7 +170,7 @@ fun CatalogScreen(slug: String, title: String) {
     scope.launch {
       val next: PostPage? = attempt {
         when {
-          !filter.isEmpty && kind != null -> PostPage.from(app.api.get("advanced_search", mapOf("parameters" to filter.parameters(kind), "orderby" to sort.order, "order" to "DESC", "page" to (page + 1).toString())))
+          (!filter.isEmpty || sort == Sort.Imdb) && kind != null -> PostPage.from(app.api.get("advanced_search", mapOf("parameters" to filter.parameters(kind), "orderby" to sort.order, "order" to "DESC", "page" to (page + 1).toString())))
           sort == Sort.Newest && kind != null -> PostPage.fromSite(app.api.site(SiteQuery.newest(kind, null, true, page + 1)))
           else -> PostPage.from(app.api.get("archive", mapOf("slugs" to slug, "streamonly" to streamOnly(true), "page" to (page + 1).toString(), "orderby" to sort.order, "order" to "desc")))
         }
@@ -254,7 +258,7 @@ fun CatalogScreen(slug: String, title: String) {
                 if (!filter.isEmpty) item { PillButton(loc(S.reset), { filter = Filter() }, kind = PillKind.Chip, icon = Icons.close) }
               }
             }
-              sorts.forEach { s -> PillButton(loc(s.label), { sort = s }, kind = PillKind.Chip, selected = s == sort) }
+              sorts.forEach { s -> PillButton(s.label?.let { loc(it) } ?: "IMDb", { sort = s }, kind = PillKind.Chip, selected = s == sort) }
             }
             if (!loading && posts.isEmpty() && page >= pages) Text(loc(S.noMatches), style = app(28), color = Theme.text2)
           }

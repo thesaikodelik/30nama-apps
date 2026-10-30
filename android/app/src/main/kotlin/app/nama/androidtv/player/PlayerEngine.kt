@@ -383,6 +383,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       app.showToast(loc(S.noStream))
       return close()
     }
+    // Another app chosen in Settings: the stream goes there, from where it was, and this player closes.
+    if (app.settings.otherPlayer && playElsewhere(q.url(mix).toString(), at)) return close()
     resumedAt = at?.takeIf { it > 60 }
     startedAt = System.currentTimeMillis()
     nextCancelled = false
@@ -408,6 +410,24 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     if (subtitleLanguage == TRANSLATED && current.subtitles["fa"] != null) subtitleLanguage = "fa"
     selectSubtitle(subtitleLanguage, remember = false)
     lookForSubtitles()
+  }
+
+  /**
+   * The stream in the player the viewer picks, through Android's own chooser (its Always is theirs to
+   * press). "position" in milliseconds is what VLC, MX Player and Just Player read; "title" names it.
+   * False when no app on the TV plays video: then it plays here.
+   */
+  private fun playElsewhere(url: String, at: Double?): Boolean {
+    val title = post.title(loc.lang)
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+        .setDataAndType(android.net.Uri.parse(url), if (url.contains(".m3u8")) "application/x-mpegURL" else "video/*")
+        .putExtra("title", title)
+        .putExtra("position", ((at ?: 0.0) * 1000).toInt())
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    return runCatching { context.startActivity(intent) }
+        .onSuccess { Log.i(AppModel.TAG, "playing $title in another app") }
+        .onFailure { app.showToast(TV.noOtherPlayer(loc.lang)) }
+        .isSuccess
   }
 
   /** Plays a download file in place of the stream, from [at]. */

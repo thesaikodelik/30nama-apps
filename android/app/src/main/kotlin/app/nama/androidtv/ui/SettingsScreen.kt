@@ -199,6 +199,9 @@ fun SettingsScreen() {
           val around = listOf(loc(S.sceneGlow), loc(S.blackBars))
           val aroundName = around[if (s.sceneGlow) 0 else 1]
           Choice(loc(S.aroundPicture), aroundName, Help(tv(TV.aroundHint), around, aroundName), { help = it }) { app.update { it.copy(sceneGlow = !it.sceneGlow) } }
+          val playerNames = listOf(tv(TV.thisApp), tv(TV.anotherApp))
+          val playerName = playerNames[if (s.otherPlayer) 1 else 0]
+          Choice(tv(TV.onlinePlayer), playerName, Help(tv(TV.onlinePlayerHint), playerNames, playerName), { help = it }) { app.update { it.copy(otherPlayer = !it.otherPlayer) } }
           Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
         }
         Group(loc(S.subtitles)) {

@@ -33,6 +33,21 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "الرسوم المتحركة متوقفة للتلفاز كله في إعداداته، لذا يبقى التطبيق ثابتاً مهما كان هذا الخيار.",
   ),
   matchFrameRate("Match frame rate", "هماهنگی نرخ تصویر", "مطابقة معدل الإطارات"),
+  titleLink("Its page on 30nama", "صفحه‌اش در ۳۰نما", "صفحته في ۳۰نما"),
+  titleLinkHint(
+      "Scan the code with your phone to open this title on 30nama.com, and send it to a friend from there.",
+      "کد را با گوشی اسکن کنید تا این عنوان در سایت ۳۰نما باز شود، و از همان‌جا برای دوستتان بفرستید.",
+      "امسح الرمز بهاتفك لفتح هذا العنوان على موقع ۳۰نما، وأرسله إلى صديق من هناك.",
+  ),
+  onlinePlayer("Play online with", "پخش آنلاین با", "التشغيل عبر الإنترنت باستخدام"),
+  thisApp("This app", "همین برنامه", "هذا التطبيق"),
+  anotherApp("Another app", "برنامهٔ دیگر", "تطبيق آخر"),
+  onlinePlayerHint(
+      "Another app: a film opens in the player you choose on this TV (VLC, MX Player, Just Player…), from where you left it. What you watch there is not sent to 30nama, so Continue watching does not move on with it.",
+      "برنامهٔ دیگر: فیلم در پخش‌کننده‌ای که روی همین تلویزیون انتخاب می‌کنید (VLC، MX Player، Just Player و…) باز می‌شود، از همان جایی که مانده بود. آن‌چه آن‌جا می‌بینید به ۳۰نما فرستاده نمی‌شود و «ادامهٔ تماشا» با آن جلو نمی‌رود.",
+      "تطبيق آخر: يُفتح الفيلم في المشغّل الذي تختاره على هذا التلفاز (VLC، MX Player، Just Player…) من حيث توقفت. ما تشاهده هناك لا يُرسل إلى ۳۰نما، فلا يتقدّم «متابعة المشاهدة» معه.",
+  ),
+  noOtherPlayer("No other video player on this TV; playing here", "پخش‌کنندهٔ دیگری روی این تلویزیون نیست؛ همین‌جا پخش می‌شود", "لا يوجد مشغّل فيديو آخر على هذا التلفاز؛ يُشغَّل هنا"),
   dataSaver("Data saver", "صرفه‌جویی در اینترنت", "توفير البيانات"),
   dataSaverHint(
       "For metered internet or a VPN with a data cap. The next titles' pictures and logos are not fetched before you reach them, episodes take no frames from their own video, no preview shows while seeking, and no clip plays behind a title's page. Read ahead under Playback is set on its own.",

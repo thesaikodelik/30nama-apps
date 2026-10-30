@@ -45,6 +45,11 @@ data class Settings(
      * behind a title's page. The film's own read-ahead keeps [readAhead].
      */
     val dataSaver: Boolean = false,
+    /**
+     * Films and episodes open in another app the viewer picks (VLC, MX Player, Just Player), from
+     * where they were left; nothing watched there reaches 30nama. Windows' "Play online with".
+     */
+    val otherPlayer: Boolean = false,
 ) {
   companion object {
     val subtitleSizes = listOf(38, 46, 54)
@@ -75,6 +80,7 @@ data class Settings(
           readAhead = p.getInt("readAhead", d.readAhead).takeIf { it in readAheadChoices } ?: d.readAhead,
           matchFrameRate = p.getBoolean("matchFrameRate", d.matchFrameRate),
           dataSaver = p.getBoolean("dataSaver", d.dataSaver),
+          otherPlayer = p.getBoolean("otherPlayer", d.otherPlayer),
       )
     }
   }
@@ -100,6 +106,7 @@ data class Settings(
         .putInt("readAhead", readAhead)
         .putBoolean("matchFrameRate", matchFrameRate)
         .putBoolean("dataSaver", dataSaver)
+        .putBoolean("otherPlayer", otherPlayer)
         .apply()
   }
 }
