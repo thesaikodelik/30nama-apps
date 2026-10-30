@@ -186,6 +186,20 @@ public sealed partial class PlayerPage : Grid
 
     // MARK: Keys
 
+    /// <summary>When the arrow now held went down; its repeats seek further the longer it is held.</summary>
+    private DateTime _heldSince;
+
+    /// <summary>
+    /// Ten seconds a press, doubling every second and a half an arrow is held, up to eighty (the
+    /// Android app's, from ten as here and on the Mac): a long film is crossed without a hundred presses.
+    /// </summary>
+    private double HeldStep(KeyRoutedEventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        if (!e.KeyStatus.WasKeyDown) _heldSince = now;
+        return 10 * (1 << Math.Min(3, (int)((now - _heldSince).TotalSeconds / 1.5)));
+    }
+
     private void OnKey(object sender, KeyRoutedEventArgs e)
     {
         _engine.Touched();
@@ -194,8 +208,8 @@ public sealed partial class PlayerPage : Grid
         switch (e.Key)
         {
             case VirtualKey.Space: _engine.Toggle(); break;
-            case VirtualKey.Left: _engine.Skip(-10); break;
-            case VirtualKey.Right: _engine.Skip(10); break;
+            case VirtualKey.Left: _engine.Skip(-HeldStep(e)); break;
+            case VirtualKey.Right: _engine.Skip(HeldStep(e)); break;
             case VirtualKey.Up: _engine.SetVolume(_engine.Volume + 0.1); break;
             case VirtualKey.Down: _engine.SetVolume(_engine.Volume - 0.1); break;
             // Takes the offer on screen; with none, full screen, as in other players.
@@ -510,17 +524,20 @@ public sealed partial class PlayerPage : Grid
         file.Click += async (_, _) => await ChooseSubtitleFileAsync();
         menu.Items.Add(file);
         menu.Items.Add(new MenuFlyoutSeparator());
+        // The nudge in words, never a sign: a minus lands at the wrong end of a Persian line (the Android app's).
         var offset = _engine.SubtitleOffset;
-        var timing = new MenuFlyoutSubItem { Text = $"{Loc[S.subtitleTiming]}: {(offset > 0 ? "+" : "")}{offset:0.00}{Loc[S.secondsShort]}" };
+        string Seconds(double s) => $"{Loc.Num(s.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))} {Loc[S.secondsShort]}";
+        var now = offset == 0 ? "" : $" · {(offset > 0 ? Loc[S.subtitleLater] : Loc[S.subtitleEarlier])} {Seconds(Math.Abs(offset))}";
+        var timing = new MenuFlyoutSubItem { Text = Loc[S.subtitleTiming] + now };
         void Nudge(string text, double by)
         {
             var item = new MenuFlyoutItem { Text = text };
             item.Click += (_, _) => _engine.NudgeSubtitles(by);
             timing.Items.Add(item);
         }
-        Nudge($"{Loc[S.subtitleLater]}  +0.25 (H)", 0.25);
-        Nudge($"{Loc[S.subtitleEarlier]}  −0.25 (G)", -0.25);
-        Nudge(Loc[S.reset], 0);
+        Nudge($"{Loc[S.subtitleLater]} · {Seconds(0.25)} (H)", 0.25);
+        Nudge($"{Loc[S.subtitleEarlier]} · {Seconds(0.25)} (G)", -0.25);
+        if (offset != 0) Nudge(Loc[S.reset], 0);
         menu.Items.Add(timing);
         return menu;
     }

@@ -49,7 +49,12 @@ public sealed class AppModel
         // NAMA_SITE_HOST: a stand-in for the website's API, for the pages that use it to be tried.
         SiteHost = Environment.GetEnvironmentVariable("NAMA_SITE_HOST") is { Length: > 0 } host ? host : "https://interface.30nama.com/api/v1",
 #endif
-    });
+    }
+#if DEBUG
+    // NAMA_READONLY=1: the account's writes are answered here, not sent (ReadOnly.cs).
+    , Environment.GetEnvironmentVariable("NAMA_READONLY") == "1" ? ReadOnly.Wrap(ApiClient.HttpTransport()) : null
+#endif
+    );
 
     /// <summary>From windows/Local.props when the build had it (ApiConfig.SiteKey); in a build being worked on, NAMA_SITE_KEY too.</summary>
     private static string? SiteKeyOfBuild

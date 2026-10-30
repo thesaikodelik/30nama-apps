@@ -60,6 +60,20 @@ public class ApiClientTests
     }
 
     [Fact]
+    public async Task ReadOnlyHoldsBackTheAccountsWritesButNotItsReads()
+    {
+        var net = new FakeNetwork((_, _) => (200, Ok, NoHeaders));
+        var api = new ApiClient(Config(), ReadOnly.Wrap(net.Transport));
+        api.UseHost("https://h.example.com/api/v2");
+        Assert.True((await api.CallAsync("observer", new Dictionary<string, string> { ["post_id"] = "1" })).Success);
+        Assert.True((await api.CallAsync("user_list", new Dictionary<string, string> { ["action"] = "add", ["group"] = "watchlist" })).Success);
+        Assert.Empty(net.Calls);
+        await api.CallAsync("user_list", new Dictionary<string, string> { ["action"] = "list", ["group"] = "watchlist" });
+        await api.CallAsync("single", new Dictionary<string, string> { ["post_id"] = "1" });
+        Assert.Equal(["user_list", "single"], net.Calls);
+    }
+
+    [Fact]
     public async Task BootstrapPrefersPublishedEndpointList()
     {
         var net = new FakeNetwork((action, host) =>
