@@ -46,7 +46,14 @@ public sealed class SplashCurtain : Grid
     private readonly CompositionEffectBrush _behindBlur;
     private readonly SpriteVisual _line;
     private readonly DropShadow _lineGlow;
-    private bool _leaving;
+    private bool _leaving, _begun;
+    /// <summary>
+    /// What it drew with, given back once it is gone (<see cref="Release"/>): the blurs are the
+    /// graphics card's, and should not wait for the collector to let it idle again.
+    /// </summary>
+    private readonly List<IDisposable> _owned = [];
+    /// <summary>The elements a composition visual was hung on, unhung with it.</summary>
+    private readonly List<UIElement> _hosts = [];
 
     public SplashCurtain()
     {
@@ -62,9 +69,12 @@ public sealed class SplashCurtain : Grid
         behind.RelativeSizeAdjustment = Vector2.One;
         ElementCompositionPreview.SetElementChildVisual(_behind, behind);
         Children.Add(_behind);
+        _owned.Add(behind);
+        _owned.Add(_behindBlur);
+        _hosts.Add(_behind);
 
-        _top = new Half(upper: true);
-        _bottom = new Half(upper: false);
+        _top = new Half(upper: true, _owned, _hosts);
+        _bottom = new Half(upper: false, _owned, _hosts);
         Children.Add(_top);
         Children.Add(_bottom);
 
@@ -87,9 +97,13 @@ public sealed class SplashCurtain : Grid
         _line.Shadow = _lineGlow;
         ElementCompositionPreview.SetElementChildVisual(_lineHost, _line);
         Children.Add(_lineHost);
+        _owned.AddRange([_line, _lineGlow, stroke]);
+        _hosts.Add(_lineHost);
 
         SizeChanged += (_, e) => Lay(e.NewSize);
-        Loaded += (_, _) => Begin();
+        // Begun by the window once it is on the screen (MainWindow.StartSplash), not when loaded:
+        // on a slow cold start the window can be drawn a while after, and half the title would
+        // have played unseen. As the Mac's, which waits for the window to be on screen.
         IsUp = true;
         Unloaded += (_, _) => IsUp = false;
     }
@@ -102,8 +116,13 @@ public sealed class SplashCurtain : Grid
         _lineHost.Margin = new Thickness(0, seam - 20, 0, 0);
     }
 
-    private void Begin()
+    public bool IsBegun => _begun;
+
+    /// <summary>Plays the title's course from its start; once only.</summary>
+    public void Begin()
     {
+        if (_begun) return;
+        _begun = true;
         _top.Light();
         _bottom.Light();
         // The line draws out under the logo: spring(response 0.9, damping 0.8), 0.75 s in.
@@ -161,6 +180,18 @@ public sealed class SplashCurtain : Grid
         timer.Start();
     }
 
+    /// <summary>Gives back what it drew with, once it has left and been taken out of the window.</summary>
+    public void Release()
+    {
+        foreach (var host in _hosts) ElementCompositionPreview.SetElementChildVisual(host, null);
+        foreach (var owned in _owned)
+        {
+            try { owned.Dispose(); } catch (Exception) { }
+        }
+        _owned.Clear();
+        _hosts.Clear();
+    }
+
     internal static LinearGradientBrush Across(params Color[] colors) => Gradient(new(0, 0.5), new(1, 0.5), colors);
 
     internal static LinearGradientBrush Gradient(Windows.Foundation.Point from, Windows.Foundation.Point to, params Color[] colors)
@@ -190,7 +221,7 @@ public sealed class SplashCurtain : Grid
         private readonly CompositionRectangleGeometry _rimRect;
         private readonly CompositionVisualSurface _rimSurface;
 
-        public Half(bool upper)
+        public Half(bool upper, List<IDisposable> owned, List<UIElement> hosts)
         {
             _c = Motion.Visual(this).Compositor;
             Children.Add(_dark);
@@ -228,6 +259,8 @@ public sealed class SplashCurtain : Grid
             lights.Children.InsertAtTop(_arc);
             var lightHost = new Border { IsHitTestVisible = false };
             ElementCompositionPreview.SetElementChildVisual(lightHost, lights);
+            owned.AddRange([lights, _band, _band.Brush, _arc, _arc.Brush]);
+            hosts.Add(lightHost);
             _sheen.Children.Add(lightHost);
             BuildGlint(out _glint);
             Children.Add(_sheen);
@@ -253,6 +286,8 @@ public sealed class SplashCurtain : Grid
             var rimHost = new Border { IsHitTestVisible = false };
             ElementCompositionPreview.SetElementChildVisual(rimHost, _rimGlow);
             Children.Add(rimHost);
+            owned.AddRange([_rimGlow, _rimGlow.Brush, _rimSurface, _rimShapes, _rimRect, rimLine]);
+            hosts.Add(rimHost);
 
             // The logo's reflection in the glass below it, fading as it goes down.
             var surface = LoadedImageSurface.StartLoadFromUri(LogoSource);
@@ -273,6 +308,8 @@ public sealed class SplashCurtain : Grid
             reflectionSprite.Brush = reflectionMask;
             reflectionSprite.Opacity = 0.16f;
             ElementCompositionPreview.SetElementChildVisual(reflection, reflectionSprite);
+            owned.AddRange([reflectionSprite, reflectionMask, mirrored, fade, surface]);
+            hosts.Add(reflection);
             Motion.Visual(reflection).Opacity = 0;
             Children.Add(reflection);
 
@@ -310,6 +347,8 @@ public sealed class SplashCurtain : Grid
             glintSprite.Size = new Vector2((float)LogoWidth, (float)LogoHeight);
             glintSprite.Brush = glintMask;
             ElementCompositionPreview.SetElementChildVisual(letters, glintSprite);
+            owned.AddRange([glintSprite, glintMask, shape, _letterGlint]);
+            hosts.Add(letters);
             Children.Add(letters);
 
             // The cut edge where the two sheets part: a bright line and the light it throws, half

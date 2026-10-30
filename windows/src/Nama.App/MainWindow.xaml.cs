@@ -245,7 +245,42 @@ public sealed partial class MainWindow : Window
             layer.SizeChanged += Centre;
         }
         var watch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _splash.Loaded += (_, _) => _splashClock.Start();
+        // Begun at the first frame drawn after the window is shown and the title is in it: Loaded
+        // alone can come before the window is on the screen. A second at most after Loaded, in case
+        // no activation comes (opened behind another window).
+        var curtain = _splash;
+        bool shown = false, loaded = false;
+        void Begin()
+        {
+            if (curtain.IsBegun || !loaded) return;
+            void Frame(object? s, object e)
+            {
+                Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= Frame;
+                if (curtain.IsBegun) return;
+                curtain.Begin();
+                _splashClock.Start();
+            }
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += Frame;
+        }
+        void Shown(object s, WindowActivatedEventArgs e)
+        {
+            Activated -= Shown;
+            shown = true;
+            Begin();
+        }
+        Activated += Shown;
+        curtain.Loaded += (_, _) =>
+        {
+            loaded = true;
+            if (shown) Begin();
+            var late = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            late.Tick += (_, _) =>
+            {
+                late.Stop();
+                Begin();
+            };
+            late.Start();
+        };
         watch.Tick += (_, _) =>
         {
             if (_splash is not { } splash) { watch.Stop(); return; }
@@ -276,6 +311,7 @@ public sealed partial class MainWindow : Window
             splash.Leave(() =>
             {
                 _root.Children.Remove(splash);
+                splash.Release();
                 _splash = null;
                 if (_app.Phase == AppModel.Phases.Booting) ShowPhase();
             });
