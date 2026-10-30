@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 30nama's catalogue narrowed by everything its advanced search acts on: several genres at once,
-/// type, country, language, network, lowest score, age rating, years, director, x265 and 3D.
+/// type, country, language, network, lowest score, age rating, years, director, actor, x265 and 3D.
 struct AdvancedSearchView: View {
     @Environment(AppModel.self) private var app
     @Environment(MacNav.self) private var nav
@@ -10,6 +10,7 @@ struct AdvancedSearchView: View {
     @State private var choices: SearchChoices?
     @State private var query: AdvancedQuery
     @State private var director: String
+    @State private var actor: String
     @State private var posts: [Post] = []
     @State private var page = 0
     @State private var pages = 1
@@ -24,6 +25,7 @@ struct AdvancedSearchView: View {
     init(start: AdvancedQuery = AdvancedQuery()) {
         _query = State(initialValue: start)
         _director = State(initialValue: start.director ?? "")
+        _actor = State(initialValue: start.actor ?? "")
     }
 
     var body: some View {
@@ -63,6 +65,12 @@ struct AdvancedSearchView: View {
             let name = director.trimmingCharacters(in: .whitespaces)
             query.director = name.isEmpty ? nil : name
         }
+        .task(id: actor) {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            let name = actor.trimmingCharacters(in: .whitespaces)
+            query.actor = name.isEmpty ? nil : name
+        }
     }
 
     private var header: some View {
@@ -78,50 +86,72 @@ struct AdvancedSearchView: View {
         }
     }
 
+    /// Two lines, each with a side at the start and one at the end (the owner, after Twitter
+    /// feedback 3): the menus, and across from them the names to search by; then the years and
+    /// switches, and across from them the sorts.
     private func filters(_ c: SearchChoices) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Wraps onto a second line in a narrow window rather than running off the side.
-            FlowLayout(spacing: 8) {
-                GenreMenu(choices: c.genres, selection: $query.genres)
-                FilterMenu(title: loc(.kind), choices: c.types, selection: $query.type)
-                FilterMenu(title: loc(.country), choices: c.countries, selection: $query.country)
-                FilterMenu(title: loc(.originalLanguage), choices: c.languages, selection: $query.language)
-                FilterMenu(title: loc(.network), choices: c.networks, selection: $query.network)
-                FilterMenu(title: loc(.minScore), choices: c.scores, selection: $query.score)
-                FilterMenu(title: loc(.ageRating), choices: c.ages, selection: $query.age)
-                FilterMenu(title: loc(.years), choices: years(c), selection: yearBinding(\.fromYear))
-                FilterMenu(title: loc(.hoursTo), choices: years(c), selection: yearBinding(\.toYear))
-                PillChoice(title: "x265", selected: query.x265) { query.x265.toggle() }
-                PillChoice(title: "3D", selected: query.threeD) { query.threeD.toggle() }
-                PillChoice(title: loc(.streamOnly), selected: query.streamOnly) { query.streamOnly.toggle() }
-            }
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 16) {
+                // Wraps onto a second line in a narrow window rather than running off the side.
+                FlowLayout(spacing: 8) {
+                    GenreMenu(choices: c.genres, selection: $query.genres)
+                    FilterMenu(title: loc(.kind), choices: c.types, selection: $query.type)
+                    FilterMenu(title: loc(.country), choices: c.countries, selection: $query.country)
+                    FilterMenu(title: loc(.originalLanguage), choices: c.languages, selection: $query.language)
+                    FilterMenu(title: loc(.network), choices: c.networks, selection: $query.network)
+                    FilterMenu(title: loc(.minScore), choices: c.scores, selection: $query.score)
+                    FilterMenu(title: loc(.ageRating), choices: c.ages, selection: $query.age)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 8) {
-                    Image(systemName: "person.crop.rectangle").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.text3)
-                    TextField(loc(.directorName), text: $director)
-                        .textFieldStyle(.plain)
-                        .font(.app(13, .medium))
-                        .foregroundStyle(Theme.text1)
-                        .frame(width: 180)
+                    nameField(loc(.directorName), symbol: "person.crop.rectangle", text: $director)
+                    nameField(loc(.actorName), symbol: "theatermasks", text: $actor)
                 }
-                .padding(.horizontal, 13)
-                .frame(height: 30)
-                .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
-                if query.count > 0 {
-                    Button {
-                        director = ""
-                        query = AdvancedQuery(streamOnly: query.streamOnly, sort: query.sort)
-                    } label: {
-                        Label(loc(.reset), systemImage: "xmark.circle.fill").font(.app(13, .semibold)).foregroundStyle(Theme.text3)
+            }
+            HStack(spacing: 16) {
+                FlowLayout(spacing: 8) {
+                    FilterMenu(title: loc(.years), choices: years(c), selection: yearBinding(\.fromYear))
+                    FilterMenu(title: loc(.hoursTo), choices: years(c), selection: yearBinding(\.toYear))
+                    PillChoice(title: "x265", selected: query.x265) { query.x265.toggle() }
+                    PillChoice(title: "3D", selected: query.threeD) { query.threeD.toggle() }
+                    PillChoice(title: loc(.streamOnly), selected: query.streamOnly) { query.streamOnly.toggle() }
+                    if query.count > 0 {
+                        Button {
+                            director = ""
+                            actor = ""
+                            query = AdvancedQuery(streamOnly: query.streamOnly, sort: query.sort)
+                        } label: {
+                            Label(loc(.reset), systemImage: "xmark.circle.fill").font(.app(13, .semibold)).foregroundStyle(Theme.text3)
+                                .frame(height: 30)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
-                Spacer(minLength: 0)
-                ForEach(AdvancedQuery.sorts, id: \.self) { sort in
-                    PillChoice(title: sortName(sort), selected: query.sort == sort) { query.sort = sort }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    ForEach(AdvancedQuery.sorts, id: \.self) { sort in
+                        PillChoice(title: sortName(sort), selected: query.sort == sort) { query.sort = sort }
+                    }
                 }
             }
         }
+    }
+
+    /// A name to search by. Left to right in every language, as the search box is: the names are
+    /// written in English (Twitter feedback 2).
+    private func nameField(_ placeholder: String, symbol: String, text: Binding<String>) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.text3)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .font(.app(13, .medium))
+                .foregroundStyle(Theme.text1)
+                .frame(width: 150)
+        }
+        .padding(.horizontal, 13)
+        .frame(height: 30)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.1)))
+        .environment(\.layoutDirection, .leftToRight)
     }
 
     private func sortName(_ sort: String) -> String {

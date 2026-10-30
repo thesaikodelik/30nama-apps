@@ -27,6 +27,7 @@ struct NamaMacApp: App {
                 .environment(downloads)
                 .environment(updater)
                 .frame(minWidth: 1120, minHeight: 720)
+                .background(WindowPlace(playerOpen: { [app] in app.playback != nil }))
                 // Every hour while open, and when the app comes to the front after an hour or more:
                 // a release could otherwise wait half a day to be seen. The first look waits for the
                 // opening title to be over, so the news is seen arriving.

@@ -228,6 +228,10 @@ struct MainView: View {
         if let name = DebugLaunch.section, let section = MacSection.allCases.first(where: { "\($0)" == name }) {
             nav.go(section)
         }
+        if DebugLaunch.open == "advanced" {
+            nav.open(.advancedSearch())
+            return
+        }
         if DebugLaunch.open == "continue" {
             if let post = await app.continueWatching().first { nav.open(post) }
             return
