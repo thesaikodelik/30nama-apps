@@ -9,28 +9,44 @@ namespace Nama.App.UI;
 /// <summary>
 /// A title's trailer playing behind its page without sound, filling it like the still it covers,
 /// under the same shading so the page stays readable. It shows only once it is really playing, and
-/// tells when YouTube does not answer. As BackdropTrailer in TrailerSheet.swift.
+/// tells when YouTube does not answer. As BackdropTrailer in TrailerSheet.swift. Given a file
+/// instead (where no trailer was found), a stretch of the film itself from a third in, in Windows'
+/// own player: the Mac's TeaserVideo.
 /// </summary>
 public sealed class BackdropTrailer : Grid
 {
     /// <summary>Where the trailer starts: past studio cards and the first fade from black.</summary>
     private const int Skip = 8;
 
-    private readonly WebView2 _web = new UnseenWebView { DefaultBackgroundColor = Colors.Transparent };
+    private readonly WebView2? _web;
+    private readonly MediaPlayerElement? _film;
     private readonly CancellationTokenSource _stop = new();
     private bool _stopped;
 
     /// <summary>YouTube did not start the trailer.</summary>
     public event Action? Failed;
 
-    public BackdropTrailer(string video)
+    public BackdropTrailer(string video) : this(new UnseenWebView { DefaultBackgroundColor = Colors.Transparent }, null)
     {
+        Loaded += (_, _) => _ = StartAsync(video);
+    }
+
+    /// <summary>The film itself, from <paramref name="file"/> (its smallest picture), when there is no trailer.</summary>
+    public BackdropTrailer(Uri file) : this(null, new MediaPlayerElement { Stretch = Stretch.UniformToFill, AreTransportControlsEnabled = false, IsHitTestVisible = false })
+    {
+        Loaded += (_, _) => StartFilm(file);
+    }
+
+    private BackdropTrailer(WebView2? web, MediaPlayerElement? film)
+    {
+        _web = web;
+        _film = film;
         IsHitTestVisible = false;
         Opacity = 0;
         OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromSeconds(1.4) };
         // Held left to right, so the picture is not mirrored in a right-to-left window.
         var picture = new Grid { FlowDirection = FlowDirection.LeftToRight };
-        picture.Children.Add(_web);
+        picture.Children.Add((UIElement?)web ?? film!);
         Children.Add(picture);
         Children.Add(new Border { Background = Theme.Black(0.3) });
         Children.Add(new Border { Background = Scrim(horizontal: true) });
@@ -38,13 +54,39 @@ public sealed class BackdropTrailer : Grid
         // Wide enough to cover the page, cropped at its edges.
         SizeChanged += (_, e) =>
         {
-            var width = Math.Max(e.NewSize.Width, e.NewSize.Height * 16 / 9) * 1.04;
-            _web.Width = width;
-            _web.Height = width * 9 / 16;
+            if (_web is not null)
+            {
+                var width = Math.Max(e.NewSize.Width, e.NewSize.Height * 16 / 9) * 1.04;
+                _web.Width = width;
+                _web.Height = width * 9 / 16;
+            }
             Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
         };
-        Loaded += (_, _) => _ = StartAsync(video);
         Unloaded += (_, _) => Stop();
+    }
+
+    /// <summary>Muted, a third of the way in once its length is known, shown once it is moving.</summary>
+    private void StartFilm(Uri file)
+    {
+        if (_film is null || _stopped) return;
+        var player = new Windows.Media.Playback.MediaPlayer { IsMuted = true, AutoPlay = false, Source = Windows.Media.Core.MediaSource.CreateFromUri(file) };
+        _film.SetMediaPlayer(player);
+        var session = player.PlaybackSession;
+        var started = false;
+        player.MediaOpened += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_stopped) return;
+            var length = session.NaturalDuration.TotalSeconds;
+            if (length > 120) session.Position = TimeSpan.FromSeconds(length / 3);
+            player.Play();
+        });
+        session.PositionChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (started || _stopped || session.PlaybackState != Windows.Media.Playback.MediaPlaybackState.Playing) return;
+            started = true;
+            Opacity = 1;
+        });
+        player.MediaFailed += (_, _) => DispatcherQueue.TryEnqueue(() => { if (!_stopped) Failed?.Invoke(); });
     }
 
     /// <summary>Dark from the side the text is on and from the bottom, as the still is shaded.</summary>
@@ -61,13 +103,13 @@ public sealed class BackdropTrailer : Grid
     {
         try
         {
-            await YouTube.LoadAsync(_web, video, $"autoplay=1&mute=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3&loop=1&playlist={video}&start={Skip}", unseen: true);
+            await YouTube.LoadAsync(_web!, video, $"autoplay=1&mute=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3&loop=1&playlist={video}&start={Skip}", unseen: true);
             // The page is YouTube's own, so its video can be asked how far it has played. A couple
             // of seconds in, it is playing for real and YouTube's title has faded.
             for (var i = 0; i < 40; i++)
             {
                 await Task.Delay(300, _stop.Token);
-                if (await YouTube.PlayedAsync(_web) > Skip + 2.5)
+                if (await YouTube.PlayedAsync(_web!) > Skip + 2.5)
                 {
                     Opacity = 1;
                     return;
@@ -92,7 +134,13 @@ public sealed class BackdropTrailer : Grid
         if (_stopped) return;
         _stopped = true;
         _stop.Cancel();
-        YouTube.Stop(_web);
+        if (_web is not null) YouTube.Stop(_web);
+        if (_film?.MediaPlayer is { } player)
+        {
+            player.Pause();
+            _film.SetMediaPlayer(null);
+            player.Dispose();
+        }
     }
 }
 

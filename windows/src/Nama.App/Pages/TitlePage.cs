@@ -104,9 +104,9 @@ public sealed class TitlePage : Grid
 
     /// <summary>
     /// Plays the trailer behind the page, without sound, when TMDB has one and YouTube can be
-    /// reached: once per visit, a few seconds in, for a minute and a half. It tells 30nama
-    /// nothing. As the Mac's title page; the Mac's stretch of the film itself, when there is no
-    /// trailer, is not here yet.
+    /// reached: once per visit, a few seconds in, for a minute and a half. Only when no trailer is
+    /// found (the owner: a fallback), a stretch of the film itself in its smallest picture, for
+    /// thirty-five seconds. Neither tells 30nama anything. As the Mac's title page.
     /// </summary>
     private async Task RunTeaserAsync()
     {
@@ -118,15 +118,22 @@ public sealed class TitlePage : Grid
             // not over someone still reading or choosing.
             while (DateTime.UtcNow - _lastInput < TimeSpan.FromSeconds(4))
                 await Task.Delay(TimeSpan.FromSeconds(4) - (DateTime.UtcNow - _lastInput) + TimeSpan.FromMilliseconds(50), cancel);
-            if (!Quiet || await TmdbStore.Shared.TrailerAsync(_preview, App.Loc.Lang) is not { } video || cancel.IsCancellationRequested || !Quiet) return;
+            if (!Quiet) return;
+            var video = await TmdbStore.Shared.TrailerAsync(_preview, App.Loc.Lang);
+            if (cancel.IsCancellationRequested || !Quiet) return;
+            // No trailer: the film itself, from the stream the page already has.
+            var film = video is null && _stream?.Items.FirstOrDefault() is { } first
+                ? (first.Qualities.Where(q => !q.IsAuto && q.Height > 0).MinBy(q => q.Height) ?? first.Qualities.FirstOrDefault())?.UrlFor(AudioMix.Stereo)
+                : null;
+            if (video is null && film is null) return;
             _teaserShown = true;
-            var backdrop = _backdrop = new BackdropTrailer(video);
+            var backdrop = _backdrop = video is not null ? new BackdropTrailer(video) : new BackdropTrailer(film!);
             backdrop.Failed += EndTeaser;
             // Over the still, under the page.
             Children.Insert(1, backdrop);
             _quiet.Start();
-            // A trailer is the length it is; it is let run for a minute and a half.
-            await Task.Delay(TimeSpan.FromSeconds(90), cancel);
+            // A trailer is the length it is, let run for a minute and a half; the film, half a minute and a bit.
+            await Task.Delay(TimeSpan.FromSeconds(video is not null ? 90 : 35), cancel);
             EndTeaser();
         }
         catch (OperationCanceledException) { }
