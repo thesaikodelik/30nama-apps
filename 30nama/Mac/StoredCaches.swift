@@ -9,7 +9,8 @@ enum StoredCaches {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         return [caches.appendingPathComponent(Bundle.main.bundleIdentifier ?? "app.30nama.tv.mac", isDirectory: true),
                 caches.appendingPathComponent("30nama-tmdb", isDirectory: true),
-                caches.appendingPathComponent("30nama-translations", isDirectory: true)]
+                caches.appendingPathComponent("30nama-translations", isDirectory: true),
+                caches.appendingPathComponent("30nama-frames", isDirectory: true)]
     }
 
     /// In bytes. Walks the folders, so it is asked for off the main thread.

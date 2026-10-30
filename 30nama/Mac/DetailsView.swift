@@ -418,6 +418,7 @@ struct DetailsView: View {
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 12)], alignment: .leading, spacing: 12) {
                 ForEach(Array(stream.items.enumerated()).filter { $0.element.season == season }, id: \.element.id) { index, item in
+                    let _ = EpisodeStills.shared.version
                     EpisodeTile(item: item, resume: stream.resume?.fileID == item.fileID ? stream.resume : nil,
                                 watched: app.watched.contains(item.fileID)) { play(at: index) }
                         .contextMenu {
@@ -425,6 +426,11 @@ struct DetailsView: View {
                             Button(loc(done ? .markUnwatched : .markWatched)) { app.setWatched(item.fileID, !done) }
                         }
                 }
+            }
+            // A still from each streaming episode of the season in sight, taken one at a time.
+            .task(id: "\(season)|\(stream.items.count)") {
+                guard !StoredCaches.dataSaver else { return }
+                EpisodeStills.shared.want(stream.items.filter { $0.season == season && $0.token != PlayerEngine.localToken })
             }
         }
     }
@@ -807,6 +813,27 @@ private struct EpisodeTile: View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         Button(action: action) {
             HStack(spacing: 14) {
+                if let still = EpisodeStills.file(item.fileID) {
+                    // A still from the episode itself, its number in the corner.
+                    ZStack(alignment: .bottomLeading) {
+                        RemoteImage(url: still, maxPixel: 200)
+                        LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+                        Text(loc.num(item.episodeRaw ?? "\(item.episodeNumber)"))
+                            .font(.app(13, .heavy))
+                            .foregroundStyle(resume != nil ? (hue ?? Theme.accent) : .white)
+                            .padding(.horizontal, 6)
+                            .padding(.bottom, 2)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.black.opacity(0.35))
+                            .opacity(hovering ? 1 : 0)
+                    }
+                    .frame(width: 80, height: 45)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .environment(\.layoutDirection, .leftToRight)
+                } else {
                 ZStack {
                     Text(loc.num(item.episodeRaw ?? "\(item.episodeNumber)"))
                         .font(.app(20, .heavy))
@@ -818,6 +845,7 @@ private struct EpisodeTile: View {
                         .opacity(hovering ? 1 : 0)
                 }
                 .frame(width: 40)
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.title(loc.lang) ?? "\(loc(.episode)) \(loc.num(item.episodeNumber))")
                         .font(.app(15, .semibold))

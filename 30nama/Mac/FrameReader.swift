@@ -3,7 +3,7 @@ import CoreGraphics
 import Libmpv
 
 /// A second mpv of its own, with no picture or sound out, that hands back small pictures from a
-/// stream: it seeks to the keyframe nearest a point (no decoding up to the exact frame) and gives a
+/// file or stream: it seeks to the keyframe nearest a point (no decoding up to the exact frame) and gives a
 /// 320-pixel copy of it. Software decoding only, so the film's own decoder is left alone. Not
 /// thread-safe: one thread asks it everything and waits for each answer there; nothing of it is
 /// asked from the main thread (AGENTS.md). As FrameReader.cs of the Windows app. Used by
@@ -49,9 +49,17 @@ final class FrameReader {
             ("hwdec", "no"), ("vd-lavc-threads", "2"), ("vd-lavc-skiploopfilter", "all"), ("hr-seek", "no"),
             ("vf", "scale=w=320:h=-2"), ("hls-bitrate", "min"),
             ("demuxer-max-bytes", "8MiB"), ("demuxer-readahead-secs", "1"),
+            // The app's own name, as the Windows app sends. 30nama's stream servers still answer
+            // mpv's requests with 406 (TASKS.md): the Windows app reads streams through its own
+            // network for mpv (stream_callback), which this does not yet.
+            ("user-agent", "30nama (Macintosh; Intel Mac OS X)"),
         ] {
             mpv_set_option_string(created, name, value)
         }
+        #if DEBUG
+        // `NAMA_READER_LOG=<file>`: this mpv's own full log.
+        if let file = ProcessInfo.processInfo.environment["NAMA_READER_LOG"] { mpv_set_option_string(created, "log-file", file) }
+        #endif
         guard mpv_initialize(created) >= 0 else {
             mpv_terminate_destroy(created)
             return false
