@@ -580,11 +580,18 @@ public sealed record StreamItem
     /// Highest fixed rendition by default; the adaptive master when asked for or when it is all there
     /// is. A fixed one is no taller than <paramref name="screenLines"/> when it is given (the monitor's
     /// height): a 4K file on a 1080p screen costs four times the line for nothing seen (the Android
-    /// app's). With none that low, the lowest there is.
+    /// app's). With none that low, the lowest there is. <paramref name="cap"/>, for a slow line
+    /// (Settings' 1080p, 720p or 480p, the Android app's), holds a fixed one to that many lines
+    /// whatever else was asked: the adaptive stream would climb above it.
     /// </summary>
-    public Quality? PickQuality(bool preferAdaptive, int screenLines = 0)
+    public Quality? PickQuality(bool preferAdaptive, int screenLines = 0, int cap = 0)
     {
         var fixedAll = Qualities.Where(q => !q.IsAuto).ToList();
+        if (cap > 0 && fixedAll.Count > 0)
+        {
+            var most = screenLines > 0 ? Math.Min(cap, screenLines) : cap;
+            return fixedAll.Where(q => q.Height <= most).MaxBy(q => q.Height) ?? fixedAll.MinBy(q => q.Height);
+        }
         var fixedOne = (screenLines > 0 ? fixedAll.Where(q => q.Height <= screenLines).MaxBy(q => q.Height) ?? fixedAll.MinBy(q => q.Height) : null)
             ?? fixedAll.MaxBy(q => q.Height);
         var auto = Qualities.FirstOrDefault(q => q.IsAuto);

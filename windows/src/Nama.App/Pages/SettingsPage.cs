@@ -87,9 +87,14 @@ public sealed class SettingsPage : Grid
 
         Group(loc[S.playback],
         [
-            Row(loc[S.quality], Choice([(loc[S.qualityBest], "best"), (loc[S.qualityAuto], "auto"), (loc[Extra.qualityMax], (object)"max")],
-                s.MaxQuality ? "max" : s.PreferAdaptive ? "auto" : "best",
-                v => App.Update(x => x with { PreferAdaptive = (string)v == "auto", MaxQuality = (string)v == "max" }))),
+            // 1080p, 720p and 480p for a slow line, beside the best, adaptive and the original file.
+            Row(loc[S.quality], Choice([(loc[S.qualityBest], "best"), (loc[S.qualityAuto], "auto"), (loc[Extra.qualityMax], "max"), ("1080p", "1080"), ("720p", "720"), ("480p", (object)"480")],
+                s.MaxQuality ? "max" : s.QualityCap > 0 ? s.QualityCap.ToString() : s.PreferAdaptive ? "auto" : "best",
+                v => App.Update(x => x with
+                {
+                    PreferAdaptive = (string)v == "auto", MaxQuality = (string)v == "max",
+                    QualityCap = int.TryParse((string)v, out var cap) ? cap : 0,
+                }))),
             Row(loc[S.audio], Choice([(loc[S.audioStereo], AudioMix.Stereo), (loc[S.audioSurround], AudioMix.Surround), (loc[S.audioOriginal], (object)AudioMix.Original)], s.AudioMix, v => App.Update(x => x with { AudioMix = (AudioMix)v }))),
             Row(loc[S.autoplay], Toggle(s.AutoplayNext, v => App.Update(x => x with { AutoplayNext = v }))),
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),

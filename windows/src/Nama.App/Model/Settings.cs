@@ -35,6 +35,12 @@ public sealed record Settings
     public bool PreferAdaptive { get; init; }
     /// <summary>"Max": the download file itself, played straight, where there is one (the Android app's).</summary>
     public bool MaxQuality { get; init; }
+    /// <summary>
+    /// For a slow line: start in the highest fixed quality no taller than this many lines (1080,
+    /// 720 or 480; 0 for none), as the Android app's Settings › Quality. The quality menu still
+    /// reaches the rest.
+    /// </summary>
+    public int QualityCap { get; init; }
     public bool ReduceMotion { get; init; }
     /// <summary>
     /// Motion is kept still: chosen here, or Windows' own animation effects are off (Settings ›

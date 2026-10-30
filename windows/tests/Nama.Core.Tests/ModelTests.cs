@@ -284,6 +284,11 @@ public class ModelTests
         Assert.Equal("720p", item.PickQuality(preferAdaptive: false, screenLines: 720)!.Label);
         Assert.Equal("1080p", item.PickQuality(preferAdaptive: false, screenLines: 2160)!.Label);
         Assert.Equal("720p", item.PickQuality(preferAdaptive: false, screenLines: 480)!.Label); // none that low: the lowest
+        // A slow line's cap: a fixed file no taller, even where the adaptive stream was asked for.
+        Assert.Equal("720p", item.PickQuality(preferAdaptive: true, cap: 720)!.Label);
+        Assert.Equal("1080p", item.PickQuality(preferAdaptive: false, cap: 1080)!.Label);
+        Assert.Equal("720p", item.PickQuality(preferAdaptive: false, screenLines: 720, cap: 1080)!.Label);
+        Assert.Equal("720p", item.PickQuality(preferAdaptive: false, cap: 480)!.Label); // none that low: the lowest
         var full = item.Qualities.First(q => q.Label == "1080p");
         Assert.Equal("1080-2ch.m3u8", full.Stereo?.LastPathComponent());
         Assert.Equal("1080-6ch.m3u8", full.Surround?.LastPathComponent());

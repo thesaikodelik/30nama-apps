@@ -220,7 +220,7 @@ public sealed class PlayerEngine
         Index = i;
         _reportedTime = 0;
         _markedWatched = false;
-        if (Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines) is not { } quality)
+        if (Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines, _app.Settings.QualityCap) is not { } quality)
         {
             _app.ShowToast(Loc[S.noStream]);
             Close();
@@ -383,7 +383,7 @@ public sealed class PlayerEngine
     {
         if (_closed) return;
         // The download file would not play: the stream takes over at the same moment.
-        if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines) is { } stream)
+        if (_direct && Current.PickQuality(_app.Settings.PreferAdaptive, ScreenLines, _app.Settings.QualityCap) is { } stream)
         {
             _direct = false;
             // The stream's timing, not the file's.
