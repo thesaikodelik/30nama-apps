@@ -31,7 +31,7 @@ enum S: String, CaseIterable {
     case pause, remove, open, downloadFailed, downloadStarted, downloadDone, noDownload
     case fileQuality, saveTo, perEpisode, wholeSeason, getSubtitle, subtitleSaved, subtitleMissing, withSubtitle
     case incomplete, notInPack, ofTotal, removeFromList, moveToTrash, topFilms, topSeries, intro, recap, credits, aroundPicture, blackBars, sceneGlow, folderDenied, performance, back, close, back10, forward10, rowNext, rowPrevious, clearSearch, sound, removeFromContinue, newVersion, installUpdate, updating, relaunch, updateReady, updateFailed, downloadPage, later, openElsewhere, shortcuts, mute, volume, slower, faster, subtitleEarlier, subtitleLater, seen, episodeCount, sleepTimer, endOfEpisode, endOfFilm, airPlay, autoSkip, reportProblem, newEpisode, findingSubtitles, fromSubSource, subsourceKey, subsourceKeyHint, secondsShort, services, tmdbKey, tmdbKeyHint, trailer, trailerUnreachable, trailerNotLoaded, crew, reviews, jobComposer, jobPhotography, jobNovel, trendingWeek, seeAll
-    case subFailed, playError
+    case subFailed, playError, streamRefused
     case signOutTitle, signOutBody, cancel
     case director, writer, creator, network, country, originalLanguage, status, storyline, information
     case notifications, markAllRead, noNotifications, unread, earlier, downloadSpeed, unlimited, freeSpace, downloadHours, downloadHoursHint, anyTime, hoursTo, waitingForHours, advancedSearch, advancedHint, kind, ageRating, years, relevance, byYear, noMatches, directorName, signInHint, imdbTop250, siteTop100, votes, inWatchlists, inFavorites, budget, exclusiveSub, latestUpdate, otherLanguages, bufferTime, seconds, streamOnly, queued, downloadsAtOnce, titleUpdates
@@ -194,6 +194,7 @@ struct Loc: Equatable {
         .intro: "Intro", .recap: "Recap", .credits: "Credits", .aroundPicture: "Around the picture", .blackBars: "Black bars, as in a cinema", .sceneGlow: "Scene glow, no black bars",
         .folderDenied: "The app may not open the download folder. Allow it in System Settings, Privacy & Security, Files and Folders.",
         .subFailed: "Could not load subtitles", .playError: "Playback failed",
+        .streamRefused: "30nama's server turned this stream down. If a VPN is on, try another of its servers.",
         .signOutTitle: "Sign out?", .signOutBody: "You will need to scan a new code to sign in again.",
         .cancel: "Cancel",
         .titleUpdates: "What changed",
@@ -300,6 +301,7 @@ struct Loc: Equatable {
         .intro: "تیتراژ", .recap: "خلاصهٔ قسمت قبل", .credits: "تیتراژ پایانی", .aroundPicture: "اطراف تصویر فیلم", .blackBars: "نوار سیاه، مثل سینما", .sceneGlow: "نور صحنه، بدون نوار سیاه",
         .folderDenied: "برنامه اجازهٔ باز کردن پوشهٔ دانلود را ندارد. در تنظیمات سیستم، بخش «حریم خصوصی و امنیت»، قسمت «فایل‌ها و پوشه‌ها» اجازه دهید.",
         .subFailed: "بارگذاری زیرنویس ممکن نشد", .playError: "پخش با خطا روبه‌رو شد",
+        .streamRefused: "سرور ۳۰نما این پخش را نپذیرفت. اگر VPN روشن است، سرور دیگری از آن را امتحان کنید.",
         .signOutTitle: "از حساب خارج می‌شوید؟", .signOutBody: "برای ورود دوباره باید کد جدیدی اسکن کنید.",
         .cancel: "انصراف",
         .titleUpdates: "تغییرات این عنوان",
@@ -406,6 +408,7 @@ struct Loc: Equatable {
         .intro: "المقدمة", .recap: "ملخص الحلقة السابقة", .credits: "شارة النهاية", .aroundPicture: "حول صورة الفيلم", .blackBars: "أشرطة سوداء كما في السينما", .sceneGlow: "توهج المشهد بلا أشرطة سوداء",
         .folderDenied: "لا يُسمح للتطبيق بفتح مجلد التنزيل. اسمح بذلك من إعدادات النظام، الخصوصية والأمان، الملفات والمجلدات.",
         .subFailed: "تعذّر تحميل الترجمة", .playError: "تعذّر التشغيل",
+        .streamRefused: "رفض خادم 30nama هذا البث. إن كان VPN مفعّلًا فجرّب خادمًا آخر منه.",
         .signOutTitle: "تسجيل الخروج؟", .signOutBody: "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.",
         .cancel: "إلغاء",
         .titleUpdates: "ما الذي تغيّر",

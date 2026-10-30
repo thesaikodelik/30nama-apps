@@ -242,7 +242,9 @@ private struct YouTubeBackdrop: NSViewRepresentable {
                 for _ in 0..<40 {
                     try? await Task.sleep(for: .milliseconds(300))
                     guard !Task.isCancelled, let view else { return }
-                    let at = (try? await view.evaluateJavaScript("(function(){var v=document.querySelector('video');return v?v.currentTime:0})()")) as? Double ?? 0
+                    // YouTube loads the embed to its first picture and can leave it paused there,
+                    // autoplay asked for or not (as the trailer sheet finds); it is told to play.
+                    let at = (try? await view.evaluateJavaScript("(function(){var v=document.querySelector('video');if(!v)return 0;if(v.paused&&v.readyState>=2){var p=document.getElementById('movie_player');v.muted=true;if(p&&p.playVideo)p.playVideo();else v.play()}return v.currentTime})()")) as? Double ?? 0
                     // A couple of seconds in: playing for real, and YouTube's title has faded.
                     if at > skip + 2.5 {
                         started()

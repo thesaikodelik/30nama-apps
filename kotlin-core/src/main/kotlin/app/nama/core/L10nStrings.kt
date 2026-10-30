@@ -271,6 +271,7 @@ enum class S {
     seeAll,
     subFailed,
     playError,
+    streamRefused,
     signOutTitle,
     signOutBody,
     cancel,
@@ -625,6 +626,7 @@ internal object LocTables {
         put(S.folderDenied, "The app may not open the download folder. Allow it in System Settings, Privacy & Security, Files and Folders.")
         put(S.subFailed, "Could not load subtitles")
         put(S.playError, "Playback failed")
+        put(S.streamRefused, "30nama's server turned this stream down. If a VPN is on, try another of its servers.")
         put(S.signOutTitle, "Sign out?")
         put(S.signOutBody, "You will need to scan a new code to sign in again.")
         put(S.cancel, "Cancel")
@@ -974,6 +976,7 @@ internal object LocTables {
         put(S.folderDenied, "برنامه اجازهٔ باز کردن پوشهٔ دانلود را ندارد. در تنظیمات سیستم، بخش «حریم خصوصی و امنیت»، قسمت «فایل‌ها و پوشه‌ها» اجازه دهید.")
         put(S.subFailed, "بارگذاری زیرنویس ممکن نشد")
         put(S.playError, "پخش با خطا روبه‌رو شد")
+        put(S.streamRefused, "سرور ۳۰نما این پخش را نپذیرفت. اگر VPN روشن است، سرور دیگری از آن را امتحان کنید.")
         put(S.signOutTitle, "از حساب خارج می‌شوید؟")
         put(S.signOutBody, "برای ورود دوباره باید کد جدیدی اسکن کنید.")
         put(S.cancel, "انصراف")
@@ -1323,6 +1326,7 @@ internal object LocTables {
         put(S.folderDenied, "لا يُسمح للتطبيق بفتح مجلد التنزيل. اسمح بذلك من إعدادات النظام، الخصوصية والأمان، الملفات والمجلدات.")
         put(S.subFailed, "تعذّر تحميل الترجمة")
         put(S.playError, "تعذّر التشغيل")
+        put(S.streamRefused, "رفض خادم 30nama هذا البث. إن كان VPN مفعّلًا فجرّب خادمًا آخر منه.")
         put(S.signOutTitle, "تسجيل الخروج؟")
         put(S.signOutBody, "ستحتاج إلى مسح رمز جديد لتسجيل الدخول مرة أخرى.")
         put(S.cancel, "إلغاء")

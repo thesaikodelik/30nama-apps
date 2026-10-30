@@ -15,6 +15,9 @@ protocol Playback: AnyObject {
     var onTick: ((Double) -> Void)? { get set }
     var onEnd: (() -> Void)? { get set }
     var onFail: (() -> Void)? { get set }
+    /// The stream's own server turned the request down (403 or 406), as 30nama's do on some VPN
+    /// exits: then it is the connection, not the file, and the user is told so.
+    var refused: Bool { get }
 
     var position: Double { get }
     /// Zero until the file has said how long it is.
@@ -42,6 +45,7 @@ final class SystemPlayback: Playback {
     var onTick: ((Double) -> Void)?
     var onEnd: (() -> Void)?
     var onFail: (() -> Void)?
+    private(set) var refused = false
     /// Called when a file is open and has no sound this Mac can play.
     var onSilent: (() -> Void)?
 
@@ -102,7 +106,12 @@ final class SystemPlayback: Playback {
         self.output = output
         statusObservation = item.observe(\.status) { [weak self] item, _ in
             Task { @MainActor in
-                if item.status == .failed { self?.onFail?() }
+                if item.status == .failed {
+                    let status = item.errorLog()?.events.last?.errorStatusCode ?? 0
+                    let said = (item.error as NSError?).map { "\($0) \($0.userInfo[NSUnderlyingErrorKey] ?? "")" } ?? ""
+                    self?.refused = [403, 406].contains(status) || said.contains("HTTP 403") || said.contains("HTTP 406")
+                    self?.onFail?()
+                }
                 if item.status == .readyToPlay { await self?.preferPlayableAudio(on: item) }
             }
         }
@@ -374,6 +383,7 @@ final class MPVPlayback: Playback {
     var onTick: ((Double) -> Void)?
     var onEnd: (() -> Void)?
     var onFail: (() -> Void)?
+    let refused = false
 
     /// A sound or subtitle track inside the file.
     struct Track: Identifiable, Hashable {

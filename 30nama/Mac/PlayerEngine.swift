@@ -400,7 +400,7 @@ final class PlayerEngine {
 
     private func failed() {
         guard !closed else { return }
-        app.showToast(loc(.playError))
+        app.showToast(loc(playback.refused ? .streamRefused : .playError))
         close()
     }
 
