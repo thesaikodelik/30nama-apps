@@ -98,7 +98,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonHoverBackgroundColor = Theme.Hex(0xFFFFFF, 0.1);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "30nama.ico"));
-        Resize(1440, 900);
+        PlaceWindow();
         Activated += (_, e) =>
         {
             IsActive = e.WindowActivationState != WindowActivationState.Deactivated;
@@ -115,6 +115,7 @@ public sealed partial class MainWindow : Window
         _tray.QuitRequested += () => DispatcherQueue.TryEnqueue(Quit);
         AppWindow.Closing += (_, e) =>
         {
+            SavePlace();
             if (_quitting || !_app.Settings.KeepInTray) { _tray.Dispose(); return; }
             // Kept beside the clock: the window goes, the app and its downloads stay.
             e.Cancel = true;
@@ -653,6 +654,51 @@ public sealed partial class MainWindow : Window
                 return new Windows.Graphics.RectInt32((int)(bounds.X * scale), (int)(bounds.Y * scale), (int)(bounds.Width * scale), (int)(bounds.Height * scale));
             })
             .ToArray());
+    }
+
+    // MARK: Where the window was
+
+    private const string PlaceFile = "window.txt";
+    /// <summary>The window's place when it last neither filled the screen nor was minimised: what it goes back to.</summary>
+    private Windows.Graphics.RectInt32 _restored;
+
+    /// <summary>
+    /// Opens where it was closed, at the size it had and filling the screen if it did (a user on
+    /// Twitter: closed full, the Mac app opened small). A place no longer on any screen, as after a
+    /// monitor was unplugged, gives the first size in the middle.
+    /// </summary>
+    private void PlaceWindow()
+    {
+        Resize(1440, 900);
+        try
+        {
+            // By index: the list FindAll gives fails when it is enumerated (E_NOINTERFACE), and took
+            // the app down as it opened.
+            var all = DisplayArea.FindAll();
+            var areas = new List<(int, int, int, int)>();
+            for (var i = 0; i < all.Count; i++) areas.Add((all[i].WorkArea.X, all[i].WorkArea.Y, all[i].WorkArea.Width, all[i].WorkArea.Height));
+            if (WindowPlace.Parse(Storage.Read(PlaceFile)) is { } place && place.IsOn(areas))
+            {
+                AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(place.X, place.Y, place.Width, place.Height));
+                if (place.Maximized && AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
+            }
+        }
+        // Where it was is a nicety: the first size in the middle is never worth not opening.
+        catch (Exception) { }
+        _restored = new(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+        if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized } && WindowPlace.Parse(Storage.Read(PlaceFile)) is { } kept)
+            _restored = new(kept.X, kept.Y, kept.Width, kept.Height);
+        AppWindow.Changed += (_, e) =>
+        {
+            if ((e.DidPositionChange || e.DidSizeChange) && AppWindow.IsVisible && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
+                _restored = new(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+        };
+    }
+
+    private void SavePlace()
+    {
+        var full = IsFullScreen || AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
+        Storage.Write(PlaceFile, new WindowPlace(_restored.X, _restored.Y, _restored.Width, _restored.Height, full).Text);
     }
 
     /// <summary>Full screen for the player, and back.</summary>

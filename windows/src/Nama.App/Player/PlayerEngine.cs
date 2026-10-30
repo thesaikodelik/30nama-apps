@@ -323,7 +323,12 @@ public sealed class PlayerEngine
         {
             try
             {
-                return Microsoft.UI.Windowing.DisplayArea.FindAll().Select(d => Math.Min(d.OuterBounds.Width, d.OuterBounds.Height)).DefaultIfEmpty(0).Max() is var lines and >= 720 ? lines : 0;
+                // By index: the list FindAll gives fails when it is enumerated (E_NOINTERFACE), and the
+                // cap was then never applied.
+                var all = Microsoft.UI.Windowing.DisplayArea.FindAll();
+                var lines = 0;
+                for (var i = 0; i < all.Count; i++) lines = Math.Max(lines, Math.Min(all[i].OuterBounds.Width, all[i].OuterBounds.Height));
+                return lines >= 720 ? lines : 0;
             }
             catch (Exception) { return 0; }
         }
