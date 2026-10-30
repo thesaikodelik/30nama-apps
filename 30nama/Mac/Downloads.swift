@@ -679,7 +679,7 @@ private struct SeriesGroup: View {
                         .foregroundStyle(Theme.text2)
                         .rotationEffect(.degrees(open ? 180 : 0))
                         .frame(width: 34, height: 34)
-                        .background(Circle().fill(Color.white.opacity(hovering ? 0.2 : 0.08)))
+                        .background(GlassLens(shape: Circle(), lit: hovering))
                 }
                 .padding(.horizontal, 18)
                 .frame(minHeight: 84)
@@ -735,10 +735,17 @@ private struct DownloadRow: View {
     /// The row is asking what removing should mean: off the list only, or the file as well.
     @State private var asking = false
 
+    /// Finished, but the file is no longer where it was saved: moved, renamed or deleted. Its
+    /// buttons would do nothing, so it says so and keeps only Remove (Twitter feedback 6).
+    private var missing: Bool {
+        item.state == .done && !(item.path.map { FileManager.default.fileExists(atPath: $0) } ?? false)
+    }
+
     var body: some View {
+        let missing = missing
         HStack(spacing: 16) {
             if style == .title {
-                Thumb(item: item)
+                Thumb(item: item).opacity(missing ? 0.4 : 1)
             } else {
                 Image(systemName: symbol)
                     .font(.system(size: 18, weight: .semibold))
@@ -746,7 +753,8 @@ private struct DownloadRow: View {
                     .frame(width: 40)
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text(heading).font(.app(style == .title ? 17 : 15, .bold)).foregroundStyle(Theme.text1).lineLimit(1)
+                Text(heading).font(.app(style == .title ? 17 : 15, .bold)).foregroundStyle(missing ? Theme.text3 : Theme.text1)
+                    .strikethrough(missing, color: Theme.text3).lineLimit(1)
                 Text(style == .title ? item.detail : (item.quality ?? item.detail)).font(.app(13)).foregroundStyle(Theme.text3).lineLimit(1)
                 if item.state == .running || item.state == .paused {
                     GeometryReader { geo in
@@ -758,7 +766,7 @@ private struct DownloadRow: View {
                 }
             }
             Spacer(minLength: 8)
-            Text(status).font(.app(13, .medium)).foregroundStyle(item.state == .failed ? Theme.accent : Theme.text2).lineLimit(1)
+            Text(missing ? loc(.fileMissing) : status).font(.app(13, .medium)).foregroundStyle(item.state == .failed ? Theme.accent : Theme.text2).lineLimit(1)
                 .environment(\.layoutDirection, item.held == true || item.queued == true ? (loc.lang == .en ? .leftToRight : .rightToLeft) : .leftToRight)
             if asking {
                 HStack(spacing: 6) {
@@ -777,6 +785,8 @@ private struct DownloadRow: View {
                     RowButton(symbol: "pause.fill", help: loc(.pause)) { downloads.pause(item.id) }
                 case .paused, .failed:
                     RowButton(symbol: "arrow.clockwise", help: loc(.resume)) { downloads.resume(item.id) }
+                case .done where missing:
+                    EmptyView()
                 case .done:
                     // The players on this Mac that take the file, by their own icons, as round as the buttons beside them.
                     ForEach(downloads.players(for: item)) { player in
@@ -787,7 +797,7 @@ private struct DownloadRow: View {
                                 .frame(width: 40, height: 40)
                                 .frame(width: 34, height: 34)
                                 .clipShape(Circle())
-                                .overlay { Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
+                                .overlay { Circle().strokeBorder(GlassLight.rim(false), lineWidth: GlassLight.rimWidth) }
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -795,7 +805,7 @@ private struct DownloadRow: View {
                         .accessibilityLabel("\(loc(.openIn)) \(player.name)")
                     }
                     if item.subtitlePath != nil {
-                        RowButton(symbol: "captions.bubble.fill", help: loc(.withSubtitle), tint: Theme.good) {}
+                        RowButton(symbol: "captions.bubble.fill", help: loc(.withSubtitle), tint: Theme.text2) {}
                     } else if downloads.seeking.contains(item.id) {
                         ProgressView().controlSize(.small).frame(width: 34, height: 34)
                     } else if item.subtitlePage != nil {
@@ -806,7 +816,7 @@ private struct DownloadRow: View {
                 }
                 RowButton(symbol: "xmark", help: loc(.remove)) {
                     // Only a file that is there raises the question; anything else just leaves the list.
-                    if item.state == .done, let path = item.path, FileManager.default.fileExists(atPath: path) {
+                    if item.state == .done, !missing {
                         asking = true
                     } else {
                         downloads.remove(item.id)
@@ -839,7 +849,8 @@ private struct DownloadRow: View {
     }
 
     private var tint: Color {
-        item.state == .done ? Theme.good : item.state == .failed ? Theme.accent : Theme.text2
+        // The app's quiet colours, as the rest of the row: green read as the first version's.
+        item.state == .failed ? Theme.accent : Theme.text2
     }
 
     private var status: String {
@@ -896,7 +907,14 @@ private struct RowButton: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(bright ? Theme.focusInk : tint ?? Theme.text1)
                 .frame(width: 34, height: 34)
-                .background(Circle().fill(bright ? Color.white.opacity(hovering ? 1 : 0.92) : Color.white.opacity(hovering ? 0.2 : 0.08)))
+                .background {
+                    // The app's glass, as on the title page and in the player; the main action white.
+                    if bright {
+                        Circle().fill(Color.white.opacity(hovering ? 1 : 0.92))
+                    } else {
+                        GlassLens(shape: Circle(), lit: hovering)
+                    }
+                }
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
