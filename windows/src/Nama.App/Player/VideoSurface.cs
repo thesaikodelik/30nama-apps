@@ -14,6 +14,9 @@ public sealed partial class VideoSurface : SwapChainPanel
 
     public VideoSurface()
     {
+        // Left to right in every language: in a Persian or Arabic window the panel took the page's
+        // direction, and the film itself came out mirrored (issue #3).
+        FlowDirection = Microsoft.UI.Xaml.FlowDirection.LeftToRight;
         SizeChanged += (_, _) => Resize();
         CompositionScaleChanged += (_, _) => Resize();
     }
