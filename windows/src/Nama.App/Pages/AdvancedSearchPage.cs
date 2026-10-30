@@ -88,11 +88,7 @@ public sealed class AdvancedSearchPage : Grid
             name.Children.Add(count);
         }
         top.Children.Add(name);
-        var sorts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var sort in AdvancedQuery.Sorts)
-            sorts.Children.Add(Kit.Pill(SortName(sort), _query.Sort == sort, () => Change(q => q with { Sort = sort })));
-        Grid.SetColumn(sorts, 1);
-        top.Children.Add(sorts);
+        // The title and its hint alone at the top; the sorts are with the rest below (the owner).
         _header.Children.Add(top);
         var hint = Theme.Text(Loc[S.advancedHint], 14, color: Theme.Text3);
         hint.Margin = new Thickness(0, -10, 0, 0);
@@ -133,7 +129,7 @@ public sealed class AdvancedSearchPage : Grid
         line.Children.Add(names);
         rows.Children.Add(line);
 
-        var more = new WrapRow(14);
+        var more = new WrapRow(14) { VerticalAlignment = VerticalAlignment.Center };
         more.Add(Years());
         more.Add(Switch("x265", _query.X265, on => q => q with { X265 = on }));
         more.Add(Switch("3D", _query.ThreeD, on => q => q with { ThreeD = on }));
@@ -144,7 +140,17 @@ public sealed class AdvancedSearchPage : Grid
             reset.VerticalAlignment = VerticalAlignment.Center;
             more.Add(reset);
         }
-        rows.Children.Add(more);
+        // Across from them, level, the sorts: each line has a side on the right and one on the left.
+        var bottom = new Grid { ColumnSpacing = 16 };
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bottom.Children.Add(more);
+        var sorts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var sort in AdvancedQuery.Sorts)
+            sorts.Children.Add(Kit.Pill(SortName(sort), _query.Sort == sort, () => Change(q => q with { Sort = sort })));
+        Grid.SetColumn(sorts, 1);
+        bottom.Children.Add(sorts);
+        rows.Children.Add(bottom);
         return rows;
     }
 
