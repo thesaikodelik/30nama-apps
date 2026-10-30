@@ -481,6 +481,7 @@ public sealed class TitlePage : Grid
             buttons.Add(ListToggle(Glyph.Bookmark, Glyph.BookmarkFill, "watchlist", loc[S.watchlist]));
             buttons.Add(ListToggle(Glyph.Heart, Glyph.HeartFill, "favorite", loc[S.favorites]));
         }
+        buttons.Add(CopyLink(post));
         buttons.Margin = new Thickness(0, 10, 0, 0);
         info.Children.Add(buttons);
         // What 30nama changed on the title lately, one at a time, under the buttons.
@@ -594,6 +595,22 @@ public sealed class TitlePage : Grid
         var listed = App.IsListed(Post, group);
         var button = Kit.Glass(null, listed ? filled : glyph, () => _ = App.ToggleListAsync(Post, group), height: 46, rim: Hue);
         if (listed && button.Content is Grid face && face.Children[^1] is FontIcon icon) icon.Foreground = Theme.Brush(Hue);
+        ToolTipService.SetToolTip(button, help);
+        Kit.AutomationName(button, help);
+        return button;
+    }
+
+    /// <summary>The title's page on the website, to the clipboard, to send someone (a user on issue #2).</summary>
+    private Button CopyLink(Post post)
+    {
+        var help = App.Loc[Extra.copyLink];
+        var button = Kit.Glass(null, "\uE71B", () =>
+        {
+            var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            data.SetText(SiteLink.For(post).AbsoluteUri);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
+            App.ShowToast(App.Loc[Extra.linkCopied]);
+        }, height: 46, rim: Hue);
         ToolTipService.SetToolTip(button, help);
         Kit.AutomationName(button, help);
         return button;
