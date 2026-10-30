@@ -141,9 +141,7 @@ public sealed class NewsPage : Grid
         _footer.Children.Clear();
         if (_failed)
         {
-            var retry = Kit.Glass(App.Loc[S.retry], null, () => _ = LoadNextAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _footer.Children.Add(retry);
+            _footer.Children.Add(Kit.SiteRetry(() => _ = LoadNextAsync()));
         }
         else if (_loading) _footer.Children.Add(Kit.Spinner());
     }
@@ -243,9 +241,7 @@ public sealed class ArticleReader : Grid
         _body.Children.Clear();
         if (text is null)
         {
-            var retry = Kit.Glass(App.Loc[S.retry], null, () => _ = LoadAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _body.Children.Add(retry);
+            _body.Children.Add(Kit.SiteRetry(() => _ = LoadAsync()));
             return;
         }
         if ((text.Article.Date ?? _article.Date) is { } date) _body.Children.Add(Theme.Text(date, 14, FontWeights.Medium, Theme.Text3));

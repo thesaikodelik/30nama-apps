@@ -325,6 +325,13 @@ public sealed partial class MainWindow : Window
         Environment.SetEnvironmentVariable("NAMA_OPEN", null); // once, not again after a sign-in
         try
         {
+            // "search:<name>": the first title a search for it finds, for a title not on Home.
+            if (target.StartsWith("search:", StringComparison.Ordinal))
+            {
+                var found = new PostPage(await _app.Api.GetAsync("search", new Dictionary<string, string> { ["query"] = target[7..], ["streamonly"] = "false", ["page"] = "1" }));
+                if (found.Posts.FirstOrDefault() is { } first) _nav.Open(first, playing: Environment.GetEnvironmentVariable("NAMA_PLAY") == "1");
+                return;
+            }
             var feed = await _app.HomeAsync();
             var pool = feed.Heroes.Concat(feed.Sections.SelectMany(s => s.Posts)).ToList();
             var post = target == "first" ? pool.FirstOrDefault() : pool.FirstOrDefault(p => p.Id.ToString() == target);

@@ -615,6 +615,33 @@ public static class Kit
         return column;
     }
 
+    /// <summary>
+    /// "Try again" where what failed came from the website: it asks the site again at once (the user
+    /// may have turned a VPN on), and in Iran it says above itself that the site cannot be reached
+    /// from there. Outside Iran it is the plain button it was. As the Mac's SiteRetry.
+    /// </summary>
+    public static FrameworkElement SiteRetry(Action retry, bool site = true)
+    {
+        var app = AppModel.Shared;
+        var column = new StackPanel { Spacing = 14, HorizontalAlignment = HorizontalAlignment.Center };
+        if (site && app.InIran && !app.Api.SiteInReach)
+        {
+            var note = Theme.Text(Loc[S.siteOutOfReach], 15, color: Theme.Text2, lines: 0);
+            note.MaxWidth = 520;
+            note.TextAlignment = TextAlignment.Center;
+            note.HorizontalAlignment = HorizontalAlignment.Center;
+            column.Children.Add(note);
+        }
+        var button = Glass(Loc[S.retry], null, () =>
+        {
+            if (site) app.Api.SiteAgain();
+            retry();
+        });
+        button.HorizontalAlignment = HorizontalAlignment.Center;
+        column.Children.Add(button);
+        return column;
+    }
+
     public static ProgressRing Spinner() => new()
     {
         IsActive = true, Width = 40, Height = 40, Foreground = Theme.Brush(Theme.Text2),

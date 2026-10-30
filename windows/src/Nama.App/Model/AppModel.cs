@@ -124,6 +124,13 @@ public sealed class AppModel
 
     // MARK: Boot and session
 
+    /// <summary>
+    /// The app is in Iran without a VPN: TMDB, YouTube, SubSource and the website are filtered, so
+    /// what comes from them is not waited for (see <see cref="ApiClient.InIran"/>). Anything added
+    /// for Iran is turned on by this alone; outside Iran the app stays as it was.
+    /// </summary>
+    public bool InIran { get; private set; }
+
     public async Task BootAsync()
     {
         Phase = Phases.Booting;
@@ -135,6 +142,8 @@ public sealed class AppModel
             var host = await Api.BootstrapAsync(Storage.Read(HostFile)?.Trim());
             Storage.Write(HostFile, host);
             ApiHost = host;
+            InIran = Api.InIran || FilteredHosts.Simulated;
+            TmdbStore.Shared.Filtered = InIran;
         }
         catch (Exception)
         {
@@ -336,6 +345,8 @@ public sealed class AppModel
     /// </summary>
     public async Task<List<Post>> TmdbRowAsync(TrendingRow row)
     {
+        // The rows are TMDB's.
+        if (InIran) return [];
         var key = TmdbStore.Key;
         if (key is null && row != TrendingRow.Trend) return [];
         if (_trending is not { } t || t.Key != key)

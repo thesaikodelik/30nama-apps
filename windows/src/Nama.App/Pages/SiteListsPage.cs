@@ -74,9 +74,7 @@ public sealed class SchedulePage : Grid
         }
         else if (_failed)
         {
-            var retry = Kit.Glass(loc[S.retry], null, () => _ = LoadAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _column.Children.Add(retry);
+            _column.Children.Add(Kit.SiteRetry(() => _ = LoadAsync()));
         }
         else _column.Children.Add(Kit.Spinner());
     }
@@ -168,9 +166,7 @@ public sealed class TopListsPage : Grid
         }
         else if (_failed)
         {
-            var retry = Kit.Glass(loc[S.retry], null, () => _ = LoadAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _column.Children.Add(retry);
+            _column.Children.Add(Kit.SiteRetry(() => _ = LoadAsync()));
         }
         else _column.Children.Add(Kit.Spinner());
     }

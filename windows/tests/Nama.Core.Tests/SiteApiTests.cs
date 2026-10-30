@@ -69,6 +69,33 @@ public class SiteApiTests
     }
 
     [Fact]
+    public async Task ASiteThatGivesNoAnswerIsNotAskedAgainForAWhile()
+    {
+        // As where the site is filtered: no answer at all.
+        var answering = false;
+        var net = new FakeNetwork((_, _) => answering ? (200, """{"success":true,"msg":null,"result":{}}""", new Dictionary<string, string>()) : (0, "", new Dictionary<string, string>()));
+        var api = new ApiClient(new ApiConfig
+        {
+            RequestSpacing = TimeSpan.Zero,
+            Backoff = [TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(20)],
+            SiteKey = "site-key",
+        }, net.Transport);
+        var first = await Assert.ThrowsAsync<ApiException>(() => api.SiteAsync("schedule/type/series"));
+        Assert.Equal(ApiException.Kinds.Unreachable, first.Kind);
+        // Not tried again, and the next page does not wait for it either.
+        Assert.Single(net.Calls);
+        var second = await Assert.ThrowsAsync<ApiException>(() => api.SiteAsync("toplist/list/imdb"));
+        Assert.Equal(ApiException.Kinds.Unreachable, second.Kind);
+        Assert.Single(net.Calls);
+        Assert.False(api.SiteInReach);
+        // Asked for again by the user, with the site now answering.
+        answering = true;
+        api.SiteAgain();
+        await api.SiteAsync("toplist/list/imdb");
+        Assert.Equal(2, net.Calls.Count);
+    }
+
+    [Fact]
     public async Task WithoutAKeyTheSiteIsNotAsked()
     {
         var net = new FakeNetwork((_, _) => (200, "{}", []));

@@ -80,6 +80,7 @@ public sealed class TitlePage : Grid
         };
         _ = LoadAsync();
         _ = LoadTmdbAsync();
+        _ = LookOnAparatAsync();
         _ = Task.Delay(2000).ContinueWith(_ => DispatcherQueue.TryEnqueue(Reveal), TaskScheduler.Default);
         Loaded += (_, _) => _ = RunTeaserAsync();
         PointerMoved += (_, _) => _lastInput = DateTime.UtcNow;
@@ -151,6 +152,19 @@ public sealed class TitlePage : Grid
         _tmdbKnown = true;
         if (!_revealed && _streamKnown) Reveal();
         else if (info is not null && !ReferenceEquals(info, known)) Render();
+    }
+
+    /// <summary>
+    /// In Iran only: when TMDB gives no trailer in the second and a half the buttons wait for, one
+    /// from Aparat, its button added to the row once found. Outside Iran Aparat is not asked at all
+    /// (the owner: everything there stays as it was). As the Mac's title page.
+    /// </summary>
+    private async Task LookOnAparatAsync()
+    {
+        if (!App.InIran) return;
+        if (await TmdbStore.Shared.TrailerAsync(_preview, App.Loc.Lang, TimeSpan.FromSeconds(1.5)) is not null) return;
+        await AparatStore.Shared.LookAsync(_preview);
+        if (AparatStore.Shared.Found(_preview.Id) is not null && XamlRoot is not null) Render();
     }
 
     private void Reveal()
@@ -443,7 +457,9 @@ public sealed class TitlePage : Grid
             buttons.Add(download);
         }
         // Only once a trailer has been found, so there is never a button that leads nowhere.
-        if (TmdbStore.Shared.Known(post.Id)?.Trailer is { } video)
+        var video = TmdbStore.Shared.Known(post.Id)?.Trailer
+            ?? (AparatStore.Shared.Found(post.Id) is { } aparat ? AparatStore.Prefix + aparat.Uid : null);
+        if (video is not null)
             buttons.Add(Kit.Glass(loc[S.trailer], Glyph.Video, () =>
             {
                 // The silent one behind the page stops; the trailer has the sound.

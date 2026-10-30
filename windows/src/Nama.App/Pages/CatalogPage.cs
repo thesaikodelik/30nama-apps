@@ -250,9 +250,7 @@ public sealed class CatalogPage : Grid
         _footer.Children.Clear();
         if (_failed)
         {
-            var retry = Kit.Glass(App.Loc[S.retry], null, () => _ = LoadNextAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _footer.Children.Add(retry);
+            _footer.Children.Add(Kit.SiteRetry(() => _ = LoadNextAsync(), site: _sort == Sort.Newest));
         }
         else if (_loading) _footer.Children.Add(Kit.Spinner());
     }

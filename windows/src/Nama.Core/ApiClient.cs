@@ -16,6 +16,8 @@ public sealed record ApiConfig
         "https://world.hana-api.com/api/v2",
         "https://ir.kazem-api.com/api/v2",
     ];
+    /// <summary>The hosts that answer only from inside Iran; the endpoint list says the same with "IR".</summary>
+    public IReadOnlyList<string> IranHosts { get; init; } = ["https://ir.kazem-api.com/api/v2"];
     /// <summary>WebTV client key first, Android TV key as a fallback.</summary>
     public IReadOnlyList<string> ApiKeys { get; init; } =
     [
@@ -58,6 +60,8 @@ public sealed class ApiException : Exception
     public TimeSpan RetryAfter { get; }
     /// <summary>Cloudflare's rate limit (429, or its "error code: 1015" page), which pauses the whole gate.</summary>
     public bool RateLimited { get; }
+    /// <summary>Nothing came back at all, not even an HTTP status: the connection failed or hung.</summary>
+    public bool NoAnswer { get; init; }
 
     public ApiException(Kinds kind, string message, TimeSpan retryAfter = default, bool rateLimited = false) : base(message)
     {
@@ -164,7 +168,17 @@ public sealed class ApiClient
     public ApiConfig Config { get; }
     private readonly Transport _transport;
     private readonly RequestGate _gate;
+    /// <summary>
+    /// The website's own gate: its host is not the app API's, and a request of its that hangs, as
+    /// they do where it is filtered, must not hold a place the app's own requests are waiting for.
+    /// </summary>
+    private readonly RequestGate _siteGate;
     private readonly object _lock = new();
+    private readonly HashSet<string> _discoveredIran = [];
+    /// <summary>Until when the website is taken to be out of reach (see <see cref="SiteAsync"/>).</summary>
+    private DateTime _siteOutUntil = DateTime.MinValue;
+    /// <summary>How long the website is not asked again after it gave no answer at all.</summary>
+    public static readonly TimeSpan SiteOutFor = TimeSpan.FromSeconds(180);
 
     private string? _host;
     private string _key;
@@ -181,6 +195,7 @@ public sealed class ApiClient
         Config = config ?? new ApiConfig();
         _key = Config.ApiKeys[0];
         _gate = new RequestGate(spacing: Config.RequestSpacing);
+        _siteGate = new RequestGate(spacing: Config.RequestSpacing);
         _transport = transport ?? HttpTransport();
     }
 
@@ -230,8 +245,14 @@ public sealed class ApiClient
             },
         };
         var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        return (request, cancel) =>
+        return async (request, cancel) =>
         {
+            // As on Irancell: no answer from a filtered host, until whoever asked stops waiting.
+            if (FilteredHosts.Simulated && FilteredHosts.Contains(request.RequestUri?.Host))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(60), cancel);
+                throw new HttpRequestException("no answer (NAMA_FILTERED)");
+            }
             if (request.RequestUri is { Scheme: "https" } url)
             {
                 request.RequestUri = new UriBuilder(url) { Scheme = "http", Port = url.Port }.Uri;
@@ -240,7 +261,7 @@ public sealed class ApiClient
             }
             // Handed over once the headers are in: a download reads its body as it comes, instead of
             // all of it being held in memory first.
-            return client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
+            return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
         };
     }
 
@@ -248,6 +269,18 @@ public sealed class ApiClient
     private static readonly HttpRequestOptionsKey<bool> Secure = new("nama.secure");
 
     public string? Host { get { lock (_lock) return _host; } }
+
+    /// <summary>
+    /// The host that answered is one that answers only inside Iran: the user is there, without a
+    /// VPN, and TMDB, YouTube and the website are filtered.
+    /// </summary>
+    public bool InIran
+    {
+        get
+        {
+            lock (_lock) return _host is { } host && (Config.IranHosts.Contains(host) || _discoveredIran.Contains(host));
+        }
+    }
 
     public void SetToken(string? token) { lock (_lock) _token = token ?? ""; }
     public void SetLanguage(Lang lang) { lock (_lock) _language = lang.Catalogue(); }
@@ -308,6 +341,11 @@ public sealed class ApiClient
                 request.Headers.TryAddWithoutValidation("User-Agent", Config.UserAgent);
                 using var response = await _transport(request, timeout.Token);
                 var list = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
+                foreach (var entry in list.Array)
+                {
+                    if (entry["location"].Text == "IR" && entry["host"].Text is { } iran)
+                        lock (_lock) _discoveredIran.Add(iran);
+                }
                 return list.Array.Select(x => x["host"].Text).OfType<string>().ToList();
             }
             catch (Exception) { return []; }
@@ -347,35 +385,36 @@ public sealed class ApiClient
     }
 
     /// <summary>One request through the gate, tried again after a transient failure.</summary>
-    private async Task<Envelope> RetryingAsync(bool background, int retries, Func<Task<Envelope>> send)
+    private async Task<Envelope> RetryingAsync(bool background, int retries, Func<Task<Envelope>> send, RequestGate? through = null)
     {
+        var gate = through ?? _gate;
         for (var attempt = 0; ; attempt++)
         {
-            await _gate.AcquireAsync(background);
+            await gate.AcquireAsync(background);
             try
             {
                 var envelope = await send();
-                _gate.Release(background);
+                gate.Release(background);
                 return envelope;
             }
             catch (ApiException e) when (e.Kind == ApiException.Kinds.Transient && attempt < retries)
             {
-                _gate.Release(background);
+                gate.Release(background);
                 var delay = new[] { Config.Backoff[attempt], e.RetryAfter }.Max();
-                _gate.Pause(delay);
+                gate.Pause(delay);
                 await Task.Delay(delay);
             }
             catch (ApiException e)
             {
-                _gate.Release(background);
+                gate.Release(background);
                 // A rate limit pauses every call behind it, retried or not (a write is never
                 // replayed), so the next one does not walk into the same wall.
-                if (e.RateLimited) _gate.Pause(new[] { Config.Backoff[Math.Min(attempt, Config.Backoff.Count - 1)], e.RetryAfter }.Max());
+                if (e.RateLimited) gate.Pause(new[] { Config.Backoff[Math.Min(attempt, Config.Backoff.Count - 1)], e.RetryAfter }.Max());
                 throw;
             }
             catch
             {
-                _gate.Release(background);
+                gate.Release(background);
                 throw;
             }
         }
@@ -386,12 +425,18 @@ public sealed class ApiClient
 
     /// <summary>
     /// Runs an action of the website's API and returns its <c>result</c>, throwing a server error
-    /// when it did not succeed. Through the same gate, with the same retries, as the app API: both
-    /// are behind the same Cloudflare. Its parameters are in <paramref name="path"/>, the rest in <paramref name="form"/>.
+    /// when it did not succeed. With the same retries as the app API, through a gate of its own. Its
+    /// parameters are in <paramref name="path"/>, the rest in <paramref name="form"/>.
+    ///
+    /// Iran filters the website (its API with it), and on some networks there a request to it is
+    /// neither answered nor refused. One that gets no answer at all is not tried again, and for
+    /// <see cref="SiteOutFor"/> the site is not asked: what needs it fails at once as unreachable
+    /// instead of every page waiting out the same silence. <see cref="SiteAgain"/> lifts that.
     /// </summary>
     public async Task<Json> SiteAsync(string path, IReadOnlyDictionary<string, string>? form = null, bool background = false)
     {
         if (Config.SiteKey is not { Length: > 0 } key || !Uri.TryCreate(Config.SiteHost + "/action/" + path, UriKind.Absolute, out var url)) throw ApiException.Unreachable();
+        if (!SiteInReach) throw ApiException.Unreachable();
         var e = await RetryingAsync(background, Config.Backoff.Count, async () =>
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
@@ -400,11 +445,22 @@ public sealed class ApiClient
             request.Headers.TryAddWithoutValidation("c-platform", Config.SitePlatform);
             request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(FormEncode(form ?? new Dictionary<string, string>())));
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
-            return await ExchangeAsync(request, path, TimeSpan.FromSeconds(20), CancellationToken.None);
-        });
+            try { return await ExchangeAsync(request, path, TimeSpan.FromSeconds(12), CancellationToken.None); }
+            catch (ApiException failed) when (failed.NoAnswer)
+            {
+                lock (_lock) _siteOutUntil = DateTime.UtcNow + SiteOutFor;
+                throw ApiException.Unreachable();
+            }
+        }, _siteGate);
         if (!e.Success) throw new ApiException(ApiException.Kinds.Server, e.Message ?? "error");
         return e.Result;
     }
+
+    /// <summary>Whether the website answered the last time it was asked, or has not been asked for a while.</summary>
+    public bool SiteInReach { get { lock (_lock) return DateTime.UtcNow >= _siteOutUntil; } }
+
+    /// <summary>Asked for again by the user (a retry button, perhaps with a VPN now on): ask the site again at once.</summary>
+    public void SiteAgain() { lock (_lock) _siteOutUntil = DateTime.MinValue; }
 
     /// <summary>Runs an action and returns its <c>result</c>, throwing a server error when it did not succeed.</summary>
     public async Task<Json> GetAsync(string action, IReadOnlyDictionary<string, string>? parameters = null, bool background = false)
@@ -476,7 +532,7 @@ public sealed class ApiClient
         }
         catch (Exception e) when (e is not ApiException)
         {
-            throw new ApiException(ApiException.Kinds.Transient, $"{action}: {e.Message}");
+            throw new ApiException(ApiException.Kinds.Transient, $"{action}: {e.Message}") { NoAnswer = true };
         }
         // A progress report is answered with nothing at all: accepted, with nothing to say.
         if (data.Length == 0 && status is >= 200 and < 300) return new Envelope(true, null, Json.Null);

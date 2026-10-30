@@ -36,6 +36,30 @@ public class ApiClientTests
     }
 
     [Fact]
+    public async Task TheIranianHostSaysTheUserIsInIran()
+    {
+        // Only the Iranian host answers, as from inside Iran.
+        var inside = new FakeNetwork((action, host) =>
+        {
+            if (action == "discovery") return (200, """[{"location":"WORLD","host":"https://w.example.com/api/v2"},{"location":"IR","host":"https://i.example.com/api/v2"}]""", NoHeaders);
+            return host == "i.example.com" ? (200, Ok, NoHeaders) : (0, "", NoHeaders);
+        });
+        var there = new ApiClient(Config(), inside.Transport);
+        await there.BootstrapAsync();
+        Assert.True(there.InIran);
+        // Abroad the Iranian host turns the request away.
+        var outside = new FakeNetwork((action, host) =>
+        {
+            if (action == "discovery") return (0, "", NoHeaders);
+            if (host.Contains("kazem")) return (403, "<html>blocked</html>", NoHeaders);
+            return (200, Ok, NoHeaders);
+        });
+        var here = new ApiClient(Config(), outside.Transport);
+        await here.BootstrapAsync();
+        Assert.False(here.InIran);
+    }
+
+    [Fact]
     public async Task BootstrapPrefersPublishedEndpointList()
     {
         var net = new FakeNetwork((action, host) =>

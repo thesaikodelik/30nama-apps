@@ -762,10 +762,11 @@ public sealed class PlayerEngine
 
     /// <summary>
     /// A translation can be offered: no Persian subtitle anywhere (30nama's or SubSource's), an
-    /// English one to start from, and the user's own Gemini key (the Android app's).
+    /// English one to start from, and the user's own Gemini key (the Android app's). Not in Iran,
+    /// where Google is filtered and the offer would lead nowhere.
     /// </summary>
     public bool CanTranslate => !Current.Subtitles.ContainsKey("fa") && !FindingSubtitles && FoundSubtitles.Count == 0
-        && Current.Subtitles.ContainsKey("en") && _app.GeminiKey is not null;
+        && Current.Subtitles.ContainsKey("en") && _app.GeminiKey is not null && !_app.InIran;
 
     /// <summary>
     /// The English subtitle translated by Gemini (Translation.cs). The film goes on with the English

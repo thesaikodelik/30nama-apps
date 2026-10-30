@@ -237,9 +237,7 @@ public sealed class PersonPage : Grid
         _footer.Children.Clear();
         if (_failed)
         {
-            var retry = Kit.Glass(Loc[S.retry], null, () => _ = LoadNextAsync());
-            retry.HorizontalAlignment = HorizontalAlignment.Center;
-            _footer.Children.Add(retry);
+            _footer.Children.Add(Kit.SiteRetry(() => _ = LoadNextAsync()));
         }
         else if (_loading) _footer.Children.Add(Kit.Spinner());
         else if (_done && _known.Count == 0)

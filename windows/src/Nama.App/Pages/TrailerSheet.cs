@@ -10,7 +10,8 @@ namespace Nama.App.Pages;
 /// <summary>
 /// A title's trailer, playing over the window in YouTube's own player. YouTube cannot be reached
 /// everywhere without a VPN; when it does not answer, the sheet says so rather than staying dark.
-/// As TrailerSheet.swift.
+/// A trailer from Aparat (<see cref="AparatStore.Prefix"/>) is a plain file, played by Windows'
+/// own player. As TrailerSheet.swift.
 /// </summary>
 public sealed class TrailerSheet : Grid
 {
@@ -20,6 +21,7 @@ public sealed class TrailerSheet : Grid
     private readonly Grid _screen = new() { Background = Theme.Black(1), CornerRadius = new CornerRadius(14) };
     private readonly Action _close;
     private bool _closed;
+    private MediaPlayerElement? _file;
 
     public TrailerSheet(string title, string video, Action close)
     {
@@ -45,7 +47,7 @@ public sealed class TrailerSheet : Grid
         header.Children.Add(shut);
         pane.Children.Add(header);
 
-        _screen.Children.Add(_web);
+        if (!video.StartsWith(AparatStore.Prefix, StringComparison.Ordinal)) _screen.Children.Add(_web);
         SetRow(_screen, 1);
         pane.Children.Add(_screen);
         // Sixteen by nine, whatever width the window leaves it.
@@ -76,10 +78,21 @@ public sealed class TrailerSheet : Grid
         if (_closed) return;
         _closed = true;
         YouTube.Stop(_web);
+        if (_file?.MediaPlayer is { } player)
+        {
+            player.Pause();
+            _file.SetMediaPlayer(null);
+            player.Dispose();
+        }
     }
 
     private async Task StartAsync(string video)
     {
+        if (video.StartsWith(AparatStore.Prefix, StringComparison.Ordinal))
+        {
+            await PlayFileAsync(video[AparatStore.Prefix.Length..]);
+            return;
+        }
         var reachable = ReachableAsync();
         try
         {
@@ -92,6 +105,27 @@ public sealed class TrailerSheet : Grid
             return;
         }
         if (!await reachable && !_closed) Unreachable();
+    }
+
+    /// <summary>Aparat's file, asked for now (its address is signed and does not last), with Windows' own controls.</summary>
+    private async Task PlayFileAsync(string uid)
+    {
+        var busy = Kit.Spinner();
+        _screen.Children.Add(busy);
+        var file = await AparatStore.Shared.FileAsync(uid);
+        _screen.Children.Remove(busy);
+        if (_closed) return;
+        if (file is null)
+        {
+            Note(S.trailerNotLoaded, Glyph.Video);
+            return;
+        }
+        var player = new Windows.Media.Playback.MediaPlayer { AutoPlay = true, Source = Windows.Media.Core.MediaSource.CreateFromUri(file) };
+        player.MediaFailed += (_, _) => DispatcherQueue.TryEnqueue(() => { if (!_closed) Note(S.trailerNotLoaded, Glyph.Video); });
+        // Left to right in every language: in a mirrored sheet the picture itself came out mirrored.
+        _file = new MediaPlayerElement { AreTransportControlsEnabled = true, Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform, FlowDirection = FlowDirection.LeftToRight };
+        _file.SetMediaPlayer(player);
+        _screen.Children.Add(_file);
     }
 
     /// <summary>Whether YouTube answers a plain request at all from this connection.</summary>
@@ -107,15 +141,18 @@ public sealed class TrailerSheet : Grid
         catch (Exception) { return false; }
     }
 
-    private void Unreachable()
+    private void Unreachable() => Note(S.trailerUnreachable, Glyph.Wifi);
+
+    /// <summary>Says in the screen's place why there is no trailer, rather than leaving it dark.</summary>
+    private void Note(S what, string glyph)
     {
         Stop();
         _screen.Children.Clear();
         var note = new StackPanel { Spacing = 10, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(30) };
-        var icon = Glyph.Icon(Glyph.Wifi, 30, Theme.Text2);
+        var icon = Glyph.Icon(glyph, 30, Theme.Text2);
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         note.Children.Add(icon);
-        var text = Theme.Text(Loc[S.trailerUnreachable], 15, FontWeights.Medium, Theme.Text2, lines: 0);
+        var text = Theme.Text(Loc[what], 15, FontWeights.Medium, Theme.Text2, lines: 0);
         text.TextAlignment = TextAlignment.Center;
         note.Children.Add(text);
         _screen.Children.Add(note);

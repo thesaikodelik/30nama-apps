@@ -25,6 +25,12 @@ public sealed class TmdbStore
     /// <summary>Titles whose trailer has been looked for, found or not.</summary>
     private readonly HashSet<int> _trailerSettled = [];
     private string? _usedKey;
+    /// <summary>
+    /// TMDB is filtered here (the app is in Iran, <see cref="AppModel.InIran"/>): it is not asked at
+    /// all, and logos come from the repository's list of them instead.
+    /// </summary>
+    public bool Filtered { get; set; }
+    private Task<LogoIndex?>? _index;
 
     /// <summary>A trailer that was found after the info was handed out, by post id.</summary>
     public event Action<int>? TrailerFound;
@@ -46,8 +52,18 @@ public sealed class TmdbStore
             _trailerSettled.Clear();
         }
         if (_known.TryGetValue(post.Id, out var info)) return info;
-        if (!_running.TryGetValue(post.Id, out var task)) _running[post.Id] = task = LookAsync(post, lang);
-        try { return await task; }
+        if (!_running.TryGetValue(post.Id, out var task))
+        {
+            _trailerSettled.Remove(post.Id);
+            _running[post.Id] = task = LookAsync(post, lang);
+        }
+        try
+        {
+            var found = await task;
+            // Failed: there will be no trailer this time, and no one should wait for one.
+            if (found is null) _trailerSettled.Add(post.Id);
+            return found;
+        }
         finally { _running.Remove(post.Id); }
     }
 
@@ -69,6 +85,7 @@ public sealed class TmdbStore
             return _known[post.Id];
         }
 #endif
+        if (Filtered) return await IndexedLookAsync(post, lang);
         if (Key is not { } key) return await PublicLookAsync(post, lang);
         // TMDB's answer kept on disk, as the Android and Tizen apps do: a week when found, a day when
         // not, so each opening of the app does not ask again for every title on the screen.
@@ -100,6 +117,58 @@ public sealed class TmdbStore
         _known[post.Id] = info;
         _trailerSettled.Add(post.Id);
         return info;
+    }
+
+    /// <summary>Where TMDB is filtered: the logo from the list on GitHub, and no trailer (Aparat has those).</summary>
+    private async Task<TMDB.Info?> IndexedLookAsync(Post post, Lang lang)
+    {
+        _index ??= LoadIndexAsync();
+        var list = await _index;
+        // Not had this time: asked for again with the next title.
+        if (list is null) _index = null;
+        var info = new TMDB.Info { Logo = list?.Logo(post.ImdbId, lang) };
+        _known[post.Id] = info;
+        _trailerSettled.Add(post.Id);
+        return info;
+    }
+
+    /// <summary>The list of logos, kept on disk and fetched again once a day; an old copy serves when GitHub does not answer.</summary>
+    private static async Task<LogoIndex?> LoadIndexAsync()
+    {
+        var file = Path.Combine(Storage.Folder, "logos.json");
+        byte[]? saved = null;
+        try
+        {
+            if (File.Exists(file))
+            {
+                saved = await File.ReadAllBytesAsync(file);
+                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < TimeSpan.FromDays(1) && Index(saved) is { } fresh) return fresh;
+            }
+        }
+        catch (Exception) { }
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, LogoIndex.Address);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var response = await Net(request, timeout.Token);
+            if ((int)response.StatusCode == 200)
+            {
+                var data = await response.Content.ReadAsByteArrayAsync(timeout.Token);
+                if (Index(data) is { } index)
+                {
+                    try { await File.WriteAllBytesAsync(file, data); } catch (Exception) { }
+                    return index;
+                }
+            }
+        }
+        catch (Exception) { }
+        return saved is null ? null : Index(saved);
+
+        static LogoIndex? Index(byte[] data)
+        {
+            try { return LogoIndex.From(Json.Parse(data)); }
+            catch (Exception) { return null; }
+        }
     }
 
     /// <summary>Without a key, the logo and the trailer, read from the site's public pages; the rest needs the API.</summary>
@@ -135,11 +204,15 @@ public sealed class TmdbStore
         _trailerSettled.Add(post);
     }
 
-    /// <summary>The trailer for <paramref name="post"/>, waiting a little for a look that is still under way.</summary>
+    /// <summary>
+    /// The trailer for <paramref name="post"/>, waiting up to <paramref name="patience"/> and no longer.
+    /// The wait starts now, not once TMDB has answered: where TMDB is filtered its requests are neither
+    /// answered nor refused, and what waited on the answer waited for a minute (issue #2).
+    /// </summary>
     public async Task<string?> TrailerAsync(Post post, Lang lang, TimeSpan? patience = null)
     {
-        await InfoAsync(post, lang);
         var until = DateTime.UtcNow + (patience ?? TimeSpan.FromSeconds(4));
+        _ = InfoAsync(post, lang);
         while (DateTime.UtcNow < until)
         {
             if (_known.GetValueOrDefault(post.Id)?.Trailer is { } trailer) return trailer;
