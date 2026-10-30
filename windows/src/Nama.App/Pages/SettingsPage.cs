@@ -370,8 +370,9 @@ public sealed class SettingsPage : Grid
         {
             var saved = current.Length > 0;
             var rejected = saved && state == KeyState.Rejected;
-            // The app's own red, on the edge and the tick only: the words in the usual colour, so it does not read as an error.
-            capsule.BorderBrush = new SolidColorBrush(Theme.Accent.WithAlpha(saved ? 0.55 : 0));
+            // Red only for a key the service turned away: a red edge reads as an error (a user on
+            // Twitter), so a saved key has the glass's own edge, a little brighter, and the tick says it.
+            capsule.BorderBrush = rejected ? new SolidColorBrush(Theme.Accent.WithAlpha(0.7)) : Theme.White(saved ? 0.2 : 0);
             reveal.Visibility = remove.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
             note.Children.Clear();
             if (saved && !rejected && state != KeyState.Checking) note.Children.Add(tick);
@@ -412,10 +413,35 @@ public sealed class SettingsPage : Grid
         Show();
 
         var column = new StackPanel { Spacing = 2 };
-        column.Children.Add(Row(label, capsule));
+        var row = (Grid)Row(label, capsule);
+        // The service's name opens where it gives keys (a user on Twitter), as the Android app's QR does.
+        var title = (TextBlock)row.Children[0];
+        row.Children.Remove(title);
+        var link = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        link.Children.Add(title);
+        var away = Glyph.Icon("", 12, Theme.Text3);
+        away.VerticalAlignment = VerticalAlignment.Center;
+        link.Children.Add(away);
+        var open = Theme.Bare(link, () => _ = Windows.System.Launcher.LaunchUriAsync(KeyPage(service)));
+        open.HorizontalAlignment = HorizontalAlignment.Left;
+        open.VerticalAlignment = VerticalAlignment.Center;
+        open.PointerEntered += (_, _) => title.TextDecorations = Windows.UI.Text.TextDecorations.Underline;
+        open.PointerExited += (_, _) => title.TextDecorations = Windows.UI.Text.TextDecorations.None;
+        ToolTipService.SetToolTip(open, KeyPage(service).Host);
+        Kit.AutomationName(open, label);
+        row.Children.Insert(0, open);
+        column.Children.Add(row);
         column.Children.Add(note);
         return column;
     }
+
+    /// <summary>Where each service gives its keys (the Android app's).</summary>
+    private static Uri KeyPage(string service) => new(service switch
+    {
+        "tmdb" => "https://www.themoviedb.org/settings/api",
+        "gemini" => "https://aistudio.google.com/apikey",
+        _ => "https://subsource.net/profile",
+    });
 
     /// <summary>The ratings as a file Letterboxd's importer reads: the app cannot send them to 30nama, so this is how they leave it.</summary>
     /// <summary>
