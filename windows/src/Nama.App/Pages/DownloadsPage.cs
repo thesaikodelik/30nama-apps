@@ -222,10 +222,14 @@ public sealed class DownloadsPage : Grid
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // Finished, but the file is not where it was saved (moved, renamed, deleted): struck through,
+        // and only taking it off the list is offered, as the rest would do nothing (a user on Twitter).
+        var missing = item.State == DownloadItem.States.Done && item.Path is { } saved && !File.Exists(saved);
         if (episode)
         {
-            var symbol = item.State switch { DownloadItem.States.Running => Glyph.Download, DownloadItem.States.Paused => Glyph.Pause, DownloadItem.States.Done => "", _ => "" };
-            var tint = item.State switch { DownloadItem.States.Done => Theme.Good, DownloadItem.States.Failed => Theme.Accent, _ => Theme.Text2 };
+            var symbol = item.State switch { DownloadItem.States.Running => Glyph.Download, DownloadItem.States.Paused => Glyph.Pause, DownloadItem.States.Done => missing ? "" : "", _ => "" };
+            // Quiet, in the app's own colours: a bright green did not belong to the design since.
+            var tint = item.State switch { DownloadItem.States.Done => missing ? Theme.Text3 : Theme.Text2, DownloadItem.States.Failed => Theme.Accent, _ => Theme.Text2 };
             var icon = Glyph.Icon(symbol, 18, tint);
             icon.Width = 40;
             icon.VerticalAlignment = VerticalAlignment.Center;
@@ -235,7 +239,9 @@ public sealed class DownloadsPage : Grid
 
         var text = new StackPanel { Spacing = 5, VerticalAlignment = VerticalAlignment.Center };
         var heading = episode && item.Season is { } season && item.Episode is { } ep ? Loc.EpisodeTag(season, ep) : item.Title;
-        text.Children.Add(Theme.Text(heading, episode ? 15 : 17, FontWeights.Bold));
+        var title = Theme.Text(heading, episode ? 15 : 17, FontWeights.Bold, missing ? Theme.Text3 : null);
+        if (missing) title.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+        text.Children.Add(title);
         text.Children.Add(Theme.Text(episode ? item.Quality ?? item.Detail : item.Detail, 13, color: Theme.Text3));
         if (item.State is DownloadItem.States.Running or DownloadItem.States.Paused)
         {
@@ -248,7 +254,7 @@ public sealed class DownloadsPage : Grid
         Grid.SetColumn(text, 1);
         row.Children.Add(text);
 
-        var status = Theme.Text(Status(item), 13, FontWeights.Medium, item.State == DownloadItem.States.Failed ? Theme.Accent : Theme.Text2);
+        var status = Theme.Text(missing ? Loc[Extra.fileMissing] : Status(item), 13, FontWeights.Medium, item.State == DownloadItem.States.Failed ? Theme.Accent : missing ? Theme.Text3 : Theme.Text2);
         status.FlowDirection = FlowDirection.LeftToRight;
         status.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(status, 2);
@@ -271,8 +277,10 @@ public sealed class DownloadsPage : Grid
                 case DownloadItem.States.Paused or DownloadItem.States.Failed:
                     buttons.Children.Add(RowButton("", Loc[S.resume], () => Downloads.Resume(item.Id)));
                     break;
+                case DownloadItem.States.Done when missing:
+                    break;
                 case DownloadItem.States.Done:
-                    if (item.SubtitlePath is not null) buttons.Children.Add(RowButton("", Loc[S.withSubtitle], () => { }, tint: Theme.Good));
+                    if (item.SubtitlePath is not null) buttons.Children.Add(RowButton("", Loc[S.withSubtitle], () => { }));
                     else if (Downloads.Seeking.Contains(item.Id)) buttons.Children.Add(new ProgressRing { IsActive = true, Width = 18, Height = 18, Margin = new Thickness(8) });
                     else if (item.SubtitlePage is not null) buttons.Children.Add(RowButton(Glyph.Captions, Loc[S.getSubtitle], () => Downloads.FindSubtitle(item.Id)));
                     buttons.Children.Add(RowButton(Glyph.Play, Loc[S.play], () => Downloads.Play(item), bright: true));
@@ -303,15 +311,19 @@ public sealed class DownloadsPage : Grid
     private static string Progress(DownloadItem item) =>
         item.Expected > 0 ? $"{DownloadPicker.Size(item.Received)} / {DownloadPicker.Size(item.Expected)}" : DownloadPicker.Size(item.Received);
 
-    private static Button RowButton(string glyph, string help, Action action, bool bright = false, Windows.UI.Color? tint = null)
+    /// <summary>
+    /// A round button of the row: the same glass as the title page's and the player's (Kit.Glass),
+    /// play the white one as everywhere. Before, flat grey discs and green signs from the first design.
+    /// </summary>
+    private static Button RowButton(string glyph, string help, Action action, bool bright = false)
     {
-        var face = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), Background = bright ? Theme.Brush(Colors.White) : Theme.White(0.08), Child = Glyph.Icon(glyph, 13, bright ? Theme.FocusInk : tint ?? Theme.Text1) };
-        var button = Theme.Bare(face, action);
-        if (!bright)
+        Button button;
+        if (bright)
         {
-            button.PointerEntered += (_, _) => face.Background = Theme.White(0.2);
-            button.PointerExited += (_, _) => face.Background = Theme.White(0.08);
+            var face = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), Background = Theme.Brush(Colors.White), Child = Glyph.Icon(glyph, 13, Theme.FocusInk) };
+            button = Kit.Hovering(Theme.Bare(face, action), face, 1.06);
         }
+        else button = Kit.Glass(null, glyph, action, height: 34);
         ToolTipService.SetToolTip(button, help);
         Kit.AutomationName(button, help);
         return button;
