@@ -341,7 +341,7 @@ struct PlayerView: View {
 
     private func bottomBar(_ engine: PlayerEngine) -> some View {
         VStack(spacing: 6) {
-            Scrubber(time: engine.time, duration: engine.duration, marks: engine.marks) { engine.seek(to: $0) }
+            Scrubber(time: engine.time, duration: engine.duration, marks: engine.marks, preview: engine.preview) { engine.seek(to: $0) }
             HStack(spacing: 6) {
                 RoundButton(symbol: engine.playing ? "pause.fill" : "play.fill", help: loc(engine.playing ? .pause : .play), size: 46, glyph: 20) { engine.toggle() }
                 RoundButton(symbol: "gobackward.10", help: loc(.back10)) { engine.skip(-10) }
@@ -626,6 +626,8 @@ private struct Scrubber: View {
     let duration: Double
     /// The named stretches of the file, drawn on the line and named under the pointer.
     var marks: [PlayerEngine.Mark] = []
+    /// Pictures of the points under the pointer, as they come.
+    var preview: SeekPreview?
     let seek: (Double) -> Void
 
     @Environment(\.hue) private var hue
@@ -653,6 +655,17 @@ private struct Scrubber: View {
                     .frame(width: 14, height: 14)
                     .offset(x: width * fraction - 7)
                     .opacity(active ? 1 : 0)
+                if let at = drag ?? hover, duration > 0, let frame = preview?.frames[SeekPreview.point(of: at * duration)] {
+                    Image(decorative: frame, scale: 1)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 192)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.white.opacity(0.3), lineWidth: 1) }
+                        .shadow(color: .black.opacity(0.5), radius: 10, y: 4)
+                        .position(x: min(max(100, width * at), width - 100), y: -94)
+                        .allowsHitTesting(false)
+                }
                 if let at = drag ?? hover, duration > 0 {
                     Text(label(at * duration))
                         .font(.system(size: 12, weight: .semibold).monospacedDigit())
@@ -680,6 +693,10 @@ private struct Scrubber: View {
                 case .active(let point): hover = min(1, max(0, point.x / width))
                 case .ended: hover = nil
                 }
+            }
+            // The picture for the point under the pointer is asked for as the pointer gets there.
+            .onChange(of: drag ?? hover) { _, at in
+                if let at, duration > 0 { _ = preview?.ask(at * duration) }
             }
             .animation(.easeOut(duration: 0.12), value: active)
         }

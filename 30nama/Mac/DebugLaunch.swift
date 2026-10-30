@@ -14,6 +14,7 @@ import Foundation
 /// - `NAMA_FILTERED=1` makes the hosts Iran filters (`FilteredHosts`) give no answer, as on Irancell.
 /// - `NAMA_READONLY=1` answers the account's writes (progress, lists, sign-out) here, so a test run
 ///   cannot move real progress (`ReadOnly`).
+/// - `NAMA_PREVIEW=<seconds>` has the player's timeline reader take that point and print what came.
 /// - `NAMA_MUTE=1` starts the player silent, and `NAMA_CONTROLS=1` keeps its controls on screen.
 /// - `NAMA_UPDATE_FEED=<url>` reads releases from there instead of GitHub, and `NAMA_VERSION=1.1.0`
 ///   makes the app take itself for that version, to walk through an update before one is published.

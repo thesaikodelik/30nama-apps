@@ -97,6 +97,8 @@ final class PlayerEngine {
     @ObservationIgnored private var reportedTime = 0
     @ObservationIgnored private var closed = false
     @ObservationIgnored private var markedWatched = false
+    /// Pictures for the timeline, from a second reader of the stream (`SeekPreview`).
+    let preview = SeekPreview()
     /// Episodes begun one after another by autoplay with nobody touching the Mac in between.
     @ObservationIgnored private var unattended = 0
     private var system: SystemPlayback? { playback as? SystemPlayback }
@@ -184,6 +186,16 @@ final class PlayerEngine {
         }
         #if DEBUG
         if DebugLaunch.mute { toggleMute() }
+        // `NAMA_PREVIEW=<seconds>`: asks the timeline's reader for that point and says what came.
+        if let point = ProcessInfo.processInfo.environment["NAMA_PREVIEW"].flatMap(Double.init) {
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(4))
+                _ = self?.preview.ask(point)
+                try? await Task.sleep(for: .seconds(10))
+                let frame = self?.preview.frames[SeekPreview.point(of: point)]
+                print("preview \(point): \(frame.map { "\($0.width)x\($0.height)" } ?? "none")")
+            }
+        }
         #endif
         if let kept = UserDefaults.standard.dictionary(forKey: seriesKey) {
             if let value = kept["speed"] as? Double { speed = Float(value) }
@@ -210,6 +222,7 @@ final class PlayerEngine {
     func shutdown() {
         guard !closed else { return }
         closed = true
+        preview.close()
         report()
         keepPoint()
         if items.indices.contains(index), current.token == PlayerEngine.localToken {
@@ -302,6 +315,9 @@ final class PlayerEngine {
             app.showToast("\(loc(.playingIn)) \(other.name)")
             return close()
         }
+        // From the lowest quality, unless Data saver is on.
+        let lowest = current.qualities.filter { !$0.isAuto && $0.height > 0 }.min { $0.height < $1.height } ?? quality
+        preview.open(StoredCaches.dataSaver ? nil : lowest.url)
         let from = position ?? resumePosition()
         startOverBefore = position == nil ? from.map { $0 + 10 } : nil
         load(quality, at: from)
