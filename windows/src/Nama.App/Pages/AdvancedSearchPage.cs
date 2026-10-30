@@ -94,9 +94,20 @@ public sealed class AdvancedSearchPage : Grid
         Grid.SetColumn(sorts, 1);
         top.Children.Add(sorts);
         _header.Children.Add(top);
+        // The hint, and across from it the names to search by, above the filters (Twitter feedback 3):
+        // they are what is typed, apart from the menus that are chosen from.
+        var line = new Grid { Margin = new Thickness(0, -10, 0, 0), ColumnSpacing = 16 };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var hint = Theme.Text(Loc[S.advancedHint], 14, color: Theme.Text3);
-        hint.Margin = new Thickness(0, -10, 0, 0);
-        _header.Children.Add(hint);
+        hint.VerticalAlignment = VerticalAlignment.Center;
+        line.Children.Add(hint);
+        var names = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        names.Children.Add(Director());
+        names.Children.Add(Actor());
+        Grid.SetColumn(names, 1);
+        line.Children.Add(names);
+        _header.Children.Add(line);
         if (_choices is { } choices) _header.Children.Add(Filters(choices));
     }
 
@@ -124,8 +135,6 @@ public sealed class AdvancedSearchPage : Grid
 
         var more = new WrapRow(14);
         more.Add(Years());
-        more.Add(Director());
-        more.Add(Actor());
         more.Add(Switch("x265", _query.X265, on => q => q with { X265 = on }));
         more.Add(Switch("3D", _query.ThreeD, on => q => q with { ThreeD = on }));
         more.Add(Switch(Loc[S.streamOnly], _query.StreamOnly, on => q => q with { StreamOnly = on }));
