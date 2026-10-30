@@ -564,7 +564,8 @@ public static class Kit
         area.Children.Add(scroller);
         Button Arrow(int direction)
         {
-            var arrow = Glass(null, direction < 0 ? Glyph.ChevronStart : Glyph.ChevronEnd, () =>
+            // Pointing out, the way the row goes: in Persian and Arabic "next" is on the left and points left.
+            var arrow = Glass(null, (direction < 0) != Loc.Lang.IsRtl() ? Glyph.ChevronStart : Glyph.ChevronEnd, () =>
             {
                 var width = row.Children.Count > 0 ? ((FrameworkElement)row.Children[0]).ActualWidth + 16 : 300;
                 scroller.ChangeView(Math.Max(0, scroller.HorizontalOffset + direction * width * step), null, null);

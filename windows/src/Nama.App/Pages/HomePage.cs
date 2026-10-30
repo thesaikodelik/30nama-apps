@@ -88,7 +88,8 @@ public sealed class HomePage : Grid
     private void ShowBillboard()
     {
         var loc = App.Loc;
-        _billboard.Children.Clear();
+        // The arrows stay through the turns; the rest is drawn again.
+        foreach (var old in _billboard.Children.Where(c => c is not Button { Tag: int }).ToList()) _billboard.Children.Remove(old);
         if (Featured is not { } post) return;
         var tint = post.Tint();
         _stage.Show(post, tint);
@@ -127,7 +128,53 @@ public sealed class HomePage : Grid
         _billboard.Children.Add(column);
         column.Loaded += (_, _) => { column.Opacity = 1; column.Translation = default; };
         ShowDots();
+        ShowHeroArrows();
     }
+
+    /// <summary>
+    /// The previous and next featured title, at the billboard's sides while the pointer is over it,
+    /// as the rows' arrows (a user on issue #2: the dots alone were hard to find). Round from the
+    /// last to the first; the turn starts again.
+    /// </summary>
+    private void ShowHeroArrows()
+    {
+        if (!_heroHover)
+        {
+            _heroHover = true;
+            // Seen over its empty parts too, not only over the words and buttons.
+            _billboard.Background = Theme.White(0);
+            _billboard.PointerEntered += (_, _) => { _overBillboard = true; ShowHeroArrows(); };
+            // Already over it when the page came: the first move shows them.
+            _billboard.PointerMoved += (_, _) => { if (!_overBillboard) { _overBillboard = true; ShowHeroArrows(); } };
+            _billboard.PointerExited += (_, _) => { _overBillboard = false; ShowHeroArrows(); };
+        }
+        if (_feed is not { Heroes.Count: > 1 } feed) return;
+        foreach (var direction in new[] { -1, 1 })
+        {
+            if (_billboard.Children.OfType<Button>().FirstOrDefault(b => (int?)b.Tag == direction) is not { } arrow)
+            {
+                // Pointing out, the way the titles go: in Persian and Arabic "next" is on the left and points left.
+                arrow = Kit.Glass(null, (direction < 0) != App.Loc.Lang.IsRtl() ? Glyph.ChevronStart : Glyph.ChevronEnd, () =>
+                {
+                    if (_feed is not { Heroes.Count: > 1 } heroes) return;
+                    _hero = (_hero + direction + heroes.Heroes.Count) % heroes.Heroes.Count;
+                    _turn = 0;
+                    ShowBillboard();
+                }, height: 38);
+                arrow.Tag = direction;
+                arrow.HorizontalAlignment = direction < 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+                arrow.VerticalAlignment = VerticalAlignment.Center;
+                arrow.Margin = new Thickness(16, 0, 16, 0);
+                arrow.Opacity = 0;
+                Kit.AutomationName(arrow, App.Loc[direction < 0 ? S.rowPrevious : S.rowNext]);
+                _billboard.Children.Add(arrow.Springy(0.15));
+            }
+            arrow.Opacity = _overBillboard ? 1 : 0;
+            arrow.IsHitTestVisible = _overBillboard;
+        }
+    }
+
+    private bool _heroHover, _overBillboard;
 
     /// <summary>Story-style pager: the current segment fills as its turn runs out.</summary>
     private void ShowDots()
