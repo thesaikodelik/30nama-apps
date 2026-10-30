@@ -99,9 +99,17 @@ public sealed partial class PlayerPage : Grid
         Tapped += OnTapped;
         DoubleTapped += (_, e) =>
         {
-            if (e.OriginalSource is FrameworkElement f && IsOnPicture(f)) _engine.ToggleFullScreen();
+            if (e.OriginalSource is not FrameworkElement f || !IsOnPicture(f)) return;
+            // Its first click paused or played: put back, so a double click only changes the size.
+            _engine.Toggle();
+            _engine.ToggleFullScreen();
         };
         KeyDown += OnKey;
+        // Enter is the player's, not the button last clicked: full screen and back, wherever the focus is.
+        PreviewKeyDown += (s, e) =>
+        {
+            if (e.Key == VirtualKey.Enter && e.OriginalSource is not TextBox) OnKey(s, e);
+        };
         AllowDrop = true;
         DragOver += (_, e) => e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
         Drop += async (_, e) =>
@@ -177,14 +185,17 @@ public sealed partial class PlayerPage : Grid
         _ = Native.ShowCursor(show);
     }
 
-    /// <summary>A click on the picture shows the controls, or puts them away; pausing is Space or the button.</summary>
+    /// <summary>
+    /// A click on the picture pauses or plays, as in most players (the owner); the controls come
+    /// with the pointer moving. With the episodes open, it only closes them.
+    /// </summary>
     private void OnTapped(object sender, TappedRoutedEventArgs e)
     {
         _engine.Touched();
         if (e.OriginalSource is not FrameworkElement f || !IsOnPicture(f)) return;
-        if (_episodesOpen) { SetEpisodes(false); Wake(); }
-        else if (_controls) HideControls();
-        else Wake();
+        if (_episodesOpen) SetEpisodes(false);
+        else _engine.Toggle();
+        Wake();
     }
 
     private bool IsOnPicture(FrameworkElement source) => source == this || source == _surface || source == _chrome || source.Parent == _chrome;
@@ -421,6 +432,29 @@ public sealed partial class PlayerPage : Grid
         GradientStops = { new GradientStop { Color = top, Offset = 0 }, new GradientStop { Color = bottom, Offset = 1 } },
     };
 
+    /// <summary>
+    /// The title's logo in place of its name, as on the title page, once it has loaded; the name
+    /// stays where there is none. Held left to right so it is not mirrored.
+    /// </summary>
+    private async Task ShowLogoAsync(StackPanel titles, TextBlock name)
+    {
+        var post = _engine.Post;
+        var info = TmdbStore.Shared.Known(post.Id) ?? await TmdbStore.Shared.InfoAsync(post, Loc.Lang);
+        if (info?.Logo is not { } url) return;
+        var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelHeight = 120, DecodePixelType = Microsoft.UI.Xaml.Media.Imaging.DecodePixelType.Physical };
+        var image = new Image { Source = bitmap, Stretch = Stretch.Uniform, MaxHeight = 64, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left, FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 0, 0, 4) };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(image, post.Title(Loc.Lang));
+        // Unseen, not collapsed, until it has loaded: a collapsed picture is never fetched.
+        image.Opacity = 0;
+        bitmap.ImageOpened += (_, _) =>
+        {
+            name.Visibility = Visibility.Collapsed;
+            image.Opacity = 1;
+        };
+        titles.Children.Insert(0, image);
+        bitmap.UriSource = url;
+    }
+
     private FrameworkElement TopBar()
     {
         var bar = new Grid { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(Theme.Edge - 12, 50, Theme.Edge - 12, 0), ColumnSpacing = 14 };
@@ -429,8 +463,10 @@ public sealed partial class PlayerPage : Grid
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bar.Children.Add(Round(Glyph.Back, Loc[S.back], _engine.Close));
         var titles = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(Theme.Text(_engine.Post.Title(Loc.Lang), 20, FontWeights.Bold, Colors.White));
+        var name = Theme.Text(_engine.Post.Title(Loc.Lang), 20, FontWeights.Bold, Colors.White);
+        titles.Children.Add(name);
         titles.Children.Add(_episodeLine);
+        _ = ShowLogoAsync(titles, name);
         Grid.SetColumn(titles, 1);
         bar.Children.Add(titles);
         var end = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
