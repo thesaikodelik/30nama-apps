@@ -38,7 +38,7 @@ struct DetailsView: View {
     var body: some View {
         ZStack {
             Theme.bg0
-            StageView(post: post, dim: 0.3, settle: .zero, tint: sceneTint)
+            StageView(post: post, dim: 0.3, settle: .zero, tint: sceneTint, deep: true)
             if let backdropTrailer {
                 BackdropTrailer(video: backdropTrailer) { teaserShowing = true } failed: {
                     // YouTube out of reach: a stretch of the film instead, as before.
@@ -173,7 +173,7 @@ struct DetailsView: View {
         guard teaser == nil, backdropTrailer == nil else { return }
         var waited = false
         if !trailerFailed {
-            try? await Task.sleep(for: .seconds(3))
+            guard await stillFor(4) else { return }
             waited = true
             guard !Task.isCancelled else { return }
             if let video = await TMDBStore.shared.trailer(for: post, lang: loc.lang), !Task.isCancelled {
@@ -188,12 +188,24 @@ struct DetailsView: View {
         guard let stream, let item = stream.items.first else { return }
         let small = item.qualities.filter { !$0.isAuto && $0.height > 0 }.min { $0.height < $1.height } ?? item.qualities.first
         guard let url = small?.url else { return }
-        if !waited { try? await Task.sleep(for: .seconds(3)) }
+        if !waited, !(await stillFor(4)) { return }
         guard !Task.isCancelled else { return }
         teaser = url
         try? await Task.sleep(for: .seconds(35))
         guard !Task.isCancelled else { return }
         await endTeaser()
+    }
+
+    /// Waits until nobody has touched the mouse or the keyboard for `seconds`: what plays behind the
+    /// page starts once the page is being read, not while the pointer is still on its way (the
+    /// Android and Windows apps wait four seconds, every key starting the wait again).
+    private func stillFor(_ seconds: Double) async -> Bool {
+        while !Task.isCancelled {
+            let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+            if idle >= seconds { return true }
+            try? await Task.sleep(for: .seconds(max(0.25, seconds - idle)))
+        }
+        return false
     }
 
     private func endTeaser() async {
@@ -209,11 +221,7 @@ struct DetailsView: View {
         let rtl = direction == .rightToLeft
         return ZStack {
             Color.black.opacity(0.3)
-            LinearGradient(stops: [
-                .init(color: Theme.bg0.opacity(0.96), location: 0),
-                .init(color: Theme.bg0.opacity(0.78), location: 0.30),
-                .init(color: Theme.bg0.opacity(0), location: 0.68),
-            ], startPoint: rtl ? .trailing : .leading, endPoint: rtl ? .leading : .trailing)
+            LinearGradient(stops: StageView.textSide(deep: true), startPoint: rtl ? .trailing : .leading, endPoint: rtl ? .leading : .trailing)
             LinearGradient(stops: [
                 .init(color: Theme.bg0, location: 0),
                 .init(color: Theme.bg0.opacity(0.85), location: 0.32),
@@ -239,6 +247,7 @@ struct DetailsView: View {
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
                     .tilting(shape, degrees: 3)
                     .posterGlow(post, on: true, opacity: 0.4, radius: 40, y: 18)
+                    .background { BreathingLight(color: sceneTint ?? post.tint, still: app.playback != nil) }
                     // Held back, frame and all, while the clicked card's poster is still flying to this spot.
                     .opacity(nav.flight?.post.id == post.id ? 0 : 1)
             }
@@ -509,8 +518,10 @@ private struct UpdatesTicker: View {
             }
             .lineLimit(1)
             .id(index)
-            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 9)),
-                                    removal: .opacity.combined(with: .offset(y: -9))))
+            // One after the other: the old lifts away quickly and the new rises as it goes, not
+            // both at once over each other (as the Android app).
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 9)).animation(.easeOut(duration: 0.35).delay(0.12)),
+                                    removal: .opacity.combined(with: .offset(y: -9)).animation(.easeIn(duration: 0.14))))
             Spacer(minLength: 0)
         }
         .font(.app(13))
@@ -522,7 +533,7 @@ private struct UpdatesTicker: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut(duration: 0.5)) { index = (index + 1) % updates.count }
+                withAnimation { index = (index + 1) % updates.count }
             }
         }
     }
@@ -948,5 +959,35 @@ private extension View {
         opacity(revealed >= order ? 1 : 0)
             .offset(y: revealed >= order ? 0 : 10)
             .allowsHitTesting(revealed >= order)
+    }
+}
+
+/// A pool of the poster's own colour behind it, swelling and fading over nine seconds, as if the
+/// poster were lit from behind (the owner, from the Android app). Still where motion is not
+/// affordable, with reduced motion, and under the player, where nobody sees it.
+private struct BreathingLight: View {
+    let color: Color
+    let still: Bool
+
+    @Environment(\.lively) private var lively
+    @Environment(\.calm) private var calm
+    @State private var full = false
+
+    var body: some View {
+        let moving = lively && !calm && !still
+        RadialGradient(colors: [color.opacity(0.5), color.opacity(0.16), .clear], center: .center, startRadius: 0, endRadius: 250)
+            .frame(width: 520, height: 640)
+            .scaleEffect(moving ? (full ? 1.08 : 0.9) : 1)
+            .opacity(moving ? (full ? 1 : 0.55) : 0.8)
+            .blendMode(.plusLighter)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: moving) {
+                guard moving else {
+                    full = false
+                    return
+                }
+                withAnimation(.easeInOut(duration: 4.5).repeatForever(autoreverses: true)) { full = true }
+            }
     }
 }

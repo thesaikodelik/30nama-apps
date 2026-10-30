@@ -15,6 +15,17 @@ struct StageView: View {
     var glow = true
     /// That colour, when the page has worked out a better one than the poster's.
     var tint: Color? = nil
+    /// The dark side reaches further across, for a page whose words sit over a busy picture (a
+    /// title's page, as the Android and Windows apps have it).
+    var deep = false
+
+    /// The shading on the side the words are, from the start edge.
+    static func textSide(deep: Bool) -> [Gradient.Stop] {
+        deep ? [.init(color: Theme.bg0.opacity(0.96), location: 0), .init(color: Theme.bg0.opacity(0.86), location: 0.38),
+                .init(color: Theme.bg0.opacity(0), location: 0.8)]
+             : [.init(color: Theme.bg0.opacity(0.96), location: 0), .init(color: Theme.bg0.opacity(0.78), location: 0.30),
+                .init(color: Theme.bg0.opacity(0), location: 0.68)]
+    }
 
     @Environment(\.layoutDirection) private var direction
     @Environment(\.calm) private var calm
@@ -37,13 +48,7 @@ struct StageView: View {
                     .transition(.opacity)
             }
             // Text side: near-opaque at the start edge, clear by two thirds across.
-            LinearGradient(
-                stops: [
-                    .init(color: Theme.bg0.opacity(0.96), location: 0),
-                    .init(color: Theme.bg0.opacity(0.78), location: 0.30),
-                    .init(color: Theme.bg0.opacity(0), location: 0.68),
-                ],
-                startPoint: rtl ? .trailing : .leading, endPoint: rtl ? .leading : .trailing)
+            LinearGradient(stops: StageView.textSide(deep: deep), startPoint: rtl ? .trailing : .leading, endPoint: rtl ? .leading : .trailing)
             // Rows side: solid at the bottom edge.
             LinearGradient(
                 stops: [
@@ -78,7 +83,7 @@ struct StageView: View {
             var blurred = false
             if let cover = post.cover { image = await ImagePipeline.shared.image(cover, maxPixel: 1920) }
             if image == nil, let poster = post.poster.big ?? post.poster.large {
-                image = await ImagePipeline.shared.image(poster, maxPixel: 640)
+                image = await ImagePipeline.shared.image(poster, maxPixel: 1000)
                 blurred = true
             }
             guard let image, !Task.isCancelled else { return }
@@ -96,7 +101,7 @@ private struct DriftingImage: View {
 
     let image: PlatformImage
     let variant: Int
-    /// Titles without a wide cover fall back to their poster, blurred into a wash of colour.
+    /// Titles without a wide cover fall back to their poster, softened.
     let blurred: Bool
     let still: Bool
 
@@ -107,12 +112,14 @@ private struct DriftingImage: View {
         let directions: [CGSize] = [.init(width: -28, height: -10), .init(width: 20, height: -10),
                                     .init(width: -20, height: 8), .init(width: 0, height: 12)]
         let d = directions[abs(variant) % directions.count]
+        // A title without a wide picture shows its own poster, large and filling the page from its
+        // top, softened a little, not a small one blurred into a wash (as the Android app).
         Color.clear
-            .overlay {
+            .overlay(alignment: blurred ? .top : .center) {
                 Image(platformImage: image)
                     .resizable()
                     .scaledToFill()
-                    .blur(radius: blurred ? 60 : 0)
+                    .blur(radius: blurred ? 6 : 0)
                     .scaleEffect(still || !perpetual ? 1.0 : (drifted ? 1.12 : 1.04))
                     .offset(still || !perpetual ? .zero : (drifted ? d : .zero))
             }
