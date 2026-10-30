@@ -196,6 +196,47 @@ final class TMDBStore {
         return http.statusCode == 200 ? data : nil
     }
 
+    // MARK: The back of the poster
+
+    @ObservationIgnored private var shards: [String: Task<JSON?, Never>] = [:]
+
+    /// What the back of `post`'s poster shows, from the daily files on the repository's data
+    /// branch, for every viewer, keyless and in Iran too. Nil where the title has nothing there.
+    func card(for post: Post) async -> TitleCard? {
+        guard let imdb = post.imdbID else { return nil }
+        let shard = TitleCard.shard(imdb)
+        if shards[shard] == nil { shards[shard] = Task { await TMDBStore.loadShard(shard) } }
+        guard let answer = await shards[shard]?.value else {
+            // Not had this time: asked for again with the next title.
+            shards[shard] = nil
+            return nil
+        }
+        return TitleCard.fromShard(answer, imdb: imdb)
+    }
+
+    /// One of TMDB's pictures named on a card; through wsrv.nl where TMDB is filtered.
+    func picture(_ name: String) -> URL? {
+        filtered ? LogoIndex.proxied(name) : TitleCard.picture(name)
+    }
+
+    /// A day's file, kept on disk and fetched again once a day; an old copy serves when GitHub does not answer.
+    private static func loadShard(_ shard: String) async -> JSON? {
+        let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("30nama-cards", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("\(shard).json")
+        let saved = try? Data(contentsOf: file)
+        let age = ((try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate).map { -$0.timeIntervalSinceNow }
+        if let saved, let age, age < 24 * 3600, let answer = try? JSON.parse(saved) { return answer }
+        var request = URLRequest(url: URL(string: "\(TitleCard.base)\(shard).json")!)
+        request.timeoutInterval = 20
+        if let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+           let answer = try? JSON.parse(data) {
+            try? data.write(to: file, options: .atomic)
+            return answer
+        }
+        return saved.flatMap { try? JSON.parse($0) }
+    }
+
     // MARK: Answers kept on disk
 
     private enum Stored { case found(JSON), missed }

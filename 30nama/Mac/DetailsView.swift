@@ -24,6 +24,9 @@ struct DetailsView: View {
     /// The colour the page is lit in, from the title's scene.
     @State private var sceneTint: Color?
     @State private var teaser: URL?
+    /// What the back of the poster shows, and whether it is the side showing.
+    @State private var card: TitleCard?
+    @State private var turned = false
     @State private var trailerFailed = false
     /// The trailer playing behind the page instead of the film, when TMDB has one and YouTube answers.
     @State private var backdropTrailer: String?
@@ -237,15 +240,35 @@ struct DetailsView: View {
         HStack(alignment: .top, spacing: 40) {
             let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
             VStack(spacing: 14) {
-                RemoteImage(url: post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(360 * Display.scale))
-                    .frame(width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
-                    // Under the full-size picture, the small one the shelves already have: the
-                    // poster is never a blur while the large one is on its way.
-                    .background {
-                        RemoteImage(url: post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
+                // It turns over when clicked, where there is something to show on its back.
+                ZStack {
+                    RemoteImage(url: post.poster.big ?? post.poster.large, blurhash: post.poster.blurhash, maxPixel: Int(360 * Display.scale))
+                        .frame(width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
+                        // Under the full-size picture, the small one the shelves already have: the
+                        // poster is never a blur while the large one is on its way.
+                        .background {
+                            RemoteImage(url: post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
+                        }
+                        .opacity(turned ? 0 : 1)
+                    if let card {
+                        PosterBack(card: card, post: post)
+                            .frame(width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
+                            // Drawn the right way round once the poster has turned.
+                            .rotation3DEffect(.degrees(calm ? 0 : 180), axis: (x: 0, y: 1, z: 0))
+                            .opacity(turned ? 1 : 0)
                     }
+                }
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1) }
+                    .rotation3DEffect(.degrees(turned && !calm ? 180 : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+                    .animation(calm ? .easeInOut(duration: 0.3) : .spring(response: 0.6, dampingFraction: 0.82), value: turned)
+                    .contentShape(shape)
+                    .onTapGesture { if card != nil { turned.toggle() } }
+                    .onHover { inside in if card != nil { if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } } }
+                    .task(id: post.id) {
+                        turned = false
+                        card = await TMDBStore.shared.card(for: post)
+                    }
                     .tilting(shape, degrees: 3)
                     .posterGlow(post, on: true, opacity: 0.4, radius: 40, y: 18)
                     .background { BreathingLight(color: sceneTint ?? post.tint, still: app.playback != nil) }
@@ -990,5 +1013,52 @@ private struct BreathingLight: View {
                 }
                 withAnimation(.easeInOut(duration: 4.5).repeatForever(autoreverses: true)) { full = true }
             }
+    }
+}
+
+/// The back of a title's poster: another of its posters, faded and dark, its name in its own
+/// script, its collection and its place there, and its maker's logo with a light outline of its
+/// own shape (from the Android and Windows apps).
+private struct PosterBack: View {
+    let card: TitleCard
+    let post: Post
+
+    @Environment(\.loc) private var loc
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Theme.surface2
+            if let poster = card.poster {
+                RemoteImage(url: TMDBStore.shared.picture(poster), maxPixel: Int(360 * Display.scale))
+                    .opacity(0.55)
+            }
+            LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 12) {
+                Spacer(minLength: 0)
+                if let logo = card.companyLogo {
+                    RemoteImage(url: TMDBStore.shared.picture(logo), maxPixel: 400)
+                        .scaledToFit()
+                        .frame(maxWidth: 150, maxHeight: 54)
+                        .shadow(color: .white.opacity(0.7), radius: 0.8)
+                        .shadow(color: .white.opacity(0.35), radius: 3)
+                        .help(card.companyName ?? "")
+                }
+                if let own = card.ownName {
+                    Text(own).font(.system(size: 22, weight: .bold)).foregroundStyle(.white)
+                        .multilineTextAlignment(.center).lineLimit(3).minimumScaleFactor(0.6)
+                }
+                if let part = card.collection {
+                    VStack(spacing: 3) {
+                        if let name = part.name(loc.lang) {
+                            Text(name).font(.app(14, .bold)).foregroundStyle(.white).multilineTextAlignment(.center).lineLimit(2)
+                        }
+                        Text(loc(.partOf).replacingOccurrences(of: "{at}", with: loc.num(part.at)).replacingOccurrences(of: "{of}", with: loc.num(part.of)))
+                            .font(.app(12, .medium)).foregroundStyle(.white.opacity(0.75))
+                    }
+                }
+            }
+            .padding(18)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
