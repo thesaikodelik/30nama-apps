@@ -123,7 +123,7 @@ struct DetailsView: View {
             return
         }
         guard let stream, !stream.items.isEmpty else { return explainNoStream() }
-        app.play(PlaybackRequest(post: post, items: stream.items, index: index ?? stream.startIndex, resume: stream.resume))
+        app.play(post, stream, index: index)
     }
 
     private func explainNoStream() {

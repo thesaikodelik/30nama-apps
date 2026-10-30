@@ -17,6 +17,17 @@ final class TMDBTests: XCTestCase {
         XCTAssertEqual(TMDB.id(inFind: found, isSeries: true), 9)
     }
 
+    func testPicksTheResultThatIsTheTitle() {
+        let answer = JSON(["results": [
+            ["id": 1, "title": "Dune Drifter", "release_date": "2020-01-01"],
+            ["id": 2, "title": "Dune", "release_date": "1984-12-14"],
+            ["id": 3, "title": "Dune", "release_date": "2021-09-15"],
+        ]] as [String: Any])
+        XCTAssertEqual(TMDB.best(inSearch: answer, title: "Dune 2021", year: 2021), 3)
+        XCTAssertEqual(TMDB.best(inSearch: answer, title: "Dune", year: 1984), 2)
+        XCTAssertNil(TMDB.best(inSearch: answer, title: "Arrival", year: 2016))
+    }
+
     private let film = JSON([
         "images": ["logos": [
             ["file_path": "/de.png", "iso_639_1": "de", "vote_average": 9],

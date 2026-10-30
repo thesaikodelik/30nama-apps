@@ -55,6 +55,9 @@ struct AdvancedQuery: Hashable {
     var score: String?
     var age: String?
     var director: String?
+    /// An actor, by name, as the director is (a user on Twitter, 30 October 2026). The server reads
+    /// `actor` by name or by IMDb id; `cast` it ignores.
+    var actor: String?
     var fromYear: Int?
     var toYear: Int?
     var x265 = false
@@ -64,7 +67,7 @@ struct AdvancedQuery: Hashable {
 
     /// How many fields narrow the search, for the count on the filters button.
     var count: Int {
-        let set: [Any?] = [type, country, language, network, score, age, director, fromYear, toYear]
+        let set: [Any?] = [type, country, language, network, score, age, director, actor, fromYear, toYear]
         return set.compactMap { $0 }.count + genres.count + (x265 ? 1 : 0) + (threeD ? 1 : 0)
     }
 
@@ -80,6 +83,7 @@ struct AdvancedQuery: Hashable {
         if let score, let floor = Double(score) { fields["imdb_rate"] = floor }
         if let age { fields["age"] = age }
         if let name = director?.trimmingCharacters(in: .whitespaces), !name.isEmpty { fields["director"] = name }
+        if let name = actor?.trimmingCharacters(in: .whitespaces), !name.isEmpty { fields["actor"] = name }
         // The years either way round: someone writing 2010 to 2000 means the same decade.
         var (from, to) = (fromYear ?? 0, toYear ?? 0)
         if fromYear != nil, toYear != nil, from > to { (from, to) = (to, from) }

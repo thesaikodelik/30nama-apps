@@ -35,6 +35,13 @@ final class AdvancedSearchTests: XCTestCase {
         XCTAssertEqual(request["page"], "3")
     }
 
+    func testAnActorByName() {
+        let query = AdvancedQuery(actor: " Leonardo DiCaprio ")
+        XCTAssertEqual(query.parameters(), #"{"actor":"Leonardo DiCaprio","stream":"true"}"#)
+        XCTAssertEqual(query.count, 1)
+        XCTAssertEqual(AdvancedQuery(actor: "  ").parameters(), #"{"stream":"true"}"#)
+    }
+
     func testOneYearIsEnough() {
         XCTAssertEqual(AdvancedQuery(fromYear: 1990).parameters(), #"{"min_year":"1990","stream":"true"}"#)
         XCTAssertEqual(AdvancedQuery(toYear: 1995).parameters(), #"{"max_year":"1995","stream":"true"}"#)

@@ -25,8 +25,9 @@ struct APIConfig {
 }
 
 enum APIError: Error, Equatable {
-    /// Network failure, timeout, rate limiting or a non-JSON body. Worth retrying.
-    case transient(String, retryAfter: TimeInterval)
+    /// Network failure, timeout, rate limiting or a non-JSON body. Worth retrying. `rateLimited`:
+    /// Cloudflare's rate limit (429, or its "error code: 1015" page), which pauses the whole gate.
+    case transient(String, retryAfter: TimeInterval, rateLimited: Bool = false)
     /// The API answered `success: false`.
     case server(String)
     /// No host answered the connection test.
@@ -34,7 +35,7 @@ enum APIError: Error, Equatable {
 
     var message: String {
         switch self {
-        case .transient(let m, _), .server(let m): return m
+        case .transient(let m, _, _), .server(let m): return m
         case .unreachable: return "unreachable"
         }
     }
@@ -52,25 +53,31 @@ typealias Transport = @Sendable (URLRequest) async throws -> (Data, HTTPURLRespo
 ///
 /// 30nama sits behind Cloudflare rate limiting, so every call goes through one gate: at most two
 /// in flight, a short gap between starts, screen calls ahead of background ones, and a shared
-/// pause after a rate-limit response.
+/// pause after a rate-limit response. Background work never holds every slot, so a page that
+/// opens while posters' extras are being fetched is not kept waiting behind them.
 actor RequestGate {
     private let limit: Int
+    private let backgroundLimit: Int
     private let spacing: TimeInterval
     private var inFlight = 0
+    private var backgroundInFlight = 0
     private var core: [CheckedContinuation<Void, Never>] = []
     private var background: [CheckedContinuation<Void, Never>] = []
     private var nextStart = Date.distantPast
     private var pausedUntil = Date.distantPast
 
-    init(limit: Int = 2, spacing: TimeInterval = 0.1) {
+    init(limit: Int = 2, spacing: TimeInterval = 0.1, backgroundLimit: Int? = nil) {
         self.limit = limit
         self.spacing = spacing
+        self.backgroundLimit = backgroundLimit ?? max(1, limit - 1)
     }
 
     func acquire(background isBackground: Bool) async {
-        if inFlight < limit {
+        if inFlight < limit, !isBackground || backgroundInFlight < backgroundLimit {
             inFlight += 1
+            if isBackground { backgroundInFlight += 1 }
         } else {
+            // The slot is counted for us by whoever hands it over (`release`).
             await withCheckedContinuation { c in
                 if isBackground { background.append(c) } else { core.append(c) }
             }
@@ -82,14 +89,17 @@ actor RequestGate {
         if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
     }
 
-    /// Hands the slot to the next waiter, screen calls first.
-    func release() {
+    /// Gives back a slot taken with the same `background`, and hands it on: screen calls first.
+    func release(background isBackground: Bool = false) {
+        inFlight -= 1
+        if isBackground { backgroundInFlight -= 1 }
         if !core.isEmpty {
+            inFlight += 1
             core.removeFirst().resume()
-        } else if !background.isEmpty {
+        } else if !background.isEmpty, backgroundInFlight < backgroundLimit {
+            inFlight += 1
+            backgroundInFlight += 1
             background.removeFirst().resume()
-        } else {
-            inFlight -= 1
         }
     }
 
@@ -147,11 +157,12 @@ actor APIClient {
         FilteredNetwork.install(in: c)
         #endif
         let session = URLSession(configuration: c)
-        return { request in
+        let transport: Transport = { request in
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             return (data, http)
         }
+        return ReadOnly.isOn ? ReadOnly.wrap(transport) : transport
     }
 
     func setToken(_ token: String?) { self.token = token ?? "" }
@@ -282,16 +293,20 @@ actor APIClient {
             await gate.acquire(background: background)
             do {
                 let envelope = try await send()
-                await gate.release()
+                await gate.release(background: background)
                 return envelope
-            } catch let APIError.transient(_, retryAfter) where attempt < retries {
-                await gate.release()
+            } catch let APIError.transient(message, retryAfter, rateLimited) {
+                await gate.release(background: background)
+                // A rate limit pauses every call behind it, retried or not (a write is never
+                // replayed), so the next one does not walk into the same wall.
+                if rateLimited { await gate.pause(for: max(config.backoff.isEmpty ? 1 : config.backoff[min(attempt, config.backoff.count - 1)], retryAfter)) }
+                guard attempt < retries else { throw APIError.transient(message, retryAfter: retryAfter, rateLimited: rateLimited) }
                 let delay = max(config.backoff[attempt], retryAfter)
                 await gate.pause(for: delay)
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 attempt += 1
             } catch {
-                await gate.release()
+                await gate.release(background: background)
                 throw error
             }
         }
@@ -351,7 +366,8 @@ actor APIClient {
         guard let json = try? JSON.parse(data), json.object != nil else {
             // Cloudflare answers rate limiting and outages with HTML or plain text.
             let retryAfter = min(Double(response.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 0, 10)
-            throw APIError.transient("\(action): HTTP \(response.statusCode), not JSON", retryAfter: retryAfter)
+            let limited = response.statusCode == 429 || String(decoding: data, as: UTF8.self).contains("error code: 1015")
+            throw APIError.transient("\(action): HTTP \(response.statusCode), not JSON", retryAfter: retryAfter, rateLimited: limited)
         }
         return Envelope(success: json["success"].bool, message: json["msg"].text, result: json["result"])
     }

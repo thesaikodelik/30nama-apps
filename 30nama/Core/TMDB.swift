@@ -39,6 +39,23 @@ enum TMDB {
         answer["results"].array.first?["id"].int
     }
 
+    /// The result that is this title, not merely the first one: a name at least 0.8 alike, then
+    /// the nearest year. Nil when none is alike enough, so a wrong title's logo and plot are not
+    /// shown (the Tizen app's `bestCand`, as the Android and Windows apps have it).
+    static func best(inSearch answer: JSON, title: String, year: Int?) -> Int? {
+        let wanted = TitleMatch.stripYear(title)
+        let scored = answer["results"].array.compactMap { r -> (id: Int, score: Double)? in
+            guard let id = r["id"].int else { return nil }
+            let names = [r["title"].text, r["name"].text, r["original_title"].text, r["original_name"].text].compactMap { $0 }
+            let alike = names.map { TitleMatch.similarity(wanted, $0) }.max() ?? 0
+            guard alike >= 0.8 else { return nil }
+            let theirs = (r["release_date"].text ?? r["first_air_date"].text).flatMap { Int($0.prefix(4)) }
+            let off = year.flatMap { y in theirs.map { abs(y - $0) } } ?? 0
+            return (id, alike + (off == 0 ? 0.2 : off == 1 ? 0.1 : -0.05 * Double(off)))
+        }
+        return scored.max { $0.score < $1.score }?.id
+    }
+
     /// Everything a title page shows, in one request.
     static func detailsRequest(id: Int, isSeries: Bool, key: String) -> URLRequest {
         let credits = isSeries ? "aggregate_credits" : "credits"

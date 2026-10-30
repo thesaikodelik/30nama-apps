@@ -675,6 +675,31 @@ final class AppModel {
         playback = request
     }
 
+    // MARK: Where this device left each title
+
+    /// Kept every ten seconds while a title plays: 30nama's own record moves in steps of thirty
+    /// seconds and sometimes loses an episode altogether (`Resume`).
+    func keepPoint(post: Int, fileID: String, seconds: Double) {
+        guard !fileID.isEmpty, seconds > 0 else { return }
+        UserDefaults.standard.set(["file": fileID, "seconds": seconds], forKey: "left.\(post)")
+    }
+
+    func keptPoint(post: Int) -> Resume.Kept? {
+        guard let kept = UserDefaults.standard.dictionary(forKey: "left.\(post)"),
+              let file = kept["file"] as? String, let seconds = kept["seconds"] as? Double else { return nil }
+        return Resume.Kept(fileID: file, seconds: seconds)
+    }
+
+    /// Plays a title's stream: the episode picked, or the one to go on with, from the further of
+    /// 30nama's record and this device's.
+    func play(_ post: Post, _ stream: StreamResult, index picked: Int? = nil) {
+        let start = Resume.start(stream.items, chosen: picked ?? stream.startIndex, server: stream.resume,
+                                 kept: keptPoint(post: post.id), pickedByUser: picked != nil)
+        let item = stream.items.indices.contains(start.index) ? stream.items[start.index] : nil
+        let resume = start.seconds.flatMap { s in item.flatMap { ContinueWatching(JSON(["file_id": $0.fileID, "time": s] as [String: Any])) } }
+        play(PlaybackRequest(post: post, items: stream.items, index: start.index, resume: resume))
+    }
+
     func closePlayer() {
         playback = nil
     }

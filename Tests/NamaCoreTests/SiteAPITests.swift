@@ -30,6 +30,14 @@ final class SiteAPITests: XCTestCase {
         XCTAssertEqual(series.year, 2022)
     }
 
+    func testATitleTheSiteListsTwiceIsShownOnce() throws {
+        let result = try fixture("site_advanced_search")["result"]
+        var posts = result["posts"].array.map(\.any)
+        posts.append(posts[0])
+        let page = PostPage(site: JSON(["page": 1, "pages": 1, "posts": posts] as [String: Any]))
+        XCTAssertEqual(page.posts.map(\.id), [572188, page.posts[1].id])
+    }
+
     func testTheYearIsOnlyTakenFromTheEndOfTheTitle() {
         let post = Post(site: .object(["id": .number(1), "title": .string("Blade Runner 2049 2017")]))
         XCTAssertEqual(post?.year, 2017)

@@ -7,6 +7,15 @@ func fixture(_ name: String) throws -> JSON {
 }
 
 final class ModelTests: XCTestCase {
+    func testThirtyNamasStandInCoverIsNoCover() {
+        func with(_ cover: String) -> Post? {
+            Post(JSON(["id": 1, "title": ["english": "Title"],
+                       "image": ["poster": ["webp": ["large": "https://example.com/1.webp"]], "cover": ["webp": cover]]] as [String: Any]))
+        }
+        XCTAssertNil(with("https://example.com/uploads/none-cover_30NAMA.webp")?.cover)
+        XCTAssertEqual(with("https://example.com/1-wide.webp")?.cover?.absoluteString, "https://example.com/1-wide.webp")
+    }
+
     func testDownloadOptionsForAFilmAndForASeries() throws {
         let film = DownloadOptions(try JSON.parse(Data(#"""
         {"download":[

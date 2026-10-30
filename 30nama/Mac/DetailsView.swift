@@ -155,7 +155,7 @@ struct DetailsView: View {
             app.showToast(post.comingSoon ? loc(.comingSoonNote) : app.isLoggedIn ? (refusal ?? loc(.noStream)) : loc(.loginToWatch))
             return
         }
-        app.play(PlaybackRequest(post: post, items: stream.items, index: index ?? stream.startIndex, resume: stream.resume))
+        app.play(post, stream, index: index)
     }
 
     // MARK: Teaser

@@ -78,8 +78,13 @@ final class TMDBStore {
         if let imdb = post.imdbID, let found = await json(TMDB.findRequest(imdbID: imdb, key: key)) {
             id = TMDB.id(inFind: found, isSeries: post.isSeries)
         }
-        if id == nil, let found = await json(TMDB.searchRequest(title: post.titleEnglish ?? post.title(.en), year: post.year, isSeries: post.isSeries, key: key)) {
-            id = TMDB.id(inSearch: found)
+        let name = post.titleEnglish ?? post.title(.en)
+        if id == nil, let found = await json(TMDB.searchRequest(title: name, year: post.year, isSeries: post.isSeries, key: key)) {
+            id = TMDB.best(inSearch: found, title: name, year: post.year)
+        }
+        // 30nama's year is sometimes TMDB's off by one: once more without it, the nearest still first.
+        if id == nil, post.year != nil, let found = await json(TMDB.searchRequest(title: name, year: nil, isSeries: post.isSeries, key: key)) {
+            id = TMDB.best(inSearch: found, title: name, year: post.year)
         }
         // A failed look is tried again next time the title is opened.
         guard let id, let details = await json(TMDB.detailsRequest(id: id, isSeries: post.isSeries, key: key)) else { return nil }

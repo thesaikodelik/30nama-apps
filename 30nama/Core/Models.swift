@@ -164,7 +164,9 @@ struct Post: Identifiable, Hashable {
             g["name"].text.map { Genre(name: $0, slug: g["slug"].text ?? $0) }
         }
         poster = Poster(j["image"]["poster"])
-        cover = j["image"]["cover"]["webp"].url ?? j["image"]["cover"]["jpg"].url
+        // 30nama's stand-in for a title with no wide picture (none-cover_30NAMA.webp) is no picture:
+        // shown, it is a grey wash behind the page.
+        cover = (j["image"]["cover"]["webp"].url ?? j["image"]["cover"]["jpg"].url).flatMap { $0.path.contains("none-cover") ? nil : $0 }
 
         imdbScore = j["score"]["imdb"]["score"].double.flatMap { $0 > 0 ? $0 : nil }
         imdbID = j["score"]["imdb"]["link"].text.flatMap { Post.imdbID(in: $0) }

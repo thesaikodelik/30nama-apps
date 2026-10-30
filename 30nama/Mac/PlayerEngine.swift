@@ -143,7 +143,10 @@ final class PlayerEngine {
             next: { [weak self] in if let self, self.hasNext { self.start(self.index + 1) } }
         ))
         heartbeat = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.report() }
+            MainActor.assumeIsolated {
+                self?.report()
+                self?.keepPoint()
+            }
         }
         #if DEBUG
         if DebugLaunch.mute { toggleMute() }
@@ -164,10 +167,17 @@ final class PlayerEngine {
         UserDefaults.standard.set(["speed": Double(speed), "subtitleOffset": subtitleOffset], forKey: seriesKey)
     }
 
+    /// This device's own record of where the title was left (`Resume`), to the second.
+    private func keepPoint() {
+        guard items.indices.contains(index), current.token != PlayerEngine.localToken, playback.position > 5 else { return }
+        app.keepPoint(post: post.id, fileID: current.fileID, seconds: playback.position)
+    }
+
     func shutdown() {
         guard !closed else { return }
         closed = true
         report()
+        keepPoint()
         if items.indices.contains(index), current.token == PlayerEngine.localToken {
             UserDefaults.standard.set(time, forKey: "position." + current.fileID)
         }

@@ -227,9 +227,11 @@ extension Post {
 }
 
 extension PostPage {
-    /// A page of the site API's lists: `{page, pages, posts}`, with no total.
+    /// A page of the site API's lists: `{page, pages, posts}`, with no total. A title the site
+    /// lists twice is kept once, in its first place: a grid shows it twice otherwise.
     init(site j: JSON) {
-        posts = j["posts"].array.compactMap(Post.init(site:))
+        var seen = Set<Int>()
+        posts = j["posts"].array.compactMap(Post.init(site:)).filter { seen.insert($0.id).inserted }
         page = j["page"].int ?? 1
         pages = j["pages"].int ?? 1
         total = posts.count
@@ -249,8 +251,10 @@ enum TopList: String, CaseIterable {
     }
 
     static func entries(site j: JSON) -> [Entry] {
-        j["posts"].array.enumerated().compactMap { index, item in
-            guard let post = Post(site: item) else { return nil }
+        // A title listed twice keeps its first, higher place.
+        var seen = Set<Int>()
+        return j["posts"].array.enumerated().compactMap { index, item in
+            guard let post = Post(site: item), seen.insert(post.id).inserted else { return nil }
             // The place comes in Persian digits ("۱۲"); the list is in order anyway.
             return Entry(rank: Int(SiteText.latinDigits(item["rank"].text ?? "")) ?? index + 1, post: post)
         }
@@ -356,7 +360,8 @@ struct ArticlePage {
     var pages: Int
 
     init(site j: JSON) {
-        articles = j["posts"].array.compactMap(Article.init(site:))
+        var seen = Set<Int>()
+        articles = j["posts"].array.compactMap(Article.init(site:)).filter { seen.insert($0.id).inserted }
         page = j["page"].int ?? 1
         pages = j["pages"].int ?? 1
     }

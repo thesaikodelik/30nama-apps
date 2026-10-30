@@ -212,7 +212,7 @@ final class APIClientTests: XCTestCase {
                     await gate.acquire(background: true)
                     order.add("bg\(i)"); peak.raise(to: now.add())
                     try? await Task.sleep(nanoseconds: 20_000_000)
-                    now.sub(); await gate.release()
+                    now.sub(); await gate.release(background: true)
                 }
             }
             try? await Task.sleep(nanoseconds: 50_000_000)
@@ -230,6 +230,42 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(order.values.first, "core", "screen call jumps the background queue")
         XCTAssertEqual(order.values.count, 5)
         XCTAssertLessThanOrEqual(peak.value, 2)
+    }
+
+    func testBackgroundCallsLeaveASlotForTheScreen() async throws {
+        let gate = RequestGate(limit: 2, spacing: 0)
+        await gate.acquire(background: true)
+        let got = Counter(0)
+        let second = Task { await gate.acquire(background: true); _ = got.add() }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(got.value, 0, "a second background call waits")
+        // The screen's call gets the free slot at once.
+        await gate.acquire(background: false)
+        await gate.release(background: false)
+        await gate.release(background: true)
+        await second.value
+        XCTAssertEqual(got.value, 1)
+        await gate.release(background: true)
+    }
+
+    func testARateLimitPausesTheGateEvenWithoutARetry() async throws {
+        let net = FakeNetwork { action, _ in
+            action == "observer" ? (429, "error code: 1015", [:]) : (200, ok, [:])
+        }
+        var c = config()
+        c.backoff = [0.3, 0.3]
+        let api = APIClient(config: c, transport: net.transport)
+        await api.useHost("https://h.example.com/api/v2")
+        // A write is never replayed, so it fails at once; the gate still waits before the next call.
+        do {
+            _ = try await api.call("observer", ["time": "10"])
+            XCTFail("expected failure")
+        } catch {
+            guard case APIError.transient(_, _, true) = error else { return XCTFail("not a rate limit: \(error)") }
+        }
+        let start = Date()
+        _ = try await api.get("profile")
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(start), 0.25, "the next call waited out the pause")
     }
 }
 
