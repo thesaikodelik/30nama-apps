@@ -683,6 +683,15 @@ struct ContinueCard: View {
                 .overlay { LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom) }
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 4) {
+                        if post.isSeries, EpisodeWatch.isNew(post) {
+                            HStack(spacing: 5) {
+                                Circle().fill(Theme.accent).frame(width: 6, height: 6)
+                                Text(loc(.newEpisode)).font(.app(11, .bold)).foregroundStyle(.white)
+                            }
+                            .padding(.horizontal, 8)
+                            .frame(height: 20)
+                            .background(Capsule(style: .continuous).fill(Color.black.opacity(0.55)))
+                        }
                         Text(post.title(loc.lang)).font(.app(15, .bold)).foregroundStyle(.white).lineLimit(1)
                         if let line { Text(line).font(.app(12, .medium)).foregroundStyle(.white.opacity(0.72)).lineLimit(1) }
                         GeometryReader { geo in

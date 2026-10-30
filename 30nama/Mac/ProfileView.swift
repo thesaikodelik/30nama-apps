@@ -178,7 +178,7 @@ struct ProfileView: View {
                         if let symbol = stats[i].symbol {
                             Image(systemName: symbol).font(.system(size: 13, weight: .bold)).foregroundStyle(ProfileView.gold)
                         }
-                        Text(stats[i].value).font(.app(26, .heavy)).foregroundStyle(Theme.text1)
+                        Text(stats[i].value).font(.app(26, .heavy)).foregroundStyle(stats[i].warn ? Theme.accent : Theme.text1)
                     }
                     Text(stats[i].label).font(.app(12, .medium)).foregroundStyle(Theme.text3).lineLimit(1)
                 }
@@ -276,16 +276,17 @@ struct ProfileView: View {
     @MainActor private static var kept: (name: String?, line: MovieLine, post: Post?)?
 
     /// The counts: the lists kept on 30nama, what was rated and how generously, and the plan's days.
-    private var stats: [(value: String, label: String, symbol: String?, hint: String?)] {
-        var out: [(value: String, label: String, symbol: String?, hint: String?)] = []
-        if !watchlist.isEmpty { out.append((loc.num(listSizes["watchlist"] ?? watchlist.count), loc(.watchlist), nil, nil)) }
-        if !favorites.isEmpty { out.append((loc.num(listSizes["favorite"] ?? favorites.count), loc(.favorites), nil, nil)) }
+    private var stats: [(value: String, label: String, symbol: String?, hint: String?, warn: Bool)] {
+        var out: [(value: String, label: String, symbol: String?, hint: String?, warn: Bool)] = []
+        if !watchlist.isEmpty { out.append((loc.num(listSizes["watchlist"] ?? watchlist.count), loc(.watchlist), nil, nil, false)) }
+        if !favorites.isEmpty { out.append((loc.num(listSizes["favorite"] ?? favorites.count), loc(.favorites), nil, nil, false)) }
         if !app.ratings.isEmpty {
-            out.append((loc.num(app.ratings.count), loc(.ratedCount), nil, nil))
-            if let average = app.ratings.average { out.append((loc.num(Fmt.score(average)), loc(.averageRating), "star.fill", nil)) }
+            out.append((loc.num(app.ratings.count), loc(.ratedCount), nil, nil, false))
+            if let average = app.ratings.average { out.append((loc.num(Fmt.score(average)), loc(.averageRating), "star.fill", nil, false)) }
         }
         if let user = app.user, let days = user.daysLeft() {
-            out.append((loc.num(days), loc(.subscriptionDays), nil, loc.subscriptionLine(user)))
+            // Under a week in the app's red, while there is time to renew (from the Android and Windows apps).
+            out.append((loc.num(days), loc(.subscriptionDays), nil, loc.subscriptionLine(user), days < 7))
         }
         return out
     }

@@ -286,6 +286,8 @@ final class AppModel {
     /// The home page has arrived at least once since launch. The opening title waits a little for
     /// it, so the page is there behind its glass.
     private(set) var homeLoaded = false
+    /// The home page shown is the one saved last time: the fresh one could not be had.
+    private(set) var homeIsStale = false
     @ObservationIgnored private var menuCache: (menu: Menu, lang: Lang)?
     @ObservationIgnored private var filterCache: (options: FilterOptions, lang: Lang)?
     @ObservationIgnored private var choicesCache: (choices: SearchChoices, lang: Lang)?
@@ -447,12 +449,14 @@ final class AppModel {
             homeCache = (feed, Date(), lang)
             try? result.data()?.write(to: file, options: .atomic)
             homeLoaded = true
+            homeIsStale = false
             return feed
         } catch {
             if let data = try? Data(contentsOf: file), let json = try? JSON.parse(data) {
                 let feed = HomeFeed(json)
                 if !feed.isEmpty {
                     homeLoaded = true
+                    homeIsStale = true
                     return feed
                 }
             }

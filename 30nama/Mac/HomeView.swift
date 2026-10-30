@@ -25,6 +25,7 @@ struct HomeView: View {
         set { UserDefaults.standard.set(newValue, forKey: "trendingCame") }
     }
     @State private var failed = false
+    @State private var saidOffline = false
     @State private var hero = 0
     /// The pointer is on the billboard: someone is reading it, so it should not move on.
     @State private var paused = false
@@ -66,7 +67,20 @@ struct HomeView: View {
                 }
             }
         }
-        .task(id: app.contentVersion) { await load() }
+        // Without a connection the saved page stays; it says so once, and asks again by itself every
+        // half minute while home is open, the error page too (from the Android and Windows apps).
+        .task(id: app.contentVersion) {
+            await load()
+            while !Task.isCancelled, failed || app.homeIsStale {
+                if app.homeIsStale, !saidOffline {
+                    saidOffline = true
+                    app.showToast(loc(.offline))
+                }
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                await load()
+            }
+        }
         .task(id: "\(app.watchVersion)|\(app.continueVersion)") {
             // Once the row is up; the first time is `load`'s, with its stand-ins.
             if feed != nil, continuing != nil { continuing = await app.continueWatching() }

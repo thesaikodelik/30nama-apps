@@ -11,6 +11,16 @@ final class EpisodeWatch {
     /// Looks every few hours: each look is several list requests to a rate-limited server.
     private let spacing: TimeInterval = 6 * 3600
 
+    private static let newKey = "episodeWatch.new"
+
+    /// A series with an episode out since it was last watched says so on its card in Continue
+    /// watching, for a week or until it is watched on (from the Android and Windows apps).
+    static func isNew(_ post: Post) -> Bool {
+        guard let entry = (UserDefaults.standard.dictionary(forKey: newKey) as? [String: [Double]])?[String(post.id)],
+              entry.count == 2, Date().timeIntervalSince1970 - entry[0] < 7 * 24 * 3600 else { return false }
+        return abs((post.resume?.time ?? 0) - entry[1]) <= 1
+    }
+
     func look(_ app: AppModel) async {
         guard app.isLoggedIn else { return }
         let last = defaults.double(forKey: "episodeWatch.last")
@@ -28,6 +38,13 @@ final class EpisodeWatch {
         let out = alerts.update(with: followed)
         defaults.set(alerts.plist, forKey: "episodeWatch.expected")
         guard !out.isEmpty else { return }
+        // Remembered for the card in Continue watching, with where the series was left then.
+        var new = defaults.dictionary(forKey: EpisodeWatch.newKey) as? [String: [Double]] ?? [:]
+        for post in out {
+            let left = watching.first { $0.id == post.id }?.resume?.time ?? 0
+            new[String(post.id)] = [Date().timeIntervalSince1970, left]
+        }
+        defaults.set(new, forKey: EpisodeWatch.newKey)
 
         // Asked the first time there is something to say, not when the app opens.
         let center = UNUserNotificationCenter.current()
