@@ -74,6 +74,17 @@ final class TMDBStore {
         #endif
         if filtered { return await indexedLook(for: post, lang: lang) }
         guard let key = TMDBStore.key else { return await publicLook(for: post, lang: lang) }
+        switch TMDBStore.stored(post) {
+        case .found(let details):
+            let info = TMDB.info(in: details, lang: lang)
+            known[post.id] = info
+            trailerSettled.insert(post.id)
+            return info
+        case .missed:
+            return nil
+        case nil:
+            break
+        }
         var id: Int?
         if let imdb = post.imdbID, let found = await json(TMDB.findRequest(imdbID: imdb, key: key)) {
             id = TMDB.id(inFind: found, isSeries: post.isSeries)
@@ -86,8 +97,11 @@ final class TMDBStore {
         if id == nil, post.year != nil, let found = await json(TMDB.searchRequest(title: name, year: nil, isSeries: post.isSeries, key: key)) {
             id = TMDB.best(inSearch: found, title: name, year: post.year)
         }
+        // Asked and not found (TMDB answered): kept as a miss for a day.
+        if id == nil, Date() >= quietUntil { TMDBStore.store(post, nil) }
         // A failed look is tried again next time the title is opened.
         guard let id, let details = await json(TMDB.detailsRequest(id: id, isSeries: post.isSeries, key: key)) else { return nil }
+        TMDBStore.store(post, details)
         let info = TMDB.info(in: details, lang: lang)
         known[post.id] = info
         trailerSettled.insert(post.id)
@@ -131,7 +145,11 @@ final class TMDBStore {
         request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
         request.httpMethod = "HEAD"
         request.timeoutInterval = 15
-        guard let (_, response) = try? await URLSession.shared.data(for: request), let page = response.url else { return nil }
+        guard Date() >= quietUntil else { return nil }
+        guard let (_, response) = try? await URLSession.shared.data(for: request), let page = response.url else {
+            quietUntil = Date().addingTimeInterval(60)
+            return nil
+        }
         var info = TMDB.Info()
         for language in (lang == .fa ? ["fa", "en"] : ["en"]) {
             guard let list = TMDB.logosPage(title: page, language: language),
@@ -157,9 +175,50 @@ final class TMDBStore {
         request.setValue(TMDBStore.agent, forHTTPHeaderField: "User-Agent")
         // As the API's requests: a page that does not come is let go, not waited on for a minute.
         request.timeoutInterval = 15
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        guard let data = await answer(request) else { return nil }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Until when TMDB is not asked: after it failed to answer, a minute (as the Android and Windows
+    /// apps and 30namaTV do), so a home page of forty titles does not wait out forty timeouts on a
+    /// line where it is filtered.
+    @ObservationIgnored private var quietUntil = Date.distantPast
+
+    /// The body of a 200 answer, or nil. No answer at all, a refused key, too many requests or a
+    /// server fault quiets TMDB for a minute.
+    private func answer(_ request: URLRequest) async -> Data? {
+        guard Date() >= quietUntil else { return nil }
+        guard let (data, response) = try? await URLSession.shared.data(for: request), let http = response as? HTTPURLResponse else {
+            quietUntil = Date().addingTimeInterval(60)
+            return nil
+        }
+        if http.statusCode == 401 || http.statusCode == 429 || http.statusCode >= 500 { quietUntil = Date().addingTimeInterval(60) }
+        return http.statusCode == 200 ? data : nil
+    }
+
+    // MARK: Answers kept on disk
+
+    private enum Stored { case found(JSON), missed }
+
+    private static let folder: URL = {
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("30nama-tmdb", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// The answer kept on disk while fresh: a week for one found, a day for a miss.
+    private static func stored(_ post: Post) -> Stored? {
+        let file = folder.appendingPathComponent("\(post.id).json")
+        guard let data = try? Data(contentsOf: file),
+              let written = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate else { return nil }
+        let age = -written.timeIntervalSinceNow
+        if data.isEmpty { return age < 24 * 3600 ? .missed : nil }
+        guard age < 7 * 24 * 3600, let details = try? JSON.parse(data) else { return nil }
+        return .found(details)
+    }
+
+    private static func store(_ post: Post, _ details: JSON?) {
+        try? (details?.data() ?? Data()).write(to: folder.appendingPathComponent("\(post.id).json"), options: .atomic)
     }
 
     private static let agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
@@ -171,8 +230,6 @@ final class TMDBStore {
     }
 
     private func json(_ request: URLRequest) async -> JSON? {
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return try? JSON.parse(data)
+        await answer(request).flatMap { try? JSON.parse($0) }
     }
 }

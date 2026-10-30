@@ -26,6 +26,10 @@ struct SettingsView: View {
                                     row("\(loc(.yourName)) (\(loc(.optional)))") {
                                         TextField("", text: $typedName)
                                             .textFieldStyle(.plain)
+                                            // AppKit's field does not take SwiftUI's direction: in a
+                                            // left-to-right frame, a Persian name is put on the right.
+                                            .multilineTextAlignment(loc.lang.isRTL ? .trailing : .leading)
+                                            .environment(\.layoutDirection, .leftToRight)
                                             .font(.app(14))
                                             .padding(.horizontal, 12)
                                             .frame(width: 252, height: 32)
@@ -57,8 +61,8 @@ struct SettingsView: View {
                         }
                         // Keys the user makes on other sites, kept on this Mac; everything works without them.
                         group(loc(.services)) {
-                            keyField(loc(.subsourceKey), hint: loc(.subsourceKeyHint), text: $subsourceKey)
-                            keyField(loc(.tmdbKey), hint: loc(.tmdbKeyHint), text: $tmdbKey)
+                            keyField(loc(.subsourceKey), hint: loc(.subsourceKeyHint), service: .subsource, page: "https://subsource.net/profile", text: $subsourceKey)
+                            keyField(loc(.tmdbKey), hint: loc(.tmdbKeyHint), service: .tmdb, page: "https://www.themoviedb.org/settings/api", text: $tmdbKey)
                         }
                         group(loc(.about)) {
                             // The app looks by itself every hour; this is for when a release was
@@ -163,8 +167,8 @@ struct SettingsView: View {
     /// The user's own TMDB key or read access token, read by `TMDBStore`.
     @AppStorage("tmdbKey") private var tmdbKey = ""
 
-    private func keyField(_ label: String, hint: String, text: Binding<String>) -> some View {
-        KeyField(label: label, hint: hint, text: text) { row($0, control: $1) }
+    private func keyField(_ label: String, hint: String, service: KeyCheck.Service, page: String, text: Binding<String>) -> some View {
+        KeyField(label: label, hint: hint, service: service, page: URL(string: page)!, text: text)
     }
 
     /// The member's own name, for when their profile on the site is private. Read by the profile.
@@ -392,73 +396,119 @@ private struct ChoiceLabel: View {
 /// A key the user makes on another site. It is kept as soon as it is typed or pasted, which a
 /// hidden field did not show: a key that is there now says so, in the app's red, can be shown to check it,
 /// and removed.
-private struct KeyField<Row: View>: View {
+private struct KeyField: View {
     let label: String
     let hint: String
+    let service: KeyCheck.Service
+    /// Where the service gives its keys: the name opens it.
+    let page: URL
     @Binding var text: String
-    let row: (String, () -> AnyView) -> Row
 
     @Environment(\.loc) private var loc
     @State private var shown = false
-
-    init(label: String, hint: String, text: Binding<String>, row: @escaping (String, () -> AnyView) -> Row) {
-        self.label = label
-        self.hint = hint
-        _text = text
-        self.row = row
-    }
+    /// What came of trying the key; nil until it was typed here, when a saved key is only "saved".
+    @State private var state: KeyCheck.State?
+    @State private var nameHovered = false
+    @State private var opened = false
 
     var body: some View {
         let saved = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         VStack(alignment: .leading, spacing: 2) {
-            row(label) {
-                AnyView(HStack(spacing: 6) {
-                    Group {
-                        if shown { TextField("", text: $text) } else { SecureField("", text: $text) }
+            HStack(spacing: 12) {
+                Button { NSWorkspace.shared.open(page) } label: {
+                    HStack(spacing: 5) {
+                        Text(label).underline(nameHovered)
+                        Image(systemName: "arrow.up.forward.square").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.text3)
                     }
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, design: .monospaced))
-                    .accessibilityLabel(label)
-                    if saved {
-                        Button { shown.toggle() } label: {
-                            Image(systemName: shown ? "eye.slash" : "eye").font(.system(size: 12, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.text3)
-                        .help(shown ? loc(.hideKey) : loc(.showKey))
-                        .accessibilityLabel(shown ? loc(.hideKey) : loc(.showKey))
-                        Button { text = ""; shown = false } label: {
-                            Image(systemName: "xmark.circle.fill").font(.system(size: 13))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.text3)
-                        .help(loc(.removeKey))
-                        .accessibilityLabel(loc(.removeKey))
-                    }
+                    .font(.app(15, .medium))
+                    .foregroundStyle(Theme.text1)
                 }
-                .padding(.horizontal, 12)
-                .frame(width: 252, height: 32)
-                .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
-                .overlay { Capsule(style: .continuous).strokeBorder(Theme.accent.opacity(saved ? 0.55 : 0), lineWidth: 1) }
-                .environment(\.layoutDirection, .leftToRight))
+                .buttonStyle(.plain)
+                .onHover { nameHovered = $0 }
+                .help(page.host ?? "")
+                Spacer(minLength: 0)
+                field(saved: saved)
             }
-            Group {
-                if saved {
-                    // The app's own red, on the tick only: the words in the usual colour, so it does
-                    // not read as an error.
-                    Label {
-                        Text(loc(.keySaved)).foregroundStyle(Theme.text2)
-                    } icon: {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
-                    }
-                } else {
-                    Text(hint).foregroundStyle(Theme.text3)
-                }
-            }
-            .font(.app(12))
             .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-            .animation(.easeOut(duration: 0.2), value: saved)
+            .frame(minHeight: 46)
+            note(saved: saved)
+                .font(.app(12))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .animation(.easeOut(duration: 0.2), value: saved)
+                .animation(.easeOut(duration: 0.2), value: state)
+        }
+        // Saved as it is typed (the binding is the setting), then tried once typing rests.
+        .task(id: text) {
+            // Not on opening Settings: only a key typed here is tried.
+            guard opened else { opened = true; return }
+            let key = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { state = nil; return }
+            state = .checking
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            let result = await KeyCheck.check(service, key: key, transport: APIClient.urlSessionTransport())
+            if !Task.isCancelled { state = result }
+        }
+    }
+
+    private func field(saved: Bool) -> some View {
+        HStack(spacing: 6) {
+            Group {
+                if shown { TextField("", text: $text) } else { SecureField("", text: $text) }
+            }
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, design: .monospaced))
+            .accessibilityLabel(label)
+            if saved {
+                Button { shown.toggle() } label: {
+                    Image(systemName: shown ? "eye.slash" : "eye").font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.text3)
+                .help(shown ? loc(.hideKey) : loc(.showKey))
+                .accessibilityLabel(shown ? loc(.hideKey) : loc(.showKey))
+                Button { text = ""; shown = false } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 13))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.text3)
+                .help(loc(.removeKey))
+                .accessibilityLabel(loc(.removeKey))
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 252, height: 32)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
+        // A saved key keeps the glass's own edge, a little brighter; red only for one the service refused.
+        .overlay {
+            Capsule(style: .continuous)
+                .strokeBorder(state == .rejected ? Theme.accent.opacity(0.7) : Color.white.opacity(saved ? 0.2 : 0), lineWidth: 1)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+    }
+
+    @ViewBuilder
+    private func note(saved: Bool) -> some View {
+        if !saved {
+            Text(hint).foregroundStyle(Theme.text3)
+        } else {
+            switch state {
+            case .checking:
+                Text(loc(.keyChecking)).foregroundStyle(Theme.text3)
+            case .rejected:
+                Text(loc(.keyRejected)).foregroundStyle(Theme.accent)
+            case .unreachable:
+                Text(loc(.keyUnreachable)).foregroundStyle(Theme.text2)
+            case .works, .unset, nil:
+                // The app's own red, on the tick only: the words in the usual colour, so it does
+                // not read as an error.
+                Label {
+                    Text(loc(state == .works ? .keyWorks : .keySaved)).foregroundStyle(Theme.text2)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
+                }
+            }
         }
     }
 }

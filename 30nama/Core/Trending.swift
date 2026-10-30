@@ -290,7 +290,13 @@ actor Trending {
         let key = "l:\(source.path)?\(query)"
         if let hit = cached(key) { return TMDBItem.list(hit, defaultKind: source.kind) }
         if self.key == nil {
-            // Without a key only the week's trending list, from the public page.
+            // Without a key, the lists written for everyone each day on the repository's data branch
+            // (Tools/trending), as the Android and Windows apps read them; TMDB's public page only
+            // where GitHub does not answer.
+            if let shared = try? await fetchShared(), case let list = shared["lists"]["\(source.path)?\(query)"], !list.array.isEmpty {
+                cache[key] = Entry(at: now(), value: list)
+                return TMDBItem.list(list, defaultKind: source.kind)
+            }
             guard source.path == "/trending/all/week", let html = try? await fetchPublic() else { return [] }
             let list = TMDBItem.publicList(html)
             guard !list.array.isEmpty else { return [] }
@@ -312,6 +318,27 @@ actor Trending {
         let (data, response) = try await transport(request)
         guard response.statusCode == 200 else { throw URLError(.badServerResponse) }
         return try JSON.parse(data)
+    }
+
+    /// The trending lists written each day for viewers without a key.
+    static let sharedTrending = URL(string: "https://raw.githubusercontent.com/thesaikodelik/30nama-apps/data/trending.json")!
+
+    /// Fetched once per build of the rows, not once per list.
+    private var shared: Task<JSON?, Never>?
+
+    private func fetchShared() async throws -> JSON? {
+        if shared == nil {
+            let transport = transport
+            shared = Task {
+                var request = URLRequest(url: Trending.sharedTrending)
+                request.timeoutInterval = 15
+                guard let (data, response) = try? await transport(request), response.statusCode == 200 else { return nil }
+                return try? JSON.parse(data)
+            }
+        }
+        let value = await shared?.value
+        if value == nil { shared = nil }
+        return value
     }
 
     private func fetchPublic() async throws -> String {

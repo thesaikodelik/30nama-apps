@@ -321,6 +321,36 @@ enum class S {
     queued,
     downloadsAtOnce,
     titleUpdates,
+    keyWorks,
+    keyRejected,
+    keyUnreachable,
+    keyChecking,
+    qualityMax,
+    stillWatchingStopped,
+    startOver,
+    endsAt,
+    offline,
+    freshSeries,
+    popularFilms,
+    partOf,
+    geminiKey,
+    geminiKeyHint,
+    machineTranslation,
+    translationStopped,
+    dataSaver,
+    dataSaverHint,
+    clearCaches,
+    clear,
+    megabytes,
+    cleared,
+    copyLink,
+    linkCopied,
+    actorName,
+    fileMissing,
+    onlinePlayer,
+    thisApp,
+    onlinePlayerHint,
+    playingIn,
 }
 
 internal object LocTables {
@@ -645,6 +675,36 @@ internal object LocTables {
         put(S.status, "Status")
         put(S.storyline, "Storyline")
         put(S.information, "Information")
+        put(S.keyWorks, "Works")
+        put(S.keyRejected, "The service says this key is wrong")
+        put(S.keyUnreachable, "Saved. The service could not be reached to try it")
+        put(S.keyChecking, "Trying the key…")
+        put(S.qualityMax, "Max, the original file")
+        put(S.stillWatchingStopped, "Autoplay paused after three episodes")
+        put(S.startOver, "Start over")
+        put(S.endsAt, "Ends at")
+        put(S.offline, "No internet. Showing what was saved.")
+        put(S.freshSeries, "New and returning series")
+        put(S.popularFilms, "Popular films now")
+        put(S.partOf, "Part {at} of {of}")
+        put(S.geminiKey, "Gemini key")
+        put(S.geminiKeyHint, "Optional. Made free in Google AI Studio with your Google account. Translates the English subtitle into Persian when a title has no Persian one anywhere. Google's free tier may use what is sent to improve its models.")
+        put(S.machineTranslation, "machine translation")
+        put(S.translationStopped, "Translation paused: Gemini's free requests for today are used up, or it could not be reached. The rest stays in English.")
+        put(S.dataSaver, "Data saver")
+        put(S.dataSaverHint, "For metered internet or a VPN with a data cap: no preview shows while seeking, and no trailer plays behind a title's page.")
+        put(S.clearCaches, "Saved trailers, TMDB answers, translations and episode stills")
+        put(S.clear, "Clear")
+        put(S.megabytes, "MB")
+        put(S.cleared, "Cleared")
+        put(S.copyLink, "Copy link")
+        put(S.linkCopied, "Link copied")
+        put(S.actorName, "Actor's name")
+        put(S.fileMissing, "File not found")
+        put(S.onlinePlayer, "Play online in")
+        put(S.thisApp, "This app")
+        put(S.onlinePlayerHint, "Films and episodes open in the player chosen here. What is watched there is not kept in Continue watching.")
+        put(S.playingIn, "Playing in")
     }
 
     private fun fa(): Map<S, String> = java.util.EnumMap<S, String>(S::class.java).apply {
@@ -964,6 +1024,36 @@ internal object LocTables {
         put(S.status, "وضعیت")
         put(S.storyline, "داستان")
         put(S.information, "اطلاعات")
+        put(S.keyWorks, "کار می‌کند")
+        put(S.keyRejected, "سرویس می‌گوید این کلید درست نیست")
+        put(S.keyUnreachable, "ذخیره شد. سرویس برای امتحان در دسترس نبود")
+        put(S.keyChecking, "در حال امتحان کلید…")
+        put(S.qualityMax, "Max، فایل اصلی")
+        put(S.stillWatchingStopped, "پخش خودکار بعد از سه قسمت ایستاد")
+        put(S.startOver, "از اول")
+        put(S.endsAt, "تا ساعت")
+        put(S.offline, "اینترنت وصل نیست. آخرین نسخهٔ ذخیره‌شده نشان داده می‌شود.")
+        put(S.freshSeries, "سریال‌های تازه و برگشته")
+        put(S.popularFilms, "فیلم‌های پرطرفدار این روزها")
+        put(S.partOf, "قسمت {at} از {of}")
+        put(S.geminiKey, "کلید Gemini")
+        put(S.geminiKeyHint, "اختیاری. رایگان در Google AI Studio با حساب گوگل خودتان ساخته می‌شود. وقتی عنوانی هیچ‌جا زیرنویس فارسی ندارد، زیرنویس انگلیسی را به فارسی ترجمه می‌کند. گوگل در نسخهٔ رایگان ممکن است متن فرستاده‌شده را برای بهتر کردن مدل‌هایش به کار ببرد.")
+        put(S.machineTranslation, "ترجمهٔ ماشینی")
+        put(S.translationStopped, "ترجمه ایستاد: درخواست‌های رایگان امروز Gemini تمام شده یا در دسترس نیست. بقیه انگلیسی می‌ماند.")
+        put(S.dataSaver, "صرفه‌جویی در اینترنت")
+        put(S.dataSaverHint, "برای اینترنت حجمی یا VPN با حجم محدود: هنگام جلو و عقب بردن پیش‌نمایش نمی‌آید و پشت صفحهٔ عنوان تریلری پخش نمی‌شود.")
+        put(S.clearCaches, "تریلرها، پاسخ‌های TMDB، ترجمه‌ها و عکس قسمت‌های ذخیره‌شده")
+        put(S.clear, "پاک کردن")
+        put(S.megabytes, "مگابایت")
+        put(S.cleared, "پاک شد")
+        put(S.copyLink, "کپی لینک")
+        put(S.linkCopied, "لینک کپی شد")
+        put(S.actorName, "نام بازیگر")
+        put(S.fileMissing, "فایل پیدا نشد")
+        put(S.onlinePlayer, "پخش آنلاین با")
+        put(S.thisApp, "همین برنامه")
+        put(S.onlinePlayerHint, "فیلم‌ها و قسمت‌ها در پخش‌کننده‌ای که این‌جا انتخاب شده باز می‌شوند. آن‌چه آن‌جا دیده شود در «ادامه تماشا» نمی‌آید.")
+        put(S.playingIn, "در حال پخش در")
     }
 
     private fun ar(): Map<S, String> = java.util.EnumMap<S, String>(S::class.java).apply {
@@ -1283,5 +1373,35 @@ internal object LocTables {
         put(S.status, "الحالة")
         put(S.storyline, "القصة")
         put(S.information, "معلومات")
+        put(S.keyWorks, "يعمل")
+        put(S.keyRejected, "تقول الخدمة إن هذا المفتاح خاطئ")
+        put(S.keyUnreachable, "تم الحفظ. تعذر الوصول إلى الخدمة لتجربته")
+        put(S.keyChecking, "جارٍ تجربة المفتاح…")
+        put(S.qualityMax, "Max، الملف الأصلي")
+        put(S.stillWatchingStopped, "توقف التشغيل التلقائي بعد ثلاث حلقات")
+        put(S.startOver, "من البداية")
+        put(S.endsAt, "ينتهي في")
+        put(S.offline, "لا يوجد اتصال. يُعرض آخر ما حُفظ.")
+        put(S.freshSeries, "مسلسلات جديدة وعائدة")
+        put(S.popularFilms, "أفلام رائجة الآن")
+        put(S.partOf, "الجزء {at} من {of}")
+        put(S.geminiKey, "مفتاح Gemini")
+        put(S.geminiKeyHint, "اختياري. يُنشأ مجاناً في Google AI Studio بحساب Google الخاص بك. يترجم الترجمة الإنجليزية إلى الفارسية حين لا توجد ترجمة فارسية لعنوان ما. قد تستخدم Google في الفئة المجانية ما يُرسل لتحسين نماذجها.")
+        put(S.machineTranslation, "ترجمة آلية")
+        put(S.translationStopped, "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.")
+        put(S.dataSaver, "توفير البيانات")
+        put(S.dataSaverHint, "للإنترنت المحدود أو VPN بحجم محدود: لا تظهر معاينة أثناء التقديم والترجيع، ولا يُعرض إعلان خلف صفحة العنوان.")
+        put(S.clearCaches, "الإعلانات وردود TMDB والترجمات وصور الحلقات المحفوظة")
+        put(S.clear, "مسح")
+        put(S.megabytes, "ميغابايت")
+        put(S.cleared, "تم المسح")
+        put(S.copyLink, "نسخ الرابط")
+        put(S.linkCopied, "تم نسخ الرابط")
+        put(S.actorName, "اسم الممثل")
+        put(S.fileMissing, "لم يُعثر على الملف")
+        put(S.onlinePlayer, "التشغيل عبر الإنترنت في")
+        put(S.thisApp, "هذا التطبيق")
+        put(S.onlinePlayerHint, "تُفتح الأفلام والحلقات في المشغّل المختار هنا. ما يُشاهَد هناك لا يُحفظ في متابعة المشاهدة.")
+        put(S.playingIn, "يُعرض الآن في")
     }
 }

@@ -179,6 +179,10 @@ final class TrendingTests: XCTestCase {
 
         let net = FakeCatalogue()
         let trending = Trending(key: "  \n", transport: { request in
+            // The shared file first; GitHub not answering, the public page.
+            if request.url == Trending.sharedTrending {
+                return (Data(), HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!)
+            }
             XCTAssertEqual(request.url, TMDBItem.publicTrending)
             return (Data(html.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }, search: net.search)
@@ -187,6 +191,20 @@ final class TrendingTests: XCTestCase {
         XCTAssertTrue(net.searches.contains("Film N1x"), "the public list is looked for on 30nama")
         let fresh = await trending.row(.fresh)
         XCTAssertTrue(fresh.isEmpty, "rows that need the API stay empty without a key")
+    }
+
+    // As the Android and Windows apps: without a key, the lists written each day on the data branch.
+    func testReadsTheSharedListsWithoutAKey() async throws {
+        let net = stockedCatalogue()
+        let shared = try JSONSerialization.data(withJSONObject: ["lists": ["/trending/all/week?language=en-US": net.lists["/trending/all/week"] ?? []]])
+        let asked = Recorder()
+        let trending = Trending(key: nil, transport: { request in
+            asked.add(request.url!.absoluteString)
+            return (shared, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }, search: net.search)
+        let row = await trending.row(.trend)
+        XCTAssertEqual(row.map(\.id), [101, 102, 103, 104, 105, 106])
+        XCTAssertEqual(Set(asked.values), [Trending.sharedTrending.absoluteString])
     }
 
     func testRowFindsTrendingTitlesOn30nama() async throws {
