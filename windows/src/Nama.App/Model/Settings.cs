@@ -119,8 +119,8 @@ public static class Motion
 /// <summary>The app's own folder, under LocalAppData.</summary>
 public static class Storage
 {
-    /// <summary>What the app keeps only to be quicker or lighter, and can clear: trailers' web data, TMDB's answers, translations.</summary>
-    public static readonly string[] Caches = ["WebView2", "WebView2-backdrop", "tmdb", "translations"];
+    /// <summary>What the app keeps only to be quicker or lighter, and can clear: trailers' web data, TMDB's answers, translations, episode stills.</summary>
+    public static readonly string[] Caches = ["WebView2", "WebView2-backdrop", "tmdb", "translations", "frames"];
 
     public static long CacheBytes() => Caches.Select(c => Path.Combine(Folder, c)).Where(Directory.Exists)
         .SelectMany(d => { try { return new DirectoryInfo(d).EnumerateFiles("*", SearchOption.AllDirectories); } catch (Exception) { return []; } })

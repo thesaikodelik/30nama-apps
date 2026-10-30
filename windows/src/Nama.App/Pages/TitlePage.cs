@@ -73,10 +73,12 @@ public sealed class TitlePage : Grid
         Render();
         App.Changed += OnChanged;
         TmdbStore.Shared.TrailerFound += OnTrailer;
+        Player.EpisodeStills.Shared.Arrived += OnStill;
         Unloaded += (_, _) =>
         {
             App.Changed -= OnChanged;
             TmdbStore.Shared.TrailerFound -= OnTrailer;
+            Player.EpisodeStills.Shared.Arrived -= OnStill;
         };
         _ = LoadAsync();
         _ = LoadTmdbAsync();
@@ -606,7 +608,10 @@ public sealed class TitlePage : Grid
                 pills.Add(Kit.Pill($"{loc[S.season]} {loc.Num(number)}", _season == number, () => { _season = number; Render(); }));
             column.Children.Add(pills);
         }
-        var grid = WrapRow.Fill(12, 250, 380);
+        // Not mirrored, the tiles placing themselves right to left: a still fading in under a mirror
+        // left a light line along its top edge (as the poster walls once did).
+        var grid = WrapRow.Fill(12, 250, 380, unmirrored: true);
+        _stills.Clear();
         for (var i = 0; i < stream.Items.Count; i++)
         {
             var item = stream.Items[i];
@@ -615,15 +620,47 @@ public sealed class TitlePage : Grid
             grid.Add(EpisodeTile(item, stream.Resume?.FileId == item.FileId ? stream.Resume : null, App.Watched.Contains(item.FileId), () => Play(index)));
         }
         column.Children.Add(grid);
+        // Stills from the episodes themselves, for those that stream; not with the data saver on.
+        if (!App.Settings.DataSaver) Player.EpisodeStills.Shared.Want(stream.Items.Where(item => item.Season == _season));
         return column;
+    }
+
+    /// <summary>The picture in each episode tile now drawn, by file id, to be filled when its still comes.</summary>
+    private readonly Dictionary<string, Image> _stills = [];
+
+    private void OnStill(string fileId)
+    {
+        if (_stills.TryGetValue(fileId, out var picture)) _ = ShowStillAsync(picture, fileId);
+    }
+
+    /// <summary>Loads the saved still into the tile's picture, which fades in over the number.</summary>
+    private static async Task ShowStillAsync(Image picture, string fileId)
+    {
+        if (Player.EpisodeStills.File(fileId) is not { } path) return;
+        try
+        {
+            var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            using (var file = File.OpenRead(path)) await bitmap.SetSourceAsync(file.AsRandomAccessStream());
+            picture.Source = bitmap;
+            picture.Opacity = 1;
+        }
+        catch (Exception) { }
     }
 
     /// <summary>One episode: its number, name and length, and how far in the user is.</summary>
     private FrameworkElement EpisodeTile(StreamItem item, ContinueWatching? resume, bool watched, Action play)
     {
         var loc = App.Loc;
-        var face = new Grid { Height = 62, CornerRadius = new CornerRadius(14), Background = Theme.White(0.07), Padding = new Thickness(12, 0, 12, 0), ColumnSpacing = 14 };
-        face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        // Left to right whatever the language (the grid is not mirrored); in Persian and Arabic the
+        // columns are placed the other way round by hand: picture, words, check from the right.
+        var rtl = loc.Lang.IsRtl();
+        int markColumn = rtl ? 2 : 0, textColumn = 1, checkColumn = rtl ? 0 : 2;
+        var face = new Grid
+        {
+            Height = 62, CornerRadius = new CornerRadius(14), Background = Theme.White(0.07), ColumnSpacing = 12,
+            Padding = rtl ? new Thickness(12, 0, 4, 0) : new Thickness(4, 0, 12, 0), FlowDirection = FlowDirection.LeftToRight,
+        };
+        face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         face.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         face.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var number = Theme.Text(loc.Num(item.EpisodeRaw ?? item.EpisodeNumber.ToString()), 20, FontWeights.ExtraBold, resume is not null ? Hue : Theme.Text2);
@@ -631,36 +668,63 @@ public sealed class TitlePage : Grid
         number.VerticalAlignment = VerticalAlignment.Center;
         var playIcon = Glyph.Icon(Glyph.Play, 16, Colors.White);
         playIcon.Opacity = 0;
-        var mark = new Grid();
+        // The episode's own still when it streams (EpisodeStills), the number until it comes; with
+        // the still in, the number stays small in its corner.
+        var mark = new Grid { Width = 96, Height = 54, CornerRadius = new CornerRadius(10), Background = Theme.White(0.05), VerticalAlignment = VerticalAlignment.Center };
+        var picture = new Image { Stretch = Stretch.UniformToFill, Opacity = 0, IsHitTestVisible = false }.Springy(0.4);
+        var shade = new Border { Background = Theme.Black(0.35), Opacity = 0, IsHitTestVisible = false };
         mark.Children.Add(number);
+        mark.Children.Add(picture);
+        mark.Children.Add(shade);
         mark.Children.Add(playIcon);
+        Grid.SetColumn(mark, markColumn);
         face.Children.Add(mark);
+        if (item.FileId.Length > 0 && item.Qualities.Count > 0)
+        {
+            _stills[item.FileId] = picture;
+            picture.RegisterPropertyChangedCallback(Image.SourceProperty, (_, _) =>
+            {
+                // The number moves to the corner, light on the picture.
+                number.FontSize = 13;
+                number.Foreground = Theme.Brush(Colors.White);
+                number.HorizontalAlignment = rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+                number.VerticalAlignment = VerticalAlignment.Bottom;
+                number.Margin = new Thickness(6, 0, 6, 3);
+                Canvas.SetZIndex(number, 1);
+            });
+            _ = ShowStillAsync(picture, item.FileId);
+        }
         var text = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(Theme.Text(item.Title(loc.Lang) ?? $"{loc[S.episode]} {loc.Num(item.EpisodeNumber)}", 15, FontWeights.SemiBold));
         if (item.DurationMinutes is { } minutes) text.Children.Add(Theme.Text($"{loc.Num(minutes)} {loc[S.min]}", 12, color: Theme.Text3));
-        Grid.SetColumn(text, 1);
+        foreach (var line in text.Children.OfType<TextBlock>())
+        {
+            line.TextReadingOrder = TextReadingOrder.DetectFromContent;
+            line.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
+        }
+        Grid.SetColumn(text, textColumn);
         face.Children.Add(text);
         if (watched)
         {
             var check = Glyph.Icon("\uE930", 16, Theme.Good);
             check.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(check, 2);
+            Grid.SetColumn(check, checkColumn);
             face.Children.Add(check);
         }
         if (resume is { Progress: > 0 } r)
         {
-            var bar = new Border
-            {
-                Height = 3, CornerRadius = new CornerRadius(1.5), Background = Theme.Brush(Hue), HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5), Width = Math.Max(8, (300 - 24) * r.Progress),
-            };
-            Grid.SetColumnSpan(bar, 3);
-            face.Children.Add(bar);
+            // Under the words, from where they start: not across the picture.
+            var track = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5) };
+            var bar = new Border { Height = 3, CornerRadius = new CornerRadius(1.5), Background = Theme.Brush(Hue), HorizontalAlignment = rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left };
+            track.Children.Add(bar);
+            track.SizeChanged += (_, e) => bar.Width = Math.Max(8, e.NewSize.Width * r.Progress);
+            Grid.SetColumn(track, textColumn);
+            face.Children.Add(track);
         }
         var button = Theme.Bare(face, play);
         Kit.AutomationName(button, item.Title(loc.Lang) ?? $"{loc[S.episode]} {item.EpisodeNumber}");
-        button.PointerEntered += (_, _) => { face.Background = Theme.White(0.16); number.Opacity = 0; playIcon.Opacity = 1; };
-        button.PointerExited += (_, _) => { face.Background = Theme.White(0.07); number.Opacity = 1; playIcon.Opacity = 0; };
+        button.PointerEntered += (_, _) => { face.Background = Theme.White(0.16); number.Opacity = 0; playIcon.Opacity = 1; shade.Opacity = picture.Source is null ? 0 : 1; };
+        button.PointerExited += (_, _) => { face.Background = Theme.White(0.07); number.Opacity = 1; playIcon.Opacity = 0; shade.Opacity = 0; };
         var menu = new MenuFlyout();
         var toggle = new MenuFlyoutItem { Text = loc[watched ? S.markUnwatched : S.markWatched] };
         toggle.Click += (_, _) => { App.SetWatched(item.FileId, !watched); Render(); };
