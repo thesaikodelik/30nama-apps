@@ -713,6 +713,10 @@ final class AppModel {
         UserDefaults.standard.set(["file": fileID, "seconds": seconds], forKey: "left.\(post)")
     }
 
+    func forgetPoint(post: Int) {
+        UserDefaults.standard.removeObject(forKey: "left.\(post)")
+    }
+
     func keptPoint(post: Int) -> Resume.Kept? {
         guard let kept = UserDefaults.standard.dictionary(forKey: "left.\(post)"),
               let file = kept["file"] as? String, let seconds = kept["seconds"] as? Double else { return nil }

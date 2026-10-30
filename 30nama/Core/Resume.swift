@@ -37,7 +37,9 @@ enum Resume {
         var best: (index: Int, seconds: Double, duration: Double)?
         if let server, let s = index(server.fileID) { best = (s, server.time, server.duration) }
         if let kept, let k = index(kept.fileID), best.map({ k > $0.index || (k == $0.index && kept.seconds > $0.seconds) }) ?? true {
-            best = (k, kept.seconds, duration(items[k]))
+            // The same file as 30nama's point: its length is known from there when the stream's is not.
+            let length = server?.fileID == kept.fileID ? max(duration(items[k]), server?.duration ?? 0) : duration(items[k])
+            best = (k, kept.seconds, length)
         }
         guard let found = best else { return Point(index: chosen, seconds: nil) }
         // Left in its credits, and another follows: that one is next, not this one again from the start.

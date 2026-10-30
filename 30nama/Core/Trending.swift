@@ -323,11 +323,15 @@ actor Trending {
     /// The trending lists written each day for viewers without a key.
     static let sharedTrending = URL(string: "https://raw.githubusercontent.com/thesaikodelik/30nama-apps/data/trending.json")!
 
-    /// Fetched once per build of the rows, not once per list.
+    /// Fetched once for all the lists, and again once the lists it gave have run out (it is written
+    /// daily), so an app left open for days does not keep the first day's.
     private var shared: Task<JSON?, Never>?
+    private var sharedAt = Date.distantPast
 
     private func fetchShared() async throws -> JSON? {
+        if shared != nil, now().timeIntervalSince(sharedAt) > 6 * 3600 { shared = nil }
         if shared == nil {
+            sharedAt = now()
             let transport = transport
             shared = Task {
                 var request = URLRequest(url: Trending.sharedTrending)

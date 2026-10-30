@@ -128,14 +128,18 @@ struct Gemini {
                 let said = answer?.data().map { String(decoding: $0, as: UTF8.self) } ?? ""
                 if (200..<300).contains(code) {
                     guard let answer, let lines = Translation.read(answer, count: cues.count) else { continue }
-                    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                    try? JSON.array(lines.map { $0.map(JSON.string) ?? .null }).data()?.write(to: file, options: .atomic)
+                    // Kept only whole: a line the answer left out is asked for again next time.
+                    if !lines.contains(where: { $0 == nil }) {
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? JSON.array(lines.map { $0.map(JSON.string) ?? .null }).data()?.write(to: file, options: .atomic)
+                    }
                     return .lines(lines)
                 }
                 if (code == 400 && said.contains("API_KEY_INVALID")) || code == 401 || code == 403 { return .rejected }
-                // This model is not offered to this key: the next one.
-                if code == 404 { break }
-                if code == 429, attempt < 2, !said.contains("PerDay") {
+                // This model is not offered to this key, or its day is spent (a day's quota is
+                // per model): the next one.
+                if code == 404 || (code == 429 && said.contains("PerDay")) { break }
+                if code == 429, attempt < 2 {
                     await wait(30)
                 } else if code == 429 || code == 0 {
                     return .unavailable

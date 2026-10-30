@@ -27,6 +27,7 @@ struct DetailsView: View {
     /// What the back of the poster shows, and whether it is the side showing.
     @State private var card: TitleCard?
     @State private var turned = false
+    @State private var turnedOnce = false
     @State private var trailerFailed = false
     /// The trailer playing behind the page instead of the film, when TMDB has one and YouTube answers.
     @State private var backdropTrailer: String?
@@ -250,7 +251,8 @@ struct DetailsView: View {
                             RemoteImage(url: post.poster.url(forWidth: Mac.posterWidth * 1.1), blurhash: post.poster.blurhash, maxPixel: Int(Mac.posterWidth * 1.5 * Display.scale))
                         }
                         .opacity(turned ? 0 : 1)
-                    if let card {
+                    // Only once turned: its pictures are fetched for whoever looks, not for every page.
+                    if let card, turnedOnce {
                         PosterBack(card: card, post: post)
                             .frame(width: DetailsLayout.poster.width, height: DetailsLayout.poster.height)
                             // Drawn the right way round once the poster has turned.
@@ -263,9 +265,14 @@ struct DetailsView: View {
                     .rotation3DEffect(.degrees(turned && !calm ? 180 : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
                     .animation(calm ? .easeInOut(duration: 0.3) : .spring(response: 0.6, dampingFraction: 0.82), value: turned)
                     .contentShape(shape)
-                    .onTapGesture { if card != nil { turned.toggle() } }
+                    .onTapGesture {
+                        guard card != nil else { return }
+                        turnedOnce = true
+                        turned.toggle()
+                    }
                     .onHover { inside in if card != nil { if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } } }
-                    .task(id: post.id) {
+                    // Again once the full page brings the IMDb number a list's card may lack.
+                    .task(id: "\(post.id)|\(post.imdbID ?? "")") {
                         turned = false
                         card = await TMDBStore.shared.card(for: post)
                     }
@@ -428,10 +435,15 @@ struct DetailsView: View {
                 }
             }
             // A still from each streaming episode of the season in sight, taken one at a time.
-            .task(id: "\(season)|\(stream.items.count)") {
-                guard !StoredCaches.dataSaver else { return }
+            // Not while an episode plays, and no longer once the page is left: the line is the film's.
+            .task(id: "\(season)|\(stream.items.count)|\(app.playback == nil)") {
+                guard !StoredCaches.dataSaver, app.playback == nil else {
+                    EpisodeStills.shared.stop()
+                    return
+                }
                 EpisodeStills.shared.want(stream.items.filter { $0.season == season && $0.token != PlayerEngine.localToken })
             }
+            .onDisappear { EpisodeStills.shared.stop() }
         }
     }
 

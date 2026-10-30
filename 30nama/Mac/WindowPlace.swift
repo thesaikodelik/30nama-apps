@@ -32,11 +32,17 @@ struct WindowPlace: NSViewRepresentable {
             window.setFrameAutosaveName(Self.name)
             if UserDefaults.standard.bool(forKey: Self.fullKey), !window.styleMask.contains(.fullScreen) {
                 // Once the window is on screen; asked for before, AppKit lets it go.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak window] in window?.toggleFullScreen(nil) }
+                // Looked at again then: AppKit may have restored it to full screen meanwhile.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak window] in
+                    guard let window, !window.styleMask.contains(.fullScreen) else { return }
+                    window.toggleFullScreen(nil)
+                }
             }
             let save: (Notification) -> Void = { [weak self, weak window] _ in
                 guard let self, let window else { return }
-                UserDefaults.standard.set(window.styleMask.contains(.fullScreen) && !self.playerOpen(), forKey: Self.fullKey)
+                // Left as it was while the player is open: its full screen may be the player's own.
+                guard !self.playerOpen() else { return }
+                UserDefaults.standard.set(window.styleMask.contains(.fullScreen), forKey: Self.fullKey)
             }
             let center = NotificationCenter.default
             watching = [

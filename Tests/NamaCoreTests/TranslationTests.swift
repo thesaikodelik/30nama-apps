@@ -84,7 +84,19 @@ final class TranslationTests: XCTestCase {
         let spent = Gemini(transport: server(asked: asked) { _ in (429, #"{"error":{"message":"GenerateRequestsPerDay quota"}}"#) }, folder: folder(), wait: { _ in })
         let s = await spent.translate(key: "key", source: "f", target: .fa, title: "Heat", batch: 0, cues: two)
         XCTAssertEqual(s, .unavailable)
-        XCTAssertEqual(asked.values.count, 1, "a spent day is not asked again")
+        XCTAssertEqual(asked.values.count, Gemini.models.count, "a spent day is not asked again; the next model has its own")
+    }
+
+    func testAShortAnswerIsNotKept() async {
+        let asked = Recorder()
+        let reply = encoded(answer(#"["یک"]"#))
+        let dir = folder()
+        let gemini = Gemini(transport: server(asked: asked) { _ in (200, reply) }, folder: dir, wait: { _ in })
+        let two = Array(cues.prefix(2))
+        let first = await gemini.translate(key: "key", source: "f", target: .fa, title: "Heat", batch: 0, cues: two)
+        XCTAssertEqual(first, .lines(["یک", nil]))
+        _ = await gemini.translate(key: "key", source: "f", target: .fa, title: "Heat", batch: 0, cues: two)
+        XCTAssertEqual(asked.values.count, 2, "asked again, not read back with a line missing")
     }
 
     func testAModelNotOfferedGivesWayToTheNext() async {

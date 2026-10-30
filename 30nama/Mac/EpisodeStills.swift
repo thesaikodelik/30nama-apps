@@ -58,6 +58,12 @@ final class EpisodeStills {
         state.signal.signal()
     }
 
+    /// Drops what is still waiting; the still being taken, if any, is finished.
+    func stop() {
+        let state = self.state
+        state.lock.withLock { state.wanted = [] }
+    }
+
     private func start() {
         let state = self.state
         let thread = Thread { [weak self] in
@@ -66,7 +72,8 @@ final class EpisodeStills {
                 state.signal.wait()
                 while true {
                     let next = state.lock.withLock { state.wanted.isEmpty ? nil : state.wanted.removeFirst() }
-                    guard let next else { break }
+                    // Nothing more wanted: the second mpv and its connection go until the next page.
+                    guard let next else { reader.close(); break }
                     if EpisodeStills.file(next.id) != nil { continue }
                     guard let still = EpisodeStills.take(reader, next.url, next.credits), EpisodeStills.save(next.id, still) else {
                         state.lock.withLock { _ = state.failed.insert(next.id) }

@@ -207,6 +207,23 @@ final class TrendingTests: XCTestCase {
         XCTAssertEqual(Set(asked.values), [Trending.sharedTrending.absoluteString])
     }
 
+    func testTheSharedListsAreReadAgainOnceTheyRunOut() async throws {
+        let net = stockedCatalogue()
+        let shared = try JSONSerialization.data(withJSONObject: ["lists": ["/trending/all/week?language=en-US": net.lists["/trending/all/week"] ?? []]])
+        let asked = Recorder()
+        let clock = Clock()
+        let trending = Trending(key: nil, transport: { request in
+            asked.add(request.url!.absoluteString)
+            return (shared, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }, now: { clock.now }, search: net.search)
+        _ = await trending.row(.trend)
+        _ = await trending.row(.trend)
+        XCTAssertEqual(asked.values.count, 1)
+        clock.now = clock.now.addingTimeInterval(7 * 3600)
+        _ = await trending.row(.trend)
+        XCTAssertEqual(asked.values.count, 2, "an app left open a day reads the next day's lists")
+    }
+
     func testRowFindsTrendingTitlesOn30nama() async throws {
         let net = stockedCatalogue()
         let trending = Trending(key: " eyJsecret\n", transport: net.transport, search: net.search)
@@ -302,4 +319,8 @@ private final class TestClock: @unchecked Sendable {
 
     var now: Date { lock.withLock { time } }
     func advance(hours: Double) { lock.withLock { time += hours * 3600 } }
+}
+
+private final class Clock: @unchecked Sendable {
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
 }

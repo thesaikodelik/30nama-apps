@@ -208,7 +208,7 @@ private struct YouTubeBackdrop: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.mediaTypesRequiringUserActionForPlayback = []
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = Unseeing(frame: .zero, configuration: configuration)
         view.setValue(false, forKey: "drawsBackground")
         let parameters = "autoplay=1&mute=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3&loop=1&playlist=\(video)&start=\(YouTubeBackdrop.skip)"
         var request = URLRequest(url: URL(string: "https://www.youtube-nocookie.com/embed/\(video)?\(parameters)")!)
@@ -223,6 +223,17 @@ private struct YouTubeBackdrop: NSViewRepresentable {
     static func dismantleNSView(_ view: WKWebView, coordinator: Coordinator) {
         coordinator.stop()
         view.loadHTMLString("", baseURL: nil)
+    }
+
+    /// A web view the pointer passes through unseen: YouTube shows its title and buttons over the
+    /// picture whenever the mouse moves on it, and behind the page those would sit under its text.
+    final class Unseeing: WKWebView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            for area in trackingAreas { removeTrackingArea(area) }
+        }
     }
 
     final class Coordinator {

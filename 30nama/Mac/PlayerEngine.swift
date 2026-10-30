@@ -216,8 +216,21 @@ final class PlayerEngine {
     /// This device's own record of where the title was left (`Resume`), to the second.
     private func keepPoint() {
         guard items.indices.contains(index), current.token != PlayerEngine.localToken, playback.position > 5 else { return }
+        // Watched into the credits: what comes next is kept, not the last second of this one, which
+        // would open, end and close at once when the stream does not say how long the file is.
+        if duration > 0, playback.position >= duration * 0.97 {
+            if items.indices.contains(index + 1) {
+                app.keepPoint(post: post.id, fileID: items[index + 1].fileID, seconds: 1)
+            } else {
+                app.forgetPoint(post: post.id)
+            }
+            return
+        }
         app.keepPoint(post: post.id, fileID: current.fileID, seconds: playback.position)
     }
+
+    /// The window the player is in, for telling its keys from those of a panel or another window.
+    var hostWindow: NSWindow? { window }
 
     func shutdown() {
         guard !closed else { return }
@@ -325,7 +338,10 @@ final class PlayerEngine {
         // A file belongs to the episode it was picked for.
         fileTrack = nil
         subtitleFileName = nil
+        // A machine translation goes on to the next episode only when that one has no Persian of
+        // its own and an English one to start from.
         let kept = subtitleLanguage == PlayerEngine.fileSubtitle || subtitleLanguage.hasPrefix(PlayerEngine.inFile) || subtitleLanguage.hasPrefix(PlayerEngine.found)
+            || (subtitleLanguage == PlayerEngine.machine && (current.subtitles["fa"] != nil || current.subtitles["en"] == nil))
         selectSubtitle(kept ? app.settings.defaultSubtitle : subtitleLanguage, remember: false)
         lookForSubtitles()
     }

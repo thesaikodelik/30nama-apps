@@ -115,6 +115,9 @@ struct PlayerView: View {
             // Letter keys are taken here, by where they sit on the keyboard: with a Persian or
             // Arabic layout the F key types ب, and SwiftUI only offers the letter typed.
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // Only the player's own window: an open panel (a subtitle file being chosen) or the
+                // Settings window keeps its Return, arrows and letters.
+                guard NSApp.modalWindow == nil, event.window == nil || event.window === engine.hostWindow || engine.hostWindow == nil else { return event }
                 // The side arrows here too: SwiftUI hands on only some of a quick run of presses,
                 // and a run is what is added up into one jump.
                 if !episodes, !keys, event.modifierFlags.isDisjoint(with: [.command, .control, .option]),

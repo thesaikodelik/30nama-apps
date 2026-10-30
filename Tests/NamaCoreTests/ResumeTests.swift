@@ -33,6 +33,12 @@ final class ResumeTests: XCTestCase {
         XCTAssertEqual(p, .init(index: 1, seconds: nil))
     }
 
+    func testTheServersLengthServesWhenTheStreamHasNone() {
+        let bare = (1...2).compactMap { i in StreamItem(JSON(["info": ["file_id": "f\(i)", "season": 1, "episode": "\(i)"]] as [String: Any])) }
+        let p = Resume.start(bare, chosen: 0, server: server("f1", 2370), kept: .init(fileID: "f1", seconds: 2390), pickedByUser: false)
+        XCTAssertEqual(p, .init(index: 1, seconds: nil), "in the credits by 30nama's length")
+    }
+
     func testTheLastOnesCreditsStartOver() {
         let p = Resume.start(items, chosen: 0, server: nil, kept: .init(fileID: "f4", seconds: 2390), pickedByUser: false)
         XCTAssertEqual(p, .init(index: 3, seconds: nil))

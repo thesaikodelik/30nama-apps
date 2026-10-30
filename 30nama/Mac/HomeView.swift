@@ -269,23 +269,26 @@ struct HomeView: View {
             if feed == nil { failed = true }
         }
         await loadTop()
-        if TMDBStore.key != nil, !app.inIran {
-            for row in [TrendingRow.fresh, .pop] where extraRows[row] == nil {
-                extraRows[row] = await app.trendingRow(row)
-            }
-        }
-        if trending == nil {
+        // The row there was before the two TMDB ones is not kept waiting behind them.
+        if trending?.isEmpty ?? true {
             let found = await app.trendingThisWeek()
             guard !Task.isCancelled else { return }
             trending = found
             HomeView.trendingCame = !found.isEmpty
+        }
+        if TMDBStore.key != nil, !app.inIran {
+            // Asked again when it came back empty, as it does with no connection.
+            for row in [TrendingRow.fresh, .pop] where extraRows[row]?.isEmpty ?? true {
+                extraRows[row] = await app.trendingRow(row)
+            }
         }
     }
 
     /// Asked for once and kept for as long as the app runs: the order changes slowly, and the
     /// page is not waiting on it.
     private func loadTop() async {
-        guard top.isEmpty else { return }
+        // Asked again only when a row came back empty, as it does with no connection.
+        guard top.isEmpty || top.values.contains(where: \.isEmpty) else { return }
         for slug in ["movies", "series"] {
             // Empty, not missing, when it could not be had: a missing row keeps its stand-ins.
             guard let result = try? await app.api.get("archive", ["slugs": slug, "streamonly": APIClient.streamOnly(true), "page": "1", "orderby": "favorite", "order": "desc"], background: true) else {

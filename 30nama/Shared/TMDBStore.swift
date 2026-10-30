@@ -244,6 +244,15 @@ final class TMDBStore {
     private static let folder: URL = {
         let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("30nama-tmdb", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        // One file per title ever opened: those long past use go, so the folder does not only grow.
+        DispatchQueue.global(qos: .utility).async {
+            let files = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+            for file in files {
+                guard let written = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+                      -written.timeIntervalSinceNow > 14 * 24 * 3600 else { continue }
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
         return url
     }()
 
