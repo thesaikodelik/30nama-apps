@@ -67,6 +67,7 @@ public sealed partial class PlayerPage : Grid
 
         _surface.Playback = _engine.Playback;
         Children.Add(_surface);
+        Children.Add(_glow);
         BuildCurtain();
         Children.Add(_curtain);
         _spinner.Foreground = Theme.Brush(Colors.White);
@@ -109,7 +110,11 @@ public sealed partial class PlayerPage : Grid
             var items = await e.DataView.GetStorageItemsAsync();
             if (items.FirstOrDefault() is Windows.Storage.StorageFile file) _engine.LoadSubtitleFile(file.Path);
         };
-        SizeChanged += (_, _) => ShowCue(force: true);
+        SizeChanged += (_, _) =>
+        {
+            ShowCue(force: true);
+            ShowGlow();
+        };
         Loaded += (_, _) =>
         {
             _nowPlaying = new NowPlaying(_engine, WinRT.Interop.WindowNative.GetWindowHandle(_window), DispatcherQueue);
@@ -262,6 +267,7 @@ public sealed partial class PlayerPage : Grid
         _episodeLine.Text = EpisodeLine();
         _episodeLine.Visibility = _episodeLine.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowCue();
+        ShowGlow();
         ShowOffer();
         _skipPill.Opacity = engine.PendingSkip != 0 ? 1 : 0;
         if (engine.PendingSkip != 0)
@@ -272,6 +278,65 @@ public sealed partial class PlayerPage : Grid
             _skipPill.Child = text;
         }
         if (!engine.Playing) Wake();
+    }
+
+    // MARK: Around the picture
+
+    /// <summary>The bars the picture leaves, lit in the title's colour (Settings › Around the picture).</summary>
+    private readonly Grid _glow = new() { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
+    private (double Aspect, double Width, double Height, bool On) _glowShown;
+
+    /// <summary>
+    /// Brightest next to the picture and fading out to the window's edge, above and below a wide
+    /// film or beside a tall one; nothing where the bars are thinner than ten points. As the Mac's
+    /// AmbientLight, drawn again only when the picture's shape or the window changes.
+    /// </summary>
+    private void ShowGlow()
+    {
+        var aspect = _engine.Playback.Aspect;
+        var shown = (aspect, ActualWidth, ActualHeight, App.Settings.SceneGlow);
+        if (shown == _glowShown) return;
+        _glowShown = shown;
+        _glow.Children.Clear();
+        _glow.RowDefinitions.Clear();
+        _glow.ColumnDefinitions.Clear();
+        if (!App.Settings.SceneGlow || aspect <= 0 || ActualWidth <= 0 || ActualHeight <= 0) return;
+        var wide = aspect > ActualWidth / ActualHeight;
+        var bar = wide ? (ActualHeight - ActualWidth / aspect) / 2 : (ActualWidth - ActualHeight * aspect) / 2;
+        if (bar < 10) return;
+        Windows.Foundation.Point P(double x, double y) => new(x, y);
+        Border Light(Windows.Foundation.Point from, Windows.Foundation.Point to) => new()
+        {
+            Background = new LinearGradientBrush
+            {
+                StartPoint = from, EndPoint = to,
+                GradientStops =
+                {
+                    new GradientStop { Color = _hue.WithAlpha(0.08), Offset = 0 },
+                    new GradientStop { Color = _hue.WithAlpha(0.4), Offset = 1 },
+                },
+            },
+        };
+        if (wide)
+        {
+            _glow.RowDefinitions.Add(new RowDefinition { Height = new GridLength(bar) });
+            _glow.RowDefinitions.Add(new RowDefinition());
+            _glow.RowDefinitions.Add(new RowDefinition { Height = new GridLength(bar) });
+            _glow.Children.Add(Light(P(0.5, 0), P(0.5, 1)));
+            var below = Light(P(0.5, 1), P(0.5, 0));
+            Grid.SetRow(below, 2);
+            _glow.Children.Add(below);
+        }
+        else
+        {
+            _glow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(bar) });
+            _glow.ColumnDefinitions.Add(new ColumnDefinition());
+            _glow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(bar) });
+            _glow.Children.Add(Light(P(0, 0.5), P(1, 0.5)));
+            var right = Light(P(1, 0.5), P(0, 0.5));
+            Grid.SetColumn(right, 2);
+            _glow.Children.Add(right);
+        }
     }
 
     private string EpisodeLine()

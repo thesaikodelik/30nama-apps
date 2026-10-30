@@ -25,6 +25,11 @@ public sealed record Settings
     public bool AutoplayNext { get; init; } = true;
     /// <summary>Jump over the opening titles and the recap without being asked.</summary>
     public bool AutoSkip { get; init; }
+    /// <summary>
+    /// Settings › Playback › Around the picture: the title's colour glowing in the bars the picture
+    /// leaves, or plain black bars. As the Mac's "ambientLight", on unless turned off.
+    /// </summary>
+    public bool SceneGlow { get; init; } = true;
     public AudioMix AudioMix { get; init; } = AudioMix.Stereo;
     /// <summary>Use the adaptive stream instead of the highest fixed rendition.</summary>
     public bool PreferAdaptive { get; init; }
