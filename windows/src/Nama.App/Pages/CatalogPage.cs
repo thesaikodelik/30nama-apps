@@ -21,9 +21,10 @@ public sealed class CatalogPage : Grid
     /// it, by post id, so it is offered when the build has the site's key. Recently updated is the
     /// website's own first choice. "year" puts titles still to come, years ahead, first.
     /// </summary>
-    private enum Sort { Updated, Newest, Popular }
-    private static string Order(Sort s) => s == Sort.Popular ? "favorite" : "update";
-    private static S Label(Sort s) => s switch { Sort.Popular => S.popular, Sort.Newest => S.newest, _ => S.updated };
+    /// <summary>IMDb: by the IMDb rating, best first, through the advanced search (a user on issue #2).</summary>
+    private enum Sort { Updated, Newest, Popular, Imdb }
+    private static string Order(Sort s) => s switch { Sort.Popular => "favorite", Sort.Imdb => "imdb-rate", _ => "update" };
+    private static string Label(Sort s) => s switch { Sort.Popular => App.Loc[S.popular], Sort.Newest => App.Loc[S.newest], Sort.Imdb => "IMDb", _ => App.Loc[S.updated] };
     private IEnumerable<Sort> Sorts => Enum.GetValues<Sort>().Where(s => s != Sort.Newest || (Type is not null && App.Api.HasSite));
 
     private readonly string _slug;
@@ -110,7 +111,7 @@ public sealed class CatalogPage : Grid
         top.Children.Add(name);
         var sorts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         foreach (var option in Sorts)
-            sorts.Children.Add(Kit.Pill(loc[Label(option)], _sort == option, () =>
+            sorts.Children.Add(Kit.Pill(Label(option), _sort == option, () =>
             {
                 _sort = option;
                 // What the newest list cannot narrow by is let go, not kept and silently ignored.
@@ -203,7 +204,8 @@ public sealed class CatalogPage : Grid
             }
             else
             {
-                var result = narrowed.IsEmpty
+                // The archive orders only by update and favourites; the IMDb rating is the advanced search's.
+                var result = narrowed.IsEmpty && _sort != Sort.Imdb
                     ? await App.Api.GetAsync("archive", new Dictionary<string, string>
                     {
                         ["slugs"] = _slug, ["streamonly"] = "true", ["page"] = (_page + 1).ToString(), ["orderby"] = Order(_sort), ["order"] = "desc",
