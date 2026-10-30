@@ -30,6 +30,8 @@ struct HomeView: View {
     @State private var paused = false
     /// The billboard is on screen, not scrolled away above the shelves.
     @State private var inSight = true
+    /// The pointer is somewhere over the billboard: its arrows show.
+    @State private var overBillboard = false
 
     /// Each featured title's colour, taken from its scene.
     @State private var tints: [Int: Color] = [:]
@@ -122,7 +124,37 @@ struct HomeView: View {
         }
         .padding(.horizontal, Mac.edge)
         .padding(.bottom, 30)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        // The previous and next featured titles, while the pointer is over the billboard (issue #2).
+        // Round the end to the start; the new title's turn starts afresh. Each points outward, to
+        // the side it goes: the symbols turn round with the layout in Persian and Arabic.
+        .overlay(alignment: .leading) { heroArrow(-1, feed) }
+        .overlay(alignment: .trailing) { heroArrow(1, feed) }
+        .onHover { overBillboard = $0 }
+        .animation(.easeOut(duration: 0.2), value: overBillboard)
+    }
+
+    @ViewBuilder
+    private func heroArrow(_ step: Int, _ feed: HomeFeed) -> some View {
+        let count = feed.heroes.count
+        if overBillboard, count > 1 {
+            Button {
+                withAnimation(.easeInOut(duration: 0.45)) { hero = (hero + step + count) % count }
+            } label: {
+                Image(systemName: step < 0 ? "chevron.backward" : "chevron.forward")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Theme.text1)
+                    .frame(width: 44, height: 44)
+                    .glass(Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .help(loc(step < 0 ? .rowPrevious : .rowNext))
+            .accessibilityLabel(loc(step < 0 ? .rowPrevious : .rowNext))
+            .transition(.opacity)
+        }
     }
 
     /// The billboard has no audience: something covers it, the window is not the one in use, or
@@ -280,6 +312,8 @@ private struct Pager: View {
             }
         }
         .task(id: "\(hero)|\(resting)") { await rotate() }
+        // Moved on from outside (the billboard's arrows): its turn starts afresh.
+        .onChange(of: hero) { turn = 0 }
     }
 
     /// Runs the featured title's turn and moves the billboard on when it is over. The turn is
