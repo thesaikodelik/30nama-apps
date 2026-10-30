@@ -58,6 +58,33 @@ struct SettingsView: View {
                                     app.update { $0.effects = value }
                                 }
                             }
+                            VStack(alignment: .leading, spacing: 2) {
+                                row(loc(.dataSaver)) { toggle(dataSaver) { dataSaver = $0 } }
+                                Text(loc(.dataSaverHint))
+                                    .font(.app(12))
+                                    .foregroundStyle(Theme.text3)
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 8)
+                            }
+                            row(loc(.clearCaches)) {
+                                if cleared {
+                                    Text(loc(.cleared)).font(.app(13)).foregroundStyle(Theme.text3)
+                                } else {
+                                    if let cacheSize {
+                                        Text(loc.isolated("\(loc.num(String(max(0, Int((Double(cacheSize) / 1_048_576).rounded()))))) \(loc(.megabytes))"))
+                                            .font(.app(13)).foregroundStyle(Theme.text3)
+                                    }
+                                    Button(loc(.clear)) {
+                                        Task {
+                                            await StoredCaches.clear()
+                                            cleared = true
+                                            cacheSize = await StoredCaches.size()
+                                        }
+                                    }
+                                    .buttonStyle(GlassButtonStyle(height: 30))
+                                }
+                            }
+                            .task { cacheSize = await StoredCaches.size() }
                         }
                         // Keys the user makes on other sites, kept on this Mac; everything works without them.
                         group(loc(.services)) {
@@ -192,6 +219,9 @@ struct SettingsView: View {
 
     /// Read by the player; kept on this Mac only, like the other things that are about the screen.
     @AppStorage("ambientLight") private var ambientLight = true
+    @AppStorage(StoredCaches.dataSaverKey) private var dataSaver = false
+    @State private var cacheSize: Int64?
+    @State private var cleared = false
     /// The player online titles open in: empty for this app's own, else a bundle id (`PlayerEngine.otherPlayers`).
     @AppStorage(PlayerEngine.onlinePlayerKey) private var onlinePlayer = ""
 

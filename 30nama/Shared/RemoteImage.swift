@@ -27,6 +27,12 @@ final class ImagePipeline: @unchecked Sendable {
 
     private func key(_ url: URL, _ maxPixel: Int) -> String { "\(maxPixel)|\(url.absoluteString)" }
 
+    /// Forgets every picture kept on disk and in memory (Settings' clear button).
+    func clear() {
+        session.configuration.urlCache?.removeAllCachedResponses()
+        cache.removeAllObjects()
+    }
+
     func cached(_ url: URL, maxPixel: Int) -> PlatformImage? {
         cache.object(forKey: key(url, maxPixel) as NSString)
     }

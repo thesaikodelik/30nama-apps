@@ -165,7 +165,8 @@ struct DetailsView: View {
     /// in its smallest picture. Once per visit, and only while the page is what the user is looking
     /// at. Neither tells 30nama anything, so it counts neither as a request nor as watching.
     private func runTeaser() async {
-        let quiet = app.playback == nil && windowState == .key && nav.opened.last == .title(preview) && !calm
+        // Not with Data saver on: a moving picture behind a page is only there to look at.
+        let quiet = app.playback == nil && windowState == .key && nav.opened.last == .title(preview) && !calm && !StoredCaches.dataSaver
         guard quiet else {
             await endTeaser()
             return
