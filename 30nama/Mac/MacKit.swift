@@ -1250,11 +1250,7 @@ private struct LiquidPillBar: ViewModifier {
                     // The coloured pill's glow, under the bar's glass and spilling out below it:
                     // the pill itself is cut to the glass, and a glow cut there would not be seen.
                     if let tint, let rect = selected.flatMap({ tabs[$0] }) {
-                        Capsule(style: .continuous)
-                            .fill(tint.opacity(0.55))
-                            .frame(width: rect.width * 0.8, height: rect.height * 0.6)
-                            .position(x: rect.midX, y: rect.midY + 10)
-                            .blur(radius: 12)
+                        PillGlow(tint: tint, rect: rect)
                             .animation(calm ? .easeOut(duration: 0.18) : .spring(response: 0.55, dampingFraction: 0.78), value: rect)
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
@@ -1273,6 +1269,31 @@ private struct LiquidPillBar: ViewModifier {
                 }
             }
             .coordinateSpace(name: "liquidBar")
+    }
+}
+
+/// The glow under a coloured pill, drawn rather than placed: a placed view is turned around in a
+/// right-to-left interface, and the glow sat under the far end of the bar.
+private struct PillGlow: View, Animatable {
+    let tint: Color
+    var rect: CGRect
+
+    var animatableData: CGRect.AnimatableData {
+        get { rect.animatableData }
+        set { rect.animatableData = newValue }
+    }
+
+    /// Room around the bar for the glow to spill into: a canvas draws nothing past its edge.
+    private let spill: CGFloat = 40
+
+    var body: some View {
+        Canvas { context, _ in
+            context.addFilter(.blur(radius: 12))
+            let glow = CGRect(x: spill + rect.midX - rect.width * 0.4, y: spill + rect.midY - rect.height * 0.1,
+                              width: rect.width * 0.8, height: rect.height * 0.8)
+            context.fill(Capsule(style: .continuous).path(in: glow), with: .color(tint.opacity(0.7)))
+        }
+        .padding(-spill)
     }
 }
 
