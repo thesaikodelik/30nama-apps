@@ -99,27 +99,31 @@ struct SettingsView: View {
                             // The app looks by itself every hour; this is for when a release was
                             // just announced.
                             row(loc(.version)) {
+                                Button {
+                                    Task { await lookForUpdate() }
+                                } label: {
+                                    // Every state at once, unseen, so the button keeps the width of the
+                                    // longest and nothing beside it moves as the answer comes.
+                                    ZStack {
+                                        Text(loc(.checkForUpdate)).hidden()
+                                        Label(loc(.upToDate), systemImage: "checkmark").hidden()
+                                        Label(loc(.error), systemImage: "exclamationmark.triangle").hidden()
+                                        if lookingForUpdate {
+                                            ProgressView().controlSize(.small)
+                                        } else if let lookAnswer {
+                                            Label(loc(lookAnswer == .upToDate ? .upToDate : .error),
+                                                  systemImage: lookAnswer == .upToDate ? "checkmark" : "exclamationmark.triangle")
+                                        } else {
+                                            Text(loc(.checkForUpdate))
+                                        }
+                                    }
+                                }
+                                .buttonStyle(GlassButtonStyle(height: 34))
                                 Text(loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
                                     .font(.app(15)).foregroundStyle(Theme.text3)
-                                Button(loc(.whatsNew)) { nav.whatsNew = true }.buttonStyle(GlassButtonStyle(height: 34))
-                                // The answer takes the button's place for a moment, where the eye already is.
-                                if let lookAnswer {
-                                    Label(loc(lookAnswer == .upToDate ? .upToDate : .error),
-                                          systemImage: lookAnswer == .upToDate ? "checkmark" : "exclamationmark.triangle")
-                                        .font(.app(14, .medium))
-                                        .foregroundStyle(Theme.text2)
-                                        .frame(height: 34)
-                                        .transition(.opacity)
-                                } else {
-                                    Button {
-                                        Task { await lookForUpdate() }
-                                    } label: {
-                                        if lookingForUpdate { ProgressView().controlSize(.small) } else { Text(loc(.checkForUpdate)) }
-                                    }
-                                    .buttonStyle(GlassButtonStyle(height: 34))
-                                    .disabled(lookingForUpdate)
-                                    .transition(.opacity)
-                                }
+                            }
+                            row(loc(.whatsNew)) {
+                                Button(loc(.viewNotes)) { nav.whatsNew = true }.buttonStyle(GlassButtonStyle(height: 34))
                             }
                             fact(loc(.apiHost), hostName)
                             row(loc(.reportProblem)) {
@@ -393,12 +397,19 @@ struct SettingsView: View {
     }
 
     private func lookForUpdate() async {
+        // The answer stays a moment in the button; a click then is not a second look.
+        guard !lookingForUpdate, lookAnswer == nil else { return }
         lookingForUpdate = true
-        defer { lookingForUpdate = false }
         let answer = await updater.look(asked: true)
         // Found: the update's own card says so. Nil: one is already on its way.
-        guard answer == .upToDate || answer == .noAnswer else { return }
-        withAnimation(.easeOut(duration: 0.2)) { lookAnswer = answer }
+        guard answer == .upToDate || answer == .noAnswer else {
+            lookingForUpdate = false
+            return
+        }
+        withAnimation(.easeOut(duration: 0.2)) {
+            lookingForUpdate = false
+            lookAnswer = answer
+        }
         try? await Task.sleep(for: .seconds(4))
         withAnimation(.easeOut(duration: 0.2)) { lookAnswer = nil }
     }

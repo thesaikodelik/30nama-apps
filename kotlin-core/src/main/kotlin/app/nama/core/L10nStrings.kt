@@ -270,6 +270,7 @@ enum class S {
     trendingWeek,
     seeAll,
     whatsNew,
+    viewNotes,
     notesInPersian,
     subFailed,
     playError,
@@ -565,6 +566,7 @@ internal object LocTables {
         put(S.trendingWeek, "Trending this week")
         put(S.seeAll, "See all")
         put(S.whatsNew, "What's new")
+        put(S.viewNotes, "View")
         put(S.notesInPersian, "The release notes are written in Persian.")
         put(S.crew, "Crew")
         put(S.reviews, "Reviews")
@@ -917,6 +919,7 @@ internal object LocTables {
         put(S.trendingWeek, "پرطرفدار این هفته")
         put(S.seeAll, "همه")
         put(S.whatsNew, "تازه‌های نسخه")
+        put(S.viewNotes, "مشاهده")
         put(S.notesInPersian, "یادداشت‌های نسخه به فارسی نوشته شده‌اند.")
         put(S.crew, "عوامل")
         put(S.reviews, "نقدها")
@@ -1269,6 +1272,7 @@ internal object LocTables {
         put(S.trendingWeek, "الأكثر رواجًا هذا الأسبوع")
         put(S.seeAll, "عرض الكل")
         put(S.whatsNew, "ما الجديد")
+        put(S.viewNotes, "عرض")
         put(S.notesInPersian, "ملاحظات الإصدار مكتوبة بالفارسية.")
         put(S.crew, "طاقم العمل")
         put(S.reviews, "المراجعات")
