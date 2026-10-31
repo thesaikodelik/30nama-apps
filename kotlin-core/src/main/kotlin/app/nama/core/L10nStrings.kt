@@ -269,6 +269,8 @@ enum class S {
     jobNovel,
     trendingWeek,
     seeAll,
+    whatsNew,
+    notesInPersian,
     subFailed,
     playError,
     streamRefused,
@@ -562,6 +564,8 @@ internal object LocTables {
         put(S.trailer, "Trailer")
         put(S.trendingWeek, "Trending this week")
         put(S.seeAll, "See all")
+        put(S.whatsNew, "What's new")
+        put(S.notesInPersian, "The release notes are written in Persian.")
         put(S.crew, "Crew")
         put(S.reviews, "Reviews")
         put(S.jobComposer, "Music")
@@ -912,6 +916,8 @@ internal object LocTables {
         put(S.trailer, "تریلر")
         put(S.trendingWeek, "پرطرفدار این هفته")
         put(S.seeAll, "همه")
+        put(S.whatsNew, "تازه‌های نسخه")
+        put(S.notesInPersian, "یادداشت‌های نسخه به فارسی نوشته شده‌اند.")
         put(S.crew, "عوامل")
         put(S.reviews, "نقدها")
         put(S.jobComposer, "آهنگساز")
@@ -1262,6 +1268,8 @@ internal object LocTables {
         put(S.trailer, "الإعلان")
         put(S.trendingWeek, "الأكثر رواجًا هذا الأسبوع")
         put(S.seeAll, "عرض الكل")
+        put(S.whatsNew, "ما الجديد")
+        put(S.notesInPersian, "ملاحظات الإصدار مكتوبة بالفارسية.")
         put(S.crew, "طاقم العمل")
         put(S.reviews, "المراجعات")
         put(S.jobComposer, "الموسيقى")

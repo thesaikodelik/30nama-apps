@@ -75,6 +75,8 @@ final class MacNav {
     var trailer: (title: String, video: TrailerVideo)?
     /// The quick-search bar is up.
     var palette = false
+    /// What each version brought, from Settings.
+    var whatsNew = false
     /// The poster the pointer has rested on, while its card is up.
     var peek: Peek?
     /// The poster in flight to the page being opened, until it lands.
@@ -102,7 +104,7 @@ final class MacNav {
 
     func back() {
         peek = nil
-        if trailer != nil { trailer = nil } else if palette { palette = false } else if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
+        if trailer != nil { trailer = nil } else if whatsNew { whatsNew = false } else if palette { palette = false } else if picking != nil { picking = nil } else if !opened.isEmpty { opened.removeLast() }
     }
 
     func go(_ section: MacSection) {
@@ -208,7 +210,13 @@ struct MainView: View {
                 CommandPalette().transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .overlay {
+            if nav.whatsNew {
+                WhatsNewSheet { nav.whatsNew = false }.transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
         .animation(.easeOut(duration: 0.18), value: nav.palette)
+        .animation(.easeOut(duration: 0.22), value: nav.whatsNew)
         .animation(.easeOut(duration: 0.22), value: nav.picking?.id)
         .animation(.easeOut(duration: 0.22), value: nav.trailer?.video)
         .animation(.easeOut(duration: 0.28), value: nav.opened.last)

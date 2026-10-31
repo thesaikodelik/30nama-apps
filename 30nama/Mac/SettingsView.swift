@@ -6,7 +6,10 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(Updater.self) private var updater
     @Environment(\.loc) private var loc
+    @Environment(MacNav.self) private var nav
     @State private var lookingForUpdate = false
+    /// What the last look in Settings found, shown for a moment in the button's place.
+    @State private var lookAnswer: Updater.Look?
 
 
     var body: some View {
@@ -98,13 +101,25 @@ struct SettingsView: View {
                             row(loc(.version)) {
                                 Text(loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
                                     .font(.app(15)).foregroundStyle(Theme.text3)
-                                Button {
-                                    Task { await lookForUpdate() }
-                                } label: {
-                                    if lookingForUpdate { ProgressView().controlSize(.small) } else { Text(loc(.checkForUpdate)) }
+                                Button(loc(.whatsNew)) { nav.whatsNew = true }.buttonStyle(GlassButtonStyle(height: 34))
+                                // The answer takes the button's place for a moment, where the eye already is.
+                                if let lookAnswer {
+                                    Label(loc(lookAnswer == .upToDate ? .upToDate : .error),
+                                          systemImage: lookAnswer == .upToDate ? "checkmark" : "exclamationmark.triangle")
+                                        .font(.app(14, .medium))
+                                        .foregroundStyle(Theme.text2)
+                                        .frame(height: 34)
+                                        .transition(.opacity)
+                                } else {
+                                    Button {
+                                        Task { await lookForUpdate() }
+                                    } label: {
+                                        if lookingForUpdate { ProgressView().controlSize(.small) } else { Text(loc(.checkForUpdate)) }
+                                    }
+                                    .buttonStyle(GlassButtonStyle(height: 34))
+                                    .disabled(lookingForUpdate)
+                                    .transition(.opacity)
                                 }
-                                .buttonStyle(GlassButtonStyle(height: 34))
-                                .disabled(lookingForUpdate)
                             }
                             fact(loc(.apiHost), hostName)
                             row(loc(.reportProblem)) {
@@ -380,12 +395,12 @@ struct SettingsView: View {
     private func lookForUpdate() async {
         lookingForUpdate = true
         defer { lookingForUpdate = false }
-        switch await updater.look(asked: true) {
-        case .upToDate: app.showToast(loc(.upToDate))
-        case .noAnswer: app.showToast(loc(.error))
+        let answer = await updater.look(asked: true)
         // Found: the update's own card says so. Nil: one is already on its way.
-        case .found, nil: break
-        }
+        guard answer == .upToDate || answer == .noAnswer else { return }
+        withAnimation(.easeOut(duration: 0.2)) { lookAnswer = answer }
+        try? await Task.sleep(for: .seconds(4))
+        withAnimation(.easeOut(duration: 0.2)) { lookAnswer = nil }
     }
 
     private func fact(_ label: String, _ value: String) -> some View {

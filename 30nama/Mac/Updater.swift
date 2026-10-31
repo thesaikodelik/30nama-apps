@@ -27,6 +27,7 @@ final class Updater {
 
     @ObservationIgnored private var staged: URL?
     @ObservationIgnored private var lastLook = Date.distantPast
+    @ObservationIgnored private var notes: [ReleaseNotes.Block]?
     /// Coming to the front at launch is not a reason to look: the first look waits for the
     /// opening title to be over.
     @ObservationIgnored private let opened = Date()
@@ -102,12 +103,7 @@ final class Updater {
         lastLook = Date()
         let test = Updater.testFeed
         if let test { Updater.log("looking at the test feed \(test.absoluteString)") }
-        var request = URLRequest(url: test ?? MacRelease.feed)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 20
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let feed = try? JSON.parse(data) else {
+        guard let feed = await feed() else {
             if test != nil { Updater.log("the test feed did not answer") }
             return .noAnswer
         }
@@ -120,6 +116,24 @@ final class Updater {
     }
 
     func postpone() { postponed = true }
+
+    /// What each version brought, for "What's new" in Settings; nil when GitHub did not answer.
+    /// The same list of releases as a look, and kept from one when there was one.
+    func whatsNew() async -> [ReleaseNotes.Block]? {
+        if notes == nil { _ = await feed() }
+        return notes
+    }
+
+    private func feed() async -> JSON? {
+        var request = URLRequest(url: Updater.testFeed ?? MacRelease.feed)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 20
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let feed = try? JSON.parse(data) else { return nil }
+        notes = ReleaseNotes.blocks(inFeed: feed, version: Updater.current) ?? notes
+        return feed
+    }
 
     /// The app can replace itself only where it may write: not from the disk image, nor from a
     /// folder this user cannot change. Anywhere else the download page is opened instead.
