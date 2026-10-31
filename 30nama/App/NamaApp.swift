@@ -6,6 +6,19 @@ struct NamaApp: App {
 
     init() {
         AppFont.register()
+        // The open tab on the cinema's red, as on the Mac. Its title stays white: on a focused
+        // tab tvOS writes it black, unread on red. On tvOS 26 the bar is glass of its own and a
+        // background of the appearance's would lie over it, darker.
+        let bar = UITabBarAppearance()
+        if #available(tvOS 26.0, *) { bar.configureWithTransparentBackground() }
+        bar.selectionIndicatorTintColor = UIColor(Theme.accent)
+        for item in [bar.stackedLayoutAppearance, bar.inlineLayoutAppearance, bar.compactInlineLayoutAppearance] {
+            for state in [item.selected, item.focused] {
+                state.titleTextAttributes = [.foregroundColor: UIColor.white]
+                state.iconColor = .white
+            }
+        }
+        UITabBar.appearance().standardAppearance = bar
     }
 
     var body: some Scene {
