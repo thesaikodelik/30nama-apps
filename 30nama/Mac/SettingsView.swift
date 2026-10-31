@@ -99,6 +99,8 @@ struct SettingsView: View {
                             // The app looks by itself every hour; this is for when a release was
                             // just announced.
                             row(loc(.version)) {
+                                Text(loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
+                                    .font(.app(15)).foregroundStyle(Theme.text3)
                                 Button {
                                     Task { await lookForUpdate() }
                                 } label: {
@@ -119,8 +121,6 @@ struct SettingsView: View {
                                     }
                                 }
                                 .buttonStyle(GlassButtonStyle(height: 34))
-                                Text(loc.num(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
-                                    .font(.app(15)).foregroundStyle(Theme.text3)
                             }
                             row(loc(.whatsNew)) {
                                 Button(loc(.viewNotes)) { nav.whatsNew = true }.buttonStyle(GlassButtonStyle(height: 34))
