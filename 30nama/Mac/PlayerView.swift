@@ -437,11 +437,11 @@ struct PlayerView: View {
         // The rest, wanted now and then, behind one button. It shows the moon while a sleep
         // timer is running, so a timer is not forgotten behind it.
         MenuButton(symbol: engine.sleep == .off ? "gearshape" : "moon.zzz.fill", help: loc(.settings)) {
-            if engine.current.qualities.count > 1 {
+            if engine.qualityChoices.count > 1 {
                 SwiftUI.Menu(loc(.quality)) {
                     Picker(loc(.quality), selection: Binding(get: { engine.quality }, set: { if let quality = $0 { engine.selectQuality(quality) } })) {
-                        ForEach(engine.current.qualities, id: \.self) { option in
-                            Text(option.isAuto ? loc(.qualityAuto) : option.label).tag(Optional(option))
+                        ForEach(engine.qualityChoices, id: \.self) { option in
+                            Text(option.isAuto ? loc(.qualityAuto) : option == engine.direct ? (option.label == "Max" ? "Max" : "Max · \(option.label)") : option.label).tag(Optional(option))
                         }
                     }
                     .pickerStyle(.inline)

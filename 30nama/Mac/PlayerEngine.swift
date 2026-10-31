@@ -33,6 +33,12 @@ final class PlayerEngine {
 
     private(set) var index: Int
     private(set) var quality: Quality?
+    /// "Max" for the item playing: its download file as a quality, once 30nama has listed the files.
+    private(set) var direct: Quality?
+    /// The file playing is that download file itself, not the stream.
+    private(set) var playingDirect = false
+    /// The title's download files, asked for once when "Max" is chosen in Settings.
+    @ObservationIgnored private var downloads: DownloadOptions?
     private(set) var mix: AudioMix
     private(set) var time = 0.0
     private(set) var duration = 0.0
@@ -209,8 +215,16 @@ final class PlayerEngine {
     /// watched comes back to the same subtitle. The key keeps its old name, so what series kept stays.
     private var seriesKey: String { "series.\(post.id)" }
 
+    /// A download file is cut differently from the stream, so it keeps its own subtitle timing beside the title's.
+    private var fileKey: String? {
+        guard playingDirect, let quality else { return nil }
+        return "\(seriesKey)|\(quality.url.lastPathComponent)"
+    }
+
     private func keepSeriesChoices() {
-        UserDefaults.standard.set(["speed": Double(speed), "subtitleOffset": subtitleOffset], forKey: seriesKey)
+        let kept = ["speed": Double(speed), "subtitleOffset": subtitleOffset]
+        UserDefaults.standard.set(kept, forKey: seriesKey)
+        if let fileKey { UserDefaults.standard.set(kept, forKey: fileKey) }
     }
 
     /// This device's own record of where the title was left (`Resume`), to the second.
@@ -288,7 +302,8 @@ final class PlayerEngine {
 
     /// Makes sure the right decoder is in place for `url`, swapping it if the last file needed the other.
     private func prepare(for url: URL) {
-        let needsOther = url.isFileURL && !PlayerEngine.systemTypes.contains(url.pathExtension.lowercased())
+        // A download file played straight from 30nama is MKV or MP4 with any sound (DTS, TrueHD): mpv's.
+        let needsOther = playingDirect || (url.isFileURL && !PlayerEngine.systemTypes.contains(url.pathExtension.lowercased()))
         guard needsOther != (playback is MPVPlayback) else { return }
         playback.stop()
         playback = needsOther ? MPVPlayback() : SystemPlayback()
@@ -333,7 +348,15 @@ final class PlayerEngine {
         preview.open(StoredCaches.dataSaver ? nil : lowest.url)
         let from = position ?? resumePosition()
         startOverBefore = position == nil ? from.map { $0 + 10 } : nil
-        load(quality, at: from)
+        // "Max": the download file itself, once 30nama has said which there are; the stream where
+        // there is none, or where it would not play (`failed`).
+        playingDirect = false
+        direct = nil
+        if app.settings.maxQuality, current.token != PlayerEngine.localToken {
+            if downloads == nil { askForDownloads(then: quality, at: from) } else { playDirect(or: quality, at: from) }
+        } else {
+            load(quality, at: from)
+        }
         resume = nil
         // A file belongs to the episode it was picked for.
         fileTrack = nil
@@ -344,6 +367,61 @@ final class PlayerEngine {
             || (subtitleLanguage == PlayerEngine.machine && (current.subtitles["fa"] != nil || current.subtitles["en"] == nil))
         selectSubtitle(kept ? app.settings.defaultSubtitle : subtitleLanguage, remember: false)
         lookForSubtitles()
+    }
+
+    /// Asks 30nama for the title's download files, then starts the item on one, or on the stream.
+    /// Six seconds at most: the stream is there to fall back on.
+    private func askForDownloads(then stream: Quality, at position: Double?) {
+        buffering = true
+        let item = index
+        #if DEBUG
+        if DemoStream.isEnabled {
+            downloads = DemoStream.downloads(for: post)
+            return playDirect(or: stream, at: position)
+        }
+        #endif
+        let api = app.api, parameters = ["post_id": String(post.id), "free_download": app.isLoggedIn ? "0" : "1"]
+        Task { [weak self] in
+            let ask = Task { try? await api.call("download", parameters) }
+            let patience = Task {
+                try? await Task.sleep(for: .seconds(6))
+                ask.cancel()
+            }
+            let answer = await ask.value
+            patience.cancel()
+            guard let self, !self.closed, self.index == item else { return }
+            self.downloads = answer.flatMap { $0.success ? DownloadOptions($0.result) : nil } ?? DownloadOptions(.null)
+            self.playDirect(or: stream, at: position)
+        }
+    }
+
+    private func playDirect(or stream: Quality, at position: Double?) {
+        direct = downloads.flatMap { Direct.pick($0, isSeries: post.isSeries, season: current.season, episode: current.episodeRaw) }.map(Direct.asQuality)
+        guard let direct else { return load(stream, at: position) }
+        playingDirect = true
+        load(direct, at: position)
+        // This file's own subtitle timing, where it has one.
+        if let fileKey, let kept = UserDefaults.standard.dictionary(forKey: fileKey), let offset = kept["subtitleOffset"] as? Double {
+            subtitleOffset = offset
+        }
+        // A file 30nama's server does not open (out of reach, or slow to answer) gives way to the stream.
+        let item = index
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard let self, !self.closed, self.index == item, self.playingDirect, self.playback.duration == 0 else { return }
+            self.fallBackToStream()
+        }
+    }
+
+    /// The download file would not play: the stream takes over at the same moment, with its own subtitle timing.
+    @discardableResult
+    private func fallBackToStream() -> Bool {
+        guard playingDirect, let stream = current.quality(preferAdaptive: app.settings.preferAdaptive, screenLines: PlayerEngine.screenLines, cap: app.settings.qualityCap) else { return false }
+        let at = playback.position > 1 ? playback.position : time > 1 ? time : nil
+        playingDirect = false
+        if let kept = UserDefaults.standard.dictionary(forKey: seriesKey), let offset = kept["subtitleOffset"] as? Double { subtitleOffset = offset }
+        load(stream, at: at)
+        return true
     }
 
     private func resumePosition() -> Double? {
@@ -416,6 +494,7 @@ final class PlayerEngine {
 
     private func failed() {
         guard !closed else { return }
+        if fallBackToStream() { return }
         app.showToast(loc(playback.refused ? .streamRefused : .playError))
         close()
     }
@@ -507,9 +586,21 @@ final class PlayerEngine {
         playback.setMuted(muted)
     }
 
+    /// The qualities the player's menu offers: the stream's, and "Max" when its file is known.
+    var qualityChoices: [Quality] {
+        current.qualities + (direct.map { [$0] } ?? [])
+    }
+
     func selectQuality(_ option: Quality) {
         guard option != quality else { return }
-        load(option, at: currentPosition)
+        let at = currentPosition
+        let wasDirect = playingDirect
+        playingDirect = option == direct
+        // Back on the stream: its own subtitle timing, not the file's.
+        if wasDirect, !playingDirect, let kept = UserDefaults.standard.dictionary(forKey: seriesKey), let offset = kept["subtitleOffset"] as? Double {
+            subtitleOffset = offset
+        }
+        load(option, at: at)
     }
 
     func selectMix(_ option: AudioMix) {

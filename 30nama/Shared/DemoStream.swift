@@ -40,6 +40,24 @@ enum DemoStream {
         ] as [String: Any]))
     }
 }
+extension DemoStream {
+    /// Download files for "Max", as the Windows app's: two short public test videos.
+    static func downloads(for post: Post) -> DownloadOptions {
+        let small = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"
+        let larger = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4"
+        guard post.isSeries else {
+            return DownloadOptions(JSON(["download": [
+                ["dl": larger, "quality": "Demo 720p", "size": "5 MB", "encoder": "test-videos.co.uk", "tags": ["x264"]],
+                ["dl": small, "quality": "Demo 360p", "size": "1 MB", "encoder": "test-videos.co.uk"],
+            ]] as [String: Any]))
+        }
+        func pack(_ season: Int, _ count: Int) -> [String: Any] {
+            ["season": season, "quality": "Demo 720p", "size": "5 MB", "link": (1...count).map { ["dl": larger, "episode": String($0)] }]
+        }
+        return DownloadOptions(JSON(["download": ["s": [pack(1, 4), pack(2, 14), pack(3, 22)]]] as [String: Any]))
+    }
+}
+
 /// Prints the structure of a response with values cut short: enough to see its shape in the
 /// console without dumping stream addresses or tokens.
 enum DebugShape {

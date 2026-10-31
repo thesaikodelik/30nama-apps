@@ -140,12 +140,15 @@ struct SettingsView: View {
 
     private var playback: some View {
         group(loc(.playback)) {
-            // Best, the adaptive stream, or a ceiling for a slow line (from the Windows app).
+            // Best, the adaptive stream, Max (the download file itself), or a ceiling for a slow
+            // line, in the Windows app's order. Best stays the default.
             row(loc(.quality)) {
-                picker([-1, 0, 1080, 720, 480], selection: app.settings.qualityCap > 0 ? app.settings.qualityCap : (app.settings.preferAdaptive ? -1 : 0),
-                       name: { $0 == 0 ? loc(.qualityBest) : $0 < 0 ? loc(.qualityAuto) : "\($0)p" }) { value in
+                let s = app.settings
+                picker([0, -1, -2, 1080, 720, 480], selection: s.maxQuality ? -2 : s.qualityCap > 0 ? s.qualityCap : (s.preferAdaptive ? -1 : 0),
+                       name: { $0 == 0 ? loc(.qualityBest) : $0 == -1 ? loc(.qualityAuto) : $0 == -2 ? loc(.qualityMax) : "\($0)p" }) { value in
                     app.update {
-                        $0.preferAdaptive = value < 0
+                        $0.preferAdaptive = value == -1
+                        $0.maxQuality = value == -2
                         $0.qualityCap = max(0, value)
                     }
                 }
