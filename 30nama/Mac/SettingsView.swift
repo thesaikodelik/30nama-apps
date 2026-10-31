@@ -88,7 +88,7 @@ struct SettingsView: View {
                         }
                         // Keys the user makes on other sites, kept on this Mac; everything works without them.
                         group(loc(.services)) {
-                            keyField(loc(.subsourceKey), hint: loc(.subsourceKeyHint), service: .subsource, page: "https://subsource.net/profile", text: $subsourceKey)
+                            keyField(loc(.subsourceKey), hint: loc(.subsourceKeyHint), service: .subsource, page: "https://subsource.net/dashboard/api", text: $subsourceKey)
                             keyField(loc(.tmdbKey), hint: loc(.tmdbKeyHint), service: .tmdb, page: "https://www.themoviedb.org/settings/api", text: $tmdbKey)
                             keyField(loc(.geminiKey), hint: loc(.geminiKeyHint), service: .gemini, page: "https://aistudio.google.com/apikey", text: $geminiKey)
                         }
