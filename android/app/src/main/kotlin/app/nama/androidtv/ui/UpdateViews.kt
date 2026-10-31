@@ -43,6 +43,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import app.nama.core.Lang
+import app.nama.core.ReleaseNotes
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.tv.material3.Text
@@ -324,3 +332,78 @@ private fun Modifier.shadowGlow(level: Float): Modifier =
 
 /** Whether the capsule is up with buttons to reach, for Down from the bar. */
 fun Updater.pillHasButtons(): Boolean = (state is Updater.State.Available || state is Updater.State.Failed) && !postponed
+
+/**
+ * Settings › What's new: each version's part of its release text on GitHub, newest first, as the
+ * Mac's WhatsNewSheet. The text is Persian, so it reads right to left in any language, and English
+ * and Arabic say so in a line above it. Each line takes focus, so the remote steps down through it.
+ */
+@Composable
+fun WhatsNewCard(close: () -> Unit) {
+  val app = LocalApp.current
+  val loc = LocalLoc.current
+  var blocks by remember { mutableStateOf<List<ReleaseNotes.Block>?>(null) }
+  var failed by remember { mutableStateOf(false) }
+  var attempt by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+  val first = remember { FocusRequester() }
+  val shape = RoundedCornerShape(36.dp)
+  BackHandler(onBack = close)
+  LaunchedEffect(attempt) {
+    failed = false
+    blocks = null
+    val got = app.updater.notes()
+    if (got == null) failed = true else blocks = got
+  }
+  LaunchedEffect(blocks, failed) {
+    androidx.compose.runtime.withFrameNanos {}
+    runCatching { first.requestFocus() }
+  }
+  Box(Modifier.fillMaxSize().zIndex(30f).background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
+    Column(Modifier.width(1300.dp).heightIn(max = 940.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+      Text(loc(S.whatsNew), style = app(40, FontWeight.Bold), color = Theme.text1)
+      if (loc.lang != Lang.fa) Text(loc(S.notesInPersian), style = app(22), color = Theme.text3)
+      val got = blocks
+      when {
+        failed -> Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+          Text(loc(S.error), style = app(26), color = Theme.text2)
+          Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            PillButton(loc(S.retry), { attempt++ }, Modifier.focusRequester(first), kind = PillKind.Primary)
+            PillButton(loc(S.close), close)
+          }
+        }
+        got == null -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
+        else -> {
+          CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              itemsIndexed(got) { i, block -> NoteLine(block, if (i == 0) Modifier.focusRequester(first) else Modifier) }
+            }
+          }
+          PillButton(loc(S.close), close)
+        }
+      }
+    }
+  }
+}
+
+/** One line of the notes, focusable so the list scrolls with the remote; a bar marks the line in focus. */
+@Composable
+private fun NoteLine(block: ReleaseNotes.Block, modifier: Modifier) {
+  val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+  val focused by interaction.collectIsFocusedAsState()
+  Row(modifier.fillMaxWidth().focusable(interactionSource = interaction), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.width(4.dp).height(if (focused) 34.dp else 0.dp).background(Theme.accent, RoundedCornerShape(50)))
+    when (block) {
+      is ReleaseNotes.Block.Version -> Text(block.title, Modifier.padding(top = 18.dp), style = app(32, FontWeight.Bold), color = Theme.text1)
+      is ReleaseNotes.Block.Group -> Text(block.title, Modifier.padding(top = 6.dp), style = app(25, FontWeight.SemiBold), color = Theme.text1)
+      is ReleaseNotes.Block.Item -> Text(marked("•  " + block.text), style = app(24).copy(lineHeight = app(24).fontSize * 1.55f), color = Theme.text2)
+      is ReleaseNotes.Block.Text -> Text(marked(block.text), style = app(24).copy(lineHeight = app(24).fontSize * 1.55f), color = Theme.text2)
+    }
+  }
+}
+
+/** The release text's **bold**, as bold, without its stars. */
+private fun marked(text: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+  text.split("**").forEachIndexed { i, part ->
+    if (i % 2 == 1) withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.SemiBold, color = Theme.text1)) { append(part) } else append(part)
+  }
+}

@@ -101,7 +101,7 @@ fun SettingsScreen() {
   var editing by remember { mutableStateOf<String?>(null) }
   // A card closing gives focus back to the row that opened it; the rows were blocked meanwhile, so
   // focus would otherwise land wherever the page's restorer put it.
-  val openers = remember { listOf("name", "tmdb", "subsource", "gemini").associateWith { FocusRequester() } }
+  val openers = remember { listOf("name", "tmdb", "subsource", "gemini", "notes").associateWith { FocusRequester() } }
   var lastEditing by remember { mutableStateOf<String?>(null) }
   LaunchedEffect(editing) {
     if (editing != null) {
@@ -199,9 +199,9 @@ fun SettingsScreen() {
           val around = listOf(loc(S.sceneGlow), loc(S.blackBars))
           val aroundName = around[if (s.sceneGlow) 0 else 1]
           Choice(loc(S.aroundPicture), aroundName, Help(tv(TV.aroundHint), around, aroundName), { help = it }) { app.update { it.copy(sceneGlow = !it.sceneGlow) } }
-          val playerNames = listOf(tv(TV.thisApp), tv(TV.anotherApp))
+          val playerNames = listOf(loc(S.thisApp), tv(TV.anotherApp))
           val playerName = playerNames[if (s.otherPlayer) 1 else 0]
-          Choice(tv(TV.onlinePlayer), playerName, Help(tv(TV.onlinePlayerHint), playerNames, playerName), { help = it }) { app.update { it.copy(otherPlayer = !it.otherPlayer) } }
+          Choice(loc(S.onlinePlayer), playerName, Help(loc(S.onlinePlayerHint), playerNames, playerName), { help = it }) { app.update { it.copy(otherPlayer = !it.otherPlayer) } }
           Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
         }
         Group(loc(S.subtitles)) {
@@ -284,6 +284,8 @@ fun SettingsScreen() {
               else -> Unit
             }
           }
+          // What each version brought, from the release's own text (Twitter feedback 10, as the Mac's).
+          Choice(loc(S.whatsNew), loc(S.viewNotes), Help(tv(TV.updateHint)), { help = it }, Modifier.focusRequester(openers.getValue("notes"))) { editing = "notes" }
           Fact(loc(S.apiHost), app.apiHost ?: "—")
           Choice(tv(TV.licenses), "Vazirmatn, Inter · OFL", Help(loc(S.unofficial)), { help = it }) {}
         }
@@ -295,7 +297,13 @@ fun SettingsScreen() {
     chrome.modal = editing != null
     onDispose { chrome.modal = false }
   }
-  editing?.let { service -> if (service == "name") NameCard { editing = null } else KeyCard(service) { editing = null } }
+  editing?.let { service ->
+    when (service) {
+      "name" -> NameCard { editing = null }
+      "notes" -> WhatsNewCard { editing = null }
+      else -> KeyCard(service) { editing = null }
+    }
+  }
 }
 
 /** The Mac's group: its name small above, the rows in one pane of glass. */
@@ -453,7 +461,8 @@ private fun KeyCard(service: String, close: () -> Unit) {
   val address = server?.address ?: when (service) {
     "tmdb" -> "https://www.themoviedb.org/settings/api"
     "gemini" -> "https://aistudio.google.com/apikey"
-    else -> "https://subsource.net/profile"
+    // The key is made under API in the account; /profile is a 404 (Twitter feedback 9).
+    else -> "https://subsource.net/dashboard/api"
   }
   val qr = remember(address) { qrImage(address) }
   val shape = RoundedCornerShape(36.dp)

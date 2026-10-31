@@ -178,6 +178,19 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     log("no settings screen opened")
   }
 
+  /**
+   * What each version brought (Settings › What's new): this version's own release, or the newest
+   * Android one, whose text carries the sections before it. Null when GitHub did not answer.
+   */
+  suspend fun notes(): List<app.nama.core.ReleaseNotes.Block>? = withContext(Dispatchers.IO) {
+    runCatching {
+      http.newCall(Request.Builder().url(feed).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
+        if (!r.isSuccessful) error("HTTP ${r.code}")
+        app.nama.core.ReleaseNotes.blocks(Json.parse(r.body!!.bytes()), current, AndroidRelease.TAG_PREFIX)
+      }
+    }.onFailure { Log.w(AppModel.TAG, "release notes: $it") }.getOrNull()
+  }
+
   fun dismiss() {
     state = State.Idle
   }
@@ -314,7 +327,9 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   private fun fail(release: AndroidRelease?, step: String) {
     log("failed at $step")
     Log.w(AppModel.TAG, "update: $step")
-    state = State.Failed(release?.page ?: AndroidRelease.DOWNLOADS, step, blocked = !allowedToInstall())
+    // Only the installer's own refusal is about the permission; a download or a key that does not
+    // match says its own step, not "Android did not allow it".
+    state = State.Failed(release?.page ?: AndroidRelease.DOWNLOADS, step, blocked = step.startsWith("installer") && !allowedToInstall())
     showFailure = true
   }
 

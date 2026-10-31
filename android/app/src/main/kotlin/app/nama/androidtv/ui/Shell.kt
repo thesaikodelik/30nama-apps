@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -723,9 +724,48 @@ private fun androidx.compose.foundation.layout.BoxScope.LiquidPill(target: Rect?
             .absoluteOffset { IntOffset(left.value.toInt(), top.toInt()) }
             .size((right.value - left.value).coerceAtLeast(0f).toDp(), height.toDp())
             .graphicsLayer { alpha = shown }
-            .glass(RoundedCornerShape(50), lit = true, veil = 0f),
+            .redGlass(),
     )
   }
+}
+
+/**
+ * The open tab as red glass, a lit button on the frosted bar (the owner; the Mac's TintedGlass with
+ * its numbers): the cinema's red lighter toward the top left (85% with white 35% over it) and deeper
+ * toward the bottom right (55%), a rim of the same red (70%) with a light line along its top (white
+ * 45%), and a halo of it (55%, 0.8 of the pill wide and 0.6 high, 10 points down) showing from
+ * under it. Drawn, not blurred: a weak TV pays nothing for it.
+ */
+private fun Modifier.redGlass(): Modifier = drawBehind {
+  val r = size.height / 2f
+  val corner = androidx.compose.ui.geometry.CornerRadius(r, r)
+  // The halo: an oval of red fading out, its blur of 12 points drawn into its own edge.
+  val blur = 12.dp.toPx()
+  val haloW = size.width * 0.8f + blur * 2
+  val haloH = size.height * 0.6f + blur * 2
+  val haloCentre = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f + 10.dp.toPx())
+  drawOval(
+      androidx.compose.ui.graphics.Brush.radialGradient(
+          listOf(Theme.accent.copy(alpha = 0.55f), Theme.accent.copy(alpha = 0.3f), Color.Transparent),
+          center = haloCentre, radius = haloW / 2f),
+      topLeft = androidx.compose.ui.geometry.Offset(haloCentre.x - haloW / 2f, haloCentre.y - haloH / 2f),
+      size = androidx.compose.ui.geometry.Size(haloW, haloH),
+  )
+  val diagonal = androidx.compose.ui.graphics.Brush.linearGradient(
+      listOf(Theme.accent.copy(alpha = 0.85f), Theme.accent.copy(alpha = 0.55f)),
+      start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width, size.height))
+  drawRoundRect(diagonal, cornerRadius = corner)
+  drawRoundRect(
+      androidx.compose.ui.graphics.Brush.linearGradient(
+          listOf(Color.White.copy(alpha = 0.35f), Color.Transparent),
+          start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width * 0.6f, size.height)),
+      cornerRadius = corner)
+  val line = 1.dp.toPx()
+  drawRoundRect(Theme.accent.copy(alpha = 0.7f), cornerRadius = corner, style = androidx.compose.ui.graphics.drawscope.Stroke(line))
+  // The light along the top, fading toward the ends.
+  drawLine(
+      androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent), startX = r * 0.5f, endX = size.width - r * 0.5f),
+      start = androidx.compose.ui.geometry.Offset(r * 0.5f, line * 1.5f), end = androidx.compose.ui.geometry.Offset(size.width - r * 0.5f, line * 1.5f), strokeWidth = line)
 }
 
 /** The Mac's round glass Back button beside the bar, while a page is open over a tab. */
