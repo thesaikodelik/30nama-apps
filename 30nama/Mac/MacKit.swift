@@ -1289,9 +1289,9 @@ private struct PillGlow: View, Animatable {
     var body: some View {
         Canvas { context, _ in
             context.addFilter(.blur(radius: 12))
-            let glow = CGRect(x: spill + rect.midX - rect.width * 0.4, y: spill + rect.midY - rect.height * 0.1,
-                              width: rect.width * 0.8, height: rect.height * 0.8)
-            context.fill(Capsule(style: .continuous).path(in: glow), with: .color(tint.opacity(0.7)))
+            let glow = CGRect(x: spill + rect.midX - rect.width * 0.4, y: spill + rect.midY + 10 - rect.height * 0.3,
+                              width: rect.width * 0.8, height: rect.height * 0.6)
+            context.fill(Capsule(style: .continuous).path(in: glow), with: .color(tint.opacity(0.55)))
         }
         .padding(-spill)
     }
