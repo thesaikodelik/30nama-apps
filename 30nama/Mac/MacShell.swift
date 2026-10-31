@@ -353,8 +353,8 @@ private struct NavBar: View {
         }
         .animation(Theme.focusSpring, value: bell)
         // The open tab's glass pill flows to the next like a drop of liquid, out of the bar and
-        // into the downloads disc too: both are glass drawn under it.
-        .liquidPill(selected: nav.opened.isEmpty ? AnyHashable(nav.section) : nil)
+        // into the downloads disc too: both are glass drawn under it. Red glass, the app's own colour.
+        .liquidPill(selected: nav.opened.isEmpty ? AnyHashable(nav.section) : nil, tint: Theme.accent)
         .animation(Theme.focusSpring, value: nav.opened.isEmpty)
     }
 }

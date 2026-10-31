@@ -1044,27 +1044,68 @@ enum GlassLight {
     }
 }
 
+/// Coloured glass, as a lit button on a frosted bar: the colour itself over the frost, lighter
+/// toward the top and deeper below, half see-through; a rim of it with a bright line along the
+/// top; and a glow of it beneath.
+private struct TintedGlass: View {
+    let tint: Color
+    /// Where the coloured glass sits, in the bar's space; its light is laid over that place.
+    let place: CGRect?
+    var rim = false
+
+    // Drawn rather than laid out, as the shapes it fills are: placed views are turned around
+    // in a right-to-left interface, and the light would fall somewhere else on the bar.
+    var body: some View {
+        Canvas { context, size in
+            let all = Path(CGRect(origin: .zero, size: size))
+            let r = place ?? CGRect(origin: .zero, size: size)
+            if rim {
+                context.fill(all, with: .linearGradient(
+                    Gradient(stops: [.init(color: .white.opacity(0.45), location: 0),
+                                     .init(color: tint.opacity(0.7), location: 0.3),
+                                     .init(color: tint.opacity(0.7), location: 1)]),
+                    startPoint: CGPoint(x: r.midX, y: r.minY), endPoint: CGPoint(x: r.midX, y: r.maxY)))
+            } else {
+                let from = CGPoint(x: r.minX + r.width * 0.3, y: r.minY), to = CGPoint(x: r.minX + r.width * 0.7, y: r.maxY)
+                context.fill(all, with: .linearGradient(Gradient(colors: [tint.opacity(0.85), tint.opacity(0.55)]), startPoint: from, endPoint: to))
+                // Lighter toward the top: white over it, as `Color.mix` is only from macOS 15.
+                context.fill(all, with: .linearGradient(Gradient(colors: [.white.opacity(0.35), .white.opacity(0)]), startPoint: from, endPoint: to))
+            }
+        }
+    }
+}
+
 /// Glass cut to a shape that is drawn rather than a `Shape`: `outline` is the shape and `inner`
-/// the same a hair narrower inside, and the band between the two is the rim.
+/// the same a hair narrower inside, and the band between the two is the rim. With `tint`, it is
+/// glass of that colour.
 private struct DrawnGlass<Outline: View, Inner: View>: View {
     let outline: Outline
     let inner: Inner
     var lit = false
+    var tint: Color?
+    /// Where the coloured glass is, so its light falls over it rather than over the whole bar.
+    var tintFrame: CGRect?
 
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial)
-            Color.white.opacity(GlassLight.body(lit))
-            GlassLight.glare(lit)
-            GlassLight.rim(lit)
-                .mask {
-                    outline
-                        .overlay { inner.blendMode(.destinationOut) }
-                        .compositingGroup()
-                }
+            if let tint {
+                TintedGlass(tint: tint, place: tintFrame)
+                TintedGlass(tint: tint, place: tintFrame, rim: true).mask { band }
+            } else {
+                Color.white.opacity(GlassLight.body(lit))
+                GlassLight.glare(lit)
+                GlassLight.rim(lit).mask { band }
+            }
         }
         .mask(outline)
-        .shadow(color: .black.opacity(GlassLight.shadow(lit)), radius: 7, y: 3)
+        .shadow(color: tint?.opacity(0.5) ?? .black.opacity(GlassLight.shadow(lit)), radius: tint == nil ? 7 : 10, y: tint == nil ? 3 : 5)
+    }
+
+    private var band: some View {
+        outline
+            .overlay { inner.blendMode(.destinationOut) }
+            .compositingGroup()
     }
 }
 
@@ -1113,8 +1154,9 @@ extension View {
 
     /// A bar whose selected tab sits on a white pill that flows from tab to tab like a drop of
     /// liquid. The tabs mark themselves with `liquidTab(_:)`; `selected` nil hides the pill.
-    func liquidPill(selected: AnyHashable?) -> some View {
-        modifier(LiquidPillBar(selected: selected))
+    /// With `tint`, the pill is glass of that colour.
+    func liquidPill(selected: AnyHashable?, tint: Color? = nil) -> some View {
+        modifier(LiquidPillBar(selected: selected, tint: tint))
     }
 }
 
@@ -1172,6 +1214,8 @@ private struct LiquidTab: ViewModifier {
 
 private struct LiquidPillBar: ViewModifier {
     let selected: AnyHashable?
+    let tint: Color?
+    @Environment(\.calm) private var calm
     @State private var frames: [AnyHashable: CGRect] = [:]
     @State private var grounds: [CGRect] = []
     @State private var size: CGSize = .zero
@@ -1203,6 +1247,18 @@ private struct LiquidPillBar: ViewModifier {
             }
             .background {
                 ZStack {
+                    // The coloured pill's glow, under the bar's glass and spilling out below it:
+                    // the pill itself is cut to the glass, and a glow cut there would not be seen.
+                    if let tint, let rect = selected.flatMap({ tabs[$0] }) {
+                        Capsule(style: .continuous)
+                            .fill(tint.opacity(0.55))
+                            .frame(width: rect.width * 0.8, height: rect.height * 0.6)
+                            .position(x: rect.midX, y: rect.midY + 10)
+                            .blur(radius: 12)
+                            .animation(calm ? .easeOut(duration: 0.18) : .spring(response: 0.55, dampingFraction: 0.78), value: rect)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
                     if groundsValid {
                         DrawnGlass(outline: Capsules(frames: grounds), inner: Capsules(frames: grounds, inset: GlassLight.rimWidth))
                             .allowsHitTesting(false)
@@ -1210,7 +1266,7 @@ private struct LiquidPillBar: ViewModifier {
                     }
                     // Seen only within the glass: between two pieces of it the pill passes
                     // unseen, as if under the gap, and comes out in the next.
-                    LiquidPill(selected: selected, frames: tabs)
+                    LiquidPill(selected: selected, frames: tabs, tint: tint)
                         .mask {
                             if groundsValid { Capsules(frames: grounds, inset: 3) } else { Rectangle() }
                         }
@@ -1246,6 +1302,7 @@ private struct Capsules: View {
 private struct LiquidPill: View {
     let selected: AnyHashable?
     let frames: [AnyHashable: CGRect]
+    let tint: Color?
 
     @Environment(\.calm) private var calm
     @State private var from: AnyHashable?
@@ -1259,7 +1316,7 @@ private struct LiquidPill: View {
         let start = from.flatMap { frames[$0] }
         DrawnGlass(outline: Goo(from: start, to: target, progress: progress),
                    inner: Goo(from: start, to: target, progress: progress, inset: GlassLight.rimWidth),
-                   lit: true)
+                   lit: true, tint: tint, tintFrame: target)
             .opacity(target == nil ? 0 : 1)
             .animation(.easeOut(duration: 0.2), value: target == nil)
             .allowsHitTesting(false)
