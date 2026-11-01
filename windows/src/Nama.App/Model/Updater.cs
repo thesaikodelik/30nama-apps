@@ -148,12 +148,7 @@ public sealed class Updater
         if (TestFeed is { } test) Log($"looking at the test feed {test}");
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, Feed);
-            request.Headers.Accept.ParseAdd("application/vnd.github+json");
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            using var response = await _http.SendAsync(request, timeout.Token);
-            if ((int)response.StatusCode != 200) return Looks.NoAnswer;
-            var feed = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
+            if (await FeedAsync() is not { } feed) return Looks.NoAnswer;
             if (WinRelease.Newest(feed, Current) is not { } release) return Looks.UpToDate;
             Release = release;
             Log($"found {release.Version}: {release.Installer}");
@@ -168,6 +163,33 @@ public sealed class Updater
             Log($"could not look for updates: {e.GetType().Name}: {e.Message}");
             return Looks.NoAnswer;
         }
+    }
+
+    /// <summary>The version sections of the release text, kept from the last look at the list.</summary>
+    private IReadOnlyList<ReleaseNotes.Block>? _notes;
+
+    /// <summary>What each version brought, for Settings › About › What's new: from the list the updater reads. As whatsNew() on the Mac.</summary>
+    public async Task<IReadOnlyList<ReleaseNotes.Block>?> WhatsNewAsync()
+    {
+        if (_notes is null)
+        {
+            try { await FeedAsync(); }
+            catch (Exception e) { Log($"could not read the release notes: {e.GetType().Name}: {e.Message}"); }
+        }
+        return _notes;
+    }
+
+    /// <summary>The releases list, or null for any answer but 200; its notes are kept on the way.</summary>
+    private async Task<Json?> FeedAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Feed);
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var response = await _http.SendAsync(request, timeout.Token);
+        if ((int)response.StatusCode != 200) return null;
+        var feed = Json.Parse(await response.Content.ReadAsByteArrayAsync(timeout.Token));
+        _notes = ReleaseNotes.Blocks(feed, Current) ?? _notes;
+        return feed;
     }
 
     public void Postpone()

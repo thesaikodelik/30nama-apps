@@ -247,7 +247,7 @@ public sealed class AdvancedSearchPage : Grid
 
     private TextBox Director() => Person(_query.Director, Loc[S.directorName], Loc[S.director], name => q => q with { Director = name });
 
-    private TextBox Actor() => Person(_query.Actor, Loc[Extra.actorName], Loc[Extra.actorName], name => q => q with { Actor = name });
+    private TextBox Actor() => Person(_query.Actor, Loc[S.actorName], Loc[S.actorName], name => q => q with { Actor = name });
 
     /// <summary>
     /// A name to narrow by, a director's or an actor's. Left to right in every language, as the search

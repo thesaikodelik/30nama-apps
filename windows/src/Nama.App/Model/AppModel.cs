@@ -639,7 +639,7 @@ public sealed class AppModel
         var name = request.Post.Title(Settings.Lang);
         var title = request.Post.IsSeries && item.EpisodeRaw is { } episode ? $"{name} · {Loc.EpisodeTag(item.Season, episode)}" : name;
         if (!Shell.OtherPlayers.Stream(program, quality.UrlFor(Settings.AudioMix).OriginalString, resume, title)) return false;
-        ShowToast($"{Loc[Extra.playingIn]} {Shell.OtherPlayers.NameOf(program)}");
+        ShowToast($"{Loc[S.playingIn]} {Shell.OtherPlayers.NameOf(program)}");
         return true;
     }
 

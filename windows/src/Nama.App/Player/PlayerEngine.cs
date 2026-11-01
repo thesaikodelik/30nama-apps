@@ -374,7 +374,7 @@ public sealed class PlayerEngine
             // with no dialog asking (the Android app's).
             if (_unattended >= 3)
             {
-                _app.ShowToast(Loc[Extra.stillWatchingStopped]);
+                _app.ShowToast(Loc[S.stillWatchingStopped]);
                 Close();
                 return;
             }
@@ -818,7 +818,7 @@ public sealed class PlayerEngine
                 if (load.IsCancellationRequested) return;
                 if (outcome is not Gemini.Outcome.Lines lines)
                 {
-                    var why = outcome is Gemini.Outcome.Rejected ? Loc[Extra.keyRejected] : Loc[Extra.translationStopped];
+                    var why = outcome is Gemini.Outcome.Rejected ? Loc[S.keyRejected] : Loc[S.translationStopped];
                     _ui.TryEnqueue(() => { if (Still()) { TranslatedShare = null; _app.ShowToast(why); Changed?.Invoke(); } });
                     return;
                 }

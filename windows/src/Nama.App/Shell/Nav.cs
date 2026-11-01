@@ -57,6 +57,11 @@ public sealed class Nav
 
     public void Trailer(string title, string video) => Trailering?.Invoke(title, video);
 
+    /// <summary>What each version brought, over the window (Settings › About).</summary>
+    public event Action? ShowingWhatsNew;
+
+    public void WhatsNew() => ShowingWhatsNew?.Invoke();
+
     public static IReadOnlyList<Section> OnBar { get; } = [Section.Search, Section.Home, Section.Movies, Section.Series, Section.Anime, Section.Browse, Section.Profile, Section.Settings];
 
     public static string Symbol(Section s) => s switch

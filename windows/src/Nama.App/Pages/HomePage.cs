@@ -302,8 +302,8 @@ public sealed class HomePage : Grid
             // After the top tens, with the user's TMDB key (the Android app's order).
             if (section == feed.Sections[0])
             {
-                if (Fresh.Count > 0) AddShelf("fresh", loc[Extra.freshSeries], Fresh.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
-                if (Pop.Count > 0) AddShelf("popular", loc[Extra.popularFilms], Pop.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
+                if (Fresh.Count > 0) AddShelf("fresh", loc[S.freshSeries], Fresh.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
+                if (Pop.Count > 0) AddShelf("popular", loc[S.popularFilms], Pop.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
             }
         }
     }
@@ -410,7 +410,7 @@ public sealed class HomePage : Grid
             else if (!_saidOffline)
             {
                 _saidOffline = true;
-                App.ShowToast(App.Loc[Extra.offline]);
+                App.ShowToast(App.Loc[S.offline]);
             }
             var shown = _feed is not null;
             _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>

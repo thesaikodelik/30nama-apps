@@ -89,6 +89,7 @@ public sealed partial class MainWindow : Window
         });
         _nav.Picking += ShowPicker;
         _nav.Trailering += ShowTrailer;
+        _nav.ShowingWhatsNew += ShowWhatsNew;
         Content = _root;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(_dragStrip);
@@ -392,7 +393,7 @@ public sealed partial class MainWindow : Window
             var loc = _app.Loc;
             _page.Children.Add(_nav.Section switch
             {
-                Section.Settings => new SettingsPage(),
+                Section.Settings => new SettingsPage(_nav),
                 Section.Search => new SearchPage(_nav),
                 Section.Movies => new CatalogPage("movies", loc[S.movies], _nav),
                 Section.Series => new CatalogPage("series", loc[S.series], _nav),
@@ -570,6 +571,13 @@ public sealed partial class MainWindow : Window
     {
         TrailerSheet? sheet = null;
         sheet = new TrailerSheet(title, video, () => _overlay.Children.Remove(sheet));
+        _overlay.Children.Insert(_bar is null ? 0 : _overlay.Children.IndexOf(_bar) + 1, sheet);
+    }
+
+    private void ShowWhatsNew()
+    {
+        WhatsNewSheet? sheet = null;
+        sheet = new WhatsNewSheet(() => _overlay.Children.Remove(sheet));
         _overlay.Children.Insert(_bar is null ? 0 : _overlay.Children.IndexOf(_bar) + 1, sheet);
     }
 

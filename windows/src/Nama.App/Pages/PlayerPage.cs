@@ -265,7 +265,7 @@ public sealed partial class PlayerPage : Grid
         _curtain.Opacity = engine.Started ? 0 : 1;
         _spinner.Visibility = engine.Started && engine.Buffering ? Visibility.Visible : Visibility.Collapsed;
         // "Ends at" beside the length, at the speed it is playing (the Android app's).
-        var ends = engine.EndsAt is { } end ? $"   ·   {Loc[Extra.endsAt]} {Loc.Num(end.ToString("HH:mm"))}" : "";
+        var ends = engine.EndsAt is { } end ? $"   ·   {Loc[S.endsAt]} {Loc.Num(end.ToString("HH:mm"))}" : "";
         _clock.Text = $"{Fmt.Clock(engine.Time)} / {Fmt.Clock(engine.Duration)}{ends}";
         _scrubber.Update(engine.Time, engine.Duration, engine.Marks);
         _level.Update(engine.Muted ? 0 : engine.Volume);
@@ -619,7 +619,7 @@ public sealed partial class PlayerPage : Grid
         {
             var into = Nama.Core.Translation.Target(Loc.Lang) == Lang.Ar ? Lang.Ar.Name() : Loc[S.persian];
             var share = _engine.TranslatedShare is { } part && part < 1 ? $" · {Loc.Num((int)(part * 100))}{(Loc.Lang == Lang.En ? "%" : "٪")}" : "";
-            menu.Items.Add(Radio($"{into} ({Loc[Extra.machineTranslation]}{share})", "sub", current == PlayerEngine.Translated, () => _engine.SelectSubtitle(PlayerEngine.Translated, remember: true)));
+            menu.Items.Add(Radio($"{into} ({Loc[S.machineTranslation]}{share})", "sub", current == PlayerEngine.Translated, () => _engine.SelectSubtitle(PlayerEngine.Translated, remember: true)));
         }
         var file = new MenuFlyoutItem { Text = Loc[S.subtitleFile] };
         file.Click += async (_, _) => await ChooseSubtitleFileAsync();
@@ -727,7 +727,7 @@ public sealed partial class PlayerPage : Grid
         {
             PlayerEngine.Offers.Intro => Loc[S.skipIntro],
             PlayerEngine.Offers.Recap => Loc[S.skipRecap],
-            PlayerEngine.Offers.StartOver => Loc[Extra.startOver],
+            PlayerEngine.Offers.StartOver => Loc[S.startOver],
             _ => Loc[S.nextEpisode],
         };
         var label = Kit.Label(words, offer switch { PlayerEngine.Offers.Next => Glyph.Play, PlayerEngine.Offers.StartOver => "\uE72C", _ => "\uEB9D" }, 16, FontWeights.Bold, Colors.White);

@@ -19,8 +19,16 @@ public sealed class NavBar : Grid
     private readonly Nav _nav;
     private readonly StackPanel _row = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
     private readonly Grid _capsule = new();
-    private readonly LiquidPill _pill = new();
+    // The app's red, as a lit button on the frosted bar (the owner, 9 Aban; as the Mac's).
+    private readonly LiquidPill _pill = new() { Tint = Theme.Accent };
     private readonly Dictionary<Section, FrameworkElement> _tabs = [];
+    /// <summary>
+    /// The open tab's words again, over the pill: the pill is drawn over the bar's words, and its red
+    /// would tint them pink. On the Mac the pill is under them and they stay white.
+    /// </summary>
+    private readonly Canvas _ink = new() { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
+    private FrameworkElement? _inkLabel;
+    private Section _inkFor;
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private readonly Button _back;
     private readonly Button _downloads;
@@ -152,12 +160,16 @@ public sealed class NavBar : Grid
         // On a canvas, so it takes the row's size rather than giving the bar one.
         // Left to right, and measured in its own space: a mirrored bitmap would put the pill at the wrong end.
         var stage = new Canvas { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
+        // Past the bar on every side, for the red pill's glow to spill out below it.
+        Canvas.SetLeft(_pill, -LiquidPill.Spill);
+        Canvas.SetTop(_pill, -LiquidPill.Spill);
         stage.Children.Add(_pill);
         Children.Add(stage);
+        Children.Add(_ink);
         _row.SizeChanged += (_, e) =>
         {
-            _pill.Width = e.NewSize.Width;
-            _pill.Height = e.NewSize.Height;
+            _pill.Width = e.NewSize.Width + 2 * LiquidPill.Spill;
+            _pill.Height = e.NewSize.Height + 2 * LiquidPill.Spill;
         };
         _row.LayoutUpdated += (_, _) => PlacePill();
         nav.Changed += Refresh;
@@ -182,6 +194,14 @@ public sealed class NavBar : Grid
         // The pill in the disc is the size of a tab in the bar: four pixels in.
         tabs[Section.Downloads] = new Windows.Foundation.Rect(disc.X + 4, disc.Y + 4, disc.Width - 8, disc.Height - 8);
         _pill.Place([Frame(_capsule), disc], tabs);
+        if (_inkLabel is not null && _tabs.TryGetValue(_inkFor, out var open) && open.ActualWidth > 0)
+        {
+            var at = open.TransformToVisual(_ink).TransformBounds(new Windows.Foundation.Rect(0, 0, open.ActualWidth, open.ActualHeight));
+            Canvas.SetLeft(_inkLabel, at.X);
+            Canvas.SetTop(_inkLabel, at.Y);
+            _inkLabel.Width = at.Width;
+            _inkLabel.Height = at.Height;
+        }
     }
 
     /// <summary>
@@ -271,6 +291,8 @@ public sealed class NavBar : Grid
         ShowBell(any);
         _items.Children.Clear();
         _tabs.Clear();
+        _ink.Children.Clear();
+        _inkLabel = null;
         foreach (var section in Nav.OnBar)
         {
             var selected = _nav.Section == section && _nav.Opened.Count == 0;
@@ -286,6 +308,15 @@ public sealed class NavBar : Grid
                 Background = Theme.White(0),
                 Child = label,
             };
+            if (selected)
+            {
+                var words = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                if (Nav.IconOnly(section) || section == Section.Profile) words.Children.Add(Glyph.Icon(Nav.Symbol(section), 16, Colors.White));
+                if (!Nav.IconOnly(section)) words.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, Colors.White));
+                _inkLabel = new Border { Child = words, FlowDirection = FlowDirection };
+                _inkFor = section;
+                _ink.Children.Add(_inkLabel);
+            }
             var button = Theme.Bare(face, () => _nav.Go(section));
             if (!selected)
             {

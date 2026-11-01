@@ -258,7 +258,7 @@ public sealed class DownloadsPage : Grid
         Grid.SetColumn(text, 1);
         row.Children.Add(text);
 
-        var status = Theme.Text(missing ? Loc[Extra.fileMissing] : Status(item), 13, FontWeights.Medium, item.State == DownloadItem.States.Failed ? Theme.Accent : missing ? Theme.Text3 : Theme.Text2);
+        var status = Theme.Text(missing ? Loc[S.fileMissing] : Status(item), 13, FontWeights.Medium, item.State == DownloadItem.States.Failed ? Theme.Accent : missing ? Theme.Text3 : Theme.Text2);
         status.FlowDirection = FlowDirection.LeftToRight;
         status.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(status, 2);

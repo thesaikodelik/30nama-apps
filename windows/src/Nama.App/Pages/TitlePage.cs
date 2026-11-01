@@ -332,7 +332,7 @@ public sealed class TitlePage : Grid
         {
             var part = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
             if (c.Name(loc.Lang) is { } title) part.Children.Add(Centred(title, 15, FontWeights.SemiBold, Theme.Text2, 3));
-            part.Children.Add(Centred(loc[Extra.partOf].Replace("{at}", loc.Num(c.At)).Replace("{of}", loc.Num(c.Of)), 20, FontWeights.Bold, Colors.White, 1));
+            part.Children.Add(Centred(loc[S.partOf].Replace("{at}", loc.Num(c.At)).Replace("{of}", loc.Num(c.Of)), 20, FontWeights.Bold, Colors.White, 1));
             Grid.SetRow(part, 1);
             words.Children.Add(part);
         }
@@ -603,13 +603,13 @@ public sealed class TitlePage : Grid
     /// <summary>The title's page on the website, to the clipboard, to send someone (a user on issue #2).</summary>
     private Button CopyLink(Post post)
     {
-        var help = App.Loc[Extra.copyLink];
+        var help = App.Loc[S.copyLink];
         var button = Kit.Glass(null, "\uE71B", () =>
         {
             var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
             data.SetText(SiteLink.For(post).AbsoluteUri);
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
-            App.ShowToast(App.Loc[Extra.linkCopied]);
+            App.ShowToast(App.Loc[S.linkCopied]);
         }, height: 46, rim: Hue);
         ToolTipService.SetToolTip(button, help);
         Kit.AutomationName(button, help);

@@ -12,22 +12,6 @@ public enum Extra
     showInFolder, keepInTray, keepInTrayHint, openApp, quit,
     // The Mac's keySaved and yourNameHint say "this Mac"; on Windows it is this computer.
     keySavedHere, yourNameHintHere,
-    // From the Android app: a key is saved, then tried.
-    keyWorks, keyRejected, keyUnreachable, keyChecking,
-    // From the Android app: the download file itself, played straight.
-    qualityMax,
-    stillWatchingStopped, startOver, endsAt, offline,
-    freshSeries, popularFilms, partOf,
-    geminiKey, geminiKeyHint, machineTranslation, translationStopped,
-    dataSaver, dataSaverHint, clearCaches, clear, megabytes, cleared,
-    // A title's page on the website, copied to share (issue #2).
-    copyLink, linkCopied,
-    // Advanced search by an actor, beside the director (a user on Twitter).
-    actorName,
-    // A finished download whose file is no longer where it was saved (a user on Twitter).
-    fileMissing,
-    // Settings › Playback: the player online titles open in, this app's or one on the computer (the owner).
-    onlinePlayer, thisApp, onlinePlayerHint, playingIn,
 }
 #pragma warning restore IDE1006
 
@@ -44,31 +28,18 @@ public sealed partial class Loc
         [Extra.quit] = "Quit",
         [Extra.showInFolder] = "Show in folder",
         [Extra.keySavedHere] = "Saved on this computer",
-        [Extra.qualityMax] = "Max, the original file",
-        [Extra.stillWatchingStopped] = "Autoplay paused after three episodes",
-        [Extra.startOver] = "Start over",
-        [Extra.endsAt] = "Ends at",
-        [Extra.offline] = "No internet. Showing what was saved.",
-        [Extra.freshSeries] = "New and returning series",
-        [Extra.popularFilms] = "Popular films now",
-        [Extra.partOf] = "Part {at} of {of}",
-        [Extra.geminiKey] = "Gemini key",
-        [Extra.geminiKeyHint] = "Optional. Made free in Google AI Studio with your Google account. Translates the English subtitle into Persian when a title has no Persian one anywhere. Google's free tier may use what is sent to improve its models.",
-        [Extra.machineTranslation] = "machine translation",
-        [Extra.translationStopped] = "Translation paused: Gemini's free requests for today are used up, or it could not be reached. The rest stays in English.",
-        [Extra.dataSaver] = "Data saver",
-        [Extra.dataSaverHint] = "For metered internet or a VPN with a data cap: no preview shows while seeking, and no trailer plays behind a title's page.",
-        [Extra.clearCaches] = "Saved trailers, TMDB answers, translations and episode stills",
-        [Extra.copyLink] = "Copy link", [Extra.linkCopied] = "Link copied", [Extra.actorName] = "Actor's name", [Extra.fileMissing] = "File not found",
-        [Extra.onlinePlayer] = "Play online in", [Extra.thisApp] = "This app", [Extra.playingIn] = "Playing in",
-        [Extra.onlinePlayerHint] = "Films and episodes open in the player chosen here. What is watched there is not kept in Continue watching.",
-        [Extra.clear] = "Clear",
-        [Extra.megabytes] = "MB",
-        [Extra.cleared] = "Cleared",
-        [Extra.keyWorks] = "Works",
-        [Extra.keyRejected] = "The service says this key is wrong",
-        [Extra.keyUnreachable] = "Saved. The service could not be reached to try it",
-        [Extra.keyChecking] = "Trying the key…",
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         [Extra.yourNameHintHere] = "Shown on your profile when your 30nama profile is private. Stays on this computer.",
     };
 
@@ -80,31 +51,18 @@ public sealed partial class Loc
         [Extra.quit] = "خروج",
         [Extra.showInFolder] = "نمایش در پوشه",
         [Extra.keySavedHere] = "روی همین کامپیوتر ذخیره شد",
-        [Extra.qualityMax] = "Max، فایل اصلی",
-        [Extra.stillWatchingStopped] = "پخش خودکار بعد از سه قسمت ایستاد",
-        [Extra.startOver] = "از اول",
-        [Extra.endsAt] = "تا ساعت",
-        [Extra.offline] = "اینترنت وصل نیست. آخرین نسخهٔ ذخیره‌شده نشان داده می‌شود.",
-        [Extra.freshSeries] = "سریال‌های تازه و برگشته",
-        [Extra.popularFilms] = "فیلم‌های پرطرفدار این روزها",
-        [Extra.partOf] = "قسمت {at} از {of}",
-        [Extra.geminiKey] = "کلید Gemini",
-        [Extra.geminiKeyHint] = "اختیاری. رایگان در Google AI Studio با حساب گوگل خودتان ساخته می‌شود. وقتی عنوانی هیچ‌جا زیرنویس فارسی ندارد، زیرنویس انگلیسی را به فارسی ترجمه می‌کند. گوگل در نسخهٔ رایگان ممکن است متن فرستاده‌شده را برای بهتر کردن مدل‌هایش به کار ببرد.",
-        [Extra.machineTranslation] = "ترجمهٔ ماشینی",
-        [Extra.translationStopped] = "ترجمه ایستاد: درخواست‌های رایگان امروز Gemini تمام شده یا در دسترس نیست. بقیه انگلیسی می‌ماند.",
-        [Extra.dataSaver] = "صرفه‌جویی در اینترنت",
-        [Extra.dataSaverHint] = "برای اینترنت حجمی یا VPN با حجم محدود: هنگام جلو و عقب بردن پیش‌نمایش نمی‌آید و پشت صفحهٔ عنوان تریلری پخش نمی‌شود.",
-        [Extra.clearCaches] = "تریلرها، پاسخ‌های TMDB، ترجمه‌ها و عکس قسمت‌های ذخیره‌شده",
-        [Extra.copyLink] = "کپی لینک", [Extra.linkCopied] = "لینک کپی شد", [Extra.actorName] = "نام بازیگر", [Extra.fileMissing] = "فایل پیدا نشد",
-        [Extra.onlinePlayer] = "پخش آنلاین با", [Extra.thisApp] = "همین برنامه", [Extra.playingIn] = "در حال پخش در",
-        [Extra.onlinePlayerHint] = "فیلم‌ها و قسمت‌ها در پخش‌کننده‌ای که این‌جا انتخاب شده باز می‌شوند. آن‌چه آن‌جا دیده شود در «ادامه تماشا» نمی‌آید.",
-        [Extra.clear] = "پاک کردن",
-        [Extra.megabytes] = "مگابایت",
-        [Extra.cleared] = "پاک شد",
-        [Extra.keyWorks] = "کار می‌کند",
-        [Extra.keyRejected] = "سرویس می‌گوید این کلید درست نیست",
-        [Extra.keyUnreachable] = "ذخیره شد. سرویس برای امتحان در دسترس نبود",
-        [Extra.keyChecking] = "در حال امتحان کلید…",
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         [Extra.yourNameHintHere] = "وقتی پروفایل شما در ۳۰نما خصوصی است، این نام در پروفایل می‌آید. فقط روی همین کامپیوتر می‌ماند.",
     };
 
@@ -116,31 +74,18 @@ public sealed partial class Loc
         [Extra.quit] = "إنهاء",
         [Extra.showInFolder] = "إظهار في المجلد",
         [Extra.keySavedHere] = "حُفظ على هذا الكمبيوتر",
-        [Extra.qualityMax] = "Max، الملف الأصلي",
-        [Extra.stillWatchingStopped] = "توقف التشغيل التلقائي بعد ثلاث حلقات",
-        [Extra.startOver] = "من البداية",
-        [Extra.endsAt] = "ينتهي في",
-        [Extra.offline] = "لا يوجد اتصال. يُعرض آخر ما حُفظ.",
-        [Extra.freshSeries] = "مسلسلات جديدة وعائدة",
-        [Extra.popularFilms] = "أفلام رائجة الآن",
-        [Extra.partOf] = "الجزء {at} من {of}",
-        [Extra.geminiKey] = "مفتاح Gemini",
-        [Extra.geminiKeyHint] = "اختياري. يُنشأ مجاناً في Google AI Studio بحساب Google الخاص بك. يترجم الترجمة الإنجليزية إلى الفارسية حين لا توجد ترجمة فارسية لعنوان ما. قد تستخدم Google في الفئة المجانية ما يُرسل لتحسين نماذجها.",
-        [Extra.machineTranslation] = "ترجمة آلية",
-        [Extra.translationStopped] = "توقفت الترجمة: نفدت طلبات Gemini المجانية لليوم أو تعذر الوصول إليه. يبقى الباقي بالإنجليزية.",
-        [Extra.dataSaver] = "توفير البيانات",
-        [Extra.dataSaverHint] = "للإنترنت المحدود أو VPN بحجم محدود: لا تظهر معاينة أثناء التقديم والترجيع، ولا يُعرض إعلان خلف صفحة العنوان.",
-        [Extra.clearCaches] = "الإعلانات وردود TMDB والترجمات وصور الحلقات المحفوظة",
-        [Extra.copyLink] = "نسخ الرابط", [Extra.linkCopied] = "تم نسخ الرابط", [Extra.actorName] = "اسم الممثل", [Extra.fileMissing] = "لم يُعثر على الملف",
-        [Extra.onlinePlayer] = "التشغيل عبر الإنترنت في", [Extra.thisApp] = "هذا التطبيق", [Extra.playingIn] = "يُعرض الآن في",
-        [Extra.onlinePlayerHint] = "تُفتح الأفلام والحلقات في المشغّل المختار هنا. ما يُشاهَد هناك لا يُحفظ في متابعة المشاهدة.",
-        [Extra.clear] = "مسح",
-        [Extra.megabytes] = "ميغابايت",
-        [Extra.cleared] = "تم المسح",
-        [Extra.keyWorks] = "يعمل",
-        [Extra.keyRejected] = "تقول الخدمة إن هذا المفتاح خاطئ",
-        [Extra.keyUnreachable] = "تم الحفظ. تعذر الوصول إلى الخدمة لتجربته",
-        [Extra.keyChecking] = "جارٍ تجربة المفتاح…",
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         [Extra.yourNameHintHere] = "يظهر في ملفك الشخصي عندما يكون ملفك في 30nama خاصًا. يبقى على هذا الكمبيوتر فقط.",
     };
 }

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Nama.App.Model;
+using Nama.App.Shell;
 using Nama.App.UI;
 using Nama.Core;
 
@@ -15,8 +16,11 @@ public sealed class SettingsPage : Grid
     private static AppModel App => AppModel.Shared;
     private readonly StackPanel _column = new() { Spacing = 10, MaxWidth = 690, Padding = new Thickness(0, 110, 0, 60) };
 
-    public SettingsPage()
+    private static Nav? _nav;
+
+    public SettingsPage(Nav nav)
     {
+        _nav = nav;
         Children.Add(Kit.Ambient());
         var layout = new Grid { HorizontalAlignment = HorizontalAlignment.Center, ColumnSpacing = 110 };
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(690) });
@@ -88,7 +92,7 @@ public sealed class SettingsPage : Grid
         Group(loc[S.playback],
         [
             // 1080p, 720p and 480p for a slow line, beside the best, adaptive and the original file.
-            Row(loc[S.quality], Choice([(loc[S.qualityBest], "best"), (loc[S.qualityAuto], "auto"), (loc[Extra.qualityMax], "max"), ("1080p", "1080"), ("720p", "720"), ("480p", (object)"480")],
+            Row(loc[S.quality], Choice([(loc[S.qualityBest], "best"), (loc[S.qualityAuto], "auto"), (loc[S.qualityMax], "max"), ("1080p", "1080"), ("720p", "720"), ("480p", (object)"480")],
                 s.MaxQuality ? "max" : s.QualityCap > 0 ? s.QualityCap.ToString() : s.PreferAdaptive ? "auto" : "best",
                 v => App.Update(x => x with
                 {
@@ -102,8 +106,8 @@ public sealed class SettingsPage : Grid
             Row(loc[S.aroundPicture], Choice([(loc[S.blackBars], false), (loc[S.sceneGlow], (object)true)], s.SceneGlow, v => App.Update(x => x with { SceneGlow = (bool)v }))),
             Row(loc[S.bufferTime], Choice(Settings.BufferChoices.Select(n => (n == 0 ? loc[S.qualityAuto] : $"{loc.Num(n)} {loc[S.seconds]}", (object)n)), s.BufferSeconds, v => App.Update(x => x with { BufferSeconds = (int)v }))),
             Row(loc[S.reduceMotion], Toggle(s.ReduceMotion, v => App.Update(x => x with { ReduceMotion = v }))),
-            Hinted(Row(loc[Extra.dataSaver], Toggle(s.DataSaver, v => App.Update(x => x with { DataSaver = v }))), loc[Extra.dataSaverHint]),
-            Row(loc[Extra.clearCaches], CacheButton()),
+            Hinted(Row(loc[S.dataSaver], Toggle(s.DataSaver, v => App.Update(x => x with { DataSaver = v }))), loc[S.dataSaverHint]),
+            Row(loc[S.clearCaches], CacheButton()),
         ]);
 
         Group(loc[S.subtitles],
@@ -134,7 +138,7 @@ public sealed class SettingsPage : Grid
         [
             KeyField("subsource", loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
             KeyField("tmdb", loc[S.tmdbKey], loc[S.tmdbKeyHint], s.TmdbKey, v => SaveTyped(x => x with { TmdbKey = v })),
-            KeyField("gemini", loc[Extra.geminiKey], loc[Extra.geminiKeyHint], s.GeminiKey, v => SaveTyped(x => x with { GeminiKey = v })),
+            KeyField("gemini", loc[S.geminiKey], loc[S.geminiKeyHint], s.GeminiKey, v => SaveTyped(x => x with { GeminiKey = v })),
         ]);
 
         var version = typeof(SettingsPage).Assembly.GetName().Version;
@@ -142,6 +146,7 @@ public sealed class SettingsPage : Grid
         [
             // The app looks by itself every hour; this is for when a release was just announced.
             Row(loc[S.version], VersionRow(version is null ? "—" : $"{version.Major}.{version.Minor}.{version.Build}")),
+            Row(loc[S.whatsNew], Kit.Glass(loc[S.viewNotes], null, () => _nav?.WhatsNew(), height: 34)),
             Row(loc[S.apiHost], Value(App.ApiHost is { } host && Uri.TryCreate(host, UriKind.Absolute, out var u) ? u.Host : "—", ltr: true)),
             Row(loc[S.reportProblem], Kit.Glass(loc[S.reportProblem], null, ReportProblem, height: 34)),
         ]);
@@ -177,13 +182,13 @@ public sealed class SettingsPage : Grid
         async Task Count()
         {
             var bytes = await Task.Run(Storage.CacheBytes);
-            size.Text = $"{loc.Num((int)(bytes >> 20))} {loc[Extra.megabytes]}";
+            size.Text = $"{loc.Num((int)(bytes >> 20))} {loc[S.megabytes]}";
         }
-        row.Children.Add(Kit.Glass(loc[Extra.clear], null, async () =>
+        row.Children.Add(Kit.Glass(loc[S.clear], null, async () =>
         {
             await Task.Run(Storage.ClearCaches);
             await Count();
-            App.ShowToast(loc[Extra.cleared]);
+            App.ShowToast(loc[S.cleared]);
         }, height: 34));
         _ = Count();
         return row;
@@ -197,7 +202,7 @@ public sealed class SettingsPage : Grid
     {
         var loc = App.Loc;
         var slot = new Border();
-        var row = Hinted(Row(loc[Extra.onlinePlayer], slot), loc[Extra.onlinePlayerHint]);
+        var row = Hinted(Row(loc[S.onlinePlayer], slot), loc[S.onlinePlayerHint]);
         row.Visibility = Visibility.Collapsed;
         _ = Fill();
         return row;
@@ -205,7 +210,7 @@ public sealed class SettingsPage : Grid
         async Task Fill()
         {
             var players = await Shell.OtherPlayers.ForStreamsAsync();
-            var options = new List<(string, object)> { (loc[Extra.thisApp], "") };
+            var options = new List<(string, object)> { (loc[S.thisApp], "") };
             options.AddRange(players.Select(p => (p.Name, (object)p.Program)));
             // Kept although Windows no longer lists it, so the choice is not silently changed.
             if (s.OnlinePlayer is { } kept && !players.Any(p => string.Equals(p.Program, kept, StringComparison.OrdinalIgnoreCase)))
@@ -302,21 +307,43 @@ public sealed class SettingsPage : Grid
         var number = Value(App.Loc.Num(version), ltr: true);
         number.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(number);
-        Button? check = null;
-        check = Kit.Glass(App.Loc[S.checkForUpdate], null, async () =>
+        // Every state at once, the unseen ones transparent, so the button keeps the width of the
+        // longest and nothing beside it moves as the answer comes. As the Mac's.
+        var loc = App.Loc;
+        var ask = Theme.Text(loc[S.checkForUpdate], 16, FontWeights.SemiBold);
+        var upToDate = Kit.Label(loc[S.upToDate], "", 16, FontWeights.SemiBold, Theme.Text1);
+        var failed = Kit.Label(loc[S.error], "", 16, FontWeights.SemiBold, Theme.Text1);
+        var looking = new ProgressRing { IsActive = true, Width = 16, Height = 16 };
+        var states = new Grid { Margin = new Thickness(17, 0, 17, 0), HorizontalAlignment = HorizontalAlignment.Center };
+        foreach (var state in new FrameworkElement[] { ask, upToDate, failed, looking })
         {
-            check!.IsEnabled = false;
-            try
+            state.HorizontalAlignment = HorizontalAlignment.Center;
+            state.VerticalAlignment = VerticalAlignment.Center;
+            states.Children.Add(state);
+        }
+        void Show(FrameworkElement shown)
+        {
+            foreach (var state in states.Children) state.Opacity = ReferenceEquals(state, shown) ? 1 : 0;
+        }
+        Show(ask);
+        var busy = false;
+        var check = Kit.Glass(states, async () =>
+        {
+            // The answer stays a moment in the button; a click then is not a second look.
+            if (busy) return;
+            busy = true;
+            Show(looking);
+            var answer = await Updater.Shared.LookAsync(asked: true);
+            // Found: the update's own card says so. Null: one is already on its way.
+            if (answer is Updater.Looks.UpToDate or Updater.Looks.NoAnswer)
             {
-                switch (await Updater.Shared.LookAsync(asked: true))
-                {
-                    case Updater.Looks.UpToDate: App.ShowToast(App.Loc[S.upToDate]); break;
-                    case Updater.Looks.NoAnswer: App.ShowToast(App.Loc[S.error]); break;
-                    // Found: the update's own card says so. Null: one is already on its way.
-                }
+                Show(answer == Updater.Looks.UpToDate ? upToDate : failed);
+                await Task.Delay(4000);
             }
-            finally { check.IsEnabled = true; }
+            Show(ask);
+            busy = false;
         }, height: 34);
+        Kit.AutomationName(check, loc[S.checkForUpdate]);
         row.Children.Add(check);
         return row;
     }
@@ -406,10 +433,10 @@ public sealed class SettingsPage : Grid
             if (saved && !rejected && state != KeyState.Checking) note.Children.Add(tick);
             words.Text = !saved ? hint : state switch
             {
-                KeyState.Checking => loc[Extra.keyChecking],
-                KeyState.Works => loc[Extra.keyWorks] + " · " + loc[Extra.keySavedHere],
-                KeyState.Rejected => loc[Extra.keyRejected],
-                KeyState.Unreachable => loc[Extra.keyUnreachable],
+                KeyState.Checking => loc[S.keyChecking],
+                KeyState.Works => loc[S.keyWorks] + " · " + loc[Extra.keySavedHere],
+                KeyState.Rejected => loc[S.keyRejected],
+                KeyState.Unreachable => loc[S.keyUnreachable],
                 _ => loc[Extra.keySavedHere],
             };
             // A wrong key is the one thing said in the app's red.
@@ -468,7 +495,7 @@ public sealed class SettingsPage : Grid
     {
         "tmdb" => "https://www.themoviedb.org/settings/api",
         "gemini" => "https://aistudio.google.com/apikey",
-        _ => "https://subsource.net/profile",
+        _ => "https://subsource.net/dashboard/api",
     });
 
     /// <summary>The ratings as a file Letterboxd's importer reads: the app cannot send them to 30nama, so this is how they leave it.</summary>

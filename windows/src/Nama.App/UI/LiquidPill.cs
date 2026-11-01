@@ -36,6 +36,17 @@ public sealed class LiquidPill : Grid
     private WriteableBitmap? _bitmap;
     private byte[] _pixels = [];
 
+    /// <summary>
+    /// Coloured glass, as a lit button on a frosted bar (the open tab of the top bar): the colour
+    /// over the glass, lighter toward the top left and deeper below, half see-through; a rim of it
+    /// with a bright line along the top; and a glow of it beneath that spills out under the bar.
+    /// Null for clear glass. As TintedGlass and PillGlow on the Mac, with the same numbers.
+    /// </summary>
+    public Windows.UI.Color? Tint { get; init; }
+
+    /// <summary>Room the element has past the glass on every side, for the glow to spill into.</summary>
+    public const double Spill = 40;
+
     public LiquidPill()
     {
         Children.Add(_image);
@@ -174,6 +185,16 @@ public sealed class LiquidPill : Grid
             var pieces = Pieces(target);
             // Only where the pieces and their join can reach.
             var box = pieces.Aggregate((a, b) => { a.Union(b); return a; });
+            if (Tint is { } tint) DrawTinted(tint, pieces, target, box, scale, w, h);
+            else DrawClear(pieces, box, scale, w, h);
+        }
+        using (var stream = _bitmap.PixelBuffer.AsStream()) stream.Write(_pixels, 0, _pixels.Length);
+        _bitmap.Invalidate();
+    }
+
+    private void DrawClear(List<Rect> pieces, Rect box, double scale, int w, int h)
+    {
+        {
             int x0 = Math.Max(0, (int)((box.Left - Reach) * scale)), x1 = Math.Min(w, (int)Math.Ceiling((box.Right + Reach) * scale));
             int y0 = Math.Max(0, (int)((box.Top - Reach) * scale)), y1 = Math.Min(h, (int)Math.Ceiling((box.Bottom + Reach) * scale));
             var height = ActualHeight;
@@ -207,8 +228,70 @@ public sealed class LiquidPill : Grid
                 }
             }
         }
-        using (var stream = _bitmap.PixelBuffer.AsStream()) stream.Write(_pixels, 0, _pixels.Length);
-        _bitmap.Invalidate();
+    }
+
+    private void DrawTinted(Windows.UI.Color tint, List<Rect> pieces, Rect target, Rect box, double scale, int w, int h)
+    {
+        double tr = tint.R / 255.0, tg = tint.G / 255.0, tb = tint.B / 255.0;
+        // The glow follows the body: four fifths as wide and three fifths as high, ten points down.
+        var body = pieces[0];
+        var glow = new Rect(body.X + body.Width * 0.1, body.Y + body.Height * 0.2 + 10, body.Width * 0.8, body.Height * 0.6);
+        const double sigma = 6; // the Mac's blur radius of 12, as a spread
+        var reach = Math.Max(Reach, sigma * 3);
+        box.Union(glow);
+        int x0 = Math.Max(0, (int)((box.Left - reach) * scale)), x1 = Math.Min(w, (int)Math.Ceiling((box.Right + reach) * scale));
+        int y0 = Math.Max(0, (int)((box.Top - reach) * scale)), y1 = Math.Min(h, (int)Math.Ceiling((box.Bottom + reach) * scale));
+        // The light falls across the open tab, from a little in at its top to a little in at its foot.
+        double fx = target.Left + target.Width * 0.3, fy = target.Top, gx = target.Left + target.Width * 0.7 - fx, gy = target.Height;
+        var along = gx * gx + gy * gy;
+        for (var py = y0; py < y1; py++)
+        {
+            var y = (py + 0.5) / scale;
+            var v = Math.Clamp((y - target.Top) / target.Height, 0, 1);
+            // The rim: a bright line along the top, the colour below.
+            var rimWhite = v < 0.3 ? 1 - v / 0.3 : 0;
+            var rimAlpha = Lerp(0.45, 0.7, v / 0.3);
+            for (var px = x0; px < x1; px++)
+            {
+                var x = (px + 0.5) / scale;
+                double r = 0, g = 0, b = 0, a = 0;
+                void Over(double cr, double cg, double cb, double ca)
+                {
+                    r = cr * ca + r * (1 - ca); g = cg * ca + g * (1 - ca); b = cb * ca + b * (1 - ca); a = ca + a * (1 - ca);
+                }
+                // The glow, under everything: a soft capsule, as a blurred one is.
+                var dg = Capsule(glow, x, y);
+                var spread = 1 / (1 + Math.Exp(1.7 * dg / sigma));
+                if (spread > 0.002) Over(tr, tg, tb, 0.55 * spread);
+
+                var d = double.MaxValue;
+                foreach (var piece in pieces) d = d == double.MaxValue ? Capsule(piece, x, y) : Join(d, Capsule(piece, x, y));
+                var cover = Math.Clamp(0.5 - d * scale, 0, 1);
+                var ground = _grounds.Count == 0 ? -10 : _grounds.Min(gr => Capsule(gr, x, y));
+                var inside = _grounds.Count == 0 ? 1 : Math.Clamp(0.5 - (ground + 3) * scale, 0, 1);
+                cover *= inside;
+                if (cover > 0)
+                {
+                    var t = along > 0 ? Math.Clamp(((x - fx) * gx + (y - fy) * gy) / along, 0, 1) : 0;
+                    // The colour, deeper along the light; white over it, lighter at the top.
+                    var tintAlpha = Lerp(0.85, 0.55, t);
+                    var whiteAlpha = Lerp(0.35, 0, t);
+                    var fillA = whiteAlpha + tintAlpha * (1 - whiteAlpha);
+                    double fr = (whiteAlpha + tr * tintAlpha * (1 - whiteAlpha)) / fillA, fg = (whiteAlpha + tg * tintAlpha * (1 - whiteAlpha)) / fillA, fb = (whiteAlpha + tb * tintAlpha * (1 - whiteAlpha)) / fillA;
+                    Over(fr, fg, fb, fillA * cover);
+                    var inner = Math.Clamp(0.5 - (d + Rim) * scale, 0, 1) * inside;
+                    var band = cover - inner;
+                    if (band > 0) Over(Lerp(tr, 1, rimWhite), Lerp(tg, 1, rimWhite), Lerp(tb, 1, rimWhite), rimAlpha * band);
+                }
+                if (a <= 0) continue;
+                var i = (py * w + px) * 4;
+                // Premultiplied, blue first.
+                _pixels[i] = (byte)Math.Round(Math.Min(1, b) * 255);
+                _pixels[i + 1] = (byte)Math.Round(Math.Min(1, g) * 255);
+                _pixels[i + 2] = (byte)Math.Round(Math.Min(1, r) * 255);
+                _pixels[i + 3] = (byte)Math.Round(Math.Min(1, a) * 255);
+            }
+        }
     }
 
     /// <summary>A glare over the top half, and a little caught along the bottom edge (lit glass).</summary>
