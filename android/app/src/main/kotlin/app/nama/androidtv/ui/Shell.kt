@@ -519,7 +519,8 @@ private fun FlyingPoster(flight: Flight, landed: () -> Unit) {
       val w = DETAILS_POSTER_W.dp.toPx()
       val h = DETAILS_POSTER_H.dp.toPx()
       val x = if (rtl) maxWidth.toPx() - Theme.edge.toPx() - w else Theme.edge.toPx()
-      androidx.compose.ui.geometry.Rect(x, DETAILS_TOP.dp.toPx(), x + w, DETAILS_TOP.dp.toPx() + h)
+      val y = (DETAILS_TOP + DETAILS_POSTER_LABEL).dp.toPx()
+      androidx.compose.ui.geometry.Rect(x, y, x + w, y + h)
     }
     val p = t.value
     val from = flight.from

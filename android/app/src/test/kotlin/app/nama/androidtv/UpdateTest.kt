@@ -38,6 +38,27 @@ class UpdateTest {
   }
 
   @Test
+  fun readsTheMirror() {
+    fun mirror(version: String, skip: String = "") = Json.parse(
+        listOf("version" to version, "page" to "https://example.com/p", "apk" to "https://example.com/a.apk", "signature" to "https://example.com/a.apk.sig")
+            .filter { it.first != skip }.joinToString(",", "{", "}") { """"${it.first}":"${it.second}"""" })
+    val r = AndroidRelease.fromMirror(mirror("1.2.0"), "1.1.4")!!
+    assertEquals("1.2.0", r.version)
+    assertEquals("https://example.com/a.apk.sig", r.signature)
+    assertNull("not newer", AndroidRelease.fromMirror(mirror("1.1.4"), "1.1.4"))
+    assertNull("without its signature it is not out yet", AndroidRelease.fromMirror(mirror("1.2.0", skip = "signature"), "1.1.4"))
+    assertNull("not the mirror's shape", AndroidRelease.fromMirror(Json.parse("[]"), "1.1.4"))
+  }
+
+  @Test
+  fun takesTheNewestOfBothSources() {
+    fun r(v: String) = AndroidRelease(v, "p", "a", "s")
+    assertEquals("1.2.0", AndroidRelease.newestOf(listOf(r("1.1.5"), r("1.2.0")))!!.version)
+    assertEquals("one source found nothing", "1.1.5", AndroidRelease.newestOf(listOf(null, r("1.1.5")))!!.version)
+    assertNull(AndroidRelease.newestOf(listOf(null, null)))
+  }
+
+  @Test
   fun versionsCompareByNumber() {
     assertTrue(AndroidRelease.isNewer("1.10.0", "1.9.2"))
     assertTrue(AndroidRelease.isNewer("1.2", "1.1.9"))

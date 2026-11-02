@@ -408,6 +408,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
     if (subtitleLanguage.startsWith(FOUND)) subtitleLanguage = "fa"
     // A translation goes on into the next episode, if that has nothing Persian either.
     if (subtitleLanguage == TRANSLATED && current.subtitles["fa"] != null) subtitleLanguage = "fa"
+    // An episode without one of the two goes on in Persian.
+    if (subtitleLanguage == BOTH && (current.subtitles["fa"] == null || current.subtitles["en"] == null)) subtitleLanguage = "fa"
     selectSubtitle(subtitleLanguage, remember = false)
     lookForSubtitles()
   }
@@ -642,6 +644,18 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
       }
       return
     }
+    if (language == BOTH) {
+      val fa = current.subtitles["fa"]?.toString()
+      val en = current.subtitles["en"]?.toString()
+      if (fa == null || en == null) return selectSubtitle("fa", remember = false)
+      subtitleJob = scope.launch {
+        val first = load(fa)
+        val second = load(en)
+        if (first == null || second == null) return@launch app.showToast(loc(S.subFailed))
+        if (subtitleLanguage == BOTH) track = withContext(Dispatchers.Default) { SubtitleTrack.together(first, second) }
+      }
+      return
+    }
     if (language == "off") return
     val url = current.subtitles[language]?.toString() ?: return
     subtitleCache[url]?.let {
@@ -802,6 +816,8 @@ class PlayerEngine(private val context: Context, private val app: AppModel, requ
   companion object {
     const val FOUND = "found:"
     const val TRANSLATED = "translated"
+    /** Persian above English, both of 30nama's files at once (the official 30tv app's "Persian + English"). */
+    const val BOTH = "both"
     private const val MIN_RETRIES = 10
     private const val USER_AGENT = "30nama-androidtv"
   }

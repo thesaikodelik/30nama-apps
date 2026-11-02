@@ -99,6 +99,29 @@ class SubtitleTrack(cues: List<Cue> = emptyList()) {
             }
         }
 
+        /**
+         * Two tracks shown at once, a line of [first] above a line of [second]: Persian and English
+         * together, for someone learning one from the other (the official 30tv app's "Persian +
+         * English"). Each moment either track starts or ends a line starts a cue of its own, so every
+         * line keeps its own timing; a moment with a line in only one shows that one. The tracks
+         * come already read ([vtt]), so their lines keep the direction each was given.
+         */
+        fun together(first: SubtitleTrack, second: SubtitleTrack): SubtitleTrack {
+            val times = (first.cues + second.cues).flatMap { listOf(it.start, it.end) }.distinct().sorted()
+            val cues = mutableListOf<Cue>()
+            for (i in 0 until times.size - 1) {
+                val from = times[i]
+                val to = times[i + 1]
+                val middle = (from + to) / 2
+                val text = listOf(first.text(middle), second.text(middle)).filter { it.isNotEmpty() }.joinToString("\n")
+                if (text.isEmpty()) continue
+                val last = cues.lastOrNull()
+                if (last != null && last.end == from && last.text == text) cues[cues.size - 1] = last.copy(end = to)
+                else cues.add(Cue(from, to, text))
+            }
+            return SubtitleTrack(cues)
+        }
+
         /** "MM:SS.mmm" or "HH:MM:SS.mmm"; SRT uses a comma before the milliseconds. */
         fun timestamp(raw: String): Double? {
             val fields = raw.trimWhitespace().replace(',', '.').split(':').filter { it.isNotEmpty() }

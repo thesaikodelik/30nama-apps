@@ -329,6 +329,8 @@ private fun Arriving(content: @Composable () -> Unit) {
 const val DETAILS_TOP = 140
 const val DETAILS_POSTER_W = 360
 const val DETAILS_POSTER_H = 540
+/** The line above the poster (what it is, and its year) and the gap under it: the poster's flight lands below them. */
+const val DETAILS_POSTER_LABEL = 52
 
 /**
  * The Mac's `comingIn`: in its place from the start, so nothing moves when it shows; seen once
@@ -411,7 +413,19 @@ private fun Header(
     // Leaving it turns it back: the next look at the page starts at the front.
     LaunchedEffect(touched) { if (!touched) turned = false }
     val lift by animateFloatAsState(if (touched) 1.03f else 1f, tween(150), label = "lift")
-    // Over its blur code at once, the large picture following.
+    // What it is and its year over the poster, its genres under it, both from the poster's reading
+    // edge (the owner): the column beside
+    // keeps the name, the scores and the story.
+    Column(Modifier.width(DETAILS_POSTER_W.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(Modifier.height((DETAILS_POSTER_LABEL - 16).dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+      // The home billboard's kicker bar, in the title's colour.
+      Box(Modifier.size(5.dp, 23.dp).background(LocalHue.current ?: Theme.accent, RoundedCornerShape(50)))
+      Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2, maxLines = 1)
+      post.year?.let { year ->
+        val end = post.yearEnd
+        FactChip(if (post.isSeries && end != null && end != year) loc.num(year) + "–" + loc.num(end) else loc.num(year))
+      }
+    }
     Box(
         Modifier.size(DETAILS_POSTER_W.dp, DETAILS_POSTER_H.dp)
             // Held back, frame and all, while the pressed card's poster is still flying to this spot.
@@ -450,6 +464,14 @@ private fun Header(
         Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) { PosterBack(card, app.inIran) }
       }
     }
+    if (post.genres.isNotEmpty()) {
+      Text(
+          post.genres.take(4).joinToString(if (loc.lang == Lang.en) ", " else "، ") { it.name },
+          Modifier.fillMaxWidth(), style = app(24, FontWeight.Medium), color = Theme.text2,
+          maxLines = 2, overflow = TextOverflow.Ellipsis,
+      )
+    }
+    }
     // A soft shadow under every line of the header: over a busy picture the words and chips were
     // hard to read from the sofa (the owner).
     CompositionLocalProvider(androidx.tv.material3.LocalTextStyle provides androidx.tv.material3.LocalTextStyle.current.copy(shadow = TEXT_SHADOW)) {
@@ -471,7 +493,6 @@ private fun Header(
     ) {
       // The kind line, and beside it as the Apple TV's: Persian subtitles, and a series' next episode.
       Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(loc.kindLine(post), style = app(24, FontWeight.SemiBold), color = Theme.text2)
         if (post.persianSubtitle) Chip {
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.subtitles, null, Modifier.size(20.dp), tint = Theme.text1)
@@ -496,7 +517,8 @@ private fun Header(
           enter = androidx.compose.animation.fadeIn(tween(400)) + androidx.compose.animation.expandVertically(androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 80.6f, visibilityThreshold = androidx.compose.ui.unit.IntSize.VisibilityThreshold)),
           exit = androidx.compose.animation.fadeOut(),
       ) { extra?.tagline?.let { Text(it, Modifier.widthIn(max = 1150.dp), style = app(26, FontWeight.Medium).copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = Theme.text2, maxLines = 2, overflow = TextOverflow.Ellipsis) } }
-      Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 3, allScores = true, tmdbScore = extra?.score) }
+      Box(Modifier.padding(top = 2.dp)) { MetaLine(post, genres = 0, allScores = true, tmdbScore = extra?.score, year = false) }
+      Directors(post, Modifier.comingIn(8, revealed))
       Standing(post)
       Text(
           post.plot(loc.lang), Modifier.widthIn(max = 1150.dp),
@@ -519,12 +541,11 @@ private fun Header(
         Box(Modifier.comingIn(6, revealed)) {
           val shareTitle = tv(TV.titleLink)
           val shareBody = tv(TV.titleLinkHint)
-          RoundButton(Icons.qr, shareTitle, { app.sheets.link = LinkSpec(shareTitle, shareBody, SiteLink.of(post)) })
+          RoundButton(Icons.link, shareTitle, { app.sheets.link = LinkSpec(shareTitle, shareBody, SiteLink.of(post)) })
         }
       }
       val progress = stream?.resume?.progress ?: 0.0
       if (progress > 0 && !post.isSeries) Box(Modifier.width(320.dp).comingIn(7, revealed)) { ProgressBar(progress) }
-      if (post.updates.isNotEmpty()) Box(Modifier.comingIn(8, revealed)) { UpdatesTicker(post.updates) }
     }
     }
   }
@@ -615,13 +636,8 @@ private fun Mine(post: Post) {
 private fun Standing(post: Post) {
   val loc = LocalLoc.current
   val ranked = post.imdbTop250 != null || post.siteTop100 != null || post.exclusiveSubtitle
-  // Each a run of its own: Latin, digits and Persian in one string fall out of order.
-  val counts = listOfNotNull(
-      post.imdbVotes?.let { listOf("IMDb", Fmt.count(it, loc.lang), loc(S.votes)) },
-      post.inWatchlists?.let { listOf(Fmt.count(it, loc.lang), loc(S.inWatchlists)) },
-      post.inFavorites?.let { listOf(Fmt.count(it, loc.lang), loc(S.inFavorites)) },
-  )
-  if (!ranked && counts.isEmpty()) return
+  // The counts of IMDb votes and of 30nama's lists went: no help in choosing (the owner).
+  if (!ranked) return
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     if (ranked) {
       Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -635,13 +651,33 @@ private fun Standing(post: Post) {
         }
       }
     }
-    if (counts.isNotEmpty()) {
-      Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        counts.forEachIndexed { i, parts ->
-          if (i > 0) Text("·", style = app(22), color = Theme.text3)
-          Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { parts.forEach { Text(it, style = app(22), color = Theme.text3) } }
-        }
+  }
+}
+
+/**
+ * Who directed it, among the facts at the top, so it is seen without going down the page: a film's
+ * director, a series' first three (a series lists every episode's, often a dozen). The chips that
+ * lead to their other titles stay at the foot of the page. The title's latest news follows it.
+ */
+@Composable
+private fun Directors(post: Post, tickerModifier: Modifier) {
+  val loc = LocalLoc.current
+  val names = post.directors.take(if (post.isSeries) 3 else 1)
+  if (names.isEmpty() && post.updates.isEmpty()) return
+  // Each name a run of its own: Latin names inside a Persian line fall out of order otherwise.
+  Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    if (names.isNotEmpty()) {
+      Text(loc(S.director), style = app(22), color = Theme.text3)
+      names.forEachIndexed { i, name ->
+        if (i > 0) Text("·", style = app(22), color = Theme.text3)
+        Text(name, style = app(22, FontWeight.SemiBold), color = Theme.text1, maxLines = 1)
       }
+    }
+    // What came lately (a new quality, a subtitle) on the same line, after the director, rather
+    // than a line of its own under the buttons (the owner). It takes what width is left.
+    if (post.updates.isNotEmpty()) {
+      if (names.isNotEmpty()) Spacer(Modifier.width(26.dp))
+      Box(tickerModifier) { UpdatesTicker(post.updates) }
     }
   }
 }
@@ -733,7 +769,8 @@ private fun StarRating(value: Double?, set: (Double?) -> Unit) {
                   else -> n.toDouble()
                 })
           },
-          modifier = Modifier.focusRing(interaction, CircleShape, grown = 1.2f).mouseClicks(),
+          // White in focus with no ring, as every button.
+          modifier = Modifier.mouseClicks(),
           interactionSource = interaction,
           shape = ClickableSurfaceDefaults.shape(CircleShape),
           colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.White),

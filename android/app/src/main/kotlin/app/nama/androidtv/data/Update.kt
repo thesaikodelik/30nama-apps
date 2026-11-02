@@ -18,6 +18,27 @@ data class AndroidRelease(val version: String, val page: String, val apk: String
     const val DOWNLOADS = "https://github.com/thesaikodelik/30nama-apps/releases/tag/downloads"
 
     /**
+     * The same newest release on the project's R2 bucket, asked beside GitHub: GitHub is often
+     * slow or blocked in Iran, and its sixty requests an hour are shared by everyone behind one
+     * address. The APK and its signature are there too, so a TV that cannot reach GitHub still
+     * updates; the signature is checked the same, so the bucket cannot pass off a file of its own.
+     * Written by android/tools/PublishR2.java, last, after the files it names (AGENTS.md).
+     */
+    const val MIRROR = "https://pub-33dfb9bd6d2443e98034892dafb0dc24.r2.dev/android/latest.json"
+
+    /** The release in the mirror's `latest.json` if it is newer than [current]; one missing a field is not out yet. */
+    fun fromMirror(j: Json, current: String): AndroidRelease? {
+      val r = AndroidRelease(
+          j["version"].text ?: return null, j["page"].text ?: return null,
+          j["apk"].text ?: return null, j["signature"].text ?: return null)
+      return r.takeIf { isNewer(it.version, current) }
+    }
+
+    /** The newest of what each source found. */
+    fun newestOf(found: List<AndroidRelease?>): AndroidRelease? =
+        found.filterNotNull().reduceOrNull { a, b -> if (isNewer(b.version, a.version)) b else a }
+
+    /**
      * The newest finished release in a `releases` answer that is newer than [current]. A release
      * without its APK and that APK's signature is passed over, as if not out yet.
      */

@@ -74,6 +74,8 @@ enum class TV(val en: String, val fa: String, val ar: String) {
       "زبان برنامه. نام و داستان عنوان‌ها هم، هر جا ۳۰نما داشته باشد، به همین زبان می‌آید.",
       "لغة التطبيق. تأتي العناوين والقصص بها أيضاً حيث تتوفر في ۳۰نما.",
   ),
+  rating30nama("30nama rating", "امتیاز ۳۰نما", "تقييم ۳۰نما"),
+  persianAndEnglish("Persian + English", "فارسی + English", "الفارسية + English"),
   subtitlesHint(
       "How subtitles look. The sample below is drawn at its real size.",
       "ظاهر زیرنویس. نمونهٔ پایین در اندازهٔ واقعی کشیده شده است.",

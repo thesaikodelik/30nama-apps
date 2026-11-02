@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,10 @@ fun TitleArt(post: Post, size: Int) {
   }
   Column(
       Modifier
+          // The whole width from the start, as the Mac's frame: only the height then changes, and
+          // the logo rises into place. Sized to its content, the width grew too and uncovered the
+          // logo from the side, a slide the owner did not want.
+          .fillMaxWidth()
           // In one motion with the page: what is below moves down to make room as a taller logo
           // comes in, instead of jumping there (the owner, as the Mac's).
           .then(if (known || calm) Modifier else Modifier.animateContentSize(TITLE_SETTLE_SIZE, alignment = Alignment.TopStart))

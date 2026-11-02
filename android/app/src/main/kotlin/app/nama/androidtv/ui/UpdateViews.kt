@@ -279,6 +279,7 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
       else -> Icons.download
     }
     val hasButtons = state is Updater.State.Available || failed
+    val offered = state is Updater.State.Available
     // The buttons going while one had focus (Install pressed): focus back to the bar, not lost.
     var holds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     LaunchedEffect(hasButtons) { if (!hasButtons && holds) up() }
@@ -305,15 +306,19 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
               )
             }
             .glass(shape)
-            .padding(start = 26.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = if (offered) 10.dp else 26.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-      androidx.tv.material3.Icon(icon, null, Modifier.size(28.dp), tint = if (level > 0f) Color.White else Theme.accent)
-      Text(message, style = app(24, FontWeight.SemiBold), color = Theme.text1, maxLines = 1)
+      // A new version offered is one button that names it, not a line and then a button saying the
+      // same again (the owner). The line is for what the button cannot say: progress, a permission, a failure.
+      if (!offered) {
+        androidx.tv.material3.Icon(icon, null, Modifier.size(28.dp), tint = if (level > 0f) Color.White else Theme.accent)
+        Text(message, style = app(24, FontWeight.SemiBold), color = Theme.text1, maxLines = 1)
+      }
       when {
         state is Updater.State.Available -> {
-          PillButton(loc(S.installUpdate), { updater.install(state.release) }, Modifier.focusRequester(focus), kind = PillKind.Primary)
+          PillButton("${loc(S.installUpdate)} ${loc.num(state.release.version)}", { updater.install(state.release) }, Modifier.focusRequester(focus), kind = PillKind.Primary, icon = Icons.download)
           PillButton("", { updater.postpone(); up() }, Modifier.semantics { contentDescription = loc(S.later) }, kind = PillKind.Chip, icon = Icons.close)
         }
         failed -> {

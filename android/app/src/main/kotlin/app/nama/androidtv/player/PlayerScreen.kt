@@ -605,7 +605,8 @@ private fun PlayerButton(
   val focused by interaction.collectIsFocusedAsState()
   androidx.tv.material3.Surface(
       onClick = onClick,
-      modifier = modifier.semantics { contentDescription = label }.focusRing(interaction, CircleShape, grown = 1.12f).mouseClicks(),
+      // White in focus with no ring, as every button.
+      modifier = modifier.semantics { contentDescription = label }.mouseClicks(),
       interactionSource = interaction,
       shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(CircleShape),
       colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
@@ -748,6 +749,9 @@ private fun SidePanel(engine: PlayerEngine, panel: Panel, go: (Panel) -> Unit, c
       list += Choice(loc(S.off), engine.subtitleLanguage == "off") { engine.selectSubtitle("off", true) }
       listOf("fa", "en").filter { item.subtitles[it] != null }.forEach { l ->
         list += Choice(loc(if (l == "fa") S.persian else S.english), engine.subtitleLanguage == l) { engine.selectSubtitle(l, true) }
+      }
+      if (item.subtitles["fa"] != null && item.subtitles["en"] != null) {
+        list += Choice(tv(TV.persianAndEnglish), engine.subtitleLanguage == PlayerEngine.BOTH) { engine.selectSubtitle(PlayerEngine.BOTH, true) }
       }
       // Found ones are named by their release, under the language; the same name twice gets a number.
       val seen = HashMap<String, Int>()

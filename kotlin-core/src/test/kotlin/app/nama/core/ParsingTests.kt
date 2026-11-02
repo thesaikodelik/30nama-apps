@@ -128,6 +128,20 @@ class ParsingTests {
         assertEquals("", SubtitleTrack().text(5.0))
     }
 
+    @Test fun testTwoTracksTogether() {
+        val fa = SubtitleTrack(listOf(Cue(1.0, 4.0, "سلام"), Cue(6.0, 8.0, "خداحافظ")))
+        val en = SubtitleTrack(listOf(Cue(2.0, 5.0, "Hello"), Cue(6.0, 8.0, "Goodbye")))
+        val both = SubtitleTrack.together(fa, en)
+        assertEquals("only the first has a line yet", "سلام", both.text(1.5))
+        assertEquals("first above second", "سلام\nHello", both.text(3.0))
+        assertEquals("the first ended, the second goes on", "Hello", both.text(4.5))
+        assertEquals("", both.text(5.5))
+        assertEquals("خداحافظ\nGoodbye", both.text(7.0))
+        assertEquals("lines with the same timing make one cue", 1, both.cues.count { it.text == "خداحافظ\nGoodbye" })
+        assertEquals("", both.text(8.0))
+        assertEquals("one track empty: the other alone", fa.cues, SubtitleTrack.together(fa, SubtitleTrack()).cues)
+    }
+
     @Test fun testBlurHashDecodes() {
         // Hash served by the API for a real poster.
         val px = BlurHash.pixels("bRIr1_%M~qxtyXtR%hRjIUxu", 8, 12)!!

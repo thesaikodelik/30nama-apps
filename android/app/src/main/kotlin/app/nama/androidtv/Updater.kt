@@ -26,6 +26,9 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -81,12 +84,10 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   val current: String = BuildConfig.VERSION_NAME
   private val dir = File(context.cacheDir, "update")
   private val pendingFile = File(context.filesDir, "update-pending.json")
-  private val prefs = context.getSharedPreferences("update", Context.MODE_PRIVATE)
 
   /** The `userTest` build's local feed, or the real one. */
   private val feed: String = BuildConfig.TEST_FEED.ifEmpty { AndroidRelease.FEED }
 
-  /** At launch: whether the last update arrived, and a quiet look for a new one once a day. */
   /**
    * Once per process: the activity can be made again while the app lives on (Back out, open from
    * the launcher), and a second start would delete a download under way, or call an install still
@@ -94,10 +95,22 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
    */
   private var started = false
 
+  /**
+   * When the last look began. Looks come at launch and on every return to the app, at most one in
+   * [LOOK_GAP]. Until 1.1.4 a look came once a day, and only when the process started: a TV keeps
+   * the app alive for days, and a look just before a release kept it from being seen for 20 hours.
+   */
+  private var lastLook = 0L
+
+  private companion object {
+    /** Fifteen minutes: a TV is opened and left many times an evening; GitHub allows sixty looks an hour per address. */
+    const val LOOK_GAP = 15 * 60_000L
+  }
+
+  /** At launch: whether the last update arrived, and a quiet look for a new one. */
   fun start() {
     if (started) return
     started = true
-    var unfinished = false
     PendingUpdate.parse(pendingFile.takeIf { it.exists() }?.readText())?.let { pending ->
       pendingFile.delete()
       if (pending.arrived(current)) {
@@ -107,35 +120,46 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
         // Android's confirmation was left (Home, or the TV slept) and said nothing back. Not a failure:
         // the update is offered again under the bar, not a card sending the viewer to download it.
         log("opened as $current, not ${pending.version}: the installer was left; offered again")
-        unfinished = true
       }
     }
     dir.deleteRecursively()
-    val last = prefs.getLong("checked", 0)
-    if (state == State.Idle && (unfinished || System.currentTimeMillis() - last > 20 * 3600_000L)) check(quiet = true)
+    check(quiet = true)
+  }
+
+  /**
+   * Asks GitHub and the R2 mirror at once and takes the newest either has; one that does not answer
+   * does not hold up the other. The `userTest` build asks only its local feed.
+   */
+  private suspend fun look(): Result<AndroidRelease?> = coroutineScope {
+    fun ask(url: String, read: (Json) -> AndroidRelease?) = async(Dispatchers.IO) {
+      runCatching {
+        http.newCall(Request.Builder().url(url).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
+          if (!r.isSuccessful) error("HTTP ${r.code}")
+          read(Json.parse(r.body!!.bytes()))
+        }
+      }.onFailure { Log.w(AppModel.TAG, "update check, $url: $it") }
+    }
+    val asked = buildList {
+      add(ask(feed) { AndroidRelease.newest(it, current) })
+      if (BuildConfig.TEST_FEED.isEmpty()) add(ask(AndroidRelease.MIRROR) { AndroidRelease.fromMirror(it, current) })
+    }.awaitAll()
+    if (asked.none { it.isSuccess }) asked.first()
+    else Result.success(AndroidRelease.newestOf(asked.map { it.getOrNull() }))
   }
 
   fun check(quiet: Boolean = false) {
     if (state is State.Checking || state is State.Downloading || state is State.Installing) return
     if (!quiet) state = State.Checking
+    lastLook = System.currentTimeMillis()
     scope.launch {
-      val found = withContext(Dispatchers.IO) {
-        runCatching {
-          http.newCall(Request.Builder().url(feed).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
-            if (!r.isSuccessful) error("HTTP ${r.code}")
-            AndroidRelease.newest(Json.parse(r.body!!.bytes()), current)
-          }
-        }
-      }
-      found.onSuccess { prefs.edit().putLong("checked", System.currentTimeMillis()).apply() }
-      found.exceptionOrNull()?.let { Log.w(AppModel.TAG, "update check: $it") }
+      val found = look()
       val release = found.getOrNull()
       // An update under way since this look began (the viewer pressed Install) is not overwritten.
       if (state is State.Downloading || state is State.Installing || state is State.NeedsPermission) return@launch
       state = when {
         release != null -> State.Available(release)
         // A failed look in the background says nothing; one the viewer asked for says it is current
-        // only when GitHub answered.
+        // only when GitHub or the mirror answered.
         quiet -> state
         found.isSuccess -> State.UpToDate
         else -> State.Idle
@@ -214,9 +238,16 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     }
   }
 
-  /** Back from the system's settings: with the switch on, the update goes on; else the card stays. */
+  /**
+   * Back in the app. From the system's settings: with the switch on, the update goes on; else the
+   * card stays. From anywhere else: a quiet look, if the last was [LOOK_GAP] ago.
+   */
   fun resumed() {
-    val s = state as? State.NeedsPermission ?: return
+    val s = state as? State.NeedsPermission
+    if (s == null) {
+      if (started && System.currentTimeMillis() - lastLook > LOOK_GAP) check(quiet = true)
+      return
+    }
     if (!allowedToInstall()) return
     log("allowed to install apps")
     scope.launch { commit(s.release, File(dir, "30nama-androidtv.apk")) }

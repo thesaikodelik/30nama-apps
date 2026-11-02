@@ -80,6 +80,8 @@ private enum class Sort(val order: String, val label: S?) {
   Updated("update", S.updated), Newest("year", S.newest), Popular("favorite", S.popular),
   /** By the IMDb rating, best first (issue #2): the advanced search's order, so through it even with no filter. Its name is IMDb's own. */
   Imdb("imdb-rate", null),
+  /** By the rating 30nama's viewers give, best first: the official 30tv app's "30nama Rating". */
+  Rating("30nama-rate", null),
 }
 
 /** Posters across a wall: (1920 − 2 × 80 + 20) / (200 + 20). */
@@ -258,7 +260,7 @@ fun CatalogScreen(slug: String, title: String) {
                 if (!filter.isEmpty) item { PillButton(loc(S.reset), { filter = Filter() }, kind = PillKind.Chip, icon = Icons.close) }
               }
             }
-              sorts.forEach { s -> PillButton(s.label?.let { loc(it) } ?: "IMDb", { sort = s }, kind = PillKind.Chip, selected = s == sort) }
+              sorts.forEach { s -> PillButton(s.label?.let { loc(it) } ?: if (s == Sort.Rating) tv(TV.rating30nama) else "IMDb", { sort = s }, kind = PillKind.Chip, selected = s == sort) }
             }
             if (!loading && posts.isEmpty() && page >= pages) Text(loc(S.noMatches), style = app(28), color = Theme.text2)
           }

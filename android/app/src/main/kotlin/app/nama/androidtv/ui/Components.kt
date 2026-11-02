@@ -204,12 +204,57 @@ private val capsule = RoundedCornerShape(percent = 50)
 val accentGradient = Brush.linearGradient(listOf(Theme.accentLight, Theme.accent, Theme.accentDeep))
 
 /**
- * Buttons, as the Mac's (docs/design, "دکمه‌ها و چیپ‌ها"); a TV's focus is the Mac's hover.
- *  - [PillKind.Primary], the one bright button on a screen (play, sign in): white, throwing light
- *    in the colour of the title it is about ([LocalHue]), white light where there is none.
- *  - [PillKind.Secondary], everything else: glass filled with white 0.10, 0.20 and lit in focus.
- *  - [PillKind.Chip], one choice among a few (a season, a sort): the chosen one white, the others
- *    white 0.10. Sizes are the Apple TV app's, as a TV is seen from the sofa.
+ * The bright button's face as the bar's open tab is drawn (Shell.kt, redGlass), in white: a body
+ * from full to 0.8 across, the shine from the top corner, a rim, and the light along the top (the
+ * owner). Its glow, in the title's colour, is [colouredGlow] under it.
+ */
+/**
+ * A button's face in a colour, as the bar's open tab is drawn (Shell.kt, redGlass, kept apart so
+ * the bar stays as it is): the colour from 0.85 to 0.55 across, the shine from the top corner, a
+ * rim in the colour and the light along the top. The main button at rest, and a chosen chip.
+ */
+fun Modifier.tintedGlass(tint: Color): Modifier = drawBehind {
+  val r = size.height / 2f
+  val corner = androidx.compose.ui.geometry.CornerRadius(r, r)
+  drawRoundRect(
+      Brush.linearGradient(listOf(tint.copy(alpha = 0.85f), tint.copy(alpha = 0.55f)), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width, size.height)),
+      cornerRadius = corner)
+  drawRoundRect(
+      Brush.linearGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width * 0.6f, size.height)),
+      cornerRadius = corner)
+  val line = 1.dp.toPx()
+  drawRoundRect(tint.copy(alpha = 0.7f), cornerRadius = corner, style = androidx.compose.ui.graphics.drawscope.Stroke(line))
+  drawLine(
+      Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent), startX = r * 0.5f, endX = size.width - r * 0.5f),
+      start = androidx.compose.ui.geometry.Offset(r * 0.5f, line * 1.5f), end = androidx.compose.ui.geometry.Offset(size.width - r * 0.5f, line * 1.5f), strokeWidth = line)
+}
+
+fun Modifier.whiteGlass(): Modifier = drawBehind {
+  val r = size.height / 2f
+  val corner = androidx.compose.ui.geometry.CornerRadius(r, r)
+  drawRoundRect(
+      Brush.linearGradient(listOf(Color.White, Color.White.copy(alpha = 0.8f)), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width, size.height)),
+      cornerRadius = corner)
+  drawRoundRect(
+      Brush.linearGradient(listOf(Color.White.copy(alpha = 0.6f), Color.Transparent), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width * 0.6f, size.height)),
+      cornerRadius = corner)
+  val line = 1.dp.toPx()
+  drawRoundRect(Color.White.copy(alpha = 0.9f), cornerRadius = corner, style = androidx.compose.ui.graphics.drawscope.Stroke(line))
+  drawLine(
+      Brush.horizontalGradient(listOf(Color.Transparent, Color.White, Color.Transparent), startX = r * 0.5f, endX = size.width - r * 0.5f),
+      start = androidx.compose.ui.geometry.Offset(r * 0.5f, line * 1.5f), end = androidx.compose.ui.geometry.Offset(size.width - r * 0.5f, line * 1.5f), strokeWidth = line)
+}
+
+/**
+ * Buttons. Focus is white, as on the Apple TV, Google TV and the official 30tv app: the button
+ * focus is on turns to white glass ([whiteGlass]) and lifts, with no ring. At rest nothing is
+ * white, so the brightest button on the screen is always the one focus is on (the owner; before,
+ * Play stayed white while focus was elsewhere, and the eye went to it).
+ *  - [PillKind.Primary], the one main button on a screen (play, sign in): at rest glass in the
+ *    colour of the title it is about ([LocalHue]), 30nama's red where there is none.
+ *  - [PillKind.Secondary], everything else: glass filled with white 0.10.
+ *  - [PillKind.Chip], one choice among a few (a season, a sort): the chosen one red glass, as the
+ *    bar's open tab, the others white 0.10. Sizes are the Apple TV app's, as a TV is seen from the sofa.
  */
 @Composable
 fun PillButton(
@@ -227,9 +272,9 @@ fun PillButton(
   val focused by interaction.collectIsFocusedAsState()
   val chip = kind == PillKind.Chip
   val primary = kind == PillKind.Primary
-  val white = primary || (chip && selected)
+  val chosen = chip && selected
   val hue = LocalHue.current
-  val light = hue ?: Color.White
+  val tint = hue ?: Theme.accent
   Surface(
       onClick = onClick,
       onLongClick = onLongClick,
@@ -240,37 +285,31 @@ fun PillButton(
           containerColor = Color.Transparent,
           focusedContainerColor = Color.Transparent,
           pressedContainerColor = Color.Transparent,
-          contentColor = if (white) Theme.focusInk else if (chip) Theme.text2 else Theme.text1,
-          focusedContentColor = if (white) Theme.focusInk else Theme.text1,
-          pressedContentColor = if (white) Theme.focusInk else Theme.text1,
+          contentColor = if (chip && !selected) Theme.text2 else Theme.text1,
+          focusedContentColor = Theme.focusInk,
+          pressedContentColor = Theme.focusInk,
       ),
-      // Every kind lifts alike in focus; the ring says where focus is.
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f, pressedScale = 0.96f),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
   ) {
     Box(
         Modifier
             .height(if (chip) 58.dp else 76.dp)
             .then(
                 when {
-                  // The light the bright button throws is the colour of the title it is about.
-                  white -> Modifier.colouredGlow(light, if (primary) (if (hue == null) (if (focused) 0.45f else 0.2f) else (if (focused) 0.75f else 0.45f)) else if (focused) 0.35f else 0f, if (focused) 28.dp else 17.dp, capsule)
-                      .background(Color.White, capsule)
-                  // The Mac's PillChoice and filter menus are not glass: a flat capsule of white
-                  // 0.10. In focus, where the Mac's pointer makes it 0.20, a little more and an
-                  // edge, to be seen from the sofa.
-                  chip -> Modifier.background(Color.White.copy(alpha = if (focused) 0.24f else 0.10f), capsule)
-                  else -> Modifier.glass(capsule, lit = focused, fill = if (focused) 0.20f else 0.10f)
+                  // In focus white glass, its light the colour of the title it is about.
+                  focused -> Modifier.colouredGlow(hue ?: Color.White, if (hue == null) 0.4f else 0.6f, 26.dp, capsule).whiteGlass()
+                  primary -> Modifier.colouredGlow(tint, 0.35f, 17.dp, capsule).tintedGlass(tint)
+                  chosen -> Modifier.tintedGlass(Theme.accent)
+                  // The Mac's PillChoice and filter menus are not glass: a flat capsule of white 0.10.
+                  chip -> Modifier.background(Color.White.copy(alpha = 0.10f), capsule)
+                  else -> Modifier.glass(capsule, lit = false, fill = 0.10f)
                 })
-            // The ring's red light moving inside, over the button's own face (the owner); on the
-            // white ones fainter, so they stay white.
-            .focusWash(focused, if (white) 0.12f else 0.30f, capsule)
-            .focusRing(focused, capsule)
             // With no words, a circle round its icon (the capsule's ✕, the owner).
             .padding(horizontal = if (text.isEmpty()) (if (chip) 17.dp else 24.dp) else if (chip) 30.dp else 38.dp),
         contentAlignment = Alignment.Center,
     ) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (busy) Spinner(Modifier.size(26.dp), color = if (white) Theme.focusInk else Color.White)
+        if (busy) Spinner(Modifier.size(26.dp), color = if (focused) Theme.focusInk else Color.White)
         else if (icon != null) Icon(icon, null, Modifier.size(if (chip) 24.dp else 28.dp))
         if (text.isNotEmpty()) Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
         if (trailing != null) Icon(trailing, null, Modifier.size(24.dp))
@@ -298,11 +337,12 @@ fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier:
           containerColor = Color.Transparent,
           focusedContainerColor = Color.Transparent,
           contentColor = if (on) hue else Theme.text1,
-          focusedContentColor = if (on) hue else Color.White,
+          focusedContentColor = if (on) hue else Theme.focusInk,
       ),
-      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.96f),
+      scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f, pressedScale = 0.96f),
   ) {
-    Box(Modifier.size(76.dp).glass(CircleShape, lit = focused, fill = if (focused) 0.20f else 0.10f).focusWash(focused, 0.30f, CircleShape).focusRing(focused, CircleShape), contentAlignment = Alignment.Center) {
+    // Focus is white, as on the pill buttons.
+    Box(Modifier.size(76.dp).then(if (focused) Modifier.colouredGlow(LocalHue.current ?: Color.White, 0.4f, 22.dp, CircleShape).whiteGlass() else Modifier.glass(CircleShape, lit = false, fill = 0.10f)), contentAlignment = Alignment.Center) {
       Icon(if (on) onIcon ?: icon else icon, null, Modifier.size(32.dp))
     }
   }
@@ -604,7 +644,7 @@ private fun ScoreChip(source: String, color: Color, value: String) {
 }
 
 @Composable
-private fun FactChip(text: String) {
+fun FactChip(text: String) {
   Chip { Text(text, style = app(22, FontWeight.SemiBold), color = Theme.text1, maxLines = 1) }
 }
 
@@ -613,7 +653,7 @@ private fun FactChip(text: String) {
  * MyAnimeList, 30nama), then year, runtime and age rating, then genres.
  */
 @Composable
-fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: Boolean = false, tmdbScore: Double? = null) {
+fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: Boolean = false, tmdbScore: Double? = null, year: Boolean = true) {
   val loc = LocalLoc.current
   val scores: @Composable (Boolean) -> Unit = { all ->
     post.imdbScore?.let { ScoreChip("IMDb", Theme.imdb, Fmt.score(it)) }
@@ -633,13 +673,13 @@ fun MetaLine(post: Post, genres: Int = 2, expanded: Boolean = false, allScores: 
     }
   }
   val facts: @Composable () -> Unit = {
-    post.year?.let { year ->
+    if (year) post.year?.let { year ->
       val end = post.yearEnd
       FactChip(if (post.isSeries && end != null && end != year) loc.num(year) + "–" + loc.num(end) else loc.num(year))
     }
     Fmt.runtime(post.runtimeMinutes, loc.lang)?.let { FactChip(it) }
     post.age?.let { age -> CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { FactChip(age) } }
-    if (post.genres.isNotEmpty()) {
+    if (post.genres.isNotEmpty() && genres > 0) {
       Text(
           post.genres.take(genres).joinToString(if (loc.lang == Lang.fa) "، " else ", ") { it.name },
           Modifier.padding(start = 8.dp), style = app(24, FontWeight.Medium), color = Theme.text2, maxLines = 1, overflow = TextOverflow.Ellipsis,

@@ -68,6 +68,7 @@ import androidx.tv.material3.Text
 import app.nama.androidtv.BuildConfig
 import app.nama.androidtv.Updater
 import app.nama.androidtv.player.Disk
+import app.nama.androidtv.player.PlayerEngine
 import app.nama.androidtv.data.KeyCheck
 import app.nama.androidtv.data.KeyServer
 import app.nama.androidtv.data.KeyState
@@ -205,7 +206,7 @@ fun SettingsScreen() {
           Toggle(tv(TV.matchFrameRate), s.matchFrameRate, tv(TV.matchFrameRateHint), { help = it }) { app.update { it.copy(matchFrameRate = !it.matchFrameRate) } }
         }
         Group(loc(S.subtitles)) {
-          val langs = listOf("fa" to loc(S.persian), "en" to loc(S.english), "off" to loc(S.off))
+          val langs = listOf("fa" to loc(S.persian), "en" to loc(S.english), PlayerEngine.BOTH to tv(TV.persianAndEnglish), "off" to loc(S.off))
           val langName = langs.firstOrNull { it.first == s.defaultSubtitle }?.second ?: loc(S.off)
           val hint = tv(TV.subtitlesHint)
           val subHelp = { values: List<String>, current: String -> Help(hint, values, current) }
