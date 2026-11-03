@@ -26,6 +26,12 @@ public sealed class MpvPlayback : IDisposable
     public event Action? Ended;
     public event Action? Failed;
     public event Action? Loaded;
+    /// <summary>The colours at the picture's edges, read from the frame on the screen (<see cref="ReadEdges"/>). On the UI thread.</summary>
+    public event Action<Nama.Core.EdgeLight>? EdgesRead;
+
+    /// <summary>Marks the answer to <see cref="ReadEdges"/> among mpv's replies.</summary>
+    private const ulong EdgesReply = 0x4C49474854;
+    private volatile bool _reading;
 
     public bool IsAvailable => _handle != IntPtr.Zero;
 
@@ -107,6 +113,12 @@ public sealed class MpvPlayback : IDisposable
                             break;
                     }
                     break;
+                case Mpv.EventId.CommandReply when e.ReplyUserdata == EdgesReply:
+                    // The frame's own memory, mpv's until the next event: read here, on this thread.
+                    var edges = e.Error >= 0 && e.Data != IntPtr.Zero ? Edges(Marshal.PtrToStructure<Mpv.Node>(e.Data)) : null;
+                    _reading = false;
+                    if (edges is not null) _ui.TryEnqueue(() => EdgesRead?.Invoke(edges));
+                    break;
                 case Mpv.EventId.FileLoaded:
                     _ui.TryEnqueue(() => Loaded?.Invoke());
                     break;
@@ -121,6 +133,49 @@ public sealed class MpvPlayback : IDisposable
 
     /// <summary>Where mpv's warnings are written when <c>NAMA_MPV_LOG</c> names a file.</summary>
     private static readonly string? LogFile = Environment.GetEnvironmentVariable("NAMA_MPV_LOG") is { Length: > 1 } path ? path : null;
+
+    /// <summary>
+    /// Asks mpv for the frame on the screen, without waiting: <c>screenshot-raw</c> through
+    /// <c>mpv_command_async</c>, the answer read on the events thread (AGENTS.md: nothing of mpv is
+    /// asked from the UI thread). One at a time.
+    /// </summary>
+    public void ReadEdges()
+    {
+        if (_handle == IntPtr.Zero || _stopping || _reading) return;
+        _reading = true;
+        var args = Mpv.Words("screenshot-raw", "video");
+        try { if (Mpv.CommandAsync(_handle, EdgesReply, args) < 0) _reading = false; }
+        finally { Mpv.FreeWords(args); }
+    }
+
+    /// <summary>The edges of a <c>screenshot-raw</c> answer (bgr0), as <see cref="FrameReader"/> reads one.</summary>
+    private static Nama.Core.EdgeLight? Edges(Mpv.Node result)
+    {
+        if (result.Format != Mpv.FormatNodeMap) return null;
+        var list = Marshal.PtrToStructure<Mpv.NodeList>(result.U);
+        int width = 0, height = 0, stride = 0;
+        Mpv.ByteArray? data = null;
+        var size = Marshal.SizeOf<Mpv.Node>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var key = Mpv.Utf8(Marshal.ReadIntPtr(list.Keys, i * IntPtr.Size));
+            var node = Marshal.PtrToStructure<Mpv.Node>(list.Values + i * size);
+            switch (key)
+            {
+                case "w": width = (int)node.U; break;
+                case "h": height = (int)node.U; break;
+                case "stride": stride = (int)node.U; break;
+                case "data" when node.Format == Mpv.FormatByteArray: data = Marshal.PtrToStructure<Mpv.ByteArray>(node.U); break;
+            }
+        }
+        if (data is not { } bytes || (long)bytes.Size < (long)stride * height) return null;
+        var start = bytes.Data;
+        return Nama.Core.EdgeLight.Of(width, height, stride, offset =>
+        {
+            var p = Marshal.ReadInt32(start, offset);
+            return ((p >> 16) & 0xFF, (p >> 8) & 0xFF, p & 0xFF);
+        });
+    }
 
     private double Number(string name) => _numbers.TryGetValue(name, out var v) ? v : 0;
 

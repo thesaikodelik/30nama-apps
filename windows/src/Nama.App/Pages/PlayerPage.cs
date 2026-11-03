@@ -66,6 +66,10 @@ public sealed partial class PlayerPage : Grid
         TabFocusNavigation = KeyboardNavigationMode.Cycle;
 
         _surface.Playback = _engine.Playback;
+        _engine.Playback.EdgesRead += edges => _edgesRead = edges;
+        _aurora = DispatcherQueue.CreateTimer();
+        _aurora.Interval = TimeSpan.FromMilliseconds(33);
+        _aurora.Tick += (_, _) => Aurora();
         Children.Add(_surface);
         Children.Add(_glow);
         BuildCurtain();
@@ -127,12 +131,14 @@ public sealed partial class PlayerPage : Grid
         {
             _nowPlaying = new NowPlaying(_engine, WinRT.Interop.WindowNative.GetWindowHandle(_window), DispatcherQueue);
             _engine.Begin();
+            _aurora.Start();
             Focus(FocusState.Programmatic);
             Wake();
         };
         Unloaded += (_, _) =>
         {
             _hide.Stop();
+            _aurora.Stop();
             _nowPlaying?.Dispose();
             _engine.Shutdown();
             ShowPointer(true);
@@ -293,14 +299,22 @@ public sealed partial class PlayerPage : Grid
 
     // MARK: Around the picture
 
-    /// <summary>The bars the picture leaves, lit in the title's colour (Settings › Around the picture).</summary>
+    /// <summary>The bars the picture leaves, lit by the picture's own edges as an aurora (Settings › Around the picture).</summary>
     private readonly Grid _glow = new() { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
     private (double Aspect, double Width, double Height, bool On) _glowShown;
+    private (AuroraBand Band, Image Image)[] _bands = [];
+    private bool _bandsAcross;
+    private double _bar;
+    private EdgeLight? _edgesRead, _edges;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _aurora;
+    private readonly System.Diagnostics.Stopwatch _lightClock = System.Diagnostics.Stopwatch.StartNew();
+    private long _lastRead, _lastStep;
 
     /// <summary>
-    /// Brightest next to the picture and fading out to the window's edge, above and below a wide
-    /// film or beside a tall one; nothing where the bars are thinner than ten points. As the Mac's
-    /// AmbientLight, drawn again only when the picture's shape or the window changes.
+    /// Lays the bars out: above and below a wide film or beside a tall one, nothing where they are
+    /// thinner than ten points. Until 1.0.7 they were lit in the title's one colour; now, as Android
+    /// TV's since its 1.1.5, by the colours at the picture's edges (the owner, with the photos of an
+    /// Ambilight on a wall), drawn by <see cref="Aurora"/>.
     /// </summary>
     private void ShowGlow()
     {
@@ -311,42 +325,80 @@ public sealed partial class PlayerPage : Grid
         _glow.Children.Clear();
         _glow.RowDefinitions.Clear();
         _glow.ColumnDefinitions.Clear();
+        _bands = [];
         if (!App.Settings.SceneGlow || aspect <= 0 || ActualWidth <= 0 || ActualHeight <= 0) return;
         var wide = aspect > ActualWidth / ActualHeight;
         var bar = wide ? (ActualHeight - ActualWidth / aspect) / 2 : (ActualWidth - ActualHeight * aspect) / 2;
         if (bar < 10) return;
-        Windows.Foundation.Point P(double x, double y) => new(x, y);
-        Border Light(Windows.Foundation.Point from, Windows.Foundation.Point to) => new()
+        _bandsAcross = wide;
+        _bar = bar;
+        (AuroraBand, Image) Band(bool outwardIsStart)
         {
-            Background = new LinearGradientBrush
-            {
-                StartPoint = from, EndPoint = to,
-                GradientStops =
-                {
-                    new GradientStop { Color = _hue.WithAlpha(0.08), Offset = 0 },
-                    new GradientStop { Color = _hue.WithAlpha(0.4), Offset = 1 },
-                },
-            },
-        };
+            var band = new AuroraBand(wide, outwardIsStart);
+            return (band, new Image { Source = band.Bitmap, Stretch = Stretch.Fill });
+        }
+        _bands = [Band(true), Band(false)];
         if (wide)
         {
             _glow.RowDefinitions.Add(new RowDefinition { Height = new GridLength(bar) });
             _glow.RowDefinitions.Add(new RowDefinition());
             _glow.RowDefinitions.Add(new RowDefinition { Height = new GridLength(bar) });
-            _glow.Children.Add(Light(P(0.5, 0), P(0.5, 1)));
-            var below = Light(P(0.5, 1), P(0.5, 0));
-            Grid.SetRow(below, 2);
-            _glow.Children.Add(below);
+            Grid.SetRow(_bands[1].Image, 2);
         }
         else
         {
             _glow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(bar) });
             _glow.ColumnDefinitions.Add(new ColumnDefinition());
             _glow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(bar) });
-            _glow.Children.Add(Light(P(0, 0.5), P(1, 0.5)));
-            var right = Light(P(1, 0.5), P(0, 0.5));
-            Grid.SetColumn(right, 2);
-            _glow.Children.Add(right);
+            Grid.SetColumn(_bands[1].Image, 2);
+        }
+        foreach (var (_, image) in _bands) _glow.Children.Add(image);
+        if (_edges is not null) DrawAurora(force: true);
+    }
+
+    /// <summary>
+    /// About thirty times a second while the bars are lit: the frame on the screen read four times a
+    /// second, the colours shown following it softly (a third of a second), and the curtains moving.
+    /// With motion calmed, the curtains stay down and nothing is drawn once the colours have arrived.
+    /// </summary>
+    private void Aurora()
+    {
+        if (_bands.Length == 0) return;
+        var now = _lightClock.ElapsedMilliseconds;
+        if (_engine.Playing && now - _lastRead >= 250)
+        {
+            _lastRead = now;
+            _engine.Playback.ReadEdges();
+        }
+        DrawAurora();
+    }
+
+    private void DrawAurora(bool force = false)
+    {
+        var now = _lightClock.ElapsedMilliseconds;
+        var dt = _lastStep == 0 ? 1 / 30f : Math.Min(0.2f, (now - _lastStep) / 1000f);
+        _lastStep = now;
+        var moving = !App.Settings.Calm;
+        if (_edgesRead is { } target)
+        {
+            if (_edges is null) _edges = target;
+            else if (!_edges.Near(target)) _edges = _edges.Toward(target, 1 - MathF.Exp(-dt / 0.35f));
+            else if (!moving && !force) return;
+        }
+        if (_edges is not { } edges) return;
+        var t = now / 1000f;
+        // The picture's edge runs the whole bar: the full width above and below, the full height beside.
+        var length = _bandsAcross ? ActualWidth : ActualHeight;
+        double start = 0, span = length;
+        if (_bandsAcross)
+        {
+            _bands[0].Band.Draw(edges.Top, length, start, span, t, moving);
+            _bands[1].Band.Draw(edges.Bottom, length, start, span, t, moving);
+        }
+        else
+        {
+            _bands[0].Band.Draw(edges.Left, length, start, span, t, moving);
+            _bands[1].Band.Draw(edges.Right, length, start, span, t, moving);
         }
     }
 
