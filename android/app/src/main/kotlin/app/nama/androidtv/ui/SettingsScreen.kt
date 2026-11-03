@@ -252,9 +252,7 @@ fun SettingsScreen() {
           Choice(tv(TV.clearCaches), used?.let { "${loc.num((it / (1L shl 20)).toInt())} ${tv(TV.megabytes)}" }, Help(tv(TV.clearCaches)), { help = it }) {
             scope.launch {
               used = withContext(Dispatchers.IO) {
-                listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() }
-                // The video cache stays open while the app runs: emptied entry by entry, not deleted.
-                Disk.cache(context)?.let { c -> c.keys.toList().forEach { k -> runCatching { c.removeResource(k) } } }
+                clearCaches(context)
                 cacheBytes(context)
               }
               app.showToast(cleared)
@@ -627,6 +625,13 @@ private fun keyPage(lang: Lang, title: String, sent: Boolean, error: Boolean): S
 h1{font-size:24px}input{width:100%;box-sizing:border-box;height:56px;border-radius:28px;border:1px solid #333;background:#161922;color:#fff;padding:0 20px;font:18px ui-monospace,monospace}
 button{margin-top:16px;width:100%;height:56px;border:0;border-radius:28px;background:#f0454a;color:#fff;font-size:18px;font-weight:600}.err{color:#f0454a}.done{color:#62d39b;font-size:20px}</style></head>
 <body><main><h1><span style="color:#f0454a">30</span>nama · ${esc(title)}</h1>$body</main></body></html>"""
+}
+
+/** Empties the app's caches: pictures, episode stills and read-ahead video. */
+fun clearCaches(context: android.content.Context) {
+  listOf("images", "frames").forEach { context.cacheDir.resolve(it).deleteRecursively() }
+  // The video cache stays open while the app runs: emptied entry by entry, not deleted.
+  Disk.cache(context)?.let { c -> c.keys.toList().forEach { k -> runCatching { c.removeResource(k) } } }
 }
 
 /** Bytes in the app's caches: pictures, episode stills and read-ahead video. */

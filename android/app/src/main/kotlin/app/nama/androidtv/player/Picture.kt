@@ -85,3 +85,87 @@ class BarWatch {
   }
 }
 
+
+/**
+ * The light around the picture, as an Ambilight's on the wall behind a TV (the owner, with photos
+ * of one): each edge's colours, a few zones along it, the zones read from a strip just inside the
+ * picture's edge. Drawn where the bars are, each zone's colour shines out from the picture and
+ * fades to black; until 1.1.5 the whole frame was spread there blurred, and the moving shapes in
+ * it drew the eye away from the film. Colours as ARGB, from the frame's start of each edge.
+ */
+class EdgeLight(val top: IntArray, val bottom: IntArray, val left: IntArray, val right: IntArray) {
+  /** Within a step or two of [other] in every channel of every zone: nothing left to show changing. */
+  fun near(other: EdgeLight): Boolean {
+    fun close(a: IntArray, b: IntArray) = a.size == b.size && a.indices.all { i ->
+      listOf(16, 8, 0).all { sh -> kotlin.math.abs(((a[i] shr sh) and 0xFF) - ((b[i] shr sh) and 0xFF)) <= 2 }
+    }
+    return close(top, other.top) && close(bottom, other.bottom) && close(left, other.left) && close(right, other.right)
+  }
+
+  /** [share] of the way from these colours to [next]'s, zone by zone; [next] where the zones differ. */
+  fun toward(next: EdgeLight, share: Float): EdgeLight {
+    fun mix(a: IntArray, b: IntArray): IntArray {
+      if (a.size != b.size) return b
+      return IntArray(a.size) { i ->
+        fun ch(shift: Int) = (((a[i] shr shift) and 0xFF) + (((b[i] shr shift) and 0xFF) - ((a[i] shr shift) and 0xFF)) * share).toInt().coerceIn(0, 255)
+        (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+      }
+    }
+    return EdgeLight(mix(top, next.top), mix(bottom, next.bottom), mix(left, next.left), mix(right, next.right))
+  }
+
+  companion object {
+    /** Zones along the top and bottom; the sides have fewer, by the picture's shape. */
+    const val ZONES = 12
+
+    /**
+     * Reads [pixels] (ARGB, [width] by [height]) inside the part [trim] keeps. Each zone is the
+     * mean of a strip a tenth of the picture deep, made a little more vivid, as light on a wall is.
+     */
+    fun of(pixels: IntArray, width: Int, height: Int, trim: Trim = Trim()): EdgeLight? {
+      if (width < 8 || height < 8 || pixels.size < width * height) return null
+      val x0 = (trim.left * width).toInt()
+      val y0 = (trim.top * height).toInt()
+      val x1 = width - (trim.right * width).toInt()
+      val y1 = height - (trim.bottom * height).toInt()
+      val w = x1 - x0
+      val h = y1 - y0
+      if (w < 8 || h < 8) return null
+      val deepY = (h / 10).coerceAtLeast(1)
+      val deepX = (w / 10).coerceAtLeast(1)
+      val side = (ZONES * h / w).coerceIn(3, ZONES)
+      fun mean(ax: Int, ay: Int, bx: Int, by: Int): Int {
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0L
+        for (y in ay until by) for (x in ax until bx) {
+          val p = pixels[y * width + x]
+          r += (p shr 16) and 0xFF
+          g += (p shr 8) and 0xFF
+          b += p and 0xFF
+          n++
+        }
+        if (n == 0L) return 0xFF000000.toInt()
+        return vivid((r / n).toInt(), (g / n).toInt(), (b / n).toInt())
+      }
+      fun along(n: Int, from: Int, span: Int, zone: (Int, Int) -> Int) = IntArray(n) { i -> zone(from + span * i / n, from + span * (i + 1) / n) }
+      return EdgeLight(
+          top = along(ZONES, x0, w) { a, b -> mean(a, y0, b, y0 + deepY) },
+          bottom = along(ZONES, x0, w) { a, b -> mean(a, y1 - deepY, b, y1) },
+          left = along(side, y0, h) { a, b -> mean(x0, a, x0 + deepX, b) },
+          right = along(side, y0, h) { a, b -> mean(x1 - deepX, a, x1, b) },
+      )
+    }
+
+    /**
+     * Saturation a third higher and a third brighter: a mean of a strip is greyer and darker than
+     * what the eye takes from it, and the light on a dark scene was hardly there (the owner).
+     */
+    internal fun vivid(r: Int, g: Int, b: Int): Int {
+      val grey = (r + g + b) / 3f
+      fun push(c: Int) = ((grey + (c - grey) * 1.3f) * 1.3f).toInt().coerceIn(0, 255)
+      return (0xFF shl 24) or (push(r) shl 16) or (push(g) shl 8) or push(b)
+    }
+  }
+}

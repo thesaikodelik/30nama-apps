@@ -10,6 +10,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import android.graphics.Bitmap
+import android.os.StatFs
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -50,7 +51,12 @@ object Images {
     return ImageLoader.Builder(context)
         .components { add(OkHttpNetworkFetcherFactory(callFactory = { images })) }
         .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.2).build() }
-        .diskCache { DiskCache.Builder().directory(context.cacheDir.resolve("images").toOkioPath()).maxSizeBytes(250L * 1024 * 1024).build() }
+        // A tenth of the free space, 32 to 250 MB: with a fixed 250 MB a 4 GB Sony with a few percent
+        // free had no room left to install an update of 4 MB (the owner's TV, 1.1.2).
+        .diskCache {
+          val free = runCatching { StatFs(context.cacheDir.path).availableBytes }.getOrDefault(0L)
+          DiskCache.Builder().directory(context.cacheDir.resolve("images").toOkioPath()).maxSizeBytes((free / 10).coerceIn(32L shl 20, 250L shl 20)).build()
+        }
         .build()
   }
 

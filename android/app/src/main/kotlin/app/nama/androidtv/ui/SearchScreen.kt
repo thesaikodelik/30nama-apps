@@ -339,7 +339,7 @@ private const val DIGITS = "1234567890-:'&.!?"
  * microphone and clear. English first; Persian is laid out right to left in every interface language.
  */
 @Composable
-private fun Keyboard(
+internal fun Keyboard(
     persian: Boolean,
     digits: Boolean,
     first: FocusRequester,
@@ -349,6 +349,8 @@ private fun Keyboard(
     switchLanguage: () -> Unit,
     switchDigits: () -> Unit,
     voice: (() -> Unit)?,
+    // Off for a name typed in English letters only, as a director's or an actor's.
+    languages: Boolean = true,
 ) {
   val keys = if (digits) DIGITS else if (persian) PERSIAN else LATIN
   Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -366,7 +368,7 @@ private fun Keyboard(
     }
     Row(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       PillButton(if (digits) (if (persian) "ابپ" else "abc") else "123", switchDigits, kind = PillKind.Chip)
-      PillButton(if (persian) "English" else "فارسی", switchLanguage, kind = PillKind.Chip)
+      if (languages) PillButton(if (persian) "English" else "فارسی", switchLanguage, kind = PillKind.Chip)
       if (persian) PillButton(tv(TV.zwnj), { type("‌") }, kind = PillKind.Chip)
       if (voice != null) RoundKey(Icons.mic, 58.dp, voice)
       PillButton(tv(TV.clear), clear, kind = PillKind.Chip)

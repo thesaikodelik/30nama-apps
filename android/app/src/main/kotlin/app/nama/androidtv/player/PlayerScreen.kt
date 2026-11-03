@@ -2,6 +2,7 @@ package app.nama.androidtv.player
 
 import app.nama.androidtv.ui.mouseClicks
 import app.nama.androidtv.ui.rememberPosterTint
+import android.os.Build
 import androidx.compose.foundation.clickable
 import app.nama.androidtv.data.SubtitlePosition
 import app.nama.androidtv.ui.RemoteImage
@@ -67,7 +68,11 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -316,20 +321,59 @@ fun PlayerScreen(request: PlaybackRequest) {
               }
             }
           }) {
-    // The Mac's light around the picture: a small frame every few seconds, from the seek previews'
-    // reader, spread soft behind the film; and black bars burned into the file cut away. Only with
-    // the motion effects on, as it is a second, if small, decoder at work.
+    // Light around the picture, as an Ambilight's: the edges' colours of the frame on the screen
+    // shining out where the bars are; and black bars burned into the file cut away. Only with the
+    // motion effects on.
     val glowing = app.settings.sceneGlow && LocalLively.current && engine.pictured
     val watch = remember(engine.index) { BarWatch() }
     var trim by remember(engine.index) { mutableStateOf(Trim()) }
-    var light by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(glowing, engine.index, engine.playing) {
+    // Held outside the player's composition: the light changes every frame, and only its own layer
+    // is drawn again, not the player (which on a weak TV made the film itself stutter).
+    val light = remember { Glow() }
+    suspend fun take(px: IntArray, w: Int, h: Int) {
+      val (seen, edges) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        watch.see(px, w, h)
+        val t = watch.trim()
+        // The edges of the picture the screen shows: inside bars burned into the file, if cut away.
+        t to EdgeLight.of(px, w, h, if (t.worthCutting) t else Trim())
+      }
+      // Always the newest word: a bright frame with picture at an edge takes that edge's cut back.
+      trim = if (seen.worthCutting) seen else Trim()
+      // Halfway to the new colours each time: about half a second to follow a cut, never a jump.
+      if (edges != null) light.target = edges
+    }
+    // The frame on the screen itself, copied small from the picture's surface a few times a second:
+    // the seek previews' reader, used until 1.1.5, gave one every few seconds, and the nearest
+    // keyframe rather than what was showing, so the light came late and in the wrong colours (the
+    // owner). Where a TV will not copy it (Android 6, a protected stream), that reader still serves.
+    var copies by remember(engine.index) { mutableStateOf(true) }
+    LaunchedEffect(glowing, engine.index, engine.playing, copies) {
       if (!glowing) {
-        light = null
+        light.target = null
+        light.shown = null
         return@LaunchedEffect
       }
       // Paused (or the app left, which pauses), the light stays as it was and nothing is read.
       if (!engine.playing) return@LaunchedEffect
+      if (copies && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val small = android.graphics.Bitmap.createBitmap(LIGHT_W, LIGHT_H, android.graphics.Bitmap.Config.ARGB_8888)
+        val px = IntArray(LIGHT_W * LIGHT_H)
+        var failed = 0
+        while (true) {
+          kotlinx.coroutines.delay(LIGHT_MS)
+          val picture = videoSurface(view)
+          if (picture == null || !copyFrame(picture, small)) {
+            if (++failed >= 8) {
+              copies = false
+              return@LaunchedEffect
+            }
+            continue
+          }
+          failed = 0
+          small.getPixels(px, 0, LIGHT_W, 0, 0, LIGHT_W, LIGHT_H)
+          take(px, LIGHT_W, LIGHT_H)
+        }
+      }
       while (true) {
         engine.preview.glance(engine.position)
         kotlinx.coroutines.delay(GLANCE_MS)
@@ -338,30 +382,16 @@ fun PlayerScreen(request: PlaybackRequest) {
     val glimpse = engine.preview.glimpse
     LaunchedEffect(glimpse, glowing) {
       val frame = glimpse ?: return@LaunchedEffect
-      if (!glowing) return@LaunchedEffect
-      val (seen, small) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        val px = IntArray(frame.width * frame.height)
-        frame.getPixels(px, 0, frame.width, 0, 0, frame.width, frame.height)
-        watch.see(px, frame.width, frame.height)
-        val t = watch.trim()
-        // The picture without its bars, shrunk to a few dozen points: drawn large, that is the blur.
-        val x = (t.left * frame.width).toInt()
-        val y = (t.top * frame.height).toInt()
-        val cw = (frame.width - x - (t.right * frame.width).toInt()).coerceAtLeast(1)
-        val ch = (frame.height - y - (t.bottom * frame.height).toInt()).coerceAtLeast(1)
-        val cut = android.graphics.Bitmap.createBitmap(frame, x, y, cw, ch)
-        t to android.graphics.Bitmap.createScaledBitmap(cut, 32, (32f * ch / cw).toInt().coerceAtLeast(1), true).asImageBitmap()
-      }
-      // Always the newest word: a bright frame with picture at an edge takes that edge's cut back.
-      trim = if (seen.worthCutting) seen else Trim()
-      light = small
+      if (!glowing || copies) return@LaunchedEffect
+      val px = IntArray(frame.width * frame.height)
+      frame.getPixels(px, 0, frame.width, 0, 0, frame.width, frame.height)
+      take(px, frame.width, frame.height)
     }
-    Crossfade(light, Modifier.fillMaxSize(), animationSpec = tween(1200), label = "light") { l ->
-      if (l != null) androidx.compose.foundation.Image(
-          l, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
-          contentScale = androidx.compose.ui.layout.ContentScale.Crop, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
-      )
+    // The shape the screen shows the film in, its burned-in bars cut away: the light goes round it.
+    val shown = engine.aspect?.let { a ->
+      trim.takeIf { glowing && it.worthCutting }?.let { t -> a * (1f - t.left - t.right) / (1f - t.top - t.bottom) } ?: a
     }
+    if (glowing && shown != null) AmbientLight(light, shown)
     // The picture, in its own shape; with bars burned into it, enlarged until they fall off the screen.
     BoxWithConstraints(Modifier.fillMaxSize().focusRequester(surface).focusable(), contentAlignment = Alignment.Center) {
       val aspect = engine.aspect
@@ -1045,5 +1075,154 @@ private fun Curtain(engine: PlayerEngine, modifier: Modifier) {
   }
 }
 
-/** How often the light around the picture takes a new frame. */
-private const val GLANCE_MS = 4000L
+/** How often the light around the picture asks the seek previews' reader for a frame, where copying fails. */
+private const val GLANCE_MS = 3000L
+
+/** How often the light copies the frame on the screen, and how small: its edges are all it reads. */
+private const val LIGHT_MS = 250L
+private const val LIGHT_W = 128
+private const val LIGHT_H = 72
+
+/** The picture's own surface: the one SurfaceView on the screen while the player is up. */
+private fun videoSurface(view: android.view.View): android.view.SurfaceView? {
+  fun find(v: android.view.View): android.view.SurfaceView? = when {
+    v is android.view.SurfaceView && v.isShown && v.width > 0 && v.holder.surface?.isValid == true -> v
+    v is android.view.ViewGroup -> (0 until v.childCount).firstNotNullOfOrNull { find(v.getChildAt(it)) }
+    else -> null
+  }
+  return find(view.rootView)
+}
+
+/** The frame showing on [surface], scaled into [into]; false where the TV would not give it. */
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.N)
+private suspend fun copyFrame(surface: android.view.SurfaceView, into: android.graphics.Bitmap): Boolean =
+    kotlinx.coroutines.suspendCancellableCoroutine { done ->
+      runCatching {
+        android.view.PixelCopy.request(surface, into, { result -> if (done.isActive) done.resume(result == android.view.PixelCopy.SUCCESS) {} }, android.os.Handler(android.os.Looper.getMainLooper()))
+      }.onFailure { if (done.isActive) done.resume(false) {} }
+    }
+
+/** The light's colours: [target] as last read from the screen, [shown] following it frame by frame. */
+@Stable
+private class Glow {
+  var target: EdgeLight? = null
+  var shown by mutableStateOf<EdgeLight?>(null)
+}
+
+/**
+ * The black at the screen's edge over the light: a tenth of the bar dark, then easing out in many
+ * small steps so no edge shows where it ends (two stops cut it off too sharply, the owner).
+ */
+private val DARK_EDGE = arrayOf(
+    0f to Color.Black, 0.06f to Color.Black.copy(alpha = 0.95f), 0.1f to Color.Black.copy(alpha = 0.82f),
+    0.15f to Color.Black.copy(alpha = 0.6f), 0.2f to Color.Black.copy(alpha = 0.4f), 0.26f to Color.Black.copy(alpha = 0.24f),
+    0.33f to Color.Black.copy(alpha = 0.12f), 0.4f to Color.Black.copy(alpha = 0.05f), 0.48f to Color.Transparent,
+)
+
+/** Curtains along the top and the bottom; the sides have fewer, by their length. */
+private const val AURORA_RAYS = 28
+
+/** How long the light takes to go most of the way to new colours: soft, never a jump. */
+private const val GLOW_EASE_S = 0.35f
+
+/**
+ * [glow] where the bars are round a picture of shape [shown] in the middle of the screen, as an
+ * aurora or the light on the wall behind a TV: each zone of each edge a soft round light centred on
+ * the picture's edge, the lights running into one another and into the corners, fading out toward
+ * the screen's edge. Nothing of the picture's shapes, only its colours, flowing from one to the next.
+ */
+@Composable
+private fun AmbientLight(glow: Glow, shown: Float) {
+  // The colours flow toward the newest reading every frame, and stop drawing once they are there.
+  LaunchedEffect(glow) {
+    var last = 0L
+    while (true) {
+      val target = glow.target
+      val current = glow.shown
+      // Arrived (or nothing read yet): no frames asked for, as a weak TV feels each one.
+      if (target == null || (current != null && current.near(target))) {
+        last = 0L
+        kotlinx.coroutines.delay(80)
+        continue
+      }
+      withFrameNanos { now ->
+        val dt = if (last == 0L) 1f / 60f else (now - last) / 1e9f
+        last = now
+        glow.shown = current?.toward(target, 1f - kotlin.math.exp(-dt / GLOW_EASE_S)) ?: target
+      }
+    }
+  }
+  // The aurora's own slow time: its curtains rise and sink on waves of several seconds. About
+  // thirty steps a second are enough for movement this slow, and half the work on a weak TV.
+  var time by remember { mutableFloatStateOf(0f) }
+  LaunchedEffect(Unit) {
+    val start = withFrameNanos { it }
+    while (true) {
+      kotlinx.coroutines.delay(33)
+      time = withFrameNanos { (it - start) / 1e9f }
+    }
+  }
+  androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+    val light = glow.shown ?: return@Canvas
+    val t = time
+    val screen = size.width / size.height
+    val pw = if (shown > screen) size.width else size.height * shown
+    val ph = if (shown > screen) size.width / shown else size.height
+    val bandY = (size.height - ph) / 2f
+    val bandX = (size.width - pw) / 2f
+    // One edge as an aurora: a low soft glow along it, and over it curtains, narrow soft lights
+    // rising off the picture's edge, each in the colour under it, each slowly growing and fading on
+    // its own wave, so the light flows sideways as the waves pass. Stretched circles, so no ray
+    // has a hard side.
+    fun edge(colours: IntArray, clip: androidx.compose.ui.geometry.Rect, along: (Float) -> androidx.compose.ui.geometry.Offset, span: Float, depth: Float, out: Float, across: Boolean) {
+      if (clip.width < 2f || clip.height < 2f || colours.isEmpty()) return
+      fun colourAt(f: Float): Color {
+        val x = (f * colours.size - 0.5f).coerceIn(0f, colours.size - 1f)
+        val i = x.toInt().coerceAtMost(colours.size - 2).coerceAtLeast(0)
+        val a = Color(colours[i])
+        val b = Color(colours[(i + 1).coerceAtMost(colours.size - 1)])
+        return androidx.compose.ui.graphics.lerp(a, b, x - i)
+      }
+      clipRect(clip.left, clip.top, clip.right, clip.bottom) {
+        // The glow: what the light is when the curtains are low.
+        val base = maxOf(span / colours.size * 2.4f, depth * 1.2f)
+        colours.forEachIndexed { i, argb ->
+          val c = Color(argb)
+          val at = along((i + 0.5f) / colours.size)
+          drawCircle(Brush.radialGradient(0f to c.copy(alpha = 0.32f), 0.5f to c.copy(alpha = 0.12f), 1f to Color.Transparent, center = at, radius = base), base, at)
+        }
+        // The curtains.
+        val rays = if (across) AURORA_RAYS else (AURORA_RAYS * span / (span + 1f) / 2).toInt().coerceAtLeast(6)
+        val w = span / rays * 1.6f
+        for (i in 0 until rays) {
+          val f = (i + 0.5f) / rays
+          val wave = 0.5f + 0.5f * kotlin.math.sin(t * (0.55f + 0.23f * ((i * 7) % 5)) + i * 1.9f + f * 6f)
+          val drift = 0.5f + 0.5f * kotlin.math.sin(t * 0.31f - f * 9f)
+          val reach = depth * (0.55f + 0.75f * wave * drift)
+          val glow = 0.18f + 0.32f * wave
+          val c = colourAt(f)
+          val at = along(f)
+          withTransform({
+            if (across) scale(1f, reach / w, at) else scale(reach / w, 1f, at)
+          }) {
+            drawCircle(Brush.radialGradient(0f to c.copy(alpha = glow), 0.5f to c.copy(alpha = glow * 0.35f), 1f to Color.Transparent, center = at, radius = w), w, at)
+          }
+        }
+      }
+    }
+    edge(light.top, androidx.compose.ui.geometry.Rect(0f, 0f, size.width, bandY), { f -> androidx.compose.ui.geometry.Offset(bandX + pw * f, bandY) }, pw, bandY, -1f, true)
+    edge(light.bottom, androidx.compose.ui.geometry.Rect(0f, size.height - bandY, size.width, size.height), { f -> androidx.compose.ui.geometry.Offset(bandX + pw * f, size.height - bandY) }, pw, bandY, 1f, true)
+    edge(light.left, androidx.compose.ui.geometry.Rect(0f, 0f, bandX, size.height), { f -> androidx.compose.ui.geometry.Offset(bandX, bandY + ph * f) }, ph, bandX, -1f, false)
+    edge(light.right, androidx.compose.ui.geometry.Rect(size.width - bandX, 0f, size.width, size.height), { f -> androidx.compose.ui.geometry.Offset(size.width - bandX, bandY + ph * f) }, ph, bandX, 1f, false)
+    // The screen's own edge left black, the light rising off the picture's edge like an aurora and
+    // gone before it: across the whole band it was too much, over two thirds of it too little (the owner).
+    fun dark(x: Float, y: Float, w: Float, h: Float, from: androidx.compose.ui.geometry.Offset, to: androidx.compose.ui.geometry.Offset) {
+      if (w < 2f || h < 2f) return
+      drawRect(Brush.linearGradient(*DARK_EDGE, start = from, end = to), androidx.compose.ui.geometry.Offset(x, y), androidx.compose.ui.geometry.Size(w, h))
+    }
+    dark(0f, 0f, size.width, bandY, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(0f, bandY))
+    dark(0f, size.height - bandY, size.width, bandY, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(0f, size.height - bandY))
+    dark(0f, 0f, bandX, size.height, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(bandX, 0f))
+    dark(size.width - bandX, 0f, bandX, size.height, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(size.width - bandX, 0f))
+  }
+}

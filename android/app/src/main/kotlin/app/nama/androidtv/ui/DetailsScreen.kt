@@ -4,9 +4,6 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.layout.ContentScale
@@ -283,18 +280,14 @@ fun DetailsScreen(route: Route.Details) {
 
 private var trailerLook: kotlinx.coroutines.Job? = null
 
-/** A trailer: YouTube's in the YouTube app (or the browser), Aparat's in the app's own player. */
+/**
+ * A trailer, in the app: Aparat's in its own player, YouTube's in YouTube's embedded player, as the
+ * Mac's. Until 1.1.5 YouTube's opened the YouTube app, which on a Sony asked first whose account
+ * to watch with, and left the app (the owner).
+ */
 private fun openTrailer(t: TrailerVideo, post: Post, app: app.nama.androidtv.AppModel, scope: kotlinx.coroutines.CoroutineScope, context: android.content.Context) {
   when (t) {
-    is TrailerVideo.Youtube -> {
-      val intent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:${t.id}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      try {
-        context.startActivity(intent)
-      } catch (_: ActivityNotFoundException) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=${t.id}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure { app.showToast(app.loc(S.trailerUnreachable)) }
-      }
-    }
+    is TrailerVideo.Youtube -> app.playTrailer(post.title(app.settings.lang), t.id)
     is TrailerVideo.Aparat -> {
       // One look at a time, and none that lands over a film started meanwhile.
       trailerLook?.cancel()

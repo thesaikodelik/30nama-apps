@@ -37,6 +37,13 @@ class AdvancedSearchTests {
         assertEquals("3", request["page"])
     }
 
+    @Test fun testAnActorByName() {
+        val query = AdvancedQuery(actor = " Leonardo DiCaprio ")
+        assertEquals("""{"actor":"Leonardo DiCaprio","stream":"true"}""", query.parameters())
+        assertEquals(1, query.count)
+        assertEquals("""{"stream":"true"}""", AdvancedQuery(actor = "  ").parameters())
+    }
+
     @Test fun testOneYearIsEnough() {
         assertEquals("""{"min_year":"1990","stream":"true"}""", AdvancedQuery(fromYear = 1990).parameters())
         assertEquals("""{"actor":"nm0000206","stream":"true"}""", AdvancedQuery(actor = "nm0000206").parameters())

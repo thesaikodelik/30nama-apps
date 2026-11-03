@@ -135,9 +135,9 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   moreLikeThis("More like this", "شبیه این", "أعمال مشابهة"),
   partOf("Part {at} of {of}", "قسمت {at} از {of}", "الجزء {at} من {of}"),
   aroundHint(
-      "Scene glow: where the film leaves room on the screen, the scene's own colours light it softly, and black bars burned into the file itself are cut away. Taken from a small copy of the film every few seconds, only with motion effects on. Black bars: the room stays black, as in a cinema.",
-      "نور صحنه: جایی که فیلم روی صفحه خالی می‌گذارد، رنگ‌های خود صحنه آرام روشنش می‌کنند، و نوار سیاهی که داخل خود فایل است بریده می‌شود. هر چند ثانیه از یک نسخهٔ کوچک فیلم برداشته می‌شود، فقط وقتی جلوه‌های حرکتی روشن‌اند. نوار سیاه: جای خالی سیاه می‌ماند، مثل سینما.",
-      "ضوء المشهد: حيث يترك الفيلم مساحة على الشاشة، تضيئها ألوان المشهد نفسه بهدوء، وتُقص الأشرطة السوداء المحروقة في الملف نفسه. يؤخذ من نسخة صغيرة من الفيلم كل بضع ثوانٍ، فقط مع تشغيل تأثيرات الحركة. الأشرطة السوداء: تبقى المساحة سوداء كما في السينما.",
+      "Scene glow: where the film leaves room on the screen, the colours at the picture's edges shine out into it and fade to black, as light from behind a TV on the wall, following each scene; black bars burned into the file itself are cut away. Only with motion effects on. Black bars: the room stays black, as in a cinema.",
+      "نور صحنه: جایی که فیلم روی صفحه خالی می‌گذارد، رنگ‌های لبهٔ تصویر در آن پخش می‌شوند و تا سیاه کم می‌شوند، مثل نوری که از پشت تلویزیون روی دیوار می‌افتد، و با هر صحنه عوض می‌شوند. نوار سیاهی که داخل خود فایل است بریده می‌شود. فقط وقتی جلوه‌های حرکتی روشن‌اند. نوار سیاه: جای خالی سیاه می‌ماند، مثل سینما.",
+      "ضوء المشهد: حيث يترك الفيلم مساحة على الشاشة، تنتشر فيها ألوان حواف الصورة وتخفت حتى السواد، كضوء يسقط من خلف التلفاز على الجدار، وتتبع كل مشهد. وتُقص الأشرطة السوداء المحروقة في الملف نفسه. فقط مع تشغيل تأثيرات الحركة. الأشرطة السوداء: تبقى المساحة سوداء كما في السينما.",
   ),
   effectsAuto("Automatic, for this TV", "خودکار، برای این تلویزیون", "تلقائي، لهذا التلفاز"),
   effectsLight("Light, easier on the TV", "سبک، راحت‌تر برای تلویزیون", "خفيف، أسهل على التلفاز"),
@@ -195,12 +195,19 @@ enum class TV(val en: String, val fa: String, val ar: String) {
   ),
   allowOr("or, on some TVs:", "یا در بعضی تلویزیون‌ها:", "أو في بعض أجهزة التلفاز:"),
   pressUpdate("Choose Update in Android's window", "در پنجرهٔ اندروید «Update» را بزنید", "اختر Update في نافذة أندرويد"),
+  allowInSettings("Choose Settings and turn 30nama on", "Settings را بزنید و تیک ۳۰نما را روشن کنید", "اختر Settings وفعّل ۳۰نما"),
+  // The advanced search's actor field, short as "Director" beside it: "Actor's name" did not fit its line.
+  actor("Actor", "بازیگر", "الممثل"),
   openSettings("Open settings", "باز کردن تنظیمات", "فتح الإعدادات"),
   installsNotAllowed(
       "Android did not let 30nama install it. Turn 30nama on under Unknown sources, in the TV's Settings › Apps › Security & restrictions (on Google TV: Settings › Privacy › Security & restrictions), then try again. Or scan this with a phone to download the new version by hand.",
       "اندروید اجازهٔ نصب به ۳۰نما نداد. در تنظیمات تلویزیون › برنامه‌ها › امنیت و محدودیت‌ها › منابع ناشناس (در Google TV: تنظیمات › حریم خصوصی › امنیت و محدودیت‌ها)، ۳۰نما را روشن کنید و دوباره بزنید. یا این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید.",
       "لم يسمح أندرويد لـ۳۰نما بتثبيته. فعّل ۳۰نما ضمن المصادر غير المعروفة، في إعدادات التلفاز › التطبيقات › الأمان والقيود (في Google TV: الإعدادات › الخصوصية › الأمان والقيود)، ثم أعد المحاولة. أو امسح هذا بهاتف لتنزيل الإصدار الجديد يدوياً.",
   ),
+  storageFull(
+      "The TV's storage is full: there was no room for the new version, even after 30nama emptied its own saved pictures and video. In the TV's Settings › Storage, remove apps you do not use or clear their cache, then try again.",
+      "حافظهٔ تلویزیون پر است: حتی بعد از این‌که ۳۰نما تصویرها و ویدئوهای ذخیره‌شدهٔ خودش را پاک کرد، جایی برای نسخهٔ تازه نماند. در تنظیمات تلویزیون › فضای ذخیره‌سازی، برنامه‌هایی را که استفاده نمی‌کنید پاک کنید یا حافظهٔ موقتشان را خالی کنید، بعد دوباره بزنید.",
+      "ذاكرة التلفاز ممتلئة: لم تبقَ مساحة للإصدار الجديد حتى بعد أن أفرغ ۳۰نما صوره وفيديوهاته المحفوظة. في إعدادات التلفاز › التخزين، احذف التطبيقات التي لا تستخدمها أو امسح ذاكرتها المؤقتة، ثم أعد المحاولة."),
   updateFailedHint(
       "Scan this with a phone to download the new version by hand. Each step of the update is written in update.log, in the app's files.",
       "این را با گوشی اسکن کنید و نسخهٔ تازه را دستی دانلود کنید. هر قدم به‌روزرسانی در فایل update.log، میان فایل‌های برنامه، نوشته شده است.",

@@ -56,7 +56,10 @@ data class AdvancedQuery(
     val score: String? = null,
     val age: String? = null,
     val director: String? = null,
-    /** An actor's IMDb id ("nm…"): the titles they play in. A single value; a list finds the wrong ones. */
+    /**
+     * An actor, by name as the director is, or by IMDb id ("nm…"): the titles they play in. The
+     * server reads `actor` either way (DiCaprio: 73 and 68); `cast` it ignores. A single value.
+     */
     val actor: String? = null,
     val fromYear: Int? = null,
     val toYear: Int? = null,
@@ -67,7 +70,7 @@ data class AdvancedQuery(
 ) {
     /** How many fields narrow the search, for the count on the filters button. */
     val count: Int
-        get() = listOf(type, country, language, network, score, age, director, fromYear, toYear).count { it != null } +
+        get() = listOf(type, country, language, network, score, age, director, actor, fromYear, toYear).count { it != null } +
             genres.size + (if (x265) 1 else 0) + (if (threeD) 1 else 0)
 
     /** The `parameters` value `advanced_search` takes: a JSON object of the chosen fields. */
@@ -84,7 +87,7 @@ data class AdvancedQuery(
         // A name, or better an IMDb id: a name matches any of its words, an id only that person
         // (tried on the server, 6 Aban 1405).
         director?.trimWhitespace()?.takeIf { it.isNotEmpty() }?.let { fields["director"] = it }
-        actor?.takeIf { it.isNotEmpty() }?.let { fields["actor"] = it }
+        actor?.trimWhitespace()?.takeIf { it.isNotEmpty() }?.let { fields["actor"] = it }
         // The years either way round: someone writing 2010 to 2000 means the same decade.
         var from = fromYear ?: 0
         var to = toYear ?: 0

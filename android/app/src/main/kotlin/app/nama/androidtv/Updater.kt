@@ -10,6 +10,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.storage.StorageManager
 import android.provider.Settings
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import androidx.compose.runtime.setValue
 import app.nama.androidtv.data.AndroidRelease
 import app.nama.androidtv.data.PendingUpdate
 import app.nama.androidtv.data.UpdateSignature
+import app.nama.androidtv.ui.clearCaches
 import app.nama.core.Json
 import java.io.File
 import java.security.MessageDigest
@@ -49,18 +51,22 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     data class Available(val release: AndroidRelease) : State
     /** [progress] 0 to 1, or below 0 while the size is not known. */
     data class Downloading(val release: AndroidRelease, val progress: Float) : State
-    /** Android's installer has it; it asks the viewer, and then the app is replaced. */
-    data class Installing(val release: AndroidRelease) : State
     /**
-     * Android has not let this app install apps yet: a card walks the viewer to the switch, and the
+     * Android's installer has it; it asks the viewer, and then the app is replaced. [asksPermission]:
+     * this app may not install apps yet, so Android's window first asks for the switch.
+     */
+    data class Installing(val release: AndroidRelease, val asksPermission: Boolean = false) : State
+    /**
+     * Android's installer refused for want of the switch: a card walks the viewer to it, and the
      * update goes on by itself once they come back with it on (the APK is already downloaded).
      */
     data class NeedsPermission(val release: AndroidRelease) : State
     /**
      * [step] is the step that failed, in the log's words, shown small on the card for a photo;
      * [blocked]: Android had not let this app install apps, and the card says where to allow it.
+     * [full]: the TV had no room for the new version, and the card says how to make some.
      */
-    data class Failed(val page: String, val step: String = "", val blocked: Boolean = false) : State
+    data class Failed(val page: String, val step: String = "", val blocked: Boolean = false, val full: Boolean = false) : State
   }
 
   var state: State by mutableStateOf(State.Idle)
@@ -105,6 +111,12 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   private companion object {
     /** Fifteen minutes: a TV is opened and left many times an evening; GitHub allows sixty looks an hour per address. */
     const val LOOK_GAP = 15 * 60_000L
+
+    /** Beyond the APK itself: the installer's own files and Android's optimised code. */
+    const val ROOM_MARGIN = 32L shl 20
+
+    /** A full disk, as Android and Java word it, wherever in the steps it showed. */
+    val NO_ROOM = Regex("ENOSPC|No space left|Failed to allocate|INSUFFICIENT_STORAGE", RegexOption.IGNORE_CASE)
   }
 
   /** At launch: whether the last update arrived, and a quiet look for a new one. */
@@ -227,13 +239,11 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
       val apk = File(dir, "30nama-androidtv.apk")
       val step = withContext(Dispatchers.IO) { prepare(release, apk) }
       if (step != null) return@launch fail(release, step)
-      // Asked through the app's own card rather than Android's screen thrown up unexplained: a Sony
-      // on Android 12 left the viewer there not knowing what to turn on, and the update failed.
-      if (!allowedToInstall()) {
-        log("not yet allowed to install apps; asking")
-        state = State.NeedsPermission(release)
-        return@launch
-      }
+      // Without the switch the install still goes to Android, as the official 30tv app does: its
+      // window asks for the switch and goes on by itself after Back. Until 1.1.5 this app sent the
+      // viewer to Settings itself and went on only if it was still alive on return; a TV short of
+      // memory had often closed it, and the update had to be found and chosen again (the owner).
+      if (!allowedToInstall()) log("not yet allowed to install apps; Android's window asks")
       commit(release, apk)
     }
   }
@@ -303,12 +313,15 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
   }
 
   private suspend fun commit(release: AndroidRelease, apk: File) {
-    state = State.Installing(release)
+    state = State.Installing(release, asksPermission = !allowedToInstall())
     val step = withContext(Dispatchers.IO) {
+      makeRoom(apk.length() + ROOM_MARGIN)?.let { return@withContext it }
       runCatching {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
           setAppPackageName(context.packageName)
+          // With UPDATE_PACKAGES_WITHOUT_USER_ACTION in the manifest (without it this was ignored until
+          // 1.1.5), Android 12 and later replace the app with no window, once it installed itself before.
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
         val id = installer.createSession(params)
@@ -324,7 +337,16 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
         null
       }.getOrElse { "installer: $it" }
     }
-    if (step != null) fail(release, step)
+    if (step != null) return fail(release, step)
+    // Android's window comes back to Update by itself once the switch is on, with this app never
+    // resumed in between: the capsule watches for the switch to say the next step.
+    while ((state as? State.Installing)?.asksPermission == true) {
+      kotlinx.coroutines.delay(1000)
+      if (allowedToInstall()) {
+        log("allowed to install apps")
+        (state as? State.Installing)?.let { state = it.copy(asksPermission = false) }
+      }
+    }
   }
 
   /** What the installer answered, through [InstallStatus]. */
@@ -360,8 +382,32 @@ class Updater(private val context: Context, private val http: OkHttpClient, priv
     Log.w(AppModel.TAG, "update: $step")
     // Only the installer's own refusal is about the permission; a download or a key that does not
     // match says its own step, not "Android did not allow it".
-    state = State.Failed(release?.page ?: AndroidRelease.DOWNLOADS, step, blocked = step.startsWith("installer") && !allowedToInstall())
+    state = State.Failed(
+        release?.page ?: AndroidRelease.DOWNLOADS, step,
+        blocked = step.startsWith("installer") && !allowedToInstall(),
+        full = step.startsWith("storage") || NO_ROOM.containsMatchIn(step))
     showFailure = true
+  }
+
+  /**
+   * Room for Android to take the APK in: its installer copies it once more, and holds back a few
+   * percent of the disk besides. The owner's Sony (4 GB, 4% free) had 380 KB it would give, and
+   * 1.1.2's update failed there on every try. This app's own pictures and video go first, then
+   * Android is asked to empty other apps' caches. The step that failed, or null.
+   */
+  private fun makeRoom(bytes: Long): String? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+    val storage = context.getSystemService(StorageManager::class.java) ?: return null
+    val volume = runCatching { storage.getUuidForPath(context.filesDir) }.getOrElse { return null }
+    fun room() = runCatching { storage.getAllocatableBytes(volume) }.getOrDefault(Long.MAX_VALUE)
+    if (room() >= bytes) return null
+    log("room for ${room()} bytes, ${bytes} needed; emptying this app's pictures and video")
+    runCatching { clearCaches(context) }
+    if (room() >= bytes) return null
+    runCatching { storage.allocateBytes(volume, bytes) }
+        .onSuccess { log("Android made room"); return null }
+        .onFailure { log("Android could not make room: $it") }
+    return "storage: room for ${room()} bytes, ${bytes} needed"
   }
 
   private fun allowedToInstall(): Boolean =

@@ -267,6 +267,8 @@ fun PillButton(
     busy: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     trailing: ImageVector? = null,
+    // The capsule as wide as the button is made, not only its words: a field of a fixed width.
+    fill: Boolean = false,
 ) {
   val interaction = remember { MutableInteractionSource() }
   val focused by interaction.collectIsFocusedAsState()
@@ -294,6 +296,7 @@ fun PillButton(
     Box(
         Modifier
             .height(if (chip) 58.dp else 76.dp)
+            .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .then(
                 when {
                   // In focus white glass, its light the colour of the title it is about.
@@ -311,7 +314,7 @@ fun PillButton(
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         if (busy) Spinner(Modifier.size(26.dp), color = if (focused) Theme.focusInk else Color.White)
         else if (icon != null) Icon(icon, null, Modifier.size(if (chip) 24.dp else 28.dp))
-        if (text.isNotEmpty()) Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1)
+        if (text.isNotEmpty()) Text(text, style = app(if (chip) 24 else 27, if (primary) FontWeight.Bold else FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (trailing != null) Icon(trailing, null, Modifier.size(24.dp))
       }
     }

@@ -82,6 +82,7 @@ import androidx.tv.material3.Text
 import app.nama.androidtv.AppModel
 import app.nama.androidtv.player.PlayerScreen
 import app.nama.androidtv.player.TrailerScreen
+import app.nama.androidtv.player.YoutubeTrailer
 import app.nama.core.Lang
 import app.nama.core.S
 import kotlinx.coroutines.delay
@@ -263,7 +264,14 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
         if (!splashGone) Box(Modifier.zIndex(10f)) { Splash(leaving = leaving, ready = app.homeLoaded || (app.phase != AppModel.Phase.Main && app.phase != AppModel.Phase.Booting)) }
         // The player, and a trailer, over everything; what is under them cannot take focus meanwhile.
         app.playback?.let { request -> Box(Modifier.fillMaxSize().zIndex(15f)) { PlayerScreen(request) } }
-        app.trailer?.let { (_, url) -> Box(Modifier.fillMaxSize().zIndex(15f)) { TrailerScreen(url) } }
+        app.trailer?.let { (_, t) ->
+          Box(Modifier.fillMaxSize().zIndex(15f)) {
+            when (t) {
+              is app.nama.androidtv.AppModel.Trailer.File -> TrailerScreen(t.url)
+              is app.nama.androidtv.AppModel.Trailer.Youtube -> YoutubeTrailer(t.id)
+            }
+          }
+        }
         // The updater's word: it arrived, a new one is out, or it went wrong.
         val updatedTo = tv(TV.updatedTo)
         LaunchedEffect(updater.arrived, splashGone) { if (splashGone) updater.arrived?.let { app.showToast("$updatedTo ${it}") } }
@@ -271,7 +279,7 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
           AllowInstallsCard(open = { updater.openPermission() }, later = { updater.notNow() })
         }
         failed?.let { failed ->
-          UpdateFailedCard(failed.page, failed.step, failed.blocked, retry = { updater.retry() }, close = { updater.showFailure = false })
+          UpdateFailedCard(failed.page, failed.step, failed.blocked, failed.full, retry = { updater.retry() }, close = { updater.showFailure = false })
         }
         AnimatedVisibility(
             visible = app.toast != null,
@@ -487,7 +495,8 @@ fun MainScreen(onExit: () -> Unit) {
       UpdatePill(
           updater, pillFocus, up = { runCatching { if (nav.top != null) chrome.backDisc.requestFocus() else chrome.bar.requestFocus() } }, down = { enterPage() },
           modifier = Modifier.align(Alignment.TopCenter).padding(top = 112.dp).blockFocus(chrome.overlay || chrome.modal || !barShown).graphicsLayer {
-            alpha = shown
+            // Drawn after the pages, so over a page's own card (a name, a key) unless it steps away.
+            alpha = if (chrome.modal) 0f else shown
             translationY = -40f * (1f - shown)
           },
       )

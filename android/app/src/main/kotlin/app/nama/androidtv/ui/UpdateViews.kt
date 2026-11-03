@@ -79,7 +79,7 @@ fun updateRow(state: Updater.State, current: String): Pair<String, String> {
  * TV seldom has a browser, and a word on where the cause was written.
  */
 @Composable
-fun UpdateFailedCard(page: String, step: String, blocked: Boolean, retry: () -> Unit, close: () -> Unit) {
+fun UpdateFailedCard(page: String, step: String, blocked: Boolean, full: Boolean, retry: () -> Unit, close: () -> Unit) {
   val loc = LocalLoc.current
   val qr = remember(page) { qrImage(page) }
   val shape = RoundedCornerShape(36.dp)
@@ -90,7 +90,7 @@ fun UpdateFailedCard(page: String, step: String, blocked: Boolean, retry: () -> 
     Row(Modifier.width(1300.dp).background(Theme.surface, shape).border(1.dp, Theme.glassEdge, shape).padding(56.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Text(loc(S.updateFailed), style = app(40, FontWeight.Bold), color = Theme.text1)
-        Text(tv(if (blocked) TV.installsNotAllowed else TV.updateFailedHint), style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
+        Text(tv(if (full) TV.storageFull else if (blocked) TV.installsNotAllowed else TV.updateFailedHint), style = app(26).copy(lineHeight = app(26).fontSize * 1.5f), color = Theme.text2)
         // The step in the log's own words: a TV's update.log is out of reach without adb, a photo is not.
         if (step.isNotEmpty()) {
           CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -269,7 +269,8 @@ fun UpdatePill(updater: Updater, focus: FocusRequester, up: () -> Unit, down: ()
       is Updater.State.Downloading -> loc(S.updating) + if (state.progress >= 0) " ${loc.num((state.progress * 100).toInt())}${if (loc.lang == app.nama.core.Lang.en) "%" else "٪"}" else ""
       is Updater.State.NeedsPermission -> tv(TV.allowInstalls)
       // Android's window sits over the page with Cancel in focus; the capsule above it says which to press.
-      is Updater.State.Installing -> tv(TV.pressUpdate)
+      // Without the switch Android's window asks for it first, and comes back by itself to Update.
+      is Updater.State.Installing -> tv(if (state.asksPermission) TV.allowInSettings else TV.pressUpdate)
       is Updater.State.Failed -> loc(S.updateFailed)
       else -> "${loc(S.newVersion)} ${release?.version?.let { loc.num(it) } ?: ""}"
     }

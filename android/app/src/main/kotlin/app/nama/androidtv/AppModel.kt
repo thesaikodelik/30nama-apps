@@ -595,12 +595,22 @@ class AppModel(
     playback = request
   }
 
-  /** A trailer playing full screen in the app's player (Aparat's; YouTube's open in the YouTube app). */
-  var trailer by mutableStateOf<Pair<String, java.net.URI>?>(null)
+  /** What a trailer plays, full screen in the app: Aparat's file in its player, or YouTube's own embedded player. */
+  sealed interface Trailer {
+    data class File(val url: java.net.URI) : Trailer
+    data class Youtube(val id: String) : Trailer
+  }
+
+  /** A trailer playing full screen, with its title. */
+  var trailer by mutableStateOf<Pair<String, Trailer>?>(null)
     private set
 
   fun playTrailer(title: String, url: java.net.URI) {
-    trailer = title to url
+    trailer = title to Trailer.File(url)
+  }
+
+  fun playTrailer(title: String, youtube: String) {
+    trailer = title to Trailer.Youtube(youtube)
   }
 
   fun closeTrailer() {
