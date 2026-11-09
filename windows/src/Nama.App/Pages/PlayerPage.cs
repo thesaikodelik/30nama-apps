@@ -48,6 +48,7 @@ public sealed partial class PlayerPage : Grid
 
     private readonly DispatcherTimer _hide = new() { Interval = TimeSpan.FromSeconds(3) };
     private bool _controls = true;
+    private Windows.Foundation.Point? _pointerAt;
     private bool _episodesOpen;
     private bool _keysOpen;
     private string _shownCue = "";
@@ -78,14 +79,18 @@ public sealed partial class PlayerPage : Grid
         _spinner.Visibility = Visibility.Collapsed;
         _spinner.IsHitTestVisible = false;
         Children.Add(_spinner);
+        _subtitle.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, 56);
+        _subtitle.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(350) };
         Children.Add(_subtitle);
         BuildChrome();
         Children.Add(_chrome);
         _skipPill.Springy(0.18);
         Children.Add(_skipPill);
-        _offer.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, 150);
+        _offer.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, 70);
+        _offer.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(350) };
         Children.Add(_offer);
         Children.Add(_panelHost);
+        PlaceOverlays();
 
         _engine.Changed += Refresh;
         _engine.FullScreenToggled += () => _window.SetFullScreen(!_window.IsFullScreen);
@@ -95,8 +100,14 @@ public sealed partial class PlayerPage : Grid
         };
         _hide.Tick += (_, _) => HideControls();
         // The mouse, a click or a key: someone is watching (autoplay stops after three episodes without).
-        PointerMoved += (_, _) =>
+        PointerMoved += (_, e) =>
         {
+            // Only a pointer that really moved. Hiding the controls changes what is under a still pointer,
+            // and Windows answers that with a move of its own: taken as one, it brought the controls straight
+            // back, and the subtitle jumped up and down with them every few seconds (the owner).
+            var at = e.GetCurrentPoint(this).Position;
+            if (_pointerAt is { } was && Math.Abs(at.X - was.X) < 3 && Math.Abs(at.Y - was.Y) < 3) return;
+            _pointerAt = at;
             _engine.Touched();
             Wake();
         };
@@ -142,6 +153,7 @@ public sealed partial class PlayerPage : Grid
             _nowPlaying?.Dispose();
             _engine.Shutdown();
             ShowPointer(true);
+            _window.ShowCaptionButtons(true);
             if (_window.IsFullScreen) _window.SetFullScreen(false);
             if (_window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter) presenter.IsAlwaysOnTop = false;
         };
@@ -158,6 +170,7 @@ public sealed partial class PlayerPage : Grid
             _chrome.Opacity = 1;
             _chrome.IsHitTestVisible = true;
             ShowPointer(true);
+            _window.ShowCaptionButtons(true);
             PlaceOverlays();
         }
         _hide.Stop();
@@ -172,14 +185,19 @@ public sealed partial class PlayerPage : Grid
         _chrome.Opacity = 0;
         _chrome.IsHitTestVisible = false;
         ShowPointer(false);
+        // In a window the minimize, maximize and close buttons go too, so nothing but the film is left.
+        _window.ShowCaptionButtons(false);
         PlaceOverlays();
     }
 
-    /// <summary>The subtitle and the offer move down to the edge while the controls are away.</summary>
+    /// <summary>
+    /// The subtitle and the offer move down to the edge while the controls are away: slid, not jumped, so a line
+    /// being read does not leap under the eye.
+    /// </summary>
     private void PlaceOverlays()
     {
-        _subtitle.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, _controls ? 138 : 56);
-        _offer.Margin = new Thickness(Theme.Edge, 0, Theme.Edge, _controls ? 150 : 70);
+        _subtitle.Translation = new System.Numerics.Vector3(0, _controls ? -82 : 0, 0);
+        _offer.Translation = new System.Numerics.Vector3(0, _controls ? -80 : 0, 0);
     }
 
     private bool _pointerHidden;

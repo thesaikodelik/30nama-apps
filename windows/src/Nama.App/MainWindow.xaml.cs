@@ -709,6 +709,17 @@ public sealed partial class MainWindow : Window
         Storage.Write(PlaceFile, new WindowPlace(_restored.X, _restored.Y, _restored.Width, _restored.Height, full).Text);
     }
 
+    /// <summary>
+    /// The window's minimize, maximize and close buttons, hidden with the player's controls so only the film
+    /// is left in a window too. Windows draws them in no transparent colour, so the title bar itself goes
+    /// for those seconds; the border stays, and the page already runs under where the bar was.
+    /// </summary>
+    public void ShowCaptionButtons(bool show)
+    {
+        if (AppWindow.Presenter is OverlappedPresenter presenter && presenter.HasTitleBar != show)
+            presenter.SetBorderAndTitleBar(true, show);
+    }
+
     /// <summary>Full screen for the player, and back.</summary>
     public void SetFullScreen(bool on) =>
         AppWindow.SetPresenter(on ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Default);
