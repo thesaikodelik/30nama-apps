@@ -21,7 +21,7 @@ enum S: String, CaseIterable {
     case profile, yourRating, forYou, ratedCount, averageRating, noRatingsYet, rateHint, startWithThese
     case subColor, subBackground, white, yellow, cyan, green, bgNone, bgHalf, bgSolid, bgBlurHalf, bgBlur
     case version, unofficial, apiHost
-    case skipIntro, skipRecap, nextEpisode, subtitles, english, persian
+    case skipIntro, skipRecap, nextEpisode, previousEpisode, subtitles, english, persian
     case audio, audioStereo, audioSurround, audioOriginal
     case speed, subtitleTiming, subtitleFile, pictureInPicture, alwaysOnTop, fullScreen, reset
     case effects, effectsAuto, effectsFull, effectsLight
@@ -170,7 +170,7 @@ struct Loc: Equatable {
         .bgNone: "None", .bgHalf: "Black 50%", .bgSolid: "Black", .bgBlurHalf: "Blur 50%", .bgBlur: "Blur",
         .version: "Version", .unofficial: "Unofficial client for 30nama.com",
         .apiHost: "Server",
-        .skipIntro: "Skip Intro", .skipRecap: "Skip Recap", .nextEpisode: "Next Episode",
+        .skipIntro: "Skip Intro", .skipRecap: "Skip Recap", .nextEpisode: "Next Episode", .previousEpisode: "Previous Episode",
         .subtitles: "Subtitles", .english: "English", .persian: "Persian",
         .audio: "Audio", .audioStereo: "Stereo", .audioSurround: "5.1", .audioOriginal: "Original",
         .speed: "Speed", .subtitleTiming: "Subtitle timing", .subtitleFile: "Subtitle file…",
@@ -277,7 +277,7 @@ struct Loc: Equatable {
         .bgNone: "بدون پس‌زمینه", .bgHalf: "مشکی ۵۰٪", .bgSolid: "مشکی ۱۰۰٪", .bgBlurHalf: "بلور ۵۰٪", .bgBlur: "بلور ۱۰۰٪",
         .version: "نسخه", .unofficial: "برنامهٔ غیررسمی برای 30nama.com",
         .apiHost: "سرور",
-        .skipIntro: "رد کردن تیتراژ", .skipRecap: "رد کردن خلاصه", .nextEpisode: "قسمت بعد",
+        .skipIntro: "رد کردن تیتراژ", .skipRecap: "رد کردن خلاصه", .nextEpisode: "قسمت بعد", .previousEpisode: "قسمت قبل",
         .subtitles: "زیرنویس", .english: "انگلیسی", .persian: "فارسی",
         .audio: "صدا", .audioStereo: "استریو", .audioSurround: "۵.۱", .audioOriginal: "اصلی",
         .speed: "سرعت پخش", .subtitleTiming: "زمان‌بندی زیرنویس", .subtitleFile: "فایل زیرنویس…",
@@ -384,7 +384,7 @@ struct Loc: Equatable {
         .bgNone: "بدون", .bgHalf: "أسود 50%", .bgSolid: "أسود", .bgBlurHalf: "ضبابي 50%", .bgBlur: "ضبابي",
         .version: "الإصدار", .unofficial: "تطبيق غير رسمي لـ 30nama.com",
         .apiHost: "الخادم",
-        .skipIntro: "تخطّي المقدمة", .skipRecap: "تخطّي الملخص", .nextEpisode: "الحلقة التالية",
+        .skipIntro: "تخطّي المقدمة", .skipRecap: "تخطّي الملخص", .nextEpisode: "الحلقة التالية", .previousEpisode: "الحلقة السابقة",
         .subtitles: "الترجمة", .english: "الإنجليزية", .persian: "الفارسية",
         .audio: "الصوت", .audioStereo: "ستيريو", .audioSurround: "5.1", .audioOriginal: "الأصلي",
         .speed: "سرعة التشغيل", .subtitleTiming: "توقيت الترجمة", .subtitleFile: "ملف ترجمة…",

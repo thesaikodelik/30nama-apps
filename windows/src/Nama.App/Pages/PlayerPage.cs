@@ -120,10 +120,25 @@ public sealed partial class PlayerPage : Grid
             _engine.ToggleFullScreen();
         };
         KeyDown += OnKey;
-        // Enter is the player's, not the button last clicked: full screen and back, wherever the focus is.
+        // Enter, Space and the arrows are the player's, not the button last clicked: after a click on Mute, Space
+        // pressed that button again instead of pausing, and the arrows moved between the buttons instead of seeking
+        // (the owner). With the episodes open, the arrows and Space are theirs.
         PreviewKeyDown += (s, e) =>
         {
-            if (e.Key == VirtualKey.Enter && e.OriginalSource is not TextBox) OnKey(s, e);
+            if (e.OriginalSource is TextBox) return;
+            var mine = e.Key == VirtualKey.Enter
+                || (!_episodesOpen && e.Key is VirtualKey.Space or VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down);
+            if (mine) OnKey(s, e);
+        };
+        // The wheel over the picture is the volume, as in VLC and KMPlayer.
+        PointerWheelChanged += (_, e) =>
+        {
+            if (_episodesOpen || _keysOpen) return;
+            var delta = e.GetCurrentPoint(this).Properties.MouseWheelDelta;
+            if (delta == 0) return;
+            _engine.SetVolume(_engine.Volume + (delta > 0 ? 0.05 : -0.05));
+            Wake();
+            e.Handled = true;
         };
         AllowDrop = true;
         DragOver += (_, e) => e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
@@ -245,11 +260,22 @@ public sealed partial class PlayerPage : Grid
         _engine.Touched();
         Wake();
         var handled = true;
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        // 0 to 9: a tenth of the film each, as in YouTube and KMPlayer.
+        if (e.Key is >= VirtualKey.Number0 and <= VirtualKey.Number9 || e.Key is >= VirtualKey.NumberPad0 and <= VirtualKey.NumberPad9)
+        {
+            var tenth = e.Key >= VirtualKey.NumberPad0 ? e.Key - VirtualKey.NumberPad0 : e.Key - VirtualKey.Number0;
+            if (_engine.Duration > 0) _engine.Seek(_engine.Duration * tenth / 10.0);
+            e.Handled = true;
+            return;
+        }
         switch (e.Key)
         {
             case VirtualKey.Space: _engine.Toggle(); break;
-            case VirtualKey.Left: _engine.Skip(-HeldStep(e)); break;
-            case VirtualKey.Right: _engine.Skip(HeldStep(e)); break;
+            // Ctrl: a whole minute, as in VLC.
+            case VirtualKey.Left: _engine.Skip(ctrl ? -60 : -HeldStep(e)); break;
+            case VirtualKey.Right: _engine.Skip(ctrl ? 60 : HeldStep(e)); break;
             case VirtualKey.Up: _engine.SetVolume(_engine.Volume + 0.1); break;
             case VirtualKey.Down: _engine.SetVolume(_engine.Volume - 0.1); break;
             // Takes the offer on screen; with none, full screen, as in other players.
@@ -260,7 +286,17 @@ public sealed partial class PlayerPage : Grid
             case VirtualKey.F: _engine.ToggleFullScreen(); break;
             case VirtualKey.M: _engine.ToggleMute(); break;
             case VirtualKey.T: _engine.TogglePinned(); break;
-            case VirtualKey.N: if (_engine.HasNext) _engine.Start(_engine.Index + 1); break;
+            case VirtualKey.N:
+            case VirtualKey.PageDown: if (_engine.HasNext) _engine.Start(_engine.Index + 1); break;
+            // The episode before, as KMPlayer's Page Up and VLC's P.
+            case VirtualKey.P:
+            case VirtualKey.PageUp: if (_engine.Index > 0) _engine.Start(_engine.Index - 1); break;
+            case VirtualKey.V: CycleSubtitles(); break;
+            // KMPlayer's X, C and Z: slower, faster, and back to the normal speed (VLC's = too).
+            case VirtualKey.X: _engine.StepSpeed(-1); break;
+            case VirtualKey.C: _engine.StepSpeed(1); break;
+            case VirtualKey.Z:
+            case (VirtualKey)187: _engine.SetSpeed(1); break; // =
             case VirtualKey.E: if (_engine.Items.Count > 1) SetEpisodes(!_episodesOpen); break;
             case VirtualKey.G: _engine.NudgeSubtitles(-0.25); break;
             case VirtualKey.H: _engine.NudgeSubtitles(0.25); break;
@@ -270,6 +306,15 @@ public sealed partial class PlayerPage : Grid
             default: handled = false; break;
         }
         e.Handled = handled;
+    }
+
+    /// <summary>V: off, then each language the stream has, then off again, as VLC's V goes through the tracks.</summary>
+    private void CycleSubtitles()
+    {
+        var order = new List<string> { "off" };
+        order.AddRange(_engine.SubtitleLanguages);
+        var at = order.IndexOf(_engine.SubtitleLanguage);
+        _engine.SelectSubtitle(order[(at + 1) % order.Count], remember: true);
     }
 
     /// <summary>Esc closes what is open over the picture, then leaves full screen, and the player only after that.</summary>
@@ -896,6 +941,8 @@ public sealed partial class PlayerPage : Grid
         Focus(FocusState.Programmatic);
     }
 
+    private string Percent => Loc.Lang == Lang.En ? "%" : "٪";
+
     /// <summary>The keyboard's way around the player, on one card.</summary>
     private FrameworkElement ShortcutSheet()
     {
@@ -903,8 +950,10 @@ public sealed partial class PlayerPage : Grid
         {
             ("Space", $"{Loc[S.play]} / {Loc[S.pause]}"), ("← →", $"{Loc[S.back10]} / {Loc[S.forward10]}"), ("↑ ↓", Loc[S.volume]),
             ("Enter", $"{Loc[S.skipIntro]} · {Loc[S.nextEpisode]}"), ("F", Loc[S.fullScreen]), ("M", Loc[S.mute]), ("T", Loc[S.alwaysOnTop]),
-            ("N", Loc[S.nextEpisode]), ("E", Loc[S.episodes]), ("G / H", $"{Loc[S.subtitleEarlier]} / {Loc[S.subtitleLater]}"),
-            ("[ / ]", $"{Loc[S.slower]} / {Loc[S.faster]}"), ("Esc", Loc[S.back]),
+            ("Ctrl ← →", $"{Loc.Num("1:00")} −/+"), ("0 – 9", $"{Loc.Num("0")}{Percent} … {Loc.Num("90")}{Percent}"), ("Wheel", Loc[S.volume]),
+            ("N · PgDn", Loc[S.nextEpisode]), ("P · PgUp", Loc[S.previousEpisode]), ("E", Loc[S.episodes]), ("V", Loc[S.subtitles]),
+            ("G / H", $"{Loc[S.subtitleEarlier]} / {Loc[S.subtitleLater]}"),
+            ("[ ]  ·  X C", $"{Loc[S.slower]} / {Loc[S.faster]}"), ("Z  ·  =", $"{Loc[S.speed]} {Loc.Num("1")}×"), ("Esc", Loc[S.back]),
         };
         var grid = new Grid { ColumnSpacing = 24, RowSpacing = 12 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

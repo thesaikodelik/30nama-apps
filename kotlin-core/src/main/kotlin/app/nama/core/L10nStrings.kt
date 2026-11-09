@@ -153,6 +153,7 @@ enum class S {
     skipIntro,
     skipRecap,
     nextEpisode,
+    previousEpisode,
     subtitles,
     english,
     persian,
@@ -511,6 +512,7 @@ internal object LocTables {
         put(S.skipIntro, "Skip Intro")
         put(S.skipRecap, "Skip Recap")
         put(S.nextEpisode, "Next Episode")
+        put(S.previousEpisode, "Previous Episode")
         put(S.subtitles, "Subtitles")
         put(S.english, "English")
         put(S.persian, "Persian")
@@ -864,6 +866,7 @@ internal object LocTables {
         put(S.skipIntro, "رد کردن تیتراژ")
         put(S.skipRecap, "رد کردن خلاصه")
         put(S.nextEpisode, "قسمت بعد")
+        put(S.previousEpisode, "قسمت قبل")
         put(S.subtitles, "زیرنویس")
         put(S.english, "انگلیسی")
         put(S.persian, "فارسی")
@@ -1217,6 +1220,7 @@ internal object LocTables {
         put(S.skipIntro, "تخطّي المقدمة")
         put(S.skipRecap, "تخطّي الملخص")
         put(S.nextEpisode, "الحلقة التالية")
+        put(S.previousEpisode, "الحلقة السابقة")
         put(S.subtitles, "الترجمة")
         put(S.english, "الإنجليزية")
         put(S.persian, "الفارسية")
