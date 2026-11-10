@@ -129,6 +129,13 @@ public sealed partial class MainWindow : Window
         _root.Children.Add(_route);
         _root.Children.Add(_dragStrip);
         _root.Children.Add(_overlay);
+        // While a film is open its keys are the player's wherever the focus has gone: collapsing the top bar
+        // for the player moved it to the page under the player, and Space pressed a button there (the owner).
+        _root.PreviewKeyDown += (s, e) =>
+        {
+            if (_overlay.Children.OfType<PlayerPage>().FirstOrDefault() is { } player && !player.Owns(e.OriginalSource as DependencyObject))
+                player.KeyFromWindow(s, e);
+        };
         _root.Children.Add(_effects);
         StartSplash();
         PosterEffects.Peeking += ShowPeek;

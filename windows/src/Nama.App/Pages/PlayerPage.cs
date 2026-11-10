@@ -159,6 +159,9 @@ public sealed partial class PlayerPage : Grid
             _engine.Begin();
             _aurora.Start();
             Focus(FocusState.Programmatic);
+            // Once more after the window has finished its own changes for the player (the top bar collapsing
+            // moved the focus to the page under the player, so Space pressed a button there; the owner).
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, TakeFocus);
             Wake();
         };
         Unloaded += (_, _) =>
@@ -176,9 +179,35 @@ public sealed partial class PlayerPage : Grid
 
     // MARK: Showing and hiding
 
+    /// <summary>Whether [element] is this player or inside it.</summary>
+    public bool Owns(DependencyObject? element)
+    {
+        for (var e = element; e is not null; e = VisualTreeHelper.GetParent(e)) if (e == this) return true;
+        return false;
+    }
+
+    /// <summary>The keyboard focus back on the player, unless it is already somewhere inside it.</summary>
+    private void TakeFocus()
+    {
+        if (XamlRoot is null || Owns(FocusManager.GetFocusedElement(XamlRoot) as DependencyObject)) return;
+        Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>
+    /// A key the window caught while the focus was outside the player (on the page under it, or nowhere): the
+    /// player's all the same, while a film is open.
+    /// </summary>
+    public void KeyFromWindow(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.OriginalSource is TextBox) return;
+        OnKey(sender, e);
+        TakeFocus();
+    }
+
     /// <summary>Brings the controls up and lets them go again a few seconds after the pointer stops.</summary>
     private void Wake()
     {
+        TakeFocus();
         if (!_controls)
         {
             _controls = true;
