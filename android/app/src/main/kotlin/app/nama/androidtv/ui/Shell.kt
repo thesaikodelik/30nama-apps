@@ -194,11 +194,27 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
       // The opening title runs its course once; after that it only waits, a little, on the network.
       var introPlayed by remember { mutableStateOf(!intro) }
       var splashGone by remember { mutableStateOf(!intro) }
+      // The screens behind are built only once the logo has come in. Building home takes the main
+      // thread for most of a second on a weak TV, and with a start now that fast, it fell in the
+      // middle of the logo's entrance, which jumped (the owner's Sony).
+      var introIn by remember { mutableStateOf(!intro) }
       val leaving = introPlayed && app.phase != AppModel.Phase.Booting
       LaunchedEffect(Unit) {
-        delay(2_800)
+        delay(1_700)
+        introIn = true
+        delay(1_100)
         val deadline = System.currentTimeMillis() + 2_500
         while (!app.homeLoaded && (app.phase == AppModel.Phase.Main || app.phase == AppModel.Phase.Booting) && System.currentTimeMillis() < deadline) delay(100)
+        // Then until what is behind has settled: the curtain parting over a home still drawing its
+        // rows and pictures kept a quarter of its frames. Ten smooth frames in a row, or 1.5 s.
+        val settleBy = System.currentTimeMillis() + 1_500
+        var smooth = 0
+        var last = 0L
+        while (smooth < 10 && System.currentTimeMillis() < settleBy) {
+          val t = withFrameNanos { it }
+          smooth = if (last != 0L && t - last < 40_000_000L) smooth + 1 else 0
+          last = t
+        }
         introPlayed = true
       }
       LaunchedEffect(leaving) {
@@ -256,8 +272,8 @@ fun NamaRoot(app: AppModel, nav: Nav, onExit: () -> Unit, lively: Boolean, intro
           when (app.phase) {
             AppModel.Phase.Booting -> if (splashGone) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(Modifier.size(56.dp)) }
             AppModel.Phase.Failed -> ErrorState("${app.loc(S.noConnection)}. ${app.loc(S.tryAgain)}") { app.boot() }
-            AppModel.Phase.Login -> LoginScreen()
-            AppModel.Phase.Main -> MainScreen(onExit)
+            AppModel.Phase.Login -> if (introIn) LoginScreen()
+            AppModel.Phase.Main -> if (introIn) MainScreen(onExit)
           }
           }
         }
@@ -415,8 +431,9 @@ fun MainScreen(onExit: () -> Unit) {
             scaleX = scale
             scaleY = scale
           }.focusRequester(routeFocus)
-              // Back into the page (Down from the bar or Back) where it was left, else at its entry.
-              .focusRestorer(if (entry.ready) entry.requester else FocusRequester.Default).focusGroup()
+              // Back into the page (Down from the bar or Back) where it was left, else at what last
+              // opened the player or a trailer, else at its entry.
+              .focusRestorer(entry.opener ?: if (entry.ready) entry.requester else FocusRequester.Default).focusGroup()
               .onFocusChanged { routeHasFocus = it.hasFocus }) {
             holder.SaveableStateProvider(nav.topKey ?: "${nav.tab}/${route.hashCode()}") {
               CompositionLocalProvider(LocalOnRoute provides true, LocalPageEntry provides entry) { RouteScreen(route) }
@@ -456,6 +473,9 @@ fun MainScreen(onExit: () -> Unit) {
       }
       // When the player or a trailer closes, focus comes back into the page under it, where it was
       // (Play on the title's page): nothing gave it back, and every key went nowhere (the owner).
+      // Even when the bar has it by then: as the player (or the trailer's WebView) leaves, Android
+      // hands focus to the first thing that takes it, the bar's back disc, before this runs. Nobody
+      // chose the bar while the player was up, so that is never where the viewer was.
       val covered = app.playback != null || app.trailer != null
       var wasCovered by remember { mutableStateOf(false) }
       LaunchedEffect(covered) {
@@ -463,7 +483,9 @@ fun MainScreen(onExit: () -> Unit) {
         else if (wasCovered) {
           wasCovered = false
           withFrameNanos {}
-          if (!barFocused) enterPage()
+          // The control that opened it, on an open page; else where the page or tab was.
+          val opener = if (nav.top != null) entry.opener else null
+          if (opener == null || runCatching { opener.requestFocus() }.isFailure) enterPage()
         }
       }
       // Over every page, as on the Mac; it steps out of the way once a page scrolls down.

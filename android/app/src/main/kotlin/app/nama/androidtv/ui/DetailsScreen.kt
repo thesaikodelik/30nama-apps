@@ -519,8 +519,8 @@ private fun Header(
       )
       // Everything to do with the title in one row: play it, its trailer, rate it, keep it.
       Row(Modifier.padding(top = 14.dp).focusRestorer(play), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
-        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.comingIn(2, revealed), icon = Icons.film) }
+        PillButton(playLabel(post, stream, items), onPlay, Modifier.focusRequester(play).pageEntry().opener().comingIn(1, revealed), kind = PillKind.Primary, icon = Icons.play, busy = busy)
+        trailer?.let { t -> PillButton(loc(S.trailer), { onTrailer(t) }, Modifier.opener().comingIn(2, revealed), icon = Icons.film) }
         Box(Modifier.comingIn(3, revealed)) { Mine(post) }
         if (app.isLoggedIn) {
           Box(Modifier.comingIn(4, revealed)) {
@@ -864,7 +864,7 @@ private fun Episodes(post: Post, items: List<StreamItem>, stream: StreamResult?,
         val still = app.stills.known[item.fileID]
         CardSurface(
             onClick = { play(index) },
-            modifier = if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier,
+            modifier = (if (item.id == landing?.value?.id) Modifier.focusRequester(focus) else Modifier).opener(),
             radius = Theme.tileRadius, glow = rememberPosterTint(post),
             // Held select: the tick set or taken off by hand, as the Mac's menu on an episode.
             onLongClick = {

@@ -59,7 +59,12 @@ android {
       matchingFallbacks += "release"
       buildConfigField("String", "TEST_FEED", "\"http://10.0.2.2:18765/releases.json\"")
     }
-    debug { buildConfigField("String", "TEST_FEED", "\"\"") }
+    debug {
+      buildConfigField("String", "TEST_FEED", "\"\"")
+      // -Pnama.tv: signed with the release key, so it installs over the owner's release on a real TV
+      // and keeps its sign-in and progress (a debug key would need an uninstall first).
+      if (project.hasProperty("nama.tv")) signingConfigs.findByName("release")?.let { signingConfig = it }
+    }
   }
   buildFeatures {
     compose = true

@@ -202,6 +202,16 @@ class Extras(private val context: Context, http: OkHttpClient, private val key: 
       }
     }
     known[post.id] = info
+    // A title 30nama has no wide picture for: TMDB's, one with no words on it where there is one.
+    // Without it the slider stretched the tall poster across the screen (the owner, Model Citizen).
+    if (post.cover == null) {
+      val wide = TMDB.backdropsPage(page)?.let { text(it.toString()) }?.let(TMDB::backdropInPage)
+          ?: TMDB.backdropsPage(page, wordless = false)?.let { text(it.toString()) }?.let(TMDB::backdropInPage)
+      if (wide != null) {
+        info = info.copy(backdrop = wide)
+        known[post.id] = (known[post.id] ?: info).copy(backdrop = wide)
+      }
+    }
     // The trailer follows into `known` without holding up the logo.
     TMDB.trailersPage(page)?.let { text(it.toString()) }?.let(TMDB::trailerInPage)?.let { known[post.id] = (known[post.id] ?: info).copy(trailer = it) }
     settled += post.id

@@ -298,9 +298,10 @@ fun PlayerScreen(request: PlaybackRequest) {
               // Thirty seconds a press, adding up and quickening while held, landing as the arrows' do.
               Key.MediaFastForward -> { seekBy(1, repeat, base = 30.0, doublings = 2); true }
               Key.MediaRewind -> { seekBy(-1, repeat, base = 30.0, doublings = 2); true }
-              // Next and previous are episodes; with none that way the key goes to the TV.
-              Key.MediaNext, Key.ChannelUp -> if (engine.index + 1 < engine.items.size) { if (!repeat) engine.next(); true } else false
-              Key.MediaPrevious, Key.ChannelDown -> if (engine.index > 0 || engine.position > 10) { if (!repeat) engine.previous(); true } else false
+              // Next and previous are episodes (Page Down and Up too, as on Windows, for a box's keyboard);
+              // with none that way the key goes to the TV.
+              Key.MediaNext, Key.ChannelUp, Key.PageDown -> if (engine.index + 1 < engine.items.size) { if (!repeat) engine.next(); true } else false
+              Key.MediaPrevious, Key.ChannelDown, Key.PageUp -> if (engine.index > 0 || engine.position > 10) { if (!repeat) engine.previous(); true } else false
               else -> {
                 if (controls || panel != null) return@onPreviewKeyEvent false
                 // Nothing on screen: the arrows seek (along the bar, which runs left to right in every

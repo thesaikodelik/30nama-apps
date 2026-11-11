@@ -94,12 +94,27 @@ object TMDB {
     fun logosPage(page: URI, language: String): URI? =
         if (isTitlePage(page)) urlOf(page.toString().substringBefore('?') + "/images/logos?image_language=" + language) else null
 
+    /**
+     * The page that lists a title's wide pictures, given the title's own page. [wordless]: only
+     * those with no language, which have no title written on them.
+     */
+    fun backdropsPage(page: URI, wordless: Boolean = true): URI? =
+        if (isTitlePage(page)) urlOf(page.toString().substringBefore('?') + "/images/backdrops" + if (wordless) "?image_language=xx" else "") else null
+
     /** The page that lists a title's trailers, given the title's own page. */
     fun trailersPage(page: URI): URI? =
         if (isTitlePage(page)) urlOf(page.toString().substringBefore('?') + "/videos?active_nav_item=Trailers&language=en-US") else null
 
     private val trailerPattern = Regex("data-site=\"YouTube\" data-id=\"[A-Za-z0-9_-]{11}\"")
     private val logoPattern = Regex("/t/p/[a-z0-9_]+/[A-Za-z0-9]+\\.(png|svg)")
+    // The listed pictures at the page's own sizes; only the wide ones, not the header's small poster.
+    private val backdropPattern = Regex("/t/p/w([0-9]+)_and_h([0-9]+)_face/[A-Za-z0-9]+\\.jpg")
+
+    /** The first wide picture a backdrops page lists (the site puts the best liked first), 1280 wide. */
+    fun backdropInPage(html: String): URI? {
+        val found = backdropPattern.findAll(html).firstOrNull { it.groupValues[1].toInt() > it.groupValues[2].toInt() } ?: return null
+        return urlOf(IMAGES + "w1280/" + found.value.substringAfterLast('/'))
+    }
 
     /** The YouTube id of the first trailer the page lists. */
     fun trailerInPage(html: String): String? = trailerPattern.find(html)?.value?.dropLast(1)?.takeLast(11)

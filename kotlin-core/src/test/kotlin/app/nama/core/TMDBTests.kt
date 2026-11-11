@@ -93,6 +93,18 @@ class TMDBTests {
         assertNull("not a title page", TMDB.logosPage(URI("https://www.themoviedb.org/search"), "en"))
     }
 
+    @Test fun testReadsTheBackdropFromThePublicPage() {
+        // The header's small poster comes first on the page and is tall: passed over.
+        val html = """<img src="https://media.themoviedb.org/t/p/w58_and_h87_face/poster1.jpg">""" +
+            """<img src="https://media.themoviedb.org/t/p/w500_and_h282_face/wide1.jpg"><img src="/t/p/w500_and_h282_face/wide2.jpg">"""
+        assertEquals("https://image.tmdb.org/t/p/w1280/wide1.jpg", TMDB.backdropInPage(html)?.toString())
+        assertNull(TMDB.backdropInPage("""<img src="/t/p/w58_and_h87_face/poster1.jpg">"""))
+        val page = URI("https://www.themoviedb.org/tv/12345-model-citizen")
+        assertEquals("https://www.themoviedb.org/tv/12345-model-citizen/images/backdrops?image_language=xx", TMDB.backdropsPage(page)?.toString())
+        assertEquals("https://www.themoviedb.org/tv/12345-model-citizen/images/backdrops", TMDB.backdropsPage(page, wordless = false)?.toString())
+        assertNull(TMDB.backdropsPage(URI("https://www.themoviedb.org/search")))
+    }
+
     @Test fun testReadsTheTrailerFromThePublicPage() {
         assertEquals("t433PEQGErc", TMDB.trailerInPage("""<a data-site="YouTube" data-id="t433PEQGErc" href="#">"""))
         assertNull(TMDB.trailerInPage("<p>none</p>"))

@@ -254,6 +254,7 @@ class AppModel(
     booted = true
     scope.launch {
       phase = Phase.Booting
+      val started = System.currentTimeMillis()
       api.setLanguage(settings.lang)
       api.setSessionExpiredHandler { scope.launch { sessionExpired() } }
       val host =
@@ -266,6 +267,7 @@ class AppModel(
             phase = Phase.Failed
             return@launch
           }
+      Log.i(TAG, "boot: $host in ${System.currentTimeMillis() - started} ms")
       account.edit().putString("host", host).apply()
       apiHost = runCatching { java.net.URI(host).host }.getOrNull() ?: host
       inIran = api.inIran
@@ -419,6 +421,8 @@ class AppModel(
       val feed = HomeFeed.from(result)
       if (feed.isEmpty) throw APIError.Server("empty")
       homeCache = Triple(feed, System.currentTimeMillis(), lang)
+      // The slider for the TV's home screen too (Slides), off the screen's way.
+      scope.launch(Dispatchers.IO) { Slides.sync(context, feed.heroes, lang) { extras.info(it, lang)?.backdrop } }
       // Written beside and renamed, so a TV switched off mid-write keeps the last whole page.
       withContext(Dispatchers.IO) {
         runCatching {

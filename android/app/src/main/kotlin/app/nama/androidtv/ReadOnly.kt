@@ -19,17 +19,28 @@ object ReadOnly {
     }.getOrDefault(false)
   }
 
-  /** The transport the app's API client uses: the network, or the network minus writes. */
+  /**
+   * The transport the app's API client uses in a debug build: the network, minus writes when
+   * read-only, with each request's time in the log (what a slow start on a real TV waits for).
+   * A release build keeps core's own.
+   */
   fun transport(inner: Transport = HttpURLConnectionTransport()): Transport? {
-    if (!enabled) return null
-    Log.w(AppModel.TAG, "read-only: account writes are answered locally")
+    if (!BuildConfig.DEBUG) return null
+    if (enabled) Log.w(AppModel.TAG, "read-only: account writes are answered locally")
     return Transport { request ->
       val action = request.url.substringAfterLast("/action/", "")
       // Lists are read with the same action that changes them; only a change is held back.
       val body = request.body?.decodeToString().orEmpty()
-      val write = action in writes && !(action == "user_list" && "action=list" in body)
-      if (write) HttpResponse(200, mapOf("Content-Type" to "application/json"), """{"success":true,"msg":"","result":{}}""".toByteArray())
-      else inner.send(request)
+      val write = enabled && action in writes && !(action == "user_list" && "action=list" in body)
+      if (write) return@Transport HttpResponse(200, mapOf("Content-Type" to "application/json"), """{"success":true,"msg":"","result":{}}""".toByteArray())
+      val start = System.currentTimeMillis()
+      val what = request.url.substringBefore('?')
+      try {
+        inner.send(request).also { Log.d(AppModel.TAG, "http ${it.status} ${System.currentTimeMillis() - start} ms $what") }
+      } catch (e: Exception) {
+        Log.d(AppModel.TAG, "http failed ${System.currentTimeMillis() - start} ms $what: $e")
+        throw e
+      }
     }
   }
 }

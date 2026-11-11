@@ -102,6 +102,9 @@ object WatchNext {
       putNull(WatchNextPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS)
       putNull(WatchNextPrograms.COLUMN_DURATION_MILLIS)
     }
+    // Seen by other launchers too, not only Google TV's: a launcher without ACCESS_ALL_EPG_DATA reads
+    // only rows marked searchable (the owner's own home screen, from CleanYourTV).
+    put(WatchNextPrograms.COLUMN_SEARCHABLE, 1)
     // Kept in 30nama's order.
     put(WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS, engaged)
     put(WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID, post.id.toString())

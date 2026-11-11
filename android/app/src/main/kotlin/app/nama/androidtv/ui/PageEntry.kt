@@ -5,11 +5,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 
 /**
  * Where focus goes when the shell gives a page focus: on opening, and with Down from the bar the
@@ -28,6 +30,15 @@ class PageEntry {
   /** The entry control is on the screen and can take focus. */
   var ready by mutableStateOf(false)
     internal set
+
+  /**
+   * The control last focused of those that open something over the page (Play, Trailer, an
+   * episode), where focus goes back when the player or the trailer closes, as on the Apple TV.
+   * Neither leaves the page by a move of focus, so the page's own restorer never saw where it was,
+   * and turned focus coming back in to the entry: this is that restorer's way in instead.
+   */
+  var opener by mutableStateOf<FocusRequester?>(null)
+    internal set
 }
 
 /** The open page's entry, provided by the shell around each page. */
@@ -41,6 +52,15 @@ val LocalPageEntry = staticCompositionLocalOf<PageEntry?> { null }
 fun DeclarePageEntry(has: Boolean = true) {
   val entry = LocalPageEntry.current ?: return
   entry.declared = has
+}
+
+/** Marks a control that opens the player or a trailer: focus comes back to it when that closes. */
+@Composable
+fun Modifier.opener(): Modifier {
+  val entry = LocalPageEntry.current ?: return this
+  val me = remember { FocusRequester() }
+  DisposableEffect(entry, me) { onDispose { if (entry.opener === me) entry.opener = null } }
+  return this.focusRequester(me).onFocusChanged { if (it.isFocused) entry.opener = me }
 }
 
 /** Marks the control the shell gives focus to when it enters this page. */

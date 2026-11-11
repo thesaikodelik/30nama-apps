@@ -1,9 +1,10 @@
 package app.nama.core
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -43,21 +44,28 @@ fun interface Transport {
 
 /**
  * The default transport, on `HttpURLConnection`, which both the JVM and Android have. A request
- * that is cancelled has its connection closed, so a hung host gives the thread back at once.
+ * that is cancelled returns at once and has its connection closed.
  */
 class HttpURLConnectionTransport : Transport {
-    override suspend fun send(request: HttpRequest): HttpResponse = coroutineScope {
+    override suspend fun send(request: HttpRequest): HttpResponse {
         val connection = URL(request.url).openConnection() as HttpURLConnection
-        // The failure comes back as a value: once the connection is closed under it, the blocked
-        // read throws, and as a thrown exception that would fail the caller's scope, not cancel it.
-        val work = async(Dispatchers.IO) { runCatching { exchange(connection, request) } }
+        // Outside the caller's scope: a connect still in DNS or TCP does not end when the connection
+        // is closed, and as a child it held the caller until its own time-out. On a TV that could not
+        // reach one of the two endpoint lists, `firstOf` had the other's answer in under a second and
+        // still waited ten. The failure comes back as a value, so nothing is thrown into that scope.
+        val work = detached.async { runCatching { exchange(connection, request) } }
         val result = try {
             work.await()
         } catch (e: CancellationException) {
             connection.disconnect()
+            work.cancel()
             throw e
         }
-        result.getOrThrow()
+        return result.getOrThrow()
+    }
+
+    private companion object {
+        val detached = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     private fun exchange(c: HttpURLConnection, request: HttpRequest): HttpResponse {
