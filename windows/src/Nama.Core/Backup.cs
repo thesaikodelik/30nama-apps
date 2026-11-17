@@ -17,7 +17,7 @@ public static class Backup
     public const string SettingsFile = "settings.json";
 
     public static readonly string[] Files =
-        [SettingsFile, "ratings.json", "watched.json", "left.json", "local-positions.json", "series-choices.json", "continue-dismissals.json"];
+        [SettingsFile, "ratings.json", "watched.json", "left.json", "local-positions.json", "series-choices.json", "continue-dismissals.json", "recent-searches.json"];
 
     /// <summary>Settings that belong to this computer or are the user's secrets: left out, and kept as they are on restore.</summary>
     public static readonly string[] LocalSettings = ["subsourceKey", "geminiKey", "tmdbKey", "downloadFolder", "downloaderProgram"];

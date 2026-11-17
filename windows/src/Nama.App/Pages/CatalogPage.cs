@@ -393,6 +393,19 @@ public sealed class SearchPage : Grid
     private readonly WrapRow _results = new(20, unmirrored: true);
     private bool _streamOnly;
     private CancellationTokenSource? _typing;
+    /// <summary>Under the box while it is empty: the searches that led somewhere, to run again with a click.</summary>
+    private readonly StackPanel _recentRow = new() { Spacing = 10 };
+
+    private static string RecentFile => Path.Combine(Storage.Folder, "recent-searches.json");
+
+    private static RecentSearches LoadRecent()
+    {
+        try { return new RecentSearches(Storage.Read(RecentFile) is { } text ? Json.Parse(text).Array.Select(q => q.Text).OfType<string>() : null); }
+        catch (Exception) { return new RecentSearches(); }
+    }
+
+    private static void SaveRecent(RecentSearches recent) =>
+        Storage.Write(RecentFile, new Json(recent.Items.Select(q => new Json(q)).ToList()).Serialize());
 
     public SearchPage(Nav nav)
     {
@@ -400,12 +413,14 @@ public sealed class SearchPage : Grid
         Children.Add(Kit.Ambient());
         var column = new StackPanel { Spacing = 26, Padding = new Thickness(Theme.Edge, 106, Theme.Edge, 60) };
         column.Children.Add(Field());
+        column.Children.Add(_recentRow);
         column.Children.Add(_note);
         column.Children.Add(_heading);
         column.Children.Add(_results);
         Children.Add(new ScrollViewer { Content = column, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollMode = ScrollMode.Disabled });
         _field.TextChanged += (_, _) => Schedule();
         Loaded += (_, _) => _field.Focus(FocusState.Programmatic);
+        ShowRecent(true);
         _ = ShowPopularAsync(null);
     }
 
@@ -467,6 +482,7 @@ public sealed class SearchPage : Grid
     private async Task RunAsync(string text, int wait, CancellationToken cancel)
     {
         var loc = App.Loc;
+        ShowRecent(text.Length < 2);
         if (text.Length < 2)
         {
             await ShowPopularAsync(null);
@@ -483,7 +499,7 @@ public sealed class SearchPage : Grid
             }));
             if (cancel.IsCancellationRequested) return;
             if (page.Posts.Count == 0) await ShowPopularAsync($"{loc[S.nothingFor]} «{text}»");
-            else Show(loc[S.topResults], page.Posts, null);
+            else Show(loc[S.topResults], page.Posts, null, query: text);
         }
         catch (Exception)
         {
@@ -504,12 +520,56 @@ public sealed class SearchPage : Grid
         Show(App.Loc[S.popularNow], (suggested.Count == 0 ? feed?.Posts("movies") ?? [] : suggested).Take(24), note);
     }
 
-    private void Show(string heading, IEnumerable<Post> posts, string? note)
+    /// <param name="query">The search the posts answer: kept among the recent ones once a title is opened from it.</param>
+    private void Show(string heading, IEnumerable<Post> posts, string? note, string? query = null)
     {
         _note.Text = note ?? "";
         _note.Visibility = note is null ? Visibility.Collapsed : Visibility.Visible;
         _heading.Text = heading;
         _results.Children.Clear();
-        foreach (var post in posts) _results.Add(Kit.Poster(post, () => _nav.Open(post)));
+        foreach (var post in posts)
+            _results.Add(Kit.Poster(post, () =>
+            {
+                if (query is not null)
+                {
+                    var recent = LoadRecent();
+                    recent.Add(query);
+                    SaveRecent(recent);
+                }
+                _nav.Open(post);
+            }));
+    }
+
+    /// <summary>The recent searches as pills under the empty box, with one to clear them (the Android app's).</summary>
+    private void ShowRecent(bool show)
+    {
+        _recentRow.Children.Clear();
+        var recent = LoadRecent();
+        if (!show || recent.Items.Count == 0) return;
+        var loc = App.Loc;
+        var title = new Grid();
+        title.Children.Add(Theme.Text(loc[Extra.recentSearches], 15, FontWeights.SemiBold, Theme.Text3));
+        var clear = Theme.Bare(Theme.Text(loc[S.clear], 14, FontWeights.SemiBold, Theme.Text3), () =>
+        {
+            recent.Clear();
+            SaveRecent(recent);
+            ShowRecent(true);
+        });
+        clear.HorizontalAlignment = HorizontalAlignment.Right;
+        title.Children.Add(clear);
+        _recentRow.Children.Add(title);
+        var pills = new WrapRow(10);
+        foreach (var query in recent.Items)
+        {
+            // Each in its own direction: a Latin name stays left to right in a Persian page.
+            var pill = Kit.Glass(query, Glyph.Search, () =>
+            {
+                _field.Text = query;
+                _field.SelectionStart = query.Length;
+                Schedule(now: true);
+            }, height: 36);
+            pills.Add(pill);
+        }
+        _recentRow.Children.Add(pills);
     }
 }

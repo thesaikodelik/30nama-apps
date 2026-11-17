@@ -16,7 +16,7 @@ public enum Extra
     downloadWith, sentTo, anotherProgram,
     newTitlesAlert, newTitlesHint, newOn30nama, andMore,
     fillPicture, stretchPicture,
-    homeRows, allRowsShown, rowsHidden,
+    homeRows, allRowsShown, rowsHidden, recentSearches,
     backupGroup, backupHint, saveBackup, restoreBackup, backupSaved, backupRestored, backupNotOurs, backupNewer,
 }
 #pragma warning restore IDE1006
@@ -28,6 +28,7 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.recentSearches] = "Recent searches",
         [Extra.homeRows] = "Rows on home",
         [Extra.allRowsShown] = "All shown",
         [Extra.rowsHidden] = "{n} hidden",
@@ -71,6 +72,7 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.recentSearches] = "جستجوهای اخیر",
         [Extra.homeRows] = "ردیف‌های خانه",
         [Extra.allRowsShown] = "همه نمایش داده می‌شوند",
         [Extra.rowsHidden] = "{n} ردیف پنهان",
@@ -114,6 +116,7 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.recentSearches] = "عمليات البحث الأخيرة",
         [Extra.homeRows] = "صفوف الصفحة الرئيسية",
         [Extra.allRowsShown] = "كلها ظاهرة",
         [Extra.rowsHidden] = "{n} مخفية",
