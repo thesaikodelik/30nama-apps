@@ -102,6 +102,12 @@ public sealed record Settings
     /// <summary>"idm" or "fdm": every download is handed to that program; null for the app's own downloader (from vispar).</summary>
     /// <summary>A notification for films and series new on 30nama; off until the user turns it on (the owner; from vispar).</summary>
     public bool NotifyNewTitles { get; init; }
+    /// <summary>Home's rows the user has hidden, by their keys (from vispar).</summary>
+    public IReadOnlyList<string> HiddenRows { get; init; } = [];
+
+    /// <summary>The rows home may show, in its order, by key: those the user can hide.</summary>
+    public static readonly string[] HomeRows =
+        ["continue", "trending", "new_releases", "suggested", "top_10", "top-movies", "top-series", "fresh", "popular", "movies", "series", "anime"];
     public string? Downloader { get; init; }
     /// <summary>The program the user chose for "other": any download manager's .exe.</summary>
     public string? DownloaderProgram { get; init; }

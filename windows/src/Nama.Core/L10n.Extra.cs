@@ -16,6 +16,7 @@ public enum Extra
     downloadWith, sentTo, anotherProgram,
     newTitlesAlert, newTitlesHint, newOn30nama, andMore,
     fillPicture, stretchPicture,
+    homeRows, allRowsShown, rowsHidden,
     backupGroup, backupHint, saveBackup, restoreBackup, backupSaved, backupRestored, backupNotOurs, backupNewer,
 }
 #pragma warning restore IDE1006
@@ -27,6 +28,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.homeRows] = "Rows on home",
+        [Extra.allRowsShown] = "All shown",
+        [Extra.rowsHidden] = "{n} hidden",
         [Extra.backupGroup] = "Backup",
         [Extra.backupHint] = "Ratings, what you watched, where you left each title and the settings, in one file to bring to another computer. Your keys stay on this one.",
         [Extra.saveBackup] = "Save a backup…",
@@ -67,6 +71,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.homeRows] = "ردیف‌های خانه",
+        [Extra.allRowsShown] = "همه نمایش داده می‌شوند",
+        [Extra.rowsHidden] = "{n} ردیف پنهان",
         [Extra.backupGroup] = "پشتیبان",
         [Extra.backupHint] = "امتیازها، دیده‌شده‌ها، جای ادامهٔ هر عنوان و تنظیمات، در یک فایل برای بردن به کامپیوتر دیگر. کلیدهای شما روی همین کامپیوتر می‌مانند.",
         [Extra.saveBackup] = "ذخیرهٔ پشتیبان…",
@@ -107,6 +114,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.homeRows] = "صفوف الصفحة الرئيسية",
+        [Extra.allRowsShown] = "كلها ظاهرة",
+        [Extra.rowsHidden] = "{n} مخفية",
         [Extra.backupGroup] = "النسخ الاحتياطي",
         [Extra.backupHint] = "التقييمات وما شاهدته وموضع كل عنوان والإعدادات، في ملف واحد لنقلها إلى حاسوب آخر. تبقى مفاتيحك على هذا الحاسوب.",
         [Extra.saveBackup] = "حفظ نسخة احتياطية…",

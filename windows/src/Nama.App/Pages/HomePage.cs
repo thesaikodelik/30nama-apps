@@ -79,6 +79,8 @@ public sealed class HomePage : Grid
     {
         if (what == "content") _ = LoadAsync();
         if (what is "watch" or "continue") _ = RefreshContinueAsync();
+        // Rows shown or hidden in Settings.
+        if (what == "settings" && !App.Settings.HiddenRows.SequenceEqual(_hidden)) ShowShelves();
     }
 
     private Post? Featured => _feed is { Heroes.Count: > 0 } f ? f.Heroes[Math.Min(_hero, f.Heroes.Count - 1)] : null;
@@ -274,7 +276,8 @@ public sealed class HomePage : Grid
         var loc = App.Loc;
         _shelves.Children.Clear();
         if (_feed is not { } feed) return;
-        if (App.IsLoggedIn && _continuing is null) _shelves.Children.Add(StandIns(loc[S.continueWatching], WideCard, 3));
+        _hidden = App.Settings.HiddenRows;
+        if (App.IsLoggedIn && _continuing is null && !Hidden("continue")) _shelves.Children.Add(StandIns(loc[S.continueWatching], WideCard, 3));
         else if (_continuing is { Count: > 0 } continuing)
             AddShelf("continue", loc[S.continueWatching], continuing.Select(p => Kit.Continue(p, () => _nav.Open(p), () =>
             {
@@ -284,7 +287,7 @@ public sealed class HomePage : Grid
             })).ToList(), null, step: 3);
         if (Trend.Count > 0)
             AddShelf("trending", loc[S.trendingWeek], Trend.Select(p => (FrameworkElement)Kit.Poster(p, () => _nav.Open(p))).ToList(), null);
-        else if (!_trendDone && System.IO.File.Exists(TrendingSeen)) _shelves.Children.Add(StandIns(loc[S.trendingWeek], PosterCard));
+        else if (!_trendDone && System.IO.File.Exists(TrendingSeen) && !Hidden("trending")) _shelves.Children.Add(StandIns(loc[S.trendingWeek], PosterCard));
         foreach (var section in feed.Sections)
         {
             var posts = Distinct(section.Posts);
@@ -310,7 +313,7 @@ public sealed class HomePage : Grid
 
     private void Ranked(string key, string title, List<Post>? posts)
     {
-        if (posts is null && !_topDone) _shelves.Children.Add(StandIns(title, RankedCard, 4));
+        if (posts is null && !_topDone && !Hidden(key)) _shelves.Children.Add(StandIns(title, RankedCard, 4));
         if (posts is not { Count: > 0 }) return;
         AddShelf(key, title, posts.Select((p, i) => Kit.Ranked(i + 1, p, () => _nav.Open(p))).ToList(), null, step: 4);
     }
@@ -326,8 +329,14 @@ public sealed class HomePage : Grid
     };
 
     /// <summary>A row with its cards. One not in yet shows stand-ins under unseen cards, and brings the cards in once their pictures are.</summary>
+    /// <summary>The hidden rows the shelves were last laid out with.</summary>
+    private IReadOnlyList<string> _hidden = [];
+
+    private static bool Hidden(string key) => App.Settings.HiddenRows.Contains(key);
+
     private void AddShelf(string key, string title, IReadOnlyList<FrameworkElement> cards, Action? more, double step = 5)
     {
+        if (Hidden(key)) return;
         if (_arrived.Contains(key) || App.Settings.Calm && _arrived.Add(key))
         {
             _shelves.Children.Add(Kit.Shelf(title, cards, more, step));

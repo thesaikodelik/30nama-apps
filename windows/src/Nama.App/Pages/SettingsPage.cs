@@ -148,6 +148,8 @@ public sealed class SettingsPage : Grid
         backupRow.Children.Add(Kit.Glass(loc[Extra.restoreBackup], null, () => _ = RestoreBackupAsync(), height: 34));
         Group(loc[Extra.backupGroup], [Hinted(Row(loc[Extra.backupGroup], backupRow), loc[Extra.backupHint])]);
 
+        Group(loc[S.home], [HomeRowsRow(s)]);
+
         Group(loc[S.services],
         [
             KeyField("subsource", loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
@@ -271,6 +273,49 @@ public sealed class SettingsPage : Grid
         }
         Environment.Exit(0);
     }
+
+    /// <summary>The rows home shows: a list to tick, which stays open while it is ticked (from vispar).</summary>
+    private FrameworkElement HomeRowsRow(Settings s)
+    {
+        var loc = App.Loc;
+        string Summary(Settings x) => x.HiddenRows.Count == 0 ? loc[Extra.allRowsShown] : loc[Extra.rowsHidden].Replace("{n}", loc.Num(x.HiddenRows.Count));
+        var value = Value(Summary(s));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        row.Children.Add(value);
+        Button? choose = null;
+        choose = Kit.Glass(loc[S.choose], null, () =>
+        {
+            var list = new StackPanel { Spacing = 2, MinWidth = 260 };
+            foreach (var key in Settings.HomeRows)
+            {
+                var box = new CheckBox { Content = RowName(key), IsChecked = !App.Settings.HiddenRows.Contains(key) };
+                box.Click += (_, _) =>
+                {
+                    App.Update(x => x with { HiddenRows = box.IsChecked == true ? x.HiddenRows.Where(k => k != key).ToList() : [.. x.HiddenRows.Where(k => k != key), key] });
+                    value.Text = Summary(App.Settings);
+                };
+                list.Children.Add(box);
+            }
+            // Not laid out again while it is open, which would close it after each tick.
+            var flyout = new Flyout { Content = list };
+            flyout.Opened += (_, _) => _typing = true;
+            flyout.Closed += (_, _) => { _typing = false; Render(); };
+            flyout.ShowAt(choose);
+        }, height: 34);
+        Kit.AutomationName(choose, loc[Extra.homeRows]);
+        row.Children.Add(choose);
+        return Row(loc[Extra.homeRows], row);
+    }
+
+    private static string RowName(string key) => key switch
+    {
+        "trending" => App.Loc[S.trendingWeek],
+        "top-movies" => App.Loc[S.topFilms],
+        "top-series" => App.Loc[S.topSeries],
+        "fresh" => App.Loc[S.freshSeries],
+        "popular" => App.Loc[S.popularFilms],
+        _ => App.Loc.TitleForSection(key),
+    };
 
     private static FrameworkElement Hinted(FrameworkElement row, string hint)
     {
