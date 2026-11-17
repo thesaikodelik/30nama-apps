@@ -80,6 +80,7 @@ public sealed partial class MainWindow : Window
             // The first look a minute in, once the home page has had its requests; then hourly.
             _episodeTimer.Interval = TimeSpan.FromHours(1);
             _ = EpisodeWatch.LookAsync(_app);
+            _ = EpisodeWatch.LookForNewAsync(_app);
         };
         EpisodeWatch.Opened += post => DispatcherQueue.TryEnqueue(() =>
         {

@@ -90,6 +90,64 @@ public static partial class EpisodeWatch
         foreach (var post in due) Show(post, app.Loc);
     }
 
+    private static string NewFile => Path.Combine(Storage.Folder, "new-titles.json");
+
+    private sealed record KeptNew(double Last, List<int> Seen, bool Seeded);
+
+    /// <summary>
+    /// With the alert turned on in Settings, the films and series new on 30nama since the last look:
+    /// the website's newest of each by post id, or home's new releases in a build without the site's
+    /// key. The first look after turning it on only remembers what is there.
+    /// </summary>
+    public static async Task LookForNewAsync(AppModel app)
+    {
+        if (!app.Settings.NotifyNewTitles) return;
+        KeptNew kept;
+        try { kept = Storage.Read(NewFile) is { } text ? JsonSerializer.Deserialize<KeptNew>(text) ?? new KeptNew(0, [], false) : new KeptNew(0, [], false); }
+        catch (Exception) { kept = new KeptNew(0, [], false); }
+        if (kept.Seeded && DateTime.UtcNow - DateTime.UnixEpoch.AddSeconds(kept.Last) < Spacing) return;
+        var newest = new List<Post>();
+        try
+        {
+            if (app.Api.HasSite)
+            {
+                foreach (var kind in new[] { "movie", "series" })
+                    newest.AddRange(SitePosts.Page(await app.Api.SiteAsync(SiteQuery.Newest(kind, null, true, 1), background: true)).Posts);
+            }
+            else newest.AddRange((await app.HomeAsync()).Posts("new_releases"));
+        }
+        catch (Exception e) { App.Log("new titles: " + e.Message); }
+        // Newest first, whichever list it came from.
+        newest = newest.OrderByDescending(p => p.Id).ToList();
+        var titles = new NewTitles(kept.Seen, kept.Seeded);
+        var fresh = titles.Look(newest);
+        if (newest.Count > 0) Storage.Write(NewFile, JsonSerializer.Serialize(new KeptNew((DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds, titles.Seen.ToList(), titles.Seeded)));
+        if (fresh.Count > 0) ShowNew(fresh, app.Loc);
+    }
+
+    private static void ShowNew(IReadOnlyList<Post> fresh, Loc loc)
+    {
+        try
+        {
+            var xml = new XmlDocument();
+            var title = System.Security.SecurityElement.Escape(loc[Extra.newOn30nama]);
+            var line = System.Security.SecurityElement.Escape(NewTitles.Line(fresh, loc.Lang, n => loc[Extra.andMore].Replace("{n}", loc.Num(n))));
+            xml.LoadXml($"""<toast launch="post={fresh[0].Id}"><visual><binding template="ToastGeneric"><text>{title}</text><text>{line}</text></binding></visual></toast>""");
+            var toast = new ToastNotification(xml) { Tag = "new-titles" };
+            toast.Activated += (_, args) =>
+            {
+                if (args is ToastActivatedEventArgs { Arguments: { } text } && text.StartsWith("post=") && int.TryParse(text[5..], out var id)) Opened?.Invoke(id);
+            };
+            lock (Shown)
+            {
+                Shown.Add(toast);
+                if (Shown.Count > 20) Shown.RemoveAt(0);
+            }
+            ToastNotificationManager.CreateToastNotifier(AppId).Show(toast);
+        }
+        catch (Exception e) { App.Log("notification: " + e.Message); }
+    }
+
     public static void Show(Post post, Loc loc)
     {
         try

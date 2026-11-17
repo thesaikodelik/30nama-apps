@@ -130,6 +130,12 @@ public sealed class SettingsPage : Grid
             Row(loc[S.downloadFolder], folderRow),
             .. DownloaderRow(s),
             Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
+            // Off until turned on; turned on, the first look is made now and only remembers what is there.
+            Hinted(Row(loc[Extra.newTitlesAlert], Toggle(s.NotifyNewTitles, v =>
+            {
+                App.Update(x => x with { NotifyNewTitles = v });
+                if (v) _ = EpisodeWatch.LookForNewAsync(App);
+            })), loc[Extra.newTitlesHint]),
             Hours(s),
             Row(loc[S.downloadsAtOnce], Choice(Settings.AtOnceChoices.Select(n => (loc.Num(n), (object)n)), s.DownloadsAtOnce, v => App.Update(x => x with { DownloadsAtOnce = (int)v }))),
             Row(loc[S.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[S.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
