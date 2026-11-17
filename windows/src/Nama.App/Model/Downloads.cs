@@ -209,10 +209,19 @@ public sealed partial class Downloads
     // MARK: Actions
 
     /// <summary>Starts fetching one file. Asking for a file that is already in the list does nothing.</summary>
-    public void Start(DownloadFile file, Post post)
+    /// <returns>False when nothing started here: listed already, or handed to another download manager (which says so).</returns>
+    public bool Start(DownloadFile file, Post post)
     {
-        if (Has(file)) return;
+        if (Has(file)) return false;
         var loc = _app.Loc;
+        // IDM or FDM, chosen in Settings and still installed: the file is theirs, and its Persian
+        // subtitle is put beside it here.
+        if (Shell.OtherDownloaders.Chosen(_app.Settings) is { } other && Shell.OtherDownloaders.Send(other, file.Url, Folder, file.FileName))
+        {
+            _ = SubtitlesOnlyAsync([file], post);
+            _app.ShowToast($"{loc[Extra.sentTo]} {ExternalDownloader.Name(ExternalDownloader.Of(other), other)}");
+            return false;
+        }
         var parts = new List<string>();
         if (file.Season is { } season && file.Episode is { } episode) parts.Add(loc.EpisodeTag(season, episode));
         parts.Add(file.Summary);
@@ -232,6 +241,7 @@ public sealed partial class Downloads
         if (file.Subtitle is { } subtitle) _ = FetchSubtitleAsync(subtitle, item.Id);
         else FindSubtitle(item.Id, quietly: true);
         Changed?.Invoke();
+        return true;
     }
 
     /// <summary>

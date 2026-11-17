@@ -12,6 +12,8 @@ public enum Extra
     showInFolder, keepInTray, keepInTrayHint, openApp, quit,
     // The Mac's keySaved and yourNameHint say "this Mac"; on Windows it is this computer.
     keySavedHere, yourNameHintHere,
+    // Windows' own, until L10n.swift has them.
+    downloadWith, sentTo, anotherProgram,
 }
 #pragma warning restore IDE1006
 
@@ -22,6 +24,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.downloadWith] = "Download with",
+        [Extra.sentTo] = "Sent to",
+        [Extra.anotherProgram] = "Another program…",
         [Extra.keepInTray] = "Keep running in the notification area",
         [Extra.keepInTrayHint] = "Closing the window leaves the app beside the clock, so downloads go on.",
         [Extra.openApp] = "Open 30nama",
@@ -45,6 +50,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.downloadWith] = "دانلود با",
+        [Extra.sentTo] = "فرستاده شد به",
+        [Extra.anotherProgram] = "برنامهٔ دیگر…",
         [Extra.keepInTray] = "ماندن در کنار ساعت ویندوز",
         [Extra.keepInTrayHint] = "با بستن پنجره، برنامه کنار ساعت می‌ماند تا دانلودها ادامه پیدا کنند.",
         [Extra.openApp] = "باز کردن ۳۰نما",
@@ -68,6 +76,9 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.downloadWith] = "التنزيل عبر",
+        [Extra.sentTo] = "أُرسل إلى",
+        [Extra.anotherProgram] = "برنامج آخر…",
         [Extra.keepInTray] = "البقاء في منطقة الإشعارات",
         [Extra.keepInTrayHint] = "إغلاق النافذة يُبقي التطبيق بجانب الساعة لتستمر التنزيلات.",
         [Extra.openApp] = "فتح 30nama",

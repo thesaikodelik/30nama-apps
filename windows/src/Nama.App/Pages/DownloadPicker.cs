@@ -117,8 +117,8 @@ public sealed class DownloadPicker : Grid
             buttons.Children.Add(SubtitleButton(wide: true, had: false, () => Downloads.SubtitlesOnlyAsync(chosen.Files, _post)));
             var whole = Kit.Primary(Loc.Isolated($"{Loc[S.wholeSeason]} · {Loc.Num(left.Count)} {Loc[S.episode]}"), Glyph.Download, () =>
             {
-                foreach (var file in left) Downloads.Start(file, _post);
-                App.ShowToast(Loc[S.downloadStarted]);
+                // Handed to another download manager, the toast says so instead.
+                if (left.Count(file => Downloads.Start(file, _post)) > 0) App.ShowToast(Loc[S.downloadStarted]);
                 _close();
             }, _hue);
             whole.IsEnabled = left.Count > 0;
@@ -204,8 +204,7 @@ public sealed class DownloadPicker : Grid
                 block.Children.Add(FileRow(file.Quality, file.Encoder, file.Tags, file.Size, file.Subtitle is not null, null, listed ? Mark.Listed : Mark.Ready,
                     () =>
                     {
-                        Downloads.Start(file, _post);
-                        App.ShowToast(Loc[S.downloadStarted]);
+                        if (Downloads.Start(file, _post)) App.ShowToast(Loc[S.downloadStarted]);
                         _close();
                     },
                     SubtitleButton(wide: false, Downloads.HasSubtitle(file), () => Downloads.SubtitlesOnlyAsync([file], _post))));
@@ -289,8 +288,7 @@ public sealed class DownloadPicker : Grid
             var button = Theme.Bare(face, () =>
             {
                 if (file is null || listed) return;
-                Downloads.Start(file, _post);
-                App.ShowToast(Loc[S.downloadStarted]);
+                if (Downloads.Start(file, _post)) App.ShowToast(Loc[S.downloadStarted]);
             });
             button.IsEnabled = available && !listed;
             if (!available) ToolTipService.SetToolTip(button, Loc[S.notInPack]);

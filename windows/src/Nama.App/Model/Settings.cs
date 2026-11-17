@@ -79,6 +79,10 @@ public sealed record Settings
     public int? DownloadFrom { get; init; }
     public int? DownloadTo { get; init; }
     /// <summary>The user's own SubSource key, if they made one. Kept on this computer only.</summary>
+    /// <summary>"idm" or "fdm": every download is handed to that program; null for the app's own downloader (from vispar).</summary>
+    public string? Downloader { get; init; }
+    /// <summary>The program the user chose for "other": any download manager's .exe.</summary>
+    public string? DownloaderProgram { get; init; }
     public string? SubsourceKey { get; init; }
     /// <summary>The user's own Gemini key, for translating English subtitles. Kept on this computer only.</summary>
     public string? GeminiKey { get; init; }

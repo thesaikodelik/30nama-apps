@@ -128,6 +128,7 @@ public sealed class SettingsPage : Grid
         Group(loc[S.downloads],
         [
             Row(loc[S.downloadFolder], folderRow),
+            .. DownloaderRow(s),
             Row(loc[Extra.keepInTray], Toggle(s.KeepInTray, v => App.Update(x => x with { KeepInTray = v }))),
             Hours(s),
             Row(loc[S.downloadsAtOnce], Choice(Settings.AtOnceChoices.Select(n => (loc.Num(n), (object)n)), s.DownloadsAtOnce, v => App.Update(x => x with { DownloadsAtOnce = (int)v }))),
@@ -163,6 +164,37 @@ public sealed class SettingsPage : Grid
         {
             CornerRadius = new CornerRadius(18), Background = Theme.White(0.05), BorderThickness = new Thickness(1), BorderBrush = Theme.White(0.08), Child = card,
         });
+    }
+
+    /// <summary>
+    /// The program every download goes to: the app itself, IDM or FDM where installed, or any
+    /// download manager the user points to (from vispar). A choice whose program has gone falls
+    /// back to the app.
+    /// </summary>
+    private FrameworkElement[] DownloaderRow(Settings s)
+    {
+        var loc = App.Loc;
+        var choices = new List<(string, object)> { (loc[S.thisApp], "") };
+        choices.AddRange(OtherDownloaders.Installed().Select(k => (ExternalDownloader.Name(k), (object)ExternalDownloader.Code(k))));
+        if (s.DownloaderProgram is { } own && File.Exists(own)) choices.Add((ExternalDownloader.Name(ExternalDownloader.Kind.Other, own), "other"));
+        choices.Add((loc[Extra.anotherProgram], "pick"));
+        var current = OtherDownloaders.Chosen(s) is not null ? s.Downloader! : "";
+        return [Row(loc[Extra.downloadWith], Choice(choices, current, v =>
+        {
+            if ((string)v == "pick") _ = PickDownloaderAsync();
+            else App.Update(x => x with { Downloader = (string)v is { Length: > 0 } code ? code : null });
+        }))];
+    }
+
+    /// <summary>The user's own download manager, by its program; nothing changes when the picker is closed.</summary>
+    private async Task PickDownloaderAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker { SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder };
+        picker.FileTypeFilter.Add(".exe");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSingleFileAsync() is { } file) App.Update(x => x with { Downloader = "other", DownloaderProgram = file.Path });
+        // Cancelled, the list goes back to what was chosen.
+        else Render();
     }
 
     private static FrameworkElement Hinted(FrameworkElement row, string hint)
