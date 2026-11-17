@@ -299,7 +299,7 @@ public sealed class NavBar : Grid
             var ink = Theme.Text1.WithAlpha(selected ? 1 : 0.7);
             var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center };
             if (Nav.IconOnly(section) || section == Section.Profile) label.Children.Add(Glyph.Icon(Nav.Symbol(section), 16, ink));
-            if (!Nav.IconOnly(section)) label.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, ink));
+            if (!Nav.IconOnly(section)) label.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, ink).Tight());
             var face = new Border
             {
                 Height = 40,
@@ -312,7 +312,7 @@ public sealed class NavBar : Grid
             {
                 var words = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
                 if (Nav.IconOnly(section) || section == Section.Profile) words.Children.Add(Glyph.Icon(Nav.Symbol(section), 16, Colors.White));
-                if (!Nav.IconOnly(section)) words.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, Colors.White));
+                if (!Nav.IconOnly(section)) words.Children.Add(Theme.Text(loc[Nav.Title(section)], 15.5, FontWeights.SemiBold, Colors.White).Tight());
                 _inkLabel = new Border { Child = words, FlowDirection = FlowDirection };
                 _inkFor = section;
                 _ink.Children.Add(_inkLabel);

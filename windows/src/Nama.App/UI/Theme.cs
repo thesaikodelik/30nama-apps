@@ -105,6 +105,23 @@ public static class Theme
         return family;
     }
 
+    /// <summary>
+    /// A button's or a chip's words, centred by their letters rather than by their line: Vazirmatn's
+    /// line keeps much room below the baseline for Persian, which set every label two or three pixels
+    /// above the middle of its button (the owner).
+    /// </summary>
+    public static TextBlock Tight(this TextBlock text)
+    {
+        // Measured on the update capsule's button: with the whole line, Latin capitals sat a tenth
+        // of the size high, and trimmed to Vazirmatn's cap height a tenth low (its cap height is
+        // taller than its capitals). Persian sits lower in the line and was already in the middle.
+        // So Latin words are moved down by that tenth, and Persian or Arabic ones are left.
+        text.VerticalAlignment = VerticalAlignment.Center;
+        if (!text.Text.Any(c => c is >= '؀' and <= 'ۿ' or >= 'ﭐ' and <= '﻿'))
+            text.RenderTransform = new TranslateTransform { Y = Math.Round(text.FontSize * 0.1, 1) };
+        return text;
+    }
+
     public static TextBlock Text(string text, double size, FontWeight? weight = null, Color? color = null, int lines = 1)
     {
         var w = weight ?? FontWeights.Normal;

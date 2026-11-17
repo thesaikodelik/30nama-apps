@@ -41,7 +41,7 @@ public static class Kit
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         if (glyph is not null) row.Children.Add(Glyph.Icon(glyph, size * 0.9, color));
-        row.Children.Add(Theme.Text(text, size, weight, color));
+        row.Children.Add(Theme.Text(text, size, weight, color).Tight());
         return row;
     }
 
@@ -163,9 +163,8 @@ public static class Kit
             Padding = new Thickness(13, 0, 13, 0),
             CornerRadius = new CornerRadius(15),
             Background = selected ? Theme.Brush(Colors.White) : Theme.White(0.1),
-            Child = Theme.Text(title, 13, FontWeights.SemiBold, selected ? Theme.FocusInk : Theme.Text1),
+            Child = Theme.Text(title, 13, FontWeights.SemiBold, selected ? Theme.FocusInk : Theme.Text1).Tight(),
         };
-        ((TextBlock)face.Child).VerticalAlignment = VerticalAlignment.Center;
         var button = Theme.Bare(face, click);
         AutomationName(button, title);
         if (!selected)
@@ -188,7 +187,7 @@ public static class Kit
         VerticalAlignment = VerticalAlignment.Center,
     };
 
-    private static Border ChipText(string text) => Chip(Centered(Theme.Text(text, 13, FontWeights.SemiBold)));
+    private static Border ChipText(string text) => Chip(Theme.Text(text, 13, FontWeights.SemiBold).Tight());
 
     private static T Centered<T>(T element) where T : FrameworkElement
     {
@@ -200,8 +199,8 @@ public static class Kit
     private static Border ScoreChip(string name, string value, Color color)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, FlowDirection = FlowDirection.LeftToRight };
-        row.Children.Add(Centered(Theme.Text(name, 11, FontWeights.ExtraBold, color)));
-        row.Children.Add(Centered(Theme.Text(value, 13, FontWeights.SemiBold)));
+        row.Children.Add(Theme.Text(name, 11, FontWeights.ExtraBold, color).Tight());
+        row.Children.Add(Theme.Text(value, 13, FontWeights.SemiBold).Tight());
         return Chip(row);
     }
 

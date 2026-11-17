@@ -80,8 +80,7 @@ public sealed class UpdatePill : Grid
             Updater.Phases.Failed => Loc[S.updateFailed],
             _ => $"{Loc[S.newVersion]} {Loc.Num(version)}",
         };
-        var text = Theme.Text(message, 14, FontWeights.SemiBold);
-        text.VerticalAlignment = VerticalAlignment.Center;
+        var text = Theme.Text(message, 14, FontWeights.SemiBold).Tight();
         _row.Children.Add(text);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         switch (phase)
@@ -113,7 +112,7 @@ public sealed class UpdatePill : Grid
             Background = prominent ? Theme.White(0.92) : Theme.White(0),
         };
         FrameworkElement content = glyph is null
-            ? Theme.Text(title, 13.5, FontWeights.Bold, prominent ? Theme.FocusInk : Theme.Text1)
+            ? Theme.Text(title, 13.5, FontWeights.Bold, prominent ? Theme.FocusInk : Theme.Text1).Tight()
             : Glyph.Icon(glyph, 11, Theme.Text1.WithAlpha(0.7));
         content.HorizontalAlignment = HorizontalAlignment.Center;
         content.VerticalAlignment = VerticalAlignment.Center;
