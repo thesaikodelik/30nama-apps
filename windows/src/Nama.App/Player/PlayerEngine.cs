@@ -124,6 +124,7 @@ public sealed class PlayerEngine
         SubtitleLanguage = app.Settings.DefaultSubtitle;
         Volume = app.Settings.Volume;
         Playback = new MpvPlayback(ui, app.Settings.BufferSeconds);
+        Playback.SetFit(app.Settings.PictureFit);
         Preview = new SeekPreview(ui);
         Playback.Ended += Finished;
         Playback.Failed += Failed;
@@ -462,6 +463,14 @@ public sealed class PlayerEngine
                 Place(at);
             });
         }, TaskScheduler.Default);
+    }
+
+    /// <summary>What is around the picture (bars, the scene's glow) or whether it fills the player; kept for every film after.</summary>
+    public void SetAroundPicture(string choice)
+    {
+        _app.Update(s => s.WithAroundPicture(choice));
+        Playback.SetFit(_app.Settings.PictureFit);
+        Changed?.Invoke();
     }
 
     public void SetSpeed(double value)

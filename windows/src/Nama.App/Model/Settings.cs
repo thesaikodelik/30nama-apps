@@ -7,6 +7,9 @@ namespace Nama.App.Model;
 
 public enum SubtitleColor { White, Yellow, Cyan, Green }
 
+/// <summary>How the film fills the player: whole with bars, cropped to fill, or stretched (from vispar).</summary>
+public enum PictureFit { Fit, Fill, Stretch }
+
 /// <summary>What sits behind subtitle text: nothing (outlined text), or a black plate at half or full strength.</summary>
 public enum SubtitleBackground { None, Half, Solid }
 
@@ -30,6 +33,23 @@ public sealed record Settings
     /// leaves, or plain black bars. As the Mac's "ambientLight", on unless turned off.
     /// </summary>
     public bool SceneGlow { get; init; } = true;
+    /// <summary>With SceneGlow, the one choice "Around the picture": black bars, the scene's glow, filled or stretched (the owner).</summary>
+    public PictureFit PictureFit { get; init; } = PictureFit.Fit;
+
+    /// <summary>That choice as one value: "bars", "glow", "fill" or "stretch".</summary>
+    [JsonIgnore]
+    public string AroundPicture => PictureFit switch { PictureFit.Fill => "fill", PictureFit.Stretch => "stretch", _ => SceneGlow ? "glow" : "bars" };
+
+    public Settings WithAroundPicture(string choice) => choice switch
+    {
+        "fill" => this with { PictureFit = PictureFit.Fill },
+        "stretch" => this with { PictureFit = PictureFit.Stretch },
+        "bars" => this with { PictureFit = PictureFit.Fit, SceneGlow = false },
+        _ => this with { PictureFit = PictureFit.Fit, SceneGlow = true },
+    };
+
+    /// <summary>The choices, in the order shown.</summary>
+    public static readonly string[] AroundChoices = ["glow", "bars", "fill", "stretch"];
     public AudioMix AudioMix { get; init; } = AudioMix.Stereo;
     /// <summary>Use the adaptive stream instead of the highest fixed rendition.</summary>
     public bool PreferAdaptive { get; init; }

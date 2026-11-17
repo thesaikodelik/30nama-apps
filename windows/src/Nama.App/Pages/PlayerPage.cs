@@ -393,7 +393,7 @@ public sealed partial class PlayerPage : Grid
 
     /// <summary>The bars the picture leaves, lit by the picture's own edges as an aurora (Settings › Around the picture).</summary>
     private readonly Grid _glow = new() { IsHitTestVisible = false, FlowDirection = FlowDirection.LeftToRight };
-    private (double Aspect, double Width, double Height, bool On) _glowShown;
+    private (double Aspect, double Width, double Height, bool On, PictureFit Fit) _glowShown;
     private (AuroraBand Band, Image Image)[] _bands = [];
     private bool _bandsAcross;
     private double _bar;
@@ -411,14 +411,15 @@ public sealed partial class PlayerPage : Grid
     private void ShowGlow()
     {
         var aspect = _engine.Playback.Aspect;
-        var shown = (aspect, ActualWidth, ActualHeight, App.Settings.SceneGlow);
+        var shown = (aspect, ActualWidth, ActualHeight, App.Settings.SceneGlow, App.Settings.PictureFit);
         if (shown == _glowShown) return;
         _glowShown = shown;
         _glow.Children.Clear();
         _glow.RowDefinitions.Clear();
         _glow.ColumnDefinitions.Clear();
         _bands = [];
-        if (!App.Settings.SceneGlow || aspect <= 0 || ActualWidth <= 0 || ActualHeight <= 0) return;
+        // Filled or stretched, the picture leaves no bars to light.
+        if (!App.Settings.SceneGlow || App.Settings.PictureFit != PictureFit.Fit || aspect <= 0 || ActualWidth <= 0 || ActualHeight <= 0) return;
         var wide = aspect > ActualWidth / ActualHeight;
         var bar = wide ? (ActualHeight - ActualWidth / aspect) / 2 : (ActualWidth - ActualHeight * aspect) / 2;
         if (bar < 10) return;
@@ -804,6 +805,11 @@ public sealed partial class PlayerPage : Grid
                 sounds.Items.Add(Radio(Loc[mix switch { AudioMix.Stereo => S.audioStereo, AudioMix.Surround => S.audioSurround, _ => S.audioOriginal }], "mix", mix == _engine.Mix, () => _engine.SelectMix(mix)));
             menu.Items.Add(sounds);
         }
+        // As in Settings: bars, the scene's glow, or the picture filling the player.
+        var around = new MenuFlyoutSubItem { Text = Loc[S.aroundPicture] };
+        foreach (var choice in Settings.AroundChoices)
+            around.Items.Add(Radio(AroundName(choice), "around", App.Settings.AroundPicture == choice, () => _engine.SetAroundPicture(choice)));
+        menu.Items.Add(around);
         var sleep = new MenuFlyoutSubItem { Text = Loc[S.sleepTimer] };
         foreach (var choice in PlayerEngine.SleepTimer.Choices)
         {
@@ -822,6 +828,14 @@ public sealed partial class PlayerPage : Grid
         menu.Items.Add(keys);
         return menu;
     }
+
+    public static string AroundName(string choice) => choice switch
+    {
+        "bars" => App.Loc[S.blackBars],
+        "fill" => App.Loc[Extra.fillPicture],
+        "stretch" => App.Loc[Extra.stretchPicture],
+        _ => App.Loc[S.sceneGlow],
+    };
 
     private async Task ChooseSubtitleFileAsync()
     {

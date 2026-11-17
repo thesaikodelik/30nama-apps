@@ -103,7 +103,8 @@ public sealed class SettingsPage : Grid
             Row(loc[S.audio], Choice([(loc[S.audioStereo], AudioMix.Stereo), (loc[S.audioSurround], AudioMix.Surround), (loc[S.audioOriginal], (object)AudioMix.Original)], s.AudioMix, v => App.Update(x => x with { AudioMix = (AudioMix)v }))),
             Row(loc[S.autoplay], Toggle(s.AutoplayNext, v => App.Update(x => x with { AutoplayNext = v }))),
             Row(loc[S.autoSkip], Toggle(s.AutoSkip, v => App.Update(x => x with { AutoSkip = v }))),
-            Row(loc[S.aroundPicture], Choice([(loc[S.blackBars], false), (loc[S.sceneGlow], (object)true)], s.SceneGlow, v => App.Update(x => x with { SceneGlow = (bool)v }))),
+            // One choice with what is around the picture: bars, the scene's glow, or none, the picture filling the player (the owner).
+            Row(loc[S.aroundPicture], Choice(Settings.AroundChoices.Select(c => (PlayerPage.AroundName(c), (object)c)), s.AroundPicture, v => App.Update(x => x.WithAroundPicture((string)v)))),
             Row(loc[S.bufferTime], Choice(Settings.BufferChoices.Select(n => (n == 0 ? loc[S.qualityAuto] : $"{loc.Num(n)} {loc[S.seconds]}", (object)n)), s.BufferSeconds, v => App.Update(x => x with { BufferSeconds = (int)v }))),
             Row(loc[S.reduceMotion], Toggle(s.ReduceMotion, v => App.Update(x => x with { ReduceMotion = v }))),
             Hinted(Row(loc[S.dataSaver], Toggle(s.DataSaver, v => App.Update(x => x with { DataSaver = v }))), loc[S.dataSaverHint]),

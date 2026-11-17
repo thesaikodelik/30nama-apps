@@ -218,6 +218,13 @@ public sealed class MpvPlayback : IDisposable
     public void SetVolume(double volume) => Set("volume", ((int)(volume * 100)).ToString(CultureInfo.InvariantCulture));
     public void SetMuted(bool muted) => Set("mute", muted ? "yes" : "no");
 
+    /// <summary>Fill crops the picture to the window (panscan); stretch drops its shape (keepaspect). Both hold from file to file.</summary>
+    public void SetFit(Model.PictureFit fit)
+    {
+        Set("panscan", fit == Model.PictureFit.Fill ? "1.0" : "0.0");
+        Set("keepaspect", fit == Model.PictureFit.Stretch ? "no" : "yes");
+    }
+
     public void Dispose()
     {
         if (_handle == IntPtr.Zero || _stopping) return;

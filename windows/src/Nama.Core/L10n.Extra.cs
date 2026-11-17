@@ -15,6 +15,7 @@ public enum Extra
     // Windows' own, until L10n.swift has them.
     downloadWith, sentTo, anotherProgram,
     newTitlesAlert, newTitlesHint, newOn30nama, andMore,
+    fillPicture, stretchPicture,
 }
 #pragma warning restore IDE1006
 
@@ -25,6 +26,8 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.fillPicture] = "Fill",
+        [Extra.stretchPicture] = "Stretch",
         [Extra.newTitlesAlert] = "New title alerts",
         [Extra.newTitlesHint] = "A Windows notification when films or series are added to 30nama, looked for every few hours.",
         [Extra.newOn30nama] = "New on 30nama",
@@ -55,6 +58,8 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.fillPicture] = "پر کردن صفحه",
+        [Extra.stretchPicture] = "کشیدن",
         [Extra.newTitlesAlert] = "اعلان عنوان‌های تازه",
         [Extra.newTitlesHint] = "وقتی فیلم یا سریالی به ۳۰نما اضافه می‌شود، با اعلان ویندوز خبر می‌دهد. هر چند ساعت یک بار نگاه می‌کند.",
         [Extra.newOn30nama] = "تازه در ۳۰نما",
@@ -85,6 +90,8 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.fillPicture] = "ملء الشاشة",
+        [Extra.stretchPicture] = "تمديد",
         [Extra.newTitlesAlert] = "تنبيهات العناوين الجديدة",
         [Extra.newTitlesHint] = "إشعار من ويندوز عند إضافة أفلام أو مسلسلات إلى 30nama، يُتحقق منه كل بضع ساعات.",
         [Extra.newOn30nama] = "جديد على 30nama",
