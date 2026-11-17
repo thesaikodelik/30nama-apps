@@ -117,10 +117,13 @@ public static class Theme
         // taller than its capitals). Persian sits lower in the line and was already in the middle.
         // So Latin words are moved down by that tenth, and Persian or Arabic ones are left.
         text.VerticalAlignment = VerticalAlignment.Center;
-        if (!text.Text.Any(c => c is >= '؀' and <= 'ۿ' or >= 'ﭐ' and <= 'ﻼ'))
+        if (!text.Text.Any(IsArabicScript))
             text.RenderTransform = new TranslateTransform { Y = Math.Round(text.FontSize * 0.1, 1) };
         return text;
     }
+
+    /// <summary>A Persian or Arabic letter or digit, in the base block or the presentation forms.</summary>
+    private static bool IsArabicScript(char c) => c is (>= (char)0x0600 and <= (char)0x06FF) or (>= (char)0xFB50 and <= (char)0xFEFC);
 
     public static TextBlock Text(string text, double size, FontWeight? weight = null, Color? color = null, int lines = 1)
     {
