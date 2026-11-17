@@ -16,6 +16,7 @@ public enum Extra
     downloadWith, sentTo, anotherProgram,
     newTitlesAlert, newTitlesHint, newOn30nama, andMore,
     fillPicture, stretchPicture,
+    backupGroup, backupHint, saveBackup, restoreBackup, backupSaved, backupRestored, backupNotOurs, backupNewer,
 }
 #pragma warning restore IDE1006
 
@@ -26,6 +27,14 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraEn = new Dictionary<Extra, string>
     {
+        [Extra.backupGroup] = "Backup",
+        [Extra.backupHint] = "Ratings, what you watched, where you left each title and the settings, in one file to bring to another computer. Your keys stay on this one.",
+        [Extra.saveBackup] = "Save a backup…",
+        [Extra.restoreBackup] = "Restore…",
+        [Extra.backupSaved] = "Backup saved",
+        [Extra.backupRestored] = "Restored. 30nama opens again.",
+        [Extra.backupNotOurs] = "This is not a 30nama backup",
+        [Extra.backupNewer] = "Made by a newer 30nama: update the app first",
         [Extra.fillPicture] = "Fill",
         [Extra.stretchPicture] = "Stretch",
         [Extra.newTitlesAlert] = "New title alerts",
@@ -58,6 +67,14 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraFa = new Dictionary<Extra, string>
     {
+        [Extra.backupGroup] = "پشتیبان",
+        [Extra.backupHint] = "امتیازها، دیده‌شده‌ها، جای ادامهٔ هر عنوان و تنظیمات، در یک فایل برای بردن به کامپیوتر دیگر. کلیدهای شما روی همین کامپیوتر می‌مانند.",
+        [Extra.saveBackup] = "ذخیرهٔ پشتیبان…",
+        [Extra.restoreBackup] = "برگرداندن…",
+        [Extra.backupSaved] = "پشتیبان ذخیره شد",
+        [Extra.backupRestored] = "برگردانده شد. ۳۰نما دوباره باز می‌شود.",
+        [Extra.backupNotOurs] = "این فایل پشتیبان ۳۰نما نیست",
+        [Extra.backupNewer] = "با نسخهٔ تازه‌تر ۳۰نما ساخته شده؛ اول برنامه را به‌روز کنید",
         [Extra.fillPicture] = "پر کردن صفحه",
         [Extra.stretchPicture] = "کشیدن",
         [Extra.newTitlesAlert] = "اعلان عنوان‌های تازه",
@@ -90,6 +107,14 @@ public sealed partial class Loc
 
     internal static readonly IReadOnlyDictionary<Extra, string> ExtraAr = new Dictionary<Extra, string>
     {
+        [Extra.backupGroup] = "النسخ الاحتياطي",
+        [Extra.backupHint] = "التقييمات وما شاهدته وموضع كل عنوان والإعدادات، في ملف واحد لنقلها إلى حاسوب آخر. تبقى مفاتيحك على هذا الحاسوب.",
+        [Extra.saveBackup] = "حفظ نسخة احتياطية…",
+        [Extra.restoreBackup] = "استعادة…",
+        [Extra.backupSaved] = "تم حفظ النسخة الاحتياطية",
+        [Extra.backupRestored] = "تمت الاستعادة. سيُعاد فتح 30nama.",
+        [Extra.backupNotOurs] = "هذا ليس ملف نسخة احتياطية من 30nama",
+        [Extra.backupNewer] = "أُنشئ بإصدار أحدث من 30nama: حدّث التطبيق أولاً",
         [Extra.fillPicture] = "ملء الشاشة",
         [Extra.stretchPicture] = "تمديد",
         [Extra.newTitlesAlert] = "تنبيهات العناوين الجديدة",

@@ -142,6 +142,12 @@ public sealed class SettingsPage : Grid
             Row(loc[S.downloadSpeed], Choice(Settings.LimitChoices.Select(k => (k == 0 ? loc[S.unlimited] : k >= 1024 ? $"{loc.Num(k / 1024)} MB/s" : $"{loc.Num(k)} KB/s", (object)k)), s.DownloadLimit, v => App.Update(x => x with { DownloadLimit = (int)v }))),
         ]);
 
+        // From vispar: this computer's ratings, watched titles, places and settings, carried in one file.
+        var backupRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        backupRow.Children.Add(Kit.Glass(loc[Extra.saveBackup], null, () => _ = SaveBackupAsync(), height: 34));
+        backupRow.Children.Add(Kit.Glass(loc[Extra.restoreBackup], null, () => _ = RestoreBackupAsync(), height: 34));
+        Group(loc[Extra.backupGroup], [Hinted(Row(loc[Extra.backupGroup], backupRow), loc[Extra.backupHint])]);
+
         Group(loc[S.services],
         [
             KeyField("subsource", loc[S.subsourceKey], loc[S.subsourceKeyHint], s.SubsourceKey, v => SaveTyped(x => x with { SubsourceKey = v })),
@@ -202,6 +208,68 @@ public sealed class SettingsPage : Grid
         if (await picker.PickSingleFileAsync() is { } file) App.Update(x => x with { Downloader = "other", DownloaderProgram = file.Path });
         // Cancelled, the list goes back to what was chosen.
         else Render();
+    }
+
+    private static async Task SaveBackupAsync()
+    {
+        var loc = App.Loc;
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"30nama-backup-{DateTime.Now:yyyy-MM-dd}" };
+        picker.FileTypeChoices.Add("JSON", [".json"]);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSaveFileAsync() is not { } file) return;
+        try
+        {
+            App.Settings.Save();
+            var files = Backup.Files.ToDictionary(name => name, name => Storage.Read(Path.Combine(Storage.Folder, name)));
+            await File.WriteAllTextAsync(file.Path, Backup.Make(files, DateTime.UtcNow), new System.Text.UTF8Encoding(false));
+            App.ShowToast(loc[Extra.backupSaved]);
+        }
+        catch (Exception) { App.ShowToast(loc[S.error]); }
+    }
+
+    /// <summary>
+    /// The backup's files in place of this computer's, its own keys and paths kept, and the app
+    /// opened again: what it holds in memory would otherwise be written back over them.
+    /// </summary>
+    private static async Task RestoreBackupAsync()
+    {
+        var loc = App.Loc;
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        picker.FileTypeFilter.Add(".json");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Shared));
+        if (await picker.PickSingleFileAsync() is not { } file) return;
+        string text;
+        try
+        {
+            if (new FileInfo(file.Path).Length > Backup.MaxChars) { App.ShowToast(loc[Extra.backupNotOurs]); return; }
+            text = await File.ReadAllTextAsync(file.Path);
+        }
+        catch (Exception) { App.ShowToast(loc[S.error]); return; }
+        var (files, problem) = Backup.Read(text);
+        if (files is null)
+        {
+            App.ShowToast(loc[problem == Backup.Problem.NewerVersion ? Extra.backupNewer : Extra.backupNotOurs]);
+            return;
+        }
+        try
+        {
+            foreach (var (name, content) in files)
+            {
+                var path = Path.Combine(Storage.Folder, name);
+                Storage.Write(path, name == Backup.SettingsFile ? Backup.MergeSettings(content, Storage.Read(path)) : content);
+            }
+        }
+        catch (Exception) { App.ShowToast(loc[S.error]); return; }
+        App.ShowToast(loc[Extra.backupRestored]);
+        await Task.Delay(1500);
+        // Opened again once this copy has gone: while it runs, a second one hands itself over to it.
+        if (Environment.ProcessPath is { } self)
+        {
+            var again = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true };
+            foreach (var word in new[] { "/c", "timeout", "/t", "2", "/nobreak", ">nul", "&", "start", "", self }) again.ArgumentList.Add(word);
+            System.Diagnostics.Process.Start(again);
+        }
+        Environment.Exit(0);
     }
 
     private static FrameworkElement Hinted(FrameworkElement row, string hint)
